@@ -12,4 +12,4 @@ For the ingress controller to use the certificate and private key stored in a Ku
 to specify the secret name in the TLS configuration section of their ingress spec. The secret is assumed to 
 exist in the same namespace as the ingress.
 
-..read on [HTTPS - Self Signed Certificates]({{ site.baseurl }}/doc/2017/01/16/app-https.html) how to configure it.
+..read on [HTTPS - Self Signed Certificates](../readmore/https) how to configure it.

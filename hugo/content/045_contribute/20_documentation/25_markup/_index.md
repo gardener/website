@@ -1,7 +1,6 @@
 ---
 title: Markdown
-weight: 25
-disableToc: true
+type: padding
 ---
 
 Hugo uses Markdown for its simple content format. However, there are a lot of things that Markdown 

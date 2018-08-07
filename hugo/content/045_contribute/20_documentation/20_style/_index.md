@@ -1,7 +1,6 @@
 ---
 title: Style Guide
-weight: 10
-disableToc: true
+type: padding
 ---
 
 This page gives writing style guidelines for the Gardener documentation.

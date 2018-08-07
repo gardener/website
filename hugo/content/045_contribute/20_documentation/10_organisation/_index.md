@@ -1,7 +1,6 @@
 ---
 title: Organisation
-weight: 10
-disableToc: true
+type: padding
 ---
 
 ## Content Organisation

@@ -39,4 +39,4 @@ storage class.
    this could take some time and needs some efforts, so brace yourself. 
    
 
-..read some more on [ReadWriteMany]({{ site.baseurl }}/doc/2017/01/16/app-readwritemany.html).
+..read some more on [ReadWriteMany](../readmore/readwritemany).

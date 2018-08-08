@@ -2,6 +2,7 @@
 title: Contribute
 url: /contribute/
 icon: fa fa-plus-square-o
+type: padding
 ---
 
 {{<mermaid>}}

@@ -1,5 +1,5 @@
 ---
-title: As Administrator
+title: Administrator
 url: /using-gardener/administrator
 type: "kb"
 layout: "topic"

@@ -1,5 +1,5 @@
 ---
-title: As App Developer
+title: App Developer
 url: /using-gardener/developer/topic
 type: "kb"
 layout: "topic"

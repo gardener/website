@@ -1,3 +1,6 @@
 # Gardener Landing page 
 
-....for internal usage
+...generated content. Any modifications in the **docs** folder are dropped with the next automatic build.
+
+
+ 

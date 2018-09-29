@@ -17,27 +17,27 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1537801927" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1537801927" rel="stylesheet">
-    <link href="/css/hybrid.css?1537801927" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1537801927" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1537801927" rel="stylesheet">
-    <link href="/css/auto-complete.css?1537801927" rel="stylesheet">
-    <link href="/css/skeleton.css?1537801927" rel="stylesheet">
+    <link href="/css/nucleus.css?1538232547" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1538232547" rel="stylesheet">
+    <link href="/css/hybrid.css?1538232547" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1538232547" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1538232547" rel="stylesheet">
+    <link href="/css/auto-complete.css?1538232547" rel="stylesheet">
+    <link href="/css/skeleton.css?1538232547" rel="stylesheet">
 
-    <script src="/js/moment.js?1537801927"></script>
-    <script src="/js/vivus.js?1537801927"></script>
-    <script src="/js/scrollreveal.js?1537801927"></script>
-    <script src="/js/inlineSVG.js?1537801927"></script>
-    <link href="/css/theme.css?1537801927" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1537801927" rel="stylesheet">
+    <script src="/js/moment.js?1538232547"></script>
+    <script src="/js/vivus.js?1538232547"></script>
+    <script src="/js/scrollreveal.js?1538232547"></script>
+    <script src="/js/inlineSVG.js?1538232547"></script>
+    <link href="/css/theme.css?1538232547" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1538232547" rel="stylesheet">
 
 
     
-      <link href="/css/theme-gardener.css?1537801927" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1538232547" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1537801927"></script>
+    <script src="/js/jquery-2.x.min.js?1538232547"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -105,14 +105,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1537801927"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1537801927"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1538232547"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1538232547"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1537801927"></script>
+<script type="text/javascript" src="/js/search.js?1538232547"></script>
 
   </div>
 
@@ -1215,25 +1215,7 @@
                 
                 <div class="progress">
     <div class="wrapper">
-<nav id="TableOfContents">
-<ul>
-<li>
-<ul>
-<li><a href="#readwritemany-with-persistencevolumes">ReadWriteMany with PersistenceVolumes</a></li>
-<li><a href="#why-efs">Why EFS</a></li>
-<li><a href="#why-not-efs">Why Not EFS</a></li>
-<li><a href="#design">Design</a></li>
-<li><a href="#setup">Setup</a>
-<ul>
-<li><a href="#prepare-your-k8s-cluster">Prepare your K8S cluster</a></li>
-<li><a href="#create-a-efs-storage">Create a EFS Storage</a></li>
-<li><a href="#configure-the-provisioner">Configure the Provisioner</a></li>
-<li><a href="#authorization-the-provisioner">Authorization the Provisioner</a></li>
-<li><a href="#deploy-the-provisioner">Deploy the Provisioner</a></li>
-</ul></li>
-</ul></li>
-</ul>
-</nav>
+
     </div>
 </div>
 
@@ -1282,149 +1264,6 @@
 
 
 
-<h2 id="readwritemany-with-persistencevolumes">ReadWriteMany with PersistenceVolumes</h2>
-
-<p>The efs-provisioner allows you to mount EFS storage as PersistentVolumes in kubernetes. It consists of a container
-that has access to an AWS EFS resource. The container reads a configmap which contains the EFS filesystem ID, the
-AWS region and the name you want to use for your efs-provisioner. This name will be used later when you create a
-storage class.</p>
-
-<blockquote>
-<p>Warning: Dynamically Provisioned PersistentVolumes have a default persistentVolumeReclaimPolicy of DELETE, which
-means if the PersistentVolumeClaim ever gets unbound from the PV, it will delete all the data. If you want to
-change this you need to change the persistentVolumeReclaimPolicy of the created PV’s to “Retain”.</p>
-</blockquote>
-
-<p>Before introducing how to use AWS EFS for Kubernetes, let me recap some terms of Persistent Volumes.</p>
-
-<ul>
-<li><strong>PV (Persistent Volume)</strong>: PV is a piece of storage, it can be NFS, iSCSI, EBS, EFS… The purpose of having PV is to
-decouple the storage from pod’s lifecycle.</li>
-<li><strong>PVC (Persistent Volume Claim)</strong>: PVC provides the method for pods to use PV, it includes the request storage
-size and access mode. If the PV supports ReadWriteMany access mode, then its PVC can be used by multiple pods.</li>
-<li><strong>Storage Class</strong>: This is the abstract layer of PV which hides the implementation of PV from end users.</li>
-</ul>
-
-<h2 id="why-efs">Why EFS</h2>
-
-<ol>
-<li>One app, multiple nodes, same file(s)</li>
-<li>When you have an application that requires multiple virtual machines to access the same file system at the same time,
-AWS EFS is a tool that you can use.</li>
-<li>EFS support encryption.</li>
-<li>EFS is SSD based storage and its storage capacity and pricing will scale in or out as needed, so there is no need
-for the system administrator to do additional operations. It can grow to a petabyte scale.</li>
-<li>EFS now supports NFSv4 lock upgrading and downgrading, so yes, you can use sqlite with EFS… even if it was possible
-to do it before.</li>
-<li>Easy to setup</li>
-</ol>
-
-<h2 id="why-not-efs">Why Not EFS</h2>
-
-<ol>
-<li>Sometimes when you think about using a service like EFS, you may also think about <strong>Cloud Lock</strong> and its negative sides</li>
-<li>Making an EFS backup may decrease your production FS performance; the throughput used by backup counts towards
-your total file system throughput.</li>
-<li>EFS is expensive compared to EBS (probably 2x more EBS pricing)</li>
-<li>EFS is not the magical solution for all your distributed FS problems, it can be slow in many cases. Test, benchmark
-and measure to ensure your if EFS is a good solution for your use case.</li>
-<li>EFS distributed architecture results in a latency overhead for each file read/write operation.</li>
-<li>If you have the possibility to use a CDN, don’t use EFS, keep just files that can not be stored in a CDN.</li>
-<li>It is evident to say, but don’t use EFS as a caching system, sometimes you could be doing this unintentionally.</li>
-<li>Last but not least, even if EFS is a fully managed NFS, you will face performance problems in many cases, resolving
-this could take some time and needs some efforts, so brace yourself.
-<br /></li>
-</ol>
-
-<h2 id="design">Design</h2>
-
-<p>With the above points in your mind, let us have a look the architecture.</p>
-
-<p><img src="https://github.com/freegroup/kube-readwritemany/blob/master//images/aws-efs.png?raw=true" alt="Screen" title="overview" /></p>
-
-<h2 id="setup">Setup</h2>
-
-<p>Basically, there are four steps:</p>
-
-<ul>
-<li>Prepare your Gardener cluster and deploy the <em>kube2iam</em> addon</li>
-<li>Create EFS (only the first time): It includes the tasks: create the EFS in the right subnets, setup the security
-groups to allow Kubernetes nodes to access and enable DNS support/resolution in your VPC.</li>
-<li>Create StorageClass for EFS via efs-provisioner (only the first time).  efs-provisioner runs as a container which
-plays the role of EFS broker. It allows other pods to mount EFS as the persistent volumes. Just be aware of that EFS
-is built on top of NFS4, so you need to have nfs-common packages installed in your Kubernetes nodes</li>
-<li>Create a PVC to use the StorageClass for EFS. Just note that EFS has unlimited storage, so the storage size request
-actually does not take any effects here. But you still have to keep it to pass the syntax check.</li>
-</ul>
-
-<h3 id="prepare-your-k8s-cluster">Prepare your K8S cluster</h3>
-
-<p>Edit the garden cluster shoot manifest (shown below) and paste the highlighted <a href="https://github.com/freegroup/kube-readwritemany/blob/master//shoot-example.yaml#L22-L51">AWS IAM role shoot.yaml snippet</a>
-at the right place in your shoot YAML. This updates your cluster and creates the correct IAM role on AWS for you.</p>
-
-<p><img src="https://github.com/freegroup/kube-readwritemany/blob/master//images/efs-gardener-edit.gif?raw=true" alt="Screen" title="Screencast" /></p>
-
-<p>reconciling the AWS IAM role can take some minutes&hellip;.</p>
-
-<h3 id="create-a-efs-storage">Create a EFS Storage</h3>
-
-<p>After editing the Gardener cluster YAML you are ready to create the EFS storage.
- - Select EFS Service
- - Create an EFS Storage (shown in the screencast below)
-    - Select the right VPC
-    - Add the new create IAM role to the EFS permission
-    - Copy the access path or EFS id</p>
-
-<p><img src="https://github.com/freegroup/kube-readwritemany/blob/master//images/efs-create-aws.gif?raw=true" alt="Screen" title="Screencast" /></p>
-
-<h3 id="configure-the-provisioner">Configure the Provisioner</h3>
-
-<p>Update the <a href="https://github.com/freegroup/kube-readwritemany/blob/master//yaml/01_efs-configmap.yaml">configmap</a> with the File system ID and Amazon EC2 region of the EFS file system
-you wish to provision NFS PVs from.</p>
-
-<pre><code class="language-yaml">apiVersion: v1
-data:
-  aws.region: &lt;EFS-REGION&gt;
-  file.system.id: &lt;EFS-ID&gt;
-  provisioner.name: example.com/aws-efs
-kind: ConfigMap
-metadata:
-  name: efs-provisioner
-</code></pre>
-
-<h3 id="authorization-the-provisioner">Authorization the Provisioner</h3>
-
-<p>Your cluster has RBAC enabled per default and you must authorize the provisioner. If you are in a
-namespace/project other than <code>default</code> either edit <a href="https://github.com/freegroup/kube-readwritemany/blob/master//yaml/02_efs-rbac.yaml">efs-rbac.yaml</a> or edit the policy
-command accordingly.</p>
-
-<h3 id="deploy-the-provisioner">Deploy the Provisioner</h3>
-
-<p>Update the <a href="https://github.com/freegroup/kube-readwritemany/blob/master//yaml/04_efs-provisioner.yaml">provisioner</a> and add the correct EFS endpoint URL at the end
-of the file.</p>
-
-<pre><code class="language-yaml">
-.
-.
-      volumes:
-        - name: pv-volume
-          nfs: &lt;EFS-ID&gt;.efs.&lt;EFS-REGION&gt;.amazonaws.com
-            path: /
-.
-.
-
-</code></pre>
-
-<p>Once you have finished configuring the class to have the name you chose when deploying the provisioner and
-the parameters you want, you can use it.</p>
-
-<p>All of the configurations must be done just once. After you have deployed the provisioner to your cluster
-you can create your PVC and bind them to the PODs</p>
-
-<p>All of them are covered in the <em>./yaml/xxxx.yaml</em> files and can be adapted to your needs. Additional a
-small demo <a href="https://github.com/freegroup/kube-readwritemany/blob/master//yaml/05_application.yaml">application</a> is part of this repository to cover the usage of the EFS storage.</p>
-
-
 
 <footer class=" footline" >
 </footer>
@@ -1465,20 +1304,20 @@ small demo <a href="https://github.com/freegroup/kube-readwritemany/blob/master/
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1537801927"></script>
-    <script src="/js/perfect-scrollbar.min.js?1537801927"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1537801927"></script>
-    <script src="/js/jquery.sticky.js?1537801927"></script>
-    <script src="/js/featherlight.min.js?1537801927"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1537801927"></script>
-    <script src="/js/highlight.pack.js?1537801927"></script>
+    <script src="/js/clipboard.min.js?1538232547"></script>
+    <script src="/js/perfect-scrollbar.min.js?1538232547"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1538232547"></script>
+    <script src="/js/jquery.sticky.js?1538232547"></script>
+    <script src="/js/featherlight.min.js?1538232547"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1538232547"></script>
+    <script src="/js/highlight.pack.js?1538232547"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1537801927"></script>
-    <script src="/js/learn.js?1537801927"></script>
-    <script src="/js/hugo-learn.js?1537801927"></script>
+    <script src="/js/modernizr.custom.71422.js?1538232547"></script>
+    <script src="/js/learn.js?1538232547"></script>
+    <script src="/js/hugo-learn.js?1538232547"></script>
 
-    <link href="/mermaid/mermaid.css?1537801927" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1537801927"></script>
+    <link href="/mermaid/mermaid.css?1538232547" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1538232547"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="description" content="How to deploy and configure Prometheus and Grafana to collect and monitor kubelet container metrics">
+    <meta name="description" content="Hardening the Gardener Community Setup">
 <meta name="author" content="Andreas Herz">
 
     <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon" />
 <link rel="icon" href="/images/favicon.png" type="image/x-icon" />
-    <title>Using Prometheus and Grafana to monitor K8s :: Gardener Documentation</title>
+    <title>Hardening the Gardener Community Setup :: Gardener Documentation</title>
 
     <link rel="icon" type="image/x-icon" href='https://gardener.cloud/images/favicon.ico'>
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-32x32.png' sizes="32x32">
@@ -52,7 +52,7 @@
   </head>
 
 
-  <body class="" data-url="/050-tutorials/content/howto/prometheus/">
+  <body class="" data-url="/050-tutorials/content/howto/secure-setup/">
     <nav id="sidebar" class="">
 
   <div id="header-wrapper">
@@ -1207,7 +1207,7 @@
                   
                   
                   <div id="top-github-link">
-                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/prometheus/_index.md" target="blank">
+                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/secure-setup/_index.md" target="blank">
                       <i class="fa fa-code-fork"></i>
                       <span id="top-github-link-text">Edit this page</span>
                     </a>
@@ -1248,7 +1248,7 @@
                     
             
             
-              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Using Prometheus and Grafana to monitor K8s
+              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Hardening the Gardener Community Setup
             
           
                 
@@ -1270,14 +1270,15 @@
     <div class="wrapper">
 <nav id="TableOfContents">
 <ul>
-<li>
+<li><a href="#hardening-the-gardener-community-setup">Hardening the Gardener Community Setup</a>
 <ul>
-<li><a href="#disclaimer">Disclaimer</a></li>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#preparation">Preparation</a></li>
-<li><a href="#deployment-of-prometheus-and-grafana">Deployment of Prometheus and Grafana</a></li>
-<li><a href="#basic-functional-tests">Basic functional tests</a></li>
-<li><a href="#links">Links</a></li>
+<li><a href="#context">Context</a></li>
+<li><a href="#recommendations">Recommendations</a>
+<ul>
+<li><a href="#mitigation-for-gardener-cve-2018-2475">Mitigation for Gardener CVE-2018-2475</a></li>
+<li><a href="#mitigation-for-kubernetes-cve-2018-1002105">Mitigation for Kubernetes CVE-2018-1002105</a></li>
+</ul></li>
+<li><a href="#alternative-approach">Alternative Approach</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -1290,8 +1291,8 @@
             <div class="tutorial-last-update">Updated <span>
 
 
-   <span id="53ca02fc9e9f2df01846e0dbd4f1b8a9"></span>
-   <script>$("#53ca02fc9e9f2df01846e0dbd4f1b8a9").html(moment("2018-10-24T17:54:19Z").fromNow())</script>
+   <span id="3d3275fc39daa39ca56c8f7b0d799a72"></span>
+   <script>$("#3d3275fc39daa39ca56c8f7b0d799a72").html(moment("2018-12-13T14:34:10Z").fromNow())</script>
 
 
 </span> by 
@@ -1301,9 +1302,7 @@
 
    
 
-   
-
-<a href='mailto:andreas.herz@sap.com'>Andreas Herz</a>, <a href='mailto:a.herz@freegroup.de'>Andreas Herz</a>
+<a href='mailto:frederik.thormaehlen@sap.com'>Frederik Thormaehlen</a>
 
 </div>
 
@@ -1320,351 +1319,42 @@
 
 
 
-<h2 id="disclaimer">Disclaimer</h2>
+<h1 id="hardening-the-gardener-community-setup">Hardening the Gardener Community Setup</h1>
 
-<p>This post is meant to give a basic end-to-end description for deploying and using Prometheus and Grafana. Both
-applications offer a wide range of flexibility which needs to be considered in case you have specific requirenments.
-Such advanced details are not in the scope of this post.</p>
+<h2 id="context">Context</h2>
 
-<h2 id="introduction">Introduction</h2>
+<p>Gardener stakeholders in the Open Source community usually use the <a href="https://github.com/gardener/landscape-setup">Gardener Setup Scripts</a>, to create a Garden cluster based on Kubernetes v1.9 which then can be used to create Shoot clusters based on Kubernetes v1.10, v1.11 and v1.12. Shoot clusters can play the following roles in a Gardener landscape:
+- Seed cluster
+- Shoot cluster</p>
 
-<p><a href="https://prometheus.io/">Prometheus</a> is an open-source systems monitoring and alerting toolkit for recording numeric
-time series. It fits both machine-centric monitoring as well as monitoring of highly dynamic service-oriented
-architectures. In a world of microservices, its support for multi-dimensional data collection and querying is a
-particular strength.</p>
+<p>As Alban Crequy from Kinvolk has recommended in his recent Gardener blog <a href="https://gardener.cloud/050-tutorials/content/howto/insecure-configuration/">Auditing Kubernetes for Secure Setup</a> the Gardener Team at SAP has applied several means to harden the Gardener landscapes at SAP.</p>
 
-<p>Prometheus graduates within CNCF <a href="https://prometheus.io/blog/2018/08/09/prometheus-graduates-within-cncf/">second hosted project</a>.</p>
+<h2 id="recommendations">Recommendations</h2>
 
-<p>The following characteristics make Prometheus a good match for monitoring Kubernetes clusters:</p>
+<h3 id="mitigation-for-gardener-cve-2018-2475">Mitigation for Gardener CVE-2018-2475</h3>
 
-<ul>
-<li><p>Pull-based monitoring<br />
-Prometheus is a <a href="https://prometheus.io/blog/2016/07/23/pull-does-not-scale-or-does-it/">pull-based</a> monitoring system,
-which means that the Prometheus server dynamically discovers and pulls metrics from your services running in
-Kubernetes.</p></li>
-
-<li><p>Labels
-Prometheus and Kubernetes share the same label (key-value) concept that can be used to select objects in the system.<br />
-Labels are used to identify time series and sets of label matchers can be used in the query language
-( <a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL</a> ) to select the time series to be aggregated..</p></li>
-
-<li><p>Exporters<br />
-There are many <a href="https://prometheus.io/docs/instrumenting/exporters/">exporters</a> available which enable integration of
-databases or even other monitoring systems not already providing a way to export metrics to Prometheus.
-One prominent exporter is the so called <a href="https://github.com/prometheus/node_exporter">node-exporter</a>, which allows to
-monitor hardware and OS related metrics of Unix systems.</p></li>
-
-<li><p>Powerful query language<br />
-The Prometheus query language <a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL</a> lets the user
-select and aggregate time series data in real time. Results can either be shown as a graph, viewed
-as tabular data in the Prometheus expression browser, or consumed by external systems via the <a href="https://prometheus.io/docs/prometheus/latest/querying/api/">HTTP API</a>.</p></li>
-</ul>
-
-<p>Find query examples on <a href="https://github.com/infinityworks/prometheus-example-queries/blob/master/README.md">Prometheus Query Examples</a>.</p>
-
-<p>One very popular open-source visualization tool not only for Prometheus is <a href="https://grafana.com">Grafana</a>. Grafana is a
-metric analytics and visualization suite. It is popular for for visualizing time series data for infrastructure
- and application analytics but many use it in other domains including industrial sensors, home automation, weather, and
-  process control [see <a href="http://docs.grafana.org/">Grafana Documentation</a>].</p>
-
-<p>Grafana accesses data via <a href="http://docs.grafana.org/guides/basic_concepts/">Data Sources</a>. The continuously growing
-list of supported backends includes Prometheus.</p>
-
-<p>Dashboards are created by combining panels, e.g. <a href="http://docs.grafana.org/reference/graph/">Graph</a> and <a href="http://docs.grafana.org/reference/dashlist/">Dashlist</a>.</p>
-
-<p>In this example we describe an End-To-End scenario including the deployment of Prometheus and a basic monitoring
-configuration as the one provided for Kubernetes clusters created by Gardener.</p>
-
-<p>If you miss elements on the Prometheus web page when accessing it via its service URL  <code>https://&lt;your K8s FQN&gt;/api/v1/namespaces/&lt;your-prometheus-namespace&gt;/services/prometheus-prometheus-server:80/proxy</code>
-this is probably caused by Prometheus issue <a href="https://github.com/prometheus/prometheus/issues/1583">#1583</a>
-To workaround this issue setup a port forward <code>kubectl port-forward -n &lt;your-prometheus-namespace&gt; &lt;prometheus-pod&gt; 9090:9090</code>
-on your client and access the Prometheus UI from  there with your locally installed web browser. This issue is not relevant
-in case you use the service type <code>LoadBalancer</code>.</p>
-
-<h2 id="preparation">Preparation</h2>
-
-<p>The deployment of <a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus</a> and <a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana</a> is based on Helm charts.<br />
-Make sure to implement the <a href="/howto/helm">Helm settings</a> before deploying the Helm charts.</p>
-
-<p>The Kubernetes clusters provided by <a href="https://github.com/gardener">Gardener</a> use role based
-access control (<a href="https://kubernetes.io/docs/admin/authorization/rbac/">RBAC</a>). To authorize the Prometheus
-node-exporter to access hardware and OS relevant metrics of your cluster&rsquo;s worker nodes specific artifacts need to be
-deployed.</p>
-
-<p>Bind the prometheus service account to the <code>sapcloud:monitoring:prometheus</code> cluster role by running the command
-<code>kubectl apply -f crbinding.yaml</code>.</p>
-
-<p>Content of <code>crbinding.yaml</code></p>
-
-<pre><code class="language-yaml">apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  name: &lt;your-prometheus-name&gt;
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: sapcloud:monitoring:prometheus
-subjects:
-- kind: ServiceAccount
-  name: prometheus-prometheus-server # Given by Helm chart
-  namespace: &lt;your-prometheus-namespace&gt;
-</code></pre>
-
-<h2 id="deployment-of-prometheus-and-grafana">Deployment of Prometheus and Grafana</h2>
-
-<p>Only minor changes are needed to deploy <a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus</a>
-and <a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana</a> based on Helm charts.</p>
-
-<p>Copy the following configuration into a file called values.yaml and deploy Prometheus: <code>helm install --name &lt;your-prometheus-name&gt; --namespace &lt;your-prometheus-namespace&gt; stable/prometheus -f values.yaml</code></p>
-
-<p>Typically, Prometheus and Grafana are deployed into the same namespace. There is no technical reason behind this so feel
-free to choose different namespaces.</p>
-
-<p>Content of <code>values.yaml</code> for Prometheus:</p>
-
-<pre><code class="language-yaml">rbac:
-  create: true # K8s Shoot clusters run RBAC enabled
-nodeExporter:
-  enabled: false # The node-exporter is already deployed by default
-
-serverFiles:
-  prometheus.yml: 
-    global:
-      scrape_interval: 30s
-      scrape_timeout: 30s
-    rule_files:
-      - /etc/config/rules
-      - /etc/config/alerts      
-    scrape_configs:
-    - job_name: 'kube-kubelet'
-      honor_labels: false
-      scheme: https
-
-      tls_config:
-      # This is needed because the kubelets' certificates are not generated
-      # for a specific pod IP
-        insecure_skip_verify: true
-      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-
-      kubernetes_sd_configs:
-      - role: node
-      relabel_configs:
-      - target_label: __metrics_path__
-        replacement: /metrics
-      - source_labels: [__meta_kubernetes_node_address_InternalIP]
-        target_label: instance
-      - action: labelmap
-        regex: __meta_kubernetes_node_label_(.+)
-
-    - job_name: 'kube-kubelet-cadvisor'
-      honor_labels: false
-      scheme: https
-
-      tls_config:
-      # This is needed because the kubelets' certificates are not generated
-      # for a specific pod IP
-        insecure_skip_verify: true
-      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-
-      kubernetes_sd_configs:
-      - role: node
-      relabel_configs:
-      - target_label: __metrics_path__
-        replacement: /metrics/cadvisor
-      - source_labels: [__meta_kubernetes_node_address_InternalIP]
-        target_label: instance
-      - action: labelmap
-        regex: __meta_kubernetes_node_label_(.+)
-
-    # Example scrape config for probing services via the Blackbox Exporter.
-    #
-    # Relabelling allows to configure the actual service scrape endpoint using the following annotations:
-    #
-    # * `prometheus.io/probe`: Only probe services that have a value of `true`
-    - job_name: 'kubernetes-services'
-      metrics_path: /probe
-      params:
-        module: [http_2xx]
-      kubernetes_sd_configs:
-        - role: service
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
-          action: keep
-          regex: true
-        - source_labels: [__address__]
-          target_label: __param_target
-        - target_label: __address__
-          replacement: blackbox
-        - source_labels: [__param_target]
-          target_label: instance
-        - action: labelmap
-          regex: __meta_kubernetes_service_label_(.+)
-        - source_labels: [__meta_kubernetes_namespace]
-          target_label: kubernetes_namespace
-        - source_labels: [__meta_kubernetes_service_name]
-          target_label: kubernetes_name
-    # Example scrape config for pods
-    #
-    # Relabelling allows to configure the actual service scrape endpoint using the following annotations:
-    #
-    # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
-    # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
-    # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
-    - job_name: 'kubernetes-pods'
-      kubernetes_sd_configs:
-        - role: pod
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-          action: keep
-          regex: true
-        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-          action: replace
-          target_label: __metrics_path__
-          regex: (.+)
-        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-          action: replace
-          regex: (.+):(?:\d+);(\d+)
-          replacement: ${1}:${2}
-          target_label: __address__
-        - action: labelmap
-          regex: __meta_kubernetes_pod_label_(.+)
-        - source_labels: [__meta_kubernetes_namespace]
-          action: replace
-          target_label: kubernetes_namespace
-        - source_labels: [__meta_kubernetes_pod_name]
-          action: replace
-          target_label: kubernetes_pod_name
-    # Scrape config for service endpoints.
-    #
-    # The relabeling allows the actual service scrape endpoint to be configured
-    # via the following annotations:
-    #
-    # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
-    # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
-    # to set this to `https` &amp; most likely set the `tls_config` of the scrape config.
-    # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
-    # * `prometheus.io/port`: If the metrics are exposed on a different port to the
-    # service then set this appropriately.
-    - job_name: 'kubernetes-service-endpoints'
-      kubernetes_sd_configs:
-        - role: endpoints
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
-          action: keep
-          regex: true
-        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
-          action: replace
-          target_label: __scheme__
-          regex: (https?)
-        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
-          action: replace
-          target_label: __metrics_path__
-          regex: (.+)
-        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
-          action: replace
-          target_label: __address__
-          regex: (.+)(?::\d+);(\d+)
-          replacement: $1:$2
-        - action: labelmap
-          regex: __meta_kubernetes_service_label_(.+)
-        - source_labels: [__meta_kubernetes_namespace]
-          action: replace
-          target_label: kubernetes_namespace
-        - source_labels: [__meta_kubernetes_service_name]
-          action: replace
-          target_label: kubernetes_name # Add your additional configuration here...
-</code></pre>
-
-<p>Next, deploy Grafana. Since the deployment in this post is based on the Helm default values, the settings below are set
-explicitly in case the default changed.
-Deploy Grafana via <code>helm install --name grafana --namespace &lt;your-prometheus-namespace&gt; stable/grafana -f values.yaml</code>. Here, the same namespace is chosen for Prometheus and for Grafana.</p>
-
-<p>Content of <code>values.yaml</code> for Grafana:</p>
-
-<pre><code class="language-yaml">server:
-  ingress:
-    enabled: false
-  service:
-    type: ClusterIP
-</code></pre>
-
-<p>Check the running state of the pods on the Kubernetes Dashboard or by running <code>kubectl get pods -n &lt;your-prometheus-namespace&gt;</code>.
-In case of errors check the log files of the pod(s) in question.</p>
-
-<p>The text output of Helm after the deployment of Prometheus and Grafana contains very useful information, e.g. the user
-and password of the Grafana Admin user. The credentials are stored as secrets in the namespace <code>&lt;your-prometheus-namespace&gt;</code>
-and could be decoded via <code>kubectl get secret --namespace &lt;my-grafana-namespace&gt; grafana-grafana -o jsonpath=&quot;{.data.grafana-admin-password}&quot; | base64 --decode ; echo</code>.</p>
-
-<h2 id="basic-functional-tests">Basic functional tests</h2>
-
-<p>To access the web UI of both applications use port forwarding of port 9090.</p>
-
-<p>Setup port forwarding for port 9090:</p>
-
-<pre><code class="language-bash">kubectl port-forward -n &lt;your-prometheus-namespace&gt; &lt;your-prometheus-server-pod&gt; 9090:9090
-</code></pre>
-
-<p>Open <code>http://localhost:9090</code> in your web browser. Select Graph from the top tab and enter the following expressing to show the overall CPU usage for a server
-(see <a href="https://github.com/infinityworks/prometheus-example-queries/blob/master/README.md">Prometheus Query Examples</a>)</p>
-
-<pre><code>100 * (1 - avg by(instance)(irate(node_cpu{mode='idle'}[5m])))
-</code></pre>
-
-<p>This should show some data in a graph.</p>
-
-<p>To show the same data in Grafana setup port forwarding for port 3000 for the
-Grafana pod and open the Grafana Web UI by opening <a href="http://localhost:3000">http://localhost:3000</a> in a browser.
-Enter the credentials of the admin user.</p>
-
-<p>Next, you need to enter the server name of your Prometheus deployment. This name is shown directly after the
-installation via helm.</p>
-
-<p>Run</p>
-
-<pre><code class="language-bash">helm status &lt;your-prometheus-name&gt;
-</code></pre>
-
-<p>to find this name. Below this server name is referenced by <code>&lt;your-preometheus-server-name&gt;</code>.</p>
-
-<p>First, you need to add your Prometheus server as data source.</p>
+<p>The following recommendations describe how you can harden your Gardener Community Setup by adding a Seed cluster hardened with network policies.</p>
 
 <ul>
-<li>select <em>Dashboards &rightarrow; Data Sources</em></li>
-<li>select <em>Add data source</em></li>
-<li>enter
-<em>Name</em>: <code>&lt;your-prometheus-datasource-name&gt;</code><br />
-<em>Type</em>: Prometheus<br />
-<em>URL</em>: <code>http://&lt;your-prometheus-server-name&gt;</code><br />
-_Access: <code>proxy</code><br /></li>
-<li>select <em>Save &amp; Test</em></li>
+<li>Use the Gardener Setup Scripts to create a Garden cluster in a dedicated IaaS account</li>
+<li>Register the Garden cluster itself as Seed cluster</li>
+<li>Create a Shoot cluster in a different IaaS account</li>
+<li>As a precaution you should not deploy the Kubernetes dashboard on this Shoot cluster</li>
+<li>Register this newly created Shoot cluster as a Seed cluster in the Gardener</li>
+<li>End user Shoot clusters can then be created using this newly created Seed cluster (which in turn is a Shoot cluster).</li>
 </ul>
 
-<p>In case of failure check the Prometheus URL in the Kubernetes Dashboard.</p>
+<p>The rational behind this activity is, that Calico network policies harden this Seed cluster but the community installer uses Flannel which does not offer these features for the Garden cluster.</p>
 
-<p>To add a Graph follow these steps:</p>
+<p>When you have added a hardened Seed cluster you are expected not be vulnerable to the Gardener <a href="https://groups.google.com/forum/#!topic/gardener/Pom2Y70cDpw">CVE-2018-2475</a> anymore.</p>
 
-<ul>
-<li>in the left corner, select <em>Dashboards &rightarrow; New</em> to create a new dashboard</li>
-<li>select <em>Graph</em> to create a new graph</li>
-<li>next, select the <em>Panel Title &rightarrow; Edit</em></li>
-<li>select your Prometheus Data Source in the drop down list</li>
-<li>enter the expression <code>100 * (1 - avg by(instance)(irate(node_cpu{mode='idle'}[5m])))</code> in the entry field A</li>
-<li>select the floppy disk symbol (Save) on top</li>
-</ul>
+<h3 id="mitigation-for-kubernetes-cve-2018-1002105">Mitigation for Kubernetes CVE-2018-1002105</h3>
 
-<p>Now you should have a very basic Prometheus and Grafana setup for your Kubernetes cluster.</p>
+<p>In addition when you follow the recommendations in the <a href="https://groups.google.com/forum/#!topic/gardener/2icxEz0RAK4">recent Gardener Security Announcement</a> you are expected not be vulnerable to the Kubernetes CVE-2018-1002105 with your hardened Gardener Community Setup.</p>
 
-<p>As a next step you can implement monitoring for your applications by implementing the <a href="https://prometheus.io/docs/instrumenting/clientlibs/">Prometheus client API</a>.</p>
+<h2 id="alternative-approach">Alternative Approach</h2>
 
-<h2 id="links">Links</h2>
-
-<ul>
-<li><a href="https://prometheus.io/">Prometheus</a></li>
-<li><a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus Helm Chart</a></li>
-<li><a href="https://www.weave.works/blog/prometheus-kubernetes-perfect-match/">Prometheus and Kubernetes: A Perfect Match</a></li>
-<li><a href="https://grafana.com">Grafana</a></li>
-<li><a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana Helm Chart</a></li>
-</ul>
+<p>For this alternative approach there is no Gardener blog available, it is not part of the Gardener Setup Scripts, but it was tested by the Gardener Team at SAP. Use GKE to host a Garden cluster based on Kubernetes v1.10, v1.11 and v1.12 (without the Kubernetes dashboard) in a dedicated GCP account. If you do this by your own, please ensure that the network policies are turned on, which might not be the case by default. Then you can apply the security configuration which Alban Crequy from Kinvolk has recommended in his <a href="https://gardener.cloud/050-tutorials/content/howto/insecure-configuration/">blog</a> directly in the Garden cluster and create Shoot clusters from there in a different IaaS account.</p>
 
 
 
@@ -1691,7 +1381,7 @@ _Access: <code>proxy</code><br /></li>
                     See a typo? Have a picture to recommend? Want to edit some words/phrases/sentences?
                     You can simply submit a ticket to request we make the change. If you are github savvy, submit a
                     pull request.
-                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/prometheus\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/prometheus\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
+                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/secure-setup\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/secure-setup\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
                     <br>
                 </span>
             </div>

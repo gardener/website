@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="description" content="Your pod doesn&#39;t run as expected. Are there any log files? Where? How could I debug a pod?">
+    <meta name="description" content="This document describes steps on how to add a node to an existing cluster without the support of Gardener">
 <meta name="author" content="Andreas Herz">
 
     <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon" />
 <link rel="icon" href="/images/favicon.png" type="image/x-icon" />
-    <title>How to debug a pod :: Gardener Documentation</title>
+    <title>Manually adding a node to an existing cluster :: Gardener Documentation</title>
 
     <link rel="icon" type="image/x-icon" href='https://gardener.cloud/images/favicon.ico'>
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-32x32.png' sizes="32x32">
@@ -52,7 +52,7 @@
   </head>
 
 
-  <body class="" data-url="/050-tutorials/content/howto/debug-a-pod/">
+  <body class="" data-url="/050-tutorials/content/howto/add-node-to-cluster/">
     <nav id="sidebar" class="">
 
   <div id="header-wrapper">
@@ -1207,7 +1207,7 @@
                   
                   
                   <div id="top-github-link">
-                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/debug-a-pod/_index.md" target="blank">
+                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/add-node-to-cluster/_index.md" target="blank">
                       <i class="fa fa-code-fork"></i>
                       <span id="top-github-link-text">Edit this page</span>
                     </a>
@@ -1248,7 +1248,7 @@
                     
             
             
-              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > How to debug a pod
+              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Manually adding a node to an existing cluster
             
           
                 
@@ -1272,13 +1272,9 @@
 <ul>
 <li>
 <ul>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#prerequisites">Prerequisites</a></li>
-<li><a href="#error-caused-by-wrong-image-name">Error caused by wrong image name</a></li>
-<li><a href="#app-runs-in-an-error-state-caused-by-missing-configmaps-or-secrets">App runs in an error state caused by missing ConfigMaps or Secrets</a></li>
-<li><a href="#too-high-resource-consumption-or-too-strict-quota-settings">Too high resource consumption or too strict quota settings</a></li>
-<li><a href="#why-was-the-container-image-not-updated">Why was the container image not updated?</a></li>
-<li><a href="#links">Links</a></li>
+<li><a href="#term-clarification">Term clarification</a></li>
+<li><a href="#why">Why</a></li>
+<li><a href="#how">How</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -1291,16 +1287,11 @@
             <div class="tutorial-last-update">Updated <span>
 
 
-   <span id="af1784d12a2e36d476547a0e5dde5748"></span>
-   <script>$("#af1784d12a2e36d476547a0e5dde5748").html(moment("2018-09-21T14:44:14Z").fromNow())</script>
-
 
 </span> by 
 
 
-   
 
-<a href='mailto:a.herz@freegroup.de'>Andreas Herz</a>
 
 </div>
 
@@ -1317,345 +1308,91 @@
 
 
 
-<h2 id="introduction">Introduction</h2>
+<h2 id="term-clarification">Term clarification</h2>
 
-<p>Kubernetes offers powerful options to get more details about startup or runtime failures of pods as e.g. described in
-<a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging</a>
-or <a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers</a>.</p>
+<p>Here we will look at the steps on how to add a node to an existing cluster without the support of Gardener. Such a node will not be managed by Gardener, and if it goes down for any reason, Gardener will not be responsible to replace it.</p>
 
-<p>In order to identify pods with potential issus you could e.g. run <code>kubectl get pods --all-namespaces | grep -iv Running</code> to filter
-out the pods which are not in the state <code>Running</code>. One of frequent error state is <code>CrashLoopBackOff</code>, which tells that
-a pod crashes right after the start. Kubernetes then tries to restart the pod, but often the pod startup fails again.</p>
+<h2 id="why">Why</h2>
 
-<p><strong>Here is a short list of possible reasons which might lead to a pod crash:</strong></p>
+<p>This tutorial is useful for those end-users who need specifically configured nodes, which are not yet supported by Gardener. For example: an end-user who wants some workload that requires runnc instead of runc as container runtime.</p>
+
+<h2 id="how">How</h2>
 
 <ol>
-<li>error during image pull caused by e.g. wrong/missing secrets or wrong/missing image</li>
-<li>the app runs in an error state caused e.g. by missing environmental variables (ConfigMaps) or secrets</li>
-<li>liveness probe failed</li>
-<li>too high resource consumption (memory and/or CPU) or too strict quota settings</li>
-<li>persistent volumes can&rsquo;t be created/mounted</li>
-<li>the container image is not updated</li>
+<li>Create a new instance in the same VPC/network as other machines in the cluster. You should be able to ssh into the machine. So save its private key, and assign a public IP to it. If adding a public IP is not preferred, then ssh into any other machine in the cluster, and then ssh from there into the new machine using its private key.</li>
 </ol>
 
-<p>Basically, the commands <code>kubectl logs ...</code> and <code>kubectl describe ...</code> with additional parameters are used to get more
-detailed information. By calling e.g. <code>kubectl logs --help</code> you get more detailed information about the command and its
-parameters.</p>
+<p>To ssh into a machine which is already in the cluster, use the steps defined <a href="https://github.wdf.sap.corp/pages/kubernetes/gardener/015-tutorials/content/howto/ssh-into-node/" title="ssh-into-node">here</a>.</p>
 
-<p>In the next sections you&rsquo;ll find some basic approaches to get some ideas what went wrong.</p>
+<p>Attach the same IAM role to the new machine which is attached to the existing machines in the cluster. This is required by kubelet in the new machine so that it can contact the cloud provider to query the node&rsquo;s name.</p>
 
-<p>Remarks:<br />
-- Even if the pods seem to be running as the status <code>Running</code> indicates, a high counter of the <code>Restarts</code> shows potential problems
-- There is as well an <a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">interactive Tutorial Troubleshooting with Kubectl</a>
-available which explains basic debugging activities
-- The examples below are deployed into the namespace <code>default</code>. In case you want to change it use the optional
-parameter <code>--namespace &lt;your-namespace&gt;</code> to select the target namespace. They require Kubernetes release &ge; <em>1.8</em>.</p>
-
-<h2 id="prerequisites">Prerequisites</h2>
-
-<p>Your deployment was successful (no logical/syntactical errors in the manifest files), but the pod(s) aren&rsquo;t running.</p>
-
-<h2 id="error-caused-by-wrong-image-name">Error caused by wrong image name</h2>
-
-<p>You run <code>kubectl describe pod &lt;your-pod&gt; &lt;your-namespace&gt;</code> to get detailed information about the pod startup.</p>
-
-<p>In the <code>Events</code> section, you get an error message like <code>Failed to pull image ...</code> and <code>Reason: Failed</code>. The pod is
-in state <code>ImagePullBackOff</code>.</p>
-
-<p>The example below is based on <a href="https://kubernetes.io/docs/tasks/debug-application-cluster/determine-reason-pod-failure/">demo in Kubernetes documentation</a>. In all examples the <code>default</code> namespace is used.</p>
-
-<p>First, cleanup  with</p>
-
-<pre><code class="language-bash">kubectl delete pod termination-demo
-</code></pre>
-
-<p>Next, create a resource based on the yaml content below</p>
+<ol>
+<li>On the new machine, create file <code>/var/lib/kubelet/kubeconfig-bootstrap</code> with the following content:</li>
+</ol>
 
 <pre><code class="language-yaml">apiVersion: v1
-kind: Pod 
-metadata:
-  name: termination-demo
-spec:
-  containers:
-  - name: termination-demo-container
-    image: debiann
-    command: [&quot;/bin/sh&quot;]
-    args: [&quot;-c&quot;, &quot;sleep 10 &amp;&amp; echo Sleep expired &gt; /dev/termination-log&quot;]
+kind: Config
+current-context: kubelet-bootstrap@default
+clusters:
+- cluster:
+    certificate-authority-data: &lt;CA Certificate&gt;
+    server: &lt;Server&gt;
+  name: default
+contexts:
+- context:
+    cluster: default
+    user: kubelet-bootstrap
+  name: kubelet-bootstrap@default
+users:
+- name: kubelet-bootstrap
+  user:
+    as-user-extra: {}
+    token: &lt;Token&gt;
 </code></pre>
 
-<p><code>kubectl describe pod termination-demo</code> lists the following content in the <code>Event</code> section</p>
+<ol>
+<li>ssh into an existing node, and run these commands to get the values of <CA Certificate> and <Server> to be replaced in above file:</li>
+<li>&lt;Servr&gt;
+<code>bash
+/opt/bin/hyperkube kubectl \
+--kubeconfig /var/lib/kubelet/kubeconfig-real \
+config view \
+-o go-template='{{index .clusters 0 &quot;cluster&quot; &quot;server&quot;}}' \
+--raw
+</code></li>
 
-<pre><code class="language-bash">Events:
-  FirstSeen	LastSeen	Count	From							SubObjectPath					Type		Reason			Message
-  ---------	--------	-----	----							-------------					--------	------			-------
-  2m		2m		1	default-scheduler											Normal		Scheduled		Successfully assigned termination-demo to ip-10-250-17-112.eu-west-1.compute.internal
-  2m		2m		1	kubelet, ip-10-250-17-112.eu-west-1.compute.internal							Normal		SuccessfulMountVolume	MountVolume.SetUp succeeded for volume &quot;default-token-sgccm&quot; 
-  2m		1m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		Pulling			pulling image &quot;debiann&quot;
-  2m		1m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Warning		Failed			Failed to pull image &quot;debiann&quot;: rpc error: code = Unknown desc = Error: image library/debiann:latest not found
-  2m		54s		10	kubelet, ip-10-250-17-112.eu-west-1.compute.internal							Warning		FailedSync		Error syncing pod
-  2m		54s		6	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		BackOff			Back-off pulling image &quot;debiann&quot;
+<li><p>&lt;CA Certificate&gt;</p>
+
+<pre><code class="language-bash">/opt/bin/hyperkube kubectl \
+--kubeconfig /var/lib/kubelet/kubeconfig-real \
+config view \
+-o go-template='{{index .clusters 0 &quot;cluster&quot; &quot;certificate-authority-data&quot;}}' \
+--raw
+</code></pre></li>
+
+<li><p>&lt;Token&gt;<br />
+The kubelet on the new machine needs a bootstrap token to authenticate with the kube-apiserver when adding itself to the cluster. Kube-apiserver uses a secret in the <code>kube-system</code> namespace to authenticate this token. This token is valid for 90 minutes from the time of creation, and the corresponding secret captures this detail in its <code>.data.expiration</code> field. The name of this secret is of the format <code>bootstrap-token-*</code>. Gardener takes care of creating new bootstrap tokens, and the corresponding secrets.
+To get an unexpired token, find the secrets with the name format <code>bootstrap-token-*</code> in the <code>kube-system</code> namespace in the cluster, and pick the one with minimum age. Eg. <code>bootstrap-token-abcdef</code>.<br />
+Run these commands to get the token:</p>
+
+<pre><code class="language-bash">tokenid=$(kubectl get secret bootstrap-token-abcdef -n kube-system -o go-template='{{index .data &quot;token-id&quot;}}' | base64 --decode)
+
+tokensecret=$(kubectl get secret bootstrap-token-abcdef -n kube-system -o go-template='{{index .data &quot;token-secret&quot;}}' | base64 --decode)
+
+echo $tokenid.$tokensecret
 </code></pre>
 
-<p>The error message with <code>Reason: Failed</code> tells that there is an error during pulling the image. A closer look at the
-image name indicates a misspelling.</p>
+<p>The value of $TOKEN will be <code>tokenid.tokensecret</code>. Replace $TOKEN in above file with this value</p></li>
 
-<h2 id="app-runs-in-an-error-state-caused-by-missing-configmaps-or-secrets">App runs in an error state caused by missing ConfigMaps or Secrets</h2>
+<li><p>Copy contents of the files - <code>/var/lib/kubelet/config/kubelet</code>, <code>/var/lib/kubelet/ca.crt</code> and <code>/etc/systemd/system/kubelet.service</code> - from an existing node to the new node</p></li>
 
-<p>This example illustrates the behavior in case of the app expecting environment variables but the corresponding
-Kubernetes artifacts are missing.</p>
+<li><p>Run the following command in the new node to start the kubelet:</p>
 
-<p>First, cleanup  with</p>
+<pre><code class="language-bash">systemctl enable kubelet &amp;&amp; systemctl start kubelet
+</code></pre></li>
+</ol>
 
-<pre><code class="language-yaml">kubectl delete deployment termination-demo
-kubectl delete configmaps app-env
-</code></pre>
-
-<p>Next, deploy this manifest</p>
-
-<pre><code class="language-yaml">apiVersion: apps/v1beta2 
-kind: Deployment
-metadata:
-  name: termination-demo
-  labels:
-     app: termination-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: termination-demo
-  template:
-    metadata:
-      labels:
-        app: termination-demo
-    spec:
-      containers:
-      - name: termination-demo-container
-        image: debian
-        command: [&quot;/bin/sh&quot;]
-        args: [&quot;-c&quot;, &quot;sed \&quot;s/foo/bar/\&quot; &lt; $MYFILE&quot;]
-</code></pre>
-
-<p>Now, the command <code>kubectl get pods</code> lists the pod <code>termination-demo-xxx</code> in the state <code>Error</code> or <code>CrashLoopBackOff</code>.
-The command <code>kubectl describe pod termination-demo-xxx</code> tells that there is no error during startup but gives no clue
- about what caused the crash.</p>
-
-<pre><code class="language-bash">Events:
-  FirstSeen	LastSeen	Count	From							SubObjectPath					Type		Reason		Message
-  ---------	--------	-----	----							-------------					--------	------		-------
-  19m		19m		1	default-scheduler											Normal		Scheduled	Successfully assigned termination-demo-5fb484867d-xz2x9 to ip-10-250-17-112.eu-west-1.compute.internal
-  19m		19m		1	kubelet, ip-10-250-17-112.eu-west-1.compute.internal							Normal		SuccessfulMountVolume	MountVolume.SetUp succeeded for volume &quot;default-token-sgccm&quot; 
-  19m		19m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		Pulling		pulling image &quot;debian&quot;
-  19m		19m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		Pulled		Successfully pulled image &quot;debian&quot;
-  19m		19m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		Created		Created container
-  19m		19m		4	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Normal		Started		Started container
-  19m		14m		24	kubelet, ip-10-250-17-112.eu-west-1.compute.internal	spec.containers{termination-demo-container}	Warning		BackOff		Back-off restarting failed container
-  19m		4m		69	kubelet, ip-10-250-17-112.eu-west-1.compute.internal							Warning		FailedSync	Error syncing pod
-</code></pre>
-
-<p>The command <code>kubectl get logs termination-demo-xxx</code> gives access to the output, the application writes on stderr and
-stdout. In this case, you get an output like</p>
-
-<pre><code class="language-bash">/bin/sh: 1: cannot open : No such file
-</code></pre>
-
-<p>So you need to have a closer look at the application. In this case the environmental variable <code>MYFILE</code>is missing. To fix this
-issue you could e.g. add a ConfigMap to your deployment as it is shown in the  manifest listed below.</p>
-
-<pre><code class="language-yaml">apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-env
-data:
-  MYFILE: &quot;/etc/profile&quot;
----
-apiVersion: apps/v1beta2 
-kind: Deployment
-metadata:
-  name: termination-demo
-  labels:
-     app: termination-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: termination-demo
-  template:
-    metadata:
-      labels:
-        app: termination-demo
-    spec:
-      containers:
-      - name: termination-demo-container
-        image: debian
-        command: [&quot;/bin/sh&quot;]
-        args: [&quot;-c&quot;, &quot;sed \&quot;s/foo/bar/\&quot; &lt; $MYFILE&quot;]
-        envFrom:
-        - configMapRef:
-            name: app-env 
-</code></pre>
-
-<p>Note that once you fix the error and re-run the scenario, you might still see the pod in <code>CrashLoopBackOff</code> status.
-It is because the container finishes the command <code>sed ...</code> and runs to completion.  In order to keep the container in <code>Running</code> status,
-a long running task is required, e.g.</p>
-
-<pre><code class="language-ymal">apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-env
-data:
-  MYFILE: &quot;/etc/profile&quot;
-  SLEEP: &quot;5&quot;
----
-apiVersion: apps/v1beta2
-kind: Deployment
-metadata:
-  name: termination-demo
-  labels:
-     app: termination-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: termination-demo
-  template:
-    metadata:
-      labels:
-        app: termination-demo
-    spec:
-      containers:
-      - name: termination-demo-container
-        image: debian
-        command: [&quot;/bin/sh&quot;]
-        # args: [&quot;-c&quot;, &quot;sed \&quot;s/foo/bar/\&quot; &lt; $MYFILE&quot;]
-        args: [&quot;-c&quot;, &quot;while true; do sleep $SLEEP; echo sleeping; done;&quot;]
-        envFrom:
-        - configMapRef:
-            name: app-env
-</code></pre>
-
-<h2 id="too-high-resource-consumption-or-too-strict-quota-settings">Too high resource consumption or too strict quota settings</h2>
-
-<p>You can optionally specify the amount of memory and/or CPU your container gets during runtime. In case these settings are missing,
-the default requests settings are taken: CPU: 0m (in Milli CPU) and RAM: 0Gi which indicate no other limits than the
-ones of the node(s) itself. Find more details in <a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and
-Limits for a Namespace</a>,</p>
-
-<p>In case your application needs more resources, Kubernetes distinguishes between <code>requests</code> and <code>limit</code> settings: <code>requests</code>
-specify the guaranteed amount of resource, whereas <code>limit</code> tells Kubernetes the maximum amount of resource the container might
-need.  Mathematically both settings could be described by the relation <code>0 &lt;= requests &lt;= limit</code>. For both settings you need to
-consider the total amount of resources the available nodes provide. For a detailed description of the concept see <a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of
-Service in Kubernetes</a>.</p>
-
-<p>Use <code>kubectl describe nodes</code> to get a first overview of the resource consumption of your cluster. Of special interest are the
-figures indicating the amount of CPU and Memory Requests at the bottom of the output.</p>
-
-<p>The next example demonstrates what happens in case the CPU request is too high in order to be managed by your cluster.</p>
-
-<p>First, cleanup  with</p>
-
-<pre><code class="language-yaml">kubectl delete deployment termination-demo
-kubectl delete configmaps app-env
-</code></pre>
-
-<p>Next, adapt the <code>cpu</code> in the yaml below to be slightly higher than the remaining cpu resources in your cluster and deploy
-this manifest. In this example <code>600m</code> (milli CPUs) are requested in a Kubernetes system with a single 2 Core worker
-node which results in an error message.</p>
-
-<pre><code class="language-yaml">apiVersion: apps/v1beta2 
-kind: Deployment
-metadata:
-  name: termination-demo
-  labels:
-     app: termination-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: termination-demo
-  template:
-    metadata:
-      labels:
-        app: termination-demo
-    spec:
-      containers:
-      - name: termination-demo-container
-        image: debian
-        command: [&quot;/bin/sh&quot;]
-        args: [&quot;-c&quot;, &quot;sleep 10 &amp;&amp; echo Sleep expired &gt; /dev/termination-log&quot;]
-        resources:
-          requests:
-            cpu: &quot;600m&quot; 
-</code></pre>
-
-<p>The command <code>kubectl get pods</code> lists the pod <code>termination-demo-xxx</code> in the state <code>Pending</code>. More details on why this happens
-could be found by using the command <code>kubectl describe pod termination-demo-xxx</code>:</p>
-
-<pre><code class="language-bash">$ kubectl describe po termination-demo-fdb7bb7d9-mzvfw
-Name:           termination-demo-fdb7bb7d9-mzvfw
-Namespace:      default
-...
-Containers:
-  termination-demo-container:
-    Image:      debian
-    Port:       &lt;none&gt;
-    Host Port:  &lt;none&gt;
-    Command:
-      /bin/sh
-    Args:
-      -c
-      sleep 10 &amp;&amp; echo Sleep expired &gt; /dev/termination-log
-    Requests:
-      cpu:        6
-    Environment:  &lt;none&gt;
-    Mounts:
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-t549m (ro)
-Conditions:
-  Type           Status
-  PodScheduled   False
-Events:
-  Type     Reason            Age               From               Message
-  ----     ------            ----              ----               -------
-  Warning  FailedScheduling  9s (x7 over 40s)  default-scheduler  0/2 nodes are available: 2 Insufficient cpu.
-</code></pre>
-
-<p>More details in
--   <a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">Managing Compute Resources for Containters</a>
--   <a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of Service in Kubernetes</a></p>
-
-<p>Remark:<br />
--   This example works similarly when specifying a too high request for memory
--   In case you configured an autoscaler range when creating your Kubernetes cluster another worker node will be started automatically if you didn&rsquo;t reach the maximum number of worker nodes
--   If your app is running out of memory (the memory settings are too small), you typically find <code>OOMKilled</code> (Out Of Memory) message in the <code>Events</code> section fo the <code>kubectl describe pod ...</code> output</p>
-
-<h2 id="why-was-the-container-image-not-updated">Why was the container image not updated?</h2>
-
-<p>You applied a fix in your app, created a new container image and pushed it into your container repository. After
-redeploying your Kubernetes manifests you expected to get the updated app, but still the same bug is in the new
-deployment present.</p>
-
-<p>This behavior is related to how Kubernetes decides whether to pull a new docker image or to use the cached one.</p>
-
-<p>In case you didn&rsquo;t change the image tag, the default image policy <em>IfNotPresent</em> tells Kubernetes to use the cached
-image (see <a href="https://kubernetes.io/docs/concepts/containers/images/">Images</a>).</p>
-
-<p>As a best practice you should not use the tag <code>latest</code> and change the image tag whenever you changed anything in your
-image (see <a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Configuration Best Practices</a>).</p>
-
-<p>Find more details in <a href="/howto/imagePullPolicy">FAQ Container Image not updating</a></p>
-
-<h2 id="links">Links</h2>
-
-<ul>
-<li><a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging</a></li>
-<li><a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers</a></li>
-<li><a href="https://kubernetes.io/docs/concepts/cluster-administration/logging/">Logging Architecture</a></li>
-<li><a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and Limits for a Namespace</a></li>
-<li><a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">Managing Compute Resources for Containters</a></li>
-<li><a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of Service in Kubernetes</a></li>
-<li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">Interactive Tutorial Troubleshooting with Kubectl</a></li>
-<li><a href="https://kubernetes.io/docs/concepts/containers/images/">Images</a></li>
-<li><a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Kubernetes Best Practises</a></li>
-</ul>
+<p>The new node should be added to the existing cluster within a couple of minutes.</p>
 
 
 
@@ -1682,7 +1419,7 @@ image (see <a href="https://kubernetes.io/docs/concepts/configuration/overview/#
                     See a typo? Have a picture to recommend? Want to edit some words/phrases/sentences?
                     You can simply submit a ticket to request we make the change. If you are github savvy, submit a
                     pull request.
-                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/debug-a-pod\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/debug-a-pod\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
+                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/add-node-to-cluster\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/add-node-to-cluster\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
                     <br>
                 </span>
             </div>

@@ -17,28 +17,28 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1551978236" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1551978236" rel="stylesheet">
-    <link href="/css/hybrid.css?1551978236" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1551978236" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1551978236" rel="stylesheet">
-    <link href="/css/auto-complete.css?1551978236" rel="stylesheet">
-    <link href="/css/skeleton.css?1551978236" rel="stylesheet">
-    <link href="/css/sheetslider.css?1551978236" rel="stylesheet">
+    <link href="/css/nucleus.css?1552064633" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1552064633" rel="stylesheet">
+    <link href="/css/hybrid.css?1552064633" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1552064633" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1552064633" rel="stylesheet">
+    <link href="/css/auto-complete.css?1552064633" rel="stylesheet">
+    <link href="/css/skeleton.css?1552064633" rel="stylesheet">
+    <link href="/css/sheetslider.css?1552064633" rel="stylesheet">
 
-    <script src="/js/moment.js?1551978236"></script>
-    <script src="/js/vivus.js?1551978236"></script>
-    <script src="/js/scrollreveal.js?1551978236"></script>
-    <script src="/js/inlineSVG.js?1551978236"></script>
-    <link href="/css/theme.css?1551978236" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1551978236" rel="stylesheet">
+    <script src="/js/moment.js?1552064633"></script>
+    <script src="/js/vivus.js?1552064633"></script>
+    <script src="/js/scrollreveal.js?1552064633"></script>
+    <script src="/js/inlineSVG.js?1552064633"></script>
+    <link href="/css/theme.css?1552064633" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1552064633" rel="stylesheet">
 
 
     
-      <link href="/css/theme-gardener.css?1551978236" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1552064633" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1551978236"></script>
+    <script src="/js/jquery-2.x.min.js?1552064633"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -106,14 +106,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1551978236"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1551978236"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1552064633"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1552064633"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1551978236"></script>
+<script type="text/javascript" src="/js/search.js?1552064633"></script>
 
   </div>
 
@@ -1460,24 +1460,35 @@ $ cd gardener
 
 <h4 id="start-minikube">Start minikube</h4>
 
-<p>First, start <code>minikube</code> with at least Kubernetes v1.11.x. Default cpu and memory settings of minikube machine are not sufficient to host the control plane of a shoot cluster, thus use at least 4 CPUs and 8192MB memory.</p>
+<p>First, start <code>minikube</code> with at least Kubernetes v1.11.x. The default CPU and memory settings of the minikube machine are not sufficient to host the control plane of a shoot cluster, thus the minimal resources should be 3 CPUs and 4096 MB memory, while the recommended are 4 CPUs and 8192 MB memory.</p>
 
-<pre><code class="language-bash">$ minikube start --cpus=4 --memory=8192 --kubernetes-version=v1.11.0
-Starting local Kubernetes v1.11.0 cluster...
+<pre><code class="language-bash">$ minikube start --cpus=4 --memory=8192
+minikube v0.34.1 on darwin (amd64)
+Creating virtualbox VM (CPUs=4, Memory=8192MB, Disk=20000MB) ...
 [...]
-Kubectl is now configured to use the cluster.
+Done! Thank you for using minikube!
 </code></pre>
 
 <h4 id="prepare-the-gardener">Prepare the Gardener</h4>
 
 <pre><code class="language-bash">$ make dev-setup
-namespace &quot;garden&quot; created
-namespace &quot;garden-dev&quot; created
-deployment &quot;etcd&quot; created
-service &quot;etcd&quot; created
-service &quot;gardener-apiserver&quot; created
-endpoints &quot;gardener-apiserver&quot; created
-apiservice &quot;v1beta1.garden.sapcloud.io&quot; created
+Found Minikube ...
+namespace/garden created
+namespace/garden-dev created
+deployment.apps/etcd created
+service/etcd created
+service/gardener-apiserver created
+service/gardener-controller-manager created
+endpoints/gardener-apiserver created
+endpoints/gardener-controller-manager created
+apiservice.apiregistration.k8s.io/v1beta1.garden.sapcloud.io created
+apiservice.apiregistration.k8s.io/v1alpha1.core.gardener.cloud created
+validatingwebhookconfiguration.admissionregistration.k8s.io/validate-namespace-deletion created
+</code></pre>
+
+<p>Optionally, you can switch off the <code>Logging</code> feature gate of Gardener Controller Manager to save resources:</p>
+
+<pre><code class="language-bash">$ sed -e 's/Logging: true/Logging: false/g' -i dev/20-componentconfig-gardener-controller-manager.yaml
 </code></pre>
 
 <p>The Gardener exposes the API servers of Shoot clusters via Kubernetes services of type <code>LoadBalancer</code>. In order to establish stable endpoints (robust against changes of the load balancer address), it creates DNS records pointing to these load balancer addresses. They are used internally and by all cluster components to communicate.
@@ -1490,38 +1501,41 @@ secret/internal-domain-unmanaged created
 
 <h4 id="run-the-gardener-api-server-and-the-gardener-controller-manager">Run the Gardener API Server and the Gardener Controller Manager</h4>
 
-<p>Next, you need to run the Gardener API Server and the Gardener Controller Manager using rules in the <code>Makefile</code>.</p>
+<p>Next, run the Gardener API Server and the Gardener Controller Manager in different terminals using rules in the <code>Makefile</code>.</p>
 
 <pre><code class="language-bash">$ make start-api
-[restful] 2018/02/01 15:39:43 log.go:33: [restful/swagger] listing is available at https:///swaggerapi
-[restful] 2018/02/01 15:39:43 log.go:33: [restful/swagger] https:///swaggerui/ is mapped to folder /swagger-ui/
-I0201 15:39:43.750573   84958 serve.go:89] Serving securely on [::]:8443
+Found Minikube ...
+I0306 15:23:51.044421   74536 plugins.go:84] Registered admission plugin &quot;ResourceReferenceManager&quot;
+I0306 15:23:51.044523   74536 plugins.go:84] Registered admission plugin &quot;DeletionConfirmation&quot;
+[...]
+I0306 15:23:51.626836   74536 secure_serving.go:116] Serving securely on [::]:8443
 [...]
 </code></pre>
 
 <p>Now you are ready to launch the Gardener Controller Manager</p>
 
 <pre><code class="language-bash">$ make start
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Starting Gardener controller manager...&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Feature Gates: &quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Gardener controller manager HTTP server started (serving on 0.0.0.0:2718)&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Found internal domain secret internal-domain-unmanaged for domain nip.io.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Successfully bootstrapped the Garden cluster.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Gardener controller manager (version 0.2.0) initialized.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Quota controller initialized.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;CloudProfile controller initialized.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;SecretBinding controller initialized.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Watching all namespaces for Shoot resources...&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Shoot controller initialized.&quot;
-time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Seed controller initialized.&quot;
+time=&quot;2019-03-06T15:24:17+02:00&quot; level=info msg=&quot;Starting Gardener controller manager...&quot;
+time=&quot;2019-03-06T15:24:17+02:00&quot; level=info msg=&quot;Feature Gates: CertificateManagement=false,Logging=true&quot;
+time=&quot;2019-03-06T15:24:17+02:00&quot; level=info msg=&quot;Starting HTTP server on 0.0.0.0:2718&quot;
+time=&quot;2019-03-06T15:24:17+02:00&quot; level=info msg=&quot;Acquired leadership, starting controllers.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Starting HTTPS server on 0.0.0.0:2719&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Found internal domain secret internal-domain-unmanaged for domain nip.io.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Successfully bootstrapped the Garden cluster.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Gardener controller manager (version 0.19.0-dev) initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;ControllerInstallation controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;ControllerRegistration controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Shoot controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;BackupInfrastructure controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Seed controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;SecretBinding controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Project controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;Quota controller initialized.&quot;
+time=&quot;2019-03-06T15:24:18+02:00&quot; level=info msg=&quot;CloudProfile controller initialized.&quot;
 [...]
 </code></pre>
 
-<p>:information_source: Your username is inferred from the user you are logged in with on your machine. The version is incremented based on the content of the <code>VERSION</code> file. The version is important for the Gardener in order to identify which Gardener version has last operated a Shoot cluster.</p>
-
-<p>In another terminal, run the following script to install extension controllers - make sure that you install all of them required for your local development.</p>
-
-<p>Also, please refer to <a href="https://github.com/gardener/gardener/blob/master/docs/development/../extensions/controllerregistration.md">this document</a> for further information about how extensions are registered in case you want to use other versions than the latest releases.</p>
+<p>Run the following command to install extension controllers - make sure that you install all of them required for your local development. Also, please refer to <a href="https://github.com/gardener/gardener/blob/master/docs/development/../extensions/controllerregistration.md">this document</a> for further information about how extensions are registered in case you want to use other versions than the latest releases.</p>
 
 <pre><code class="language-bash">$ make dev-setup-extensions
 
@@ -1535,7 +1549,7 @@ time=&quot;2018-02-20T13:24:39+02:00&quot; level=info msg=&quot;Seed controller 
 No resources found.
 </code></pre>
 
-<p>to operate against your local running Gardener API server.</p>
+<p>to operate against your local running Gardener API Server.</p>
 
 <blockquote>
 <p>Note: It may take several seconds until the <code>minikube</code> cluster recognizes that the Gardener API server has been started and is available. <code>No resources found</code> is the expected result of our initial development setup.</p>
@@ -1543,22 +1557,23 @@ No resources found.
 
 <h4 id="configure-minikube-to-act-as-gardener-and-seed-cluster">Configure minikube to act as Gardener and Seed Cluster</h4>
 
-<p>The Gardener Local Provider gives you the ability to create Shoot clusters on your local machine without the need to have an account on a Cloud Provider. Please make sure that Vagrant is installed (see section <a href="#installing-vagrant">Installing Vagrant</a>)</p>
-
-<p>Make sure that you already run <code>make dev-setup</code> and that the Gardener API server and the Gardener controller manager are running via <code>make start-api</code> and <code>make start</code> as described before.</p>
+<p>Before continuing, make sure that Vagrant is installed (see section <a href="#installing-vagrant">Installing Vagrant</a>), that you already ran <code>make dev-setup</code>, and that the Gardener API Server and the Gardener Controller Manager are running via <code>make start-api</code> and <code>make start</code> as described above.</p>
 
 <p>Next, you need to configure <code>minikube</code> to work as the Gardener and as the Seed cluster in such a way that it uses the local Vagrant installation to create the Shoot clusters.</p>
 
 <pre><code class="language-bash">$ make dev-setup-local
-cloudprofile &quot;local&quot; created
-secret &quot;dev-local&quot; created
-secretbinding &quot;core-local&quot; created
+namespace/garden-dev unchanged
+project.garden.sapcloud.io/dev created
+cloudprofile.garden.sapcloud.io/local created
+secret/core-local created
+secretbinding.garden.sapcloud.io/core-local created
 Cluster &quot;gardener-dev&quot; set.
 User &quot;gardener-dev&quot; set.
 Context &quot;gardener-dev&quot; modified.
 Switched to context &quot;gardener-dev&quot;.
-secret &quot;seed-local-dev&quot; created
-seed &quot;local-dev&quot; created
+controllerinstallation.core.gardener.cloud/os-coreos created
+secret/seed-local created
+seed.garden.sapcloud.io/local created
 </code></pre>
 
 <h4 id="check-vagrant-setup">Check Vagrant setup</h4>
@@ -1569,8 +1584,6 @@ seed &quot;local-dev&quot; created
 $ vagrant up
 Bringing machine 'core-01' up with 'virtualbox' provider...
 ==&gt; core-01: Importing base box 'coreos-stable'...
-==&gt; core-01: Configuring Ignition Config Drive
-==&gt; core-01: Matching MAC address for NAT networking...
 [...]
 </code></pre>
 
@@ -1580,24 +1593,8 @@ Bringing machine 'core-01' up with 'virtualbox' provider...
 ==&gt; core-01: Forcing shutdown of VM...
 ==&gt; core-01: Destroying VM and associated drives...
 
-$ cd $GOPATH/src/github.com/gardener/gardener
+$ cd ..
 </code></pre>
-
-<h4 id="start-the-gardener-local-provider">Start the Gardener Local Provider</h4>
-
-<p>The Seed cluster provides the possibility to create Shoot clusters on several cloud provider. The Gardener Provider implements a common interface to all supported cloud providers. Here, the corresponding Gardener Provider for Local is used.</p>
-
-<p>By executing</p>
-
-<pre><code class="language-bash">$ make start-local
-2018/02/14 10:53:34 Listening on :3777
-2018/02/14 10:53:34 Vagrant directory /Users/foo/go/src/github.com/gardener/gardener/vagrant
-2018/02/14 10:53:34 user-data path /Users/foo/git/go/src/github.com/gardener/gardener/dev/user-data
-</code></pre>
-
-<p>the Gardener Local Provider is started.</p>
-
-<p>At this point three processes should run in an individual terminal, the Gardener API server, the Gardener controller manager and finally the Gardener Local Provider.</p>
 
 <h4 id="create-access-and-delete-a-shoot-cluster">Create, access and delete a Shoot Cluster</h4>
 
@@ -1607,7 +1604,27 @@ $ cd $GOPATH/src/github.com/gardener/gardener
 shoot &quot;local&quot; created
 </code></pre>
 
-<p>When the Shoot API server is created you can download the <code>kubeconfig</code> for it and access it:</p>
+<p>Wait until the 2 secrets <code>osc-result-cloud-config-local-*</code> appear in the Shoot cluster namespace and then copy <code>cloud_config</code> from the secret <code>osc-result-cloud-config-local-xxxxx-downloader</code> to the local file <code>dev/user-data</code>. This file is used to pass the downloader configuration to the Vagrant machine, which triggers the mechanism that configures the machine properly and causes it to join the Shoot cluster as a node.</p>
+
+<pre><code class="language-bash">$ kubectl get secrets -n shoot--dev--local | grep osc-result-cloud-config-local
+osc-result-cloud-config-local-640f6-downloader   Opaque                                1      70s
+osc-result-cloud-config-local-640f6-original     Opaque                                1      68s
+
+$ kubectl get secrets osc-result-cloud-config-local-640f6-downloader -n shoot--dev--local -o jsonpath=&quot;{.data.cloud_config}&quot; | base64 -d &gt; dev/user-data
+</code></pre>
+
+<p>Manually start the Vagrant machine:</p>
+
+<pre><code class="language-bash">$ cd vagrant
+$ vagrant up
+Bringing machine 'core-01' up with 'virtualbox' provider...
+==&gt; core-01: Importing base box 'coreos-stable'...
+[...]
+
+$ cd ..
+</code></pre>
+
+<p>At this point, you can download the <code>kubeconfig</code> for the Shoot cluster and access it:</p>
 
 <pre><code class="language-bash">$ kubectl --namespace shoot--dev--local get secret kubecfg -o jsonpath=&quot;{.data.kubeconfig}&quot; | base64 --decode &gt; dev/shoot-kubeconfig
 
@@ -1632,6 +1649,16 @@ $ vagrant ssh
 <pre><code class="language-bash">$ ./hack/delete shoot local garden-dev
 shoot &quot;local&quot; deleted
 shoot &quot;local&quot; patched
+</code></pre>
+
+<p>Manually destroy the Vagrant machine when you no longer need it:</p>
+
+<pre><code class="language-bash">$ cd vagrant
+$ vagrant destroy --force
+==&gt; core-01: Discarding saved state of VM...
+==&gt; core-01: Destroying VM and associated drives...
+
+$ cd ..
 </code></pre>
 
 <h4 id="limitations-of-local-shoot-setup">Limitations of local Shoot setup</h4>
@@ -1690,20 +1717,20 @@ shoot &quot;local&quot; patched
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1551978236"></script>
-    <script src="/js/perfect-scrollbar.min.js?1551978236"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1551978236"></script>
-    <script src="/js/jquery.sticky.js?1551978236"></script>
-    <script src="/js/featherlight.min.js?1551978236"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1551978236"></script>
-    <script src="/js/highlight.pack.js?1551978236"></script>
+    <script src="/js/clipboard.min.js?1552064633"></script>
+    <script src="/js/perfect-scrollbar.min.js?1552064633"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1552064633"></script>
+    <script src="/js/jquery.sticky.js?1552064633"></script>
+    <script src="/js/featherlight.min.js?1552064633"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1552064633"></script>
+    <script src="/js/highlight.pack.js?1552064633"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1551978236"></script>
-    <script src="/js/learn.js?1551978236"></script>
-    <script src="/js/hugo-learn.js?1551978236"></script>
+    <script src="/js/modernizr.custom.71422.js?1552064633"></script>
+    <script src="/js/learn.js?1552064633"></script>
+    <script src="/js/hugo-learn.js?1552064633"></script>
 
-    <link href="/mermaid/mermaid.css?1551978236" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1551978236"></script>
+    <link href="/mermaid/mermaid.css?1552064633" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1552064633"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

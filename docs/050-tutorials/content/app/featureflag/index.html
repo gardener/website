@@ -17,28 +17,28 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1558687697" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1558687697" rel="stylesheet">
-    <link href="/css/hybrid.css?1558687697" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1558687697" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1558687697" rel="stylesheet">
-    <link href="/css/auto-complete.css?1558687697" rel="stylesheet">
-    <link href="/css/skeleton.css?1558687697" rel="stylesheet">
-    <link href="/css/sheetslider.css?1558687697" rel="stylesheet">
+    <link href="/css/nucleus.css?1558688727" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1558688727" rel="stylesheet">
+    <link href="/css/hybrid.css?1558688727" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1558688727" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1558688727" rel="stylesheet">
+    <link href="/css/auto-complete.css?1558688727" rel="stylesheet">
+    <link href="/css/skeleton.css?1558688727" rel="stylesheet">
+    <link href="/css/sheetslider.css?1558688727" rel="stylesheet">
 
-    <script src="/js/moment.js?1558687697"></script>
-    <script src="/js/vivus.js?1558687697"></script>
-    <script src="/js/scrollreveal.js?1558687697"></script>
-    <script src="/js/inlineSVG.js?1558687697"></script>
-    <link href="/css/theme.css?1558687697" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1558687697" rel="stylesheet">
+    <script src="/js/moment.js?1558688727"></script>
+    <script src="/js/vivus.js?1558688727"></script>
+    <script src="/js/scrollreveal.js?1558688727"></script>
+    <script src="/js/inlineSVG.js?1558688727"></script>
+    <link href="/css/theme.css?1558688727" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1558688727" rel="stylesheet">
 
 
     
-      <link href="/css/theme-gardener.css?1558687697" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1558688727" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1558687697"></script>
+    <script src="/js/jquery-2.x.min.js?1558688727"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -106,14 +106,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1558687697"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1558687697"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1558688727"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1558688727"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1558687697"></script>
+<script type="text/javascript" src="/js/search.js?1558688727"></script>
 
   </div>
 
@@ -1302,6 +1302,11 @@
 <ul>
 <li><a href="#possible-use-cases">Possible Use Cases</a></li>
 <li><a href="#how-does-this-work">How does this work</a></li>
+<li><a href="#how-to-update-toggle-the-feature">How to update/toggle the feature</a>
+<ul>
+<li><a href="#deploy-demo-app-pod">Deploy demo app/pod</a></li>
+<li><a href="#toggle-business-feature-flag">Toggle business feature flag</a></li>
+</ul></li>
 <li><a href="#wrangling-labels-and-annotations-from-the-shell">Wrangling labels and annotations from the shell.</a></li>
 </ul></li>
 </ul>
@@ -1392,10 +1397,42 @@ to enable/disable application logic.</p>
 
 <h2 id="how-does-this-work">How does this work</h2>
 
-<p>We’ll use the Kubernetes downward-api to expose labels and annotations directly to our application. We’ll
-end up with two files (<code>labels</code> and <code>annotations</code>) in <code>/etc/podinfo</code>. ( see <a href="https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api">here</a> )</p>
+<p>We’ll use the Kubernetes <a href="https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api">downwardAPI</a> ) to expose labels and annotations directly to our application. We’ll
+end up with two files (<code>labels</code> and <code>annotations</code>) in <code>/etc/podinfo</code>. First we add the downward api to spec.volumes.
+Note that it is possible to adding both labels and annotations into the same volume.</p>
 
-<p>First we add the downward api to spec.volumes. Note that we’re adding both labels and annotations into the same volume.</p>
+<h2 id="how-to-update-toggle-the-feature">How to update/toggle the feature</h2>
+
+<p>After the deployment of the demo application is done you can easily switch a feature in the application on or off.
+This is done very easily with <code>kubectl</code> by changing an annotation in the Pods.</p>
+
+<h3 id="deploy-demo-app-pod">Deploy demo app/pod</h3>
+
+<p>Deploy</p>
+
+<pre><code>kubectl apply -f ./yaml/deployment.yaml
+</code></pre>
+
+<p>Show the log</p>
+
+<pre><code>kubectl logs featureflag-example -f
+</code></pre>
+
+<h3 id="toggle-business-feature-flag">Toggle business feature flag</h3>
+
+<p>Switch to business implementation 2</p>
+
+<pre><code>kubectl annotate --overwrite pod featureflag-example  businessFeature=implementation2
+</code></pre>
+
+<p>Switch to business implementation 1</p>
+
+<pre><code>kubectl annotate --overwrite pod featureflag-example  businessFeature=implementation1
+</code></pre>
+
+<p>As you can see in the log of the Pod the application switches very fast between the implementations. Everything
+was controlled by annotations on the deployment or Pod. On the whole a very simple and maintainable solution to
+configure parts of the application without restarting the whole application.</p>
 
 <h2 id="wrangling-labels-and-annotations-from-the-shell">Wrangling labels and annotations from the shell.</h2>
 
@@ -1468,20 +1505,20 @@ $ kubectl annotation pod my-pod-name an-annotation-
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1558687697"></script>
-    <script src="/js/perfect-scrollbar.min.js?1558687697"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1558687697"></script>
-    <script src="/js/jquery.sticky.js?1558687697"></script>
-    <script src="/js/featherlight.min.js?1558687697"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1558687697"></script>
-    <script src="/js/highlight.pack.js?1558687697"></script>
+    <script src="/js/clipboard.min.js?1558688727"></script>
+    <script src="/js/perfect-scrollbar.min.js?1558688727"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1558688727"></script>
+    <script src="/js/jquery.sticky.js?1558688727"></script>
+    <script src="/js/featherlight.min.js?1558688727"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1558688727"></script>
+    <script src="/js/highlight.pack.js?1558688727"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1558687697"></script>
-    <script src="/js/learn.js?1558687697"></script>
-    <script src="/js/hugo-learn.js?1558687697"></script>
+    <script src="/js/modernizr.custom.71422.js?1558688727"></script>
+    <script src="/js/learn.js?1558688727"></script>
+    <script src="/js/hugo-learn.js?1558688727"></script>
 
-    <link href="/mermaid/mermaid.css?1558687697" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1558687697"></script>
+    <link href="/mermaid/mermaid.css?1558688727" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1558688727"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

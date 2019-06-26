@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="description" content="Wrong Container Image or Invalid Registry Permissions">
+    <meta name="description" content="Maintain a Shoot cluster">
 <meta name="author" content="Andreas Herz">
 
     <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon" />
 <link rel="icon" href="/images/favicon.png" type="image/x-icon" />
-    <title>Container image not pulled :: Gardener Documentation</title>
+    <title>Maintain a Shoot cluster :: Gardener Documentation</title>
 
     <link rel="icon" type="image/x-icon" href='https://gardener.cloud/images/favicon.ico'>
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-32x32.png' sizes="32x32">
@@ -52,7 +52,7 @@
   </head>
 
 
-  <body class="" data-url="/050-tutorials/content/howto/missing-registry-permission/">
+  <body class="" data-url="/050-tutorials/content/howto/maintain-shoot/">
     <nav id="sidebar" class="">
 
   <div id="header-wrapper">
@@ -1256,7 +1256,7 @@
                   
                   
                   <div id="top-github-link">
-                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/missing-registry-permission/_index.md" target="blank">
+                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/maintain-shoot/_index.md" target="blank">
                       <i class="fa fa-code-fork"></i>
                       <span id="top-github-link-text">Edit this page</span>
                     </a>
@@ -1297,7 +1297,7 @@
                     
             
             
-              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Container image not pulled
+              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Maintain a Shoot cluster
             
           
                 
@@ -1319,12 +1319,15 @@
     <div class="wrapper">
 <nav id="TableOfContents">
 <ul>
+<li><a href="#maintain-shoot-cluster">Maintain Shoot Cluster</a>
+<ul>
 <li>
 <ul>
-<li><a href="#problem">Problem</a></li>
-<li><a href="#example">Example</a></li>
-<li><a href="#error-analysis">Error analysis</a></li>
+<li><a href="#kubernetes-patch-version">Kubernetes Patch Version</a></li>
+<li><a href="#operating-system-version">Operating System Version</a></li>
 </ul></li>
+</ul></li>
+<li><a href="#shoot-annotations">Shoot annotations</a></li>
 </ul>
 </nav>
     </div>
@@ -1336,18 +1339,11 @@
             <div class="tutorial-last-update">Updated <span>
 
 
-   <span id="9e644723458e6eb54d15887489c4c850"></span>
-   <script>$("#9e644723458e6eb54d15887489c4c850").html(moment("2018-10-24T17:55:33Z").fromNow())</script>
-
 
 </span> by 
 
 
-   
 
-   
-
-<a href='mailto:andreas.herz@sap.com'>Andreas Herz</a>, <a href='mailto:a.herz@freegroup.de'>Andreas Herz</a>
 
 </div>
 
@@ -1364,89 +1360,58 @@
 
 
 
-<h2 id="problem">Problem</h2>
+<h1 id="maintain-shoot-cluster">Maintain Shoot Cluster</h1>
 
-<p>Two of the most common problems are specifying the wrong container image or trying to use
-private images without providing registry credentials.</p>
+<p>Day two operations like updating <a href="#kubernetes-patch-version">Kubernetes patch version</a> (if the auto-update is enabled) and updating <a href="#operating-system-version">Operating system version</a> happen in the maintenance time window of the Shoot cluster. The maintenance time window is part of the shoot spec (<code>.spec.maintenance.timeWindow</code>). If it is not specified during Shoot creation, Gardener will default to a randomized time window (to spread the load). The time interval cannot be less than 30 minutes and more than 6 hours.</p>
 
-<p><strong>Note:</strong> There is no observable difference in Pod status between a missing image and incorrect registry permissions.
-In either case, Kubernetes will report an ErrImagePull status for the Pods. For this reason, this article deals with
-both scenarios.</p>
+<p>To trigger the maintenance operation, you can annotate the Shoot with <code>shoot.garden.sapcloud.io/operation: maintain</code>.</p>
 
-<h2 id="example">Example</h2>
+<h3 id="kubernetes-patch-version">Kubernetes Patch Version</h3>
 
-<p>Let&rsquo;s see an example. We&rsquo;ll create a pod named <em>fail</em> referencing a non-existent Docker image:</p>
+<p>If a Shoot has <code>.spec.maintenance.autoUpdate.kubernetesVersion: true</code> in the manifest, and you update the <code>.spec.&lt;provider&gt;.constraints.kubernetes.versions</code> field in the CloudProfile used in the Shoot, then the maintenance controller will apply Kubernetes <a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/release/versioning.md#patch-releases">patch releases</a> updates automatically during the maintenance time window.</p>
 
-<pre><code class="language-sh">kubectl run -i --tty fail --image=tutum/curl:1.123456
+<p>Since Kubernetes follows <a href="http://semver.org/">Semantic Versioning</a>, if indicated so, Gardener will automatically apply the patch release updates. But it will never auto update the Major or Minor releases since there is no effort to keep backward compatibility in those releases.</p>
+
+<p>Major or Minor updates must be handled by updating the <code>.spec.kubernetes.version</code> field manually, these updates will be executed immediately and will not wait for maintenance time window. <strong>Before applying such update on Minor or Major releases, operators should check for all the breaking changes introduced in the target release Changelog</strong>.</p>
+
+<p>E.g. If you have a Shoot cluster with the field values below (only related fields are shown):</p>
+
+<pre><code class="language-yaml">spec:
+  kubernetes:
+    version: 1.10.0
+  maintenance:
+    timeWindow:
+      begin: 220000+0000
+      end: 230000+0000
+    autoUpdate:
+      kubernetesVersion: true
 </code></pre>
 
-<p>the command prompt doesn&rsquo;t return and you can press <code>ctrl+c</code></p>
+<p>If you update the CloudProfile used in the Shoot and add <code>1.10.5</code> and <code>1.11.0</code> to the <code>.spec.&lt;provider&gt;.constraints.kubernetes.versions</code> list, the Shoot will be updated to <code>1.10.5</code> between 22:00-23:00 UTC. Your Shoot won&rsquo;t be updated to <code>1.11.0</code> even though its the highest Kubernetes in the CloudProfile, this is because that wouldn&rsquo;t be a patch release update but a minor release update, and potentially have breaking changes that could impact your deployed resources.</p>
 
-<h2 id="error-analysis">Error analysis</h2>
+<p>In this example if the operator wants to update the Kubernetes version to <code>1.11.0</code>, he/she must update the Shoot&rsquo;s <code>.spec.kubernetes.version</code> to <code>1.11.0</code> manually.</p>
 
-<p>We can then inspect our Pods and see that we have one Pod with a status of <strong>ErrImagePull</strong> or <strong>ImagePullBackOff</strong>.</p>
+<h3 id="operating-system-version">Operating System Version</h3>
 
-<pre><code class="language-sh">$ (minikube) kubectl get pods
-NAME                      READY     STATUS         RESTARTS   AGE
-client-5b65b6c866-cs4ch   1/1       Running        1          1m
-fail-6667d7685d-7v6w8     0/1       ErrImagePull   0          &lt;invalid&gt;
-vuejs-578574b75f-5x98z    1/1       Running        0          1d
-$ (minikube) 
+<p>If you update the <code>.spec.&lt;provider&gt;.constraints.machineImages</code> field in the CloudProfile used in the Shoot, then the maintenance controller will apply the new machine image to the Shoot spec (and will mark the Shoot to be reconciled) during the maintenance time window. During the reconciliation the corresponding <code>&lt;Provider&gt;MachineClass</code> resource in the Shoot namespace in the Seed will be updated and the machine controller manager will take care of the actual state to match the desired one.</p>
 
-</code></pre>
+<h1 id="shoot-annotations">Shoot annotations</h1>
 
-<p>For some additional information, we can <code>describe</code> the failing Pod.</p>
+<ul>
+<li><code>shoot.garden.sapcloud.io/ignore: true</code></li>
+</ul>
 
-<pre><code class="language-sh">kubectl describe pod fail-6667d7685d-7v6w8
-</code></pre>
+<p>Indicates that the Shoot will never reach the  reconciliation flow (independent of the operation (create/update/delete)). Also <code>controllers.shoot.respectSyncPeriodOverwrite</code> property of Gardener controller manager needs to be <code>true</code>, otherwise the ignore annotation won&rsquo;t be respected.</p>
 
-<p>As you can see in the events section, your image can&rsquo;t be pulled</p>
+<ul>
+<li><p><code>shoot.garden.sapcloud.io/operation: &lt;operation&gt;</code> with allowed operations:</p>
 
-<pre><code>Name:		fail-6667d7685d-7v6w8
-Namespace:	default
-Node:		minikube/192.168.64.10
-Start Time:	Wed, 22 Nov 2017 10:01:59 +0100
-Labels:		pod-template-hash=2223832418
-		run=fail
-Annotations:	kubernetes.io/created-by={&quot;kind&quot;:&quot;SerializedReference&quot;,&quot;apiVersion&quot;:&quot;v1&quot;,&quot;reference&quot;:{&quot;kind&quot;:&quot;ReplicaSet&quot;,&quot;namespace&quot;:&quot;default&quot;,&quot;name&quot;:&quot;fail-6667d7685d&quot;,&quot;uid&quot;:&quot;cc4ccb3f-cf63-11e7-afca-4a7a1fa05b3f&quot;,&quot;a...
-.
-.
-.
-.
-Events:
-  FirstSeen	LastSeen	Count	From			SubObjectPath		Type		Reason			Message
-  ---------	--------	-----	----			-------------		--------	------			-------
-  1m		1m		1	default-scheduler				Normal		Scheduled		Successfully assigned fail-6667d7685d-7v6w8 to minikube
-  1m		1m		1	kubelet, minikube				Normal		SuccessfulMountVolume	MountVolume.SetUp succeeded for volume &quot;default-token-9fr6r&quot; 
-  1m		6s		4	kubelet, minikube	spec.containers{fail}	Normal		Pulling			pulling image &quot;tutum/curl:1.123456&quot;
-  1m		5s		4	kubelet, minikube	spec.containers{fail}	Warning		Failed			Failed to pull image &quot;tutum/curl:1.123456&quot;: rpc error: code = Unknown desc = Error response from daemon: manifest for tutum/curl:1.123456 not found
-  1m		&lt;invalid&gt;	10	kubelet, minikube				Warning		FailedSync		Error syncing pod
-  1m		&lt;invalid&gt;	6	kubelet, minikube	spec.containers{fail}	Normal		BackOff			Back-off pulling image &quot;tutum/curl:1.123456&quot;
-</code></pre>
-
-<p><strong>Why couldn&rsquo;t Kubernetes pull the image?</strong>
-There are three primary candidates besides network connectivity issues:
- - The image tag is incorrect
- - The image doesn&rsquo;t exist
- - Kubernetes doesn&rsquo;t have permissions to pull that image</p>
-
-<p>If you don&rsquo;t notice a typo in your image tag, then it&rsquo;s time to test using your local machine. I usually start by
-running <strong>docker pull on my local development machine</strong> with the exact same image tag. In this case, I would
-run <code>docker pull tutum/curl:1.123456</code></p>
-
-<p>If this succeeds, then it probably means that Kubernetes doesn&rsquo;t have correct permissions to pull that image.</p>
-
-<p>Add the docker registry user/pwd to your cluster</p>
-
-<pre><code class="language-sh">kubectl create secret docker-registry dockersecret --docker-server=https://index.docker.io/v1/ --docker-username=&lt;username&gt; --docker-password=&lt;password&gt; --docker-email=&lt;email&gt;
-</code></pre>
-
-<p>If the exact image tag fails, then I will test without an explicit image tag - <code>docker pull 
-tutum/curl</code> - which will attempt to pull the latest tag. If this succeeds, then that means
-the originally specified tag doesn&rsquo;t exist. Go to the Docker registry and check which tags are available for this image.</p>
-
-<p>If <code>docker pull tutum/curl</code> (without an exact tag) fails, then we have a bigger problem -
-that image does not exist at all in our image registry.</p>
+<ul>
+<li><code>reconcile</code> - indicates that a Shoot reconciliation shall be triggered.</li>
+<li><code>retry</code> - indicates that a failed Shoot reconciliation shall be retried.</li>
+<li><code>maintain</code> - indicates that the Shoot maintenance shall be executed as soon as possible.</li>
+</ul></li>
+</ul>
 
 
 
@@ -1473,7 +1438,7 @@ that image does not exist at all in our image registry.</p>
                     See a typo? Have a picture to recommend? Want to edit some words/phrases/sentences?
                     You can simply submit a ticket to request we make the change. If you are github savvy, submit a
                     pull request.
-                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/missing-registry-permission\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/missing-registry-permission\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
+                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/maintain-shoot\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/maintain-shoot\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
                     <br>
                 </span>
             </div>

@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="description" content="Hibernate a Cluster to save money">
+    <meta name="description" content="Custom Seccomp profile">
 <meta name="author" content="Andreas Herz">
 
     <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon" />
 <link rel="icon" href="/images/favicon.png" type="image/x-icon" />
-    <title>Hibernate a Cluster :: Gardener Documentation</title>
+    <title>Custom Seccomp profile :: Gardener Documentation</title>
 
     <link rel="icon" type="image/x-icon" href='https://gardener.cloud/images/favicon.ico'>
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-32x32.png' sizes="32x32">
@@ -52,7 +52,7 @@
   </head>
 
 
-  <body class="" data-url="/050-tutorials/content/howto/hibernate-cluster/">
+  <body class="" data-url="/050-tutorials/content/howto/secure-seccomp/">
     <nav id="sidebar" class="">
 
   <div id="header-wrapper">
@@ -1256,7 +1256,7 @@
                   
                   
                   <div id="top-github-link">
-                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/hibernate-cluster/_index.md" target="blank">
+                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/secure-seccomp/_index.md" target="blank">
                       <i class="fa fa-code-fork"></i>
                       <span id="top-github-link-text">Edit this page</span>
                     </a>
@@ -1297,7 +1297,7 @@
                     
             
             
-              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Hibernate a Cluster
+              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Custom Seccomp profile
             
           
                 
@@ -1319,10 +1319,13 @@
     <div class="wrapper">
 <nav id="TableOfContents">
 <ul>
-<li>
+<li><a href="#custom-seccomp-profile">Custom Seccomp profile</a>
 <ul>
-<li><a href="#problem">Problem</a></li>
-<li><a href="#set-a-gardener-cluster-in-hibernate-mode">Set a Gardener Cluster in Hibernate Mode</a></li>
+<li><a href="#context">Context</a></li>
+<li><a href="#installation-of-custom-profile">Installation of custom profile</a></li>
+<li><a href="#create-a-pod-using-custom-seccomp-profile">Create a Pod using custom Seccomp profile</a></li>
+<li><a href="#throubleshooting">Throubleshooting</a></li>
+<li><a href="#further-reading">Further reading</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -1335,8 +1338,8 @@
             <div class="tutorial-last-update">Updated <span>
 
 
-   <span id="ffe491ed36c287dadcdd388521df93d3"></span>
-   <script>$("#ffe491ed36c287dadcdd388521df93d3").html(moment("2018-10-15T14:38:45Z").fromNow())</script>
+   <span id="1c5e8857fee8d75f41845ad65e90420a"></span>
+   <script>$("#1c5e8857fee8d75f41845ad65e90420a").html(moment("2019-07-08T09:20:33Z").fromNow())</script>
 
 
 </span> by 
@@ -1344,13 +1347,7 @@
 
    
 
-   
-
-   
-
-   
-
-<a href='mailto:andreas.herz@sap.com'>Herz, Andreas</a>, <a href='mailto:andreas.herz@sap.com'>Andreas Herz</a>
+<a href='mailto:martin.vladev@sap.com'>Martin Vladev</a>
 
 </div>
 
@@ -1367,78 +1364,193 @@
 
 
 
-<h2 id="problem">Problem</h2>
+<h1 id="custom-seccomp-profile">Custom Seccomp profile</h1>
 
-<p>If you have built a customer scenario for demo purposes, you don&rsquo;t want to run the cluster all the time. The costs
-would exceed here very fast. You can setup the cluster again for each demo, thanks to <em>Helm</em> this works relatively well,
-but takes a long time depending on the infrastructure. Furthermore not all 3rd party services are connected yet.</p>
+<h2 id="context">Context</h2>
 
+<p><a href="https://en.wikipedia.org/wiki/Seccomp">Seccomp</a> (secure computing mode) is a security facility in the Linux kernel for restricting the set of system calls applications can make.</p>
 
+<p>Starting from Kubernetes v1.3.0 the Seccomp feature is in <code>Alpha</code>. To configure it on a <code>Pod</code>, the following annotations can be used:</p>
 
+<ul>
+<li><code>seccomp.security.alpha.kubernetes.io/pod: &lt;seccomp-profile&gt;</code> where <code>&lt;seccomp-profile&gt;</code> is the seccomp profile to apply to all containers in a <code>Pod</code>.</li>
+<li><code>container.seccomp.security.alpha.kubernetes.io/&lt;container-name&gt;: &lt;seccomp-profile&gt;</code> where <code>&lt;seccomp-profile&gt;</code> is the seccomp profile to apply to <code>&lt;container-name&gt;</code> in a <code>Pod</code>.</li>
+</ul>
 
-<object type="image/svg+xml" data="teaser_patched.svg" style="margin: 3rem auto;display: block;"></object>
+<p>More details can be found in the <code>PodSecurityPolicy</code> <a href="https://kubernetes.io/docs/concepts/policy/pod-security-policy/#seccomp">documentation</a>.</p>
 
+<h2 id="installation-of-custom-profile">Installation of custom profile</h2>
 
+<p>By default, kubelet loads custom Seccomp profiles from <code>/var/lib/kubelet/seccomp/</code>. There are two ways in which Seccomp profiles can be added to a <code>Node</code>:</p>
 
-<h2 id="set-a-gardener-cluster-in-hibernate-mode">Set a Gardener Cluster in Hibernate Mode</h2>
+<ul>
+<li>to be baked in the machine image</li>
+<li>to be added at runtime.</li>
+</ul>
 
-<p>Fortunately the Gardener offers the possibility to scale the Worker Nodes down to <em>&ldquo;Zero&rdquo;</em> without much effort.
-Follow the slide deck below to bring your Gardner Cluster in Hibernate Mode</p>
+<p>This guide focuses on creating those profiles via a <code>DaemonSet</code>.</p>
+
+<p>Create a file called <code>seccomp-profile.yaml</code> with the following content:</p>
+
+<pre><code class="language-yaml">apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seccomp-profile
+  namespace: kube-system
+data:
+  my-profile.json: |
+    {
+      &quot;defaultAction&quot;: &quot;SCMP_ACT_ALLOW&quot;,
+      &quot;syscalls&quot;: [
+        {
+          &quot;name&quot;: &quot;chmod&quot;,
+          &quot;action&quot;: &quot;SCMP_ACT_ERRNO&quot;
+        }
+      ]
+    }
+</code></pre>
 
 <blockquote>
-<p>The mechanism to hibernate a cluster has changed. It is not necessary to scale down the workergroups
-to zero. You can now press the <strong>hibernate button</strong> or add the property <code>hibernation</code> to the shoot YAML.</p>
+<p>The policy above is a very simple one and not siutable for complex applications. The <a href="https://github.com/moby/moby/blob/v17.05.0-ce/profiles/seccomp/default.json">default docker profile</a> can be used a reference. Feel free to modify it to your needs.</p>
 </blockquote>
 
+<p>Apply the <code>ConfigMap</code> in your cluster:</p>
 
+<pre><code class="language-console">$ kubectl apply -f seccomp-profile.yaml
+configmap/seccomp-profile created
+</code></pre>
 
+<p>The next steps is to create the <code>DaemonSet</code> seccomp installer. It&rsquo;s going to copy the policy from above in <code>/var/lib/kubelet/seccomp/my-profile.json</code>.</p>
 
+<p>Create a file called <code>seccomp-installer.yaml</code> with the following content:</p>
 
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: seccomp
+  namespace: kube-system
+  labels:
+    security: seccomp
+spec:
+  selector:
+    matchLabels:
+      security: seccomp
+  template:
+    metadata:
+      labels:
+        security: seccomp
+    spec:
+      initContainers:
+      - name: installer
+        image: alpine:3.10.0
+        command: [&quot;/bin/sh&quot;, &quot;-c&quot;, &quot;cp -r -L /seccomp/*.json /host/seccomp/&quot;]
+        volumeMounts:
+        - name: profiles
+          mountPath: /seccomp
+        - name: hostseccomp
+          mountPath: /host/seccomp
+          readOnly: false
+      containers:
+      - name: pause
+        image: k8s.gcr.io/pause:3.1
+      terminationGracePeriodSeconds: 5
+      volumes:
+      - name: hostseccomp
+        hostPath:
+          path: /var/lib/kubelet/seccomp
+      - name: profiles
+        configMap:
+          name: seccomp-profile
+</code></pre>
 
+<p>Create the installer and wait until it&rsquo;s ready on all <code>Nodes</code>:</p>
 
+<pre><code class="language-console">$ kubectl apply -f seccomp-installer.yaml
+daemonset.apps/seccomp-installer created
 
+$ kubectl -n kube-system get pods -l security=seccomp
+NAME                      READY   STATUS    RESTARTS   AGE
+seccomp-installer-wjbxq   1/1     Running   0          21s
+</code></pre>
 
+<h2 id="create-a-pod-using-custom-seccomp-profile">Create a Pod using custom Seccomp profile</h2>
 
+<p>Finally we want to create a profile which uses our new Seccomp profile <code>my-profile.json</code>.</p>
 
+<p>Create a file called <code>my-seccomp-pod.yaml</code> with the following content:</p>
 
+<pre><code class="language-yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: seccomp-app
+  namespace: default
+  annotations:
+    seccomp.security.alpha.kubernetes.io/pod: &quot;localhost/my-profile.json&quot;
+    # you can specify seccomp profile per container. If you add another profile you can configure
+    # it for a specific container - 'pause' in this case.
+    # container.seccomp.security.alpha.kubernetes.io/pause: &quot;localhost/some-other-profile.json&quot;
+spec:
+  containers:
+  - name: pause
+    image: k8s.gcr.io/pause:3.1
+</code></pre>
 
+<p>Create the <code>Pod</code> and see that&rsquo;s running:</p>
 
+<pre><code class="language-console">$ kubectl apply -f my-seccomp-pod.yaml
+pod/seccomp-app created
 
+$ kubectl get pod seccomp-app
+NAME         READY   STATUS    RESTARTS   AGE
+seccomp-app  1/1     Running   0          42s
+</code></pre>
 
+<h2 id="throubleshooting">Throubleshooting</h2>
 
+<p>If an invalid or not existing profile is used then the <code>Pod</code> will be stuck in <code>ContainerCreating</code> phase:</p>
 
+<p><code>broken-seccomp-pod.yaml</code>:</p>
 
+<pre><code class="language-yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-seccomp
+  namespace: default
+  annotations:
+    seccomp.security.alpha.kubernetes.io/pod: &quot;localhost/not-existing-profile.json&quot;
+spec:
+  containers:
+  - name: pause
+    image: k8s.gcr.io/pause:3.1
+</code></pre>
 
+<pre><code class="language-console">$ kubectl apply -f broken-seccomp-pod.yaml
+pod/broken-seccomp created
 
+$ kubectl get pod broken-seccomp
+NAME            READY   STATUS              RESTARTS   AGE
+broken-seccomp  1/1     ContainerCreating   0          2m
 
+$ kubectl describe pod broken-seccomp
+Name:               broken-seccomp
+Namespace:          default
+....
+Events:
+  Type     Reason                  Age               From                     Message
+  ----     ------                  ----              ----                     -------
+  Normal   Scheduled               18s               default-scheduler        Successfully assigned kube-system/broken-seccomp to docker-desktop
+  Warning  FailedCreatePodSandBox  4s (x2 over 18s)  kubelet, docker-desktop  Failed create pod sandbox: rpc error: code = Unknown desc = failed to make sandbox docker config for pod &quot;broken-seccomp&quot;: failed to generate sandbox security options
+for sandbox &quot;broken-seccomp&quot;: failed to generate seccomp security options for container: cannot load seccomp profile &quot;/var/lib/kubelet/seccomp/not-existing-profile.json&quot;: open /var/lib/kubelet/seccomp/not-existing-profile.json: no such file or directory
+</code></pre>
 
+<h2 id="further-reading">Further reading</h2>
 
-
-
-
-
-
-
-
-<div class="sheetSlider sh-default drop-shadow"><input id="slider-s0" type="radio" name="slider-slide1" checked/><input id="slider-s1" type="radio" name="slider-slide1" /><input id="slider-s2" type="radio" name="slider-slide1" /><input id="slider-s3" type="radio" name="slider-slide1" /><input id="slider-s4" type="radio" name="slider-slide1" />
-
-    <div class="sh__content">
-        <div class="sh__item"><img src="https://gardener.cloud/050-tutorials/content/howto/hibernate-cluster/slider/slide_1.png"/></div>
-        <div class="sh__item"><img src="https://gardener.cloud/050-tutorials/content/howto/hibernate-cluster/slider/slide_2.png"/></div>
-        <div class="sh__item"><img src="https://gardener.cloud/050-tutorials/content/howto/hibernate-cluster/slider/slide_3.png"/></div>
-        <div class="sh__item"><img src="https://gardener.cloud/050-tutorials/content/howto/hibernate-cluster/slider/slide_4.png"/></div>
-        <div class="sh__item"><img src="https://gardener.cloud/050-tutorials/content/howto/hibernate-cluster/slider/slide_5.png"/></div>
-    </div>
-
-
-    
-    <div class="sh__btns"><label for="slider-s0"></label><label for="slider-s1"></label><label for="slider-s2"></label><label for="slider-s3"></label><label for="slider-s4"></label>
-    </div>
-
-    <div class="sh__arrows"><label for="slider-s0"></label><label for="slider-s1"></label><label for="slider-s2"></label><label for="slider-s3"></label><label for="slider-s4"></label>
-    </div>
-</div>
-
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Seccomp">https://en.wikipedia.org/wiki/Seccomp</a></li>
+<li><a href="https://docs.docker.com/engine/security/seccomp">https://docs.docker.com/engine/security/seccomp</a></li>
+<li><a href="https://lwn.net/Articles/656307/">https://lwn.net/Articles/656307/</a></li>
+<li><a href="http://man7.org/conf/lpc2015/limiting_kernel_attack_surface_with_seccomp-LPC_2015-Kerrisk.pdf">http://man7.org/conf/lpc2015/limiting_kernel_attack_surface_with_seccomp-LPC_2015-Kerrisk.pdf</a></li>
+</ul>
 
 
 
@@ -1465,7 +1577,7 @@ to zero. You can now press the <strong>hibernate button</strong> or add the prop
                     See a typo? Have a picture to recommend? Want to edit some words/phrases/sentences?
                     You can simply submit a ticket to request we make the change. If you are github savvy, submit a
                     pull request.
-                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/hibernate-cluster\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/hibernate-cluster\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
+                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/secure-seccomp\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/secure-seccomp\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
                     <br>
                 </span>
             </div>

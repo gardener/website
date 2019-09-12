@@ -17,28 +17,28 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1568301977" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1568301977" rel="stylesheet">
-    <link href="/css/hybrid.css?1568301977" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1568301977" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1568301977" rel="stylesheet">
-    <link href="/css/auto-complete.css?1568301977" rel="stylesheet">
+    <link href="/css/nucleus.css?1568330779" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1568330779" rel="stylesheet">
+    <link href="/css/hybrid.css?1568330779" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1568330779" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1568330779" rel="stylesheet">
+    <link href="/css/auto-complete.css?1568330779" rel="stylesheet">
 
-    <link href="/css/skeleton.css?1568301977" rel="stylesheet">
-    <link href="/css/sheetslider.css?1568301977" rel="stylesheet">
+    <link href="/css/skeleton.css?1568330779" rel="stylesheet">
+    <link href="/css/sheetslider.css?1568330779" rel="stylesheet">
 
-      <script src="/js/moment.js?1568301977"></script>
-      <script src="/js/vivus.js?1568301977"></script>
-      <script src="/js/scrollreveal.js?1568301977"></script>
-      <script src="/js/inlineSVG.js?1568301977"></script>
+      <script src="/js/moment.js?1568330779"></script>
+      <script src="/js/vivus.js?1568330779"></script>
+      <script src="/js/scrollreveal.js?1568330779"></script>
+      <script src="/js/inlineSVG.js?1568330779"></script>
 
-    <link href="/css/theme.css?1568301977" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1568301977" rel="stylesheet">
+    <link href="/css/theme.css?1568330779" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1568330779" rel="stylesheet">
     
-      <link href="/css/theme-gardener.css?1568301977" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1568330779" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1568301977"></script>
+    <script src="/js/jquery-2.x.min.js?1568330779"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -106,14 +106,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1568301977"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1568301977"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1568330779"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1568330779"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1568301977"></script>
+<script type="text/javascript" src="/js/search.js?1568330779"></script>
 
   </div>
 
@@ -1299,6 +1299,7 @@
 <li><a href="#kubernetes-patch-version">Kubernetes Patch Version</a></li>
 <li><a href="#kubernetes-version-expiration-date">Kubernetes Version Expiration Date</a></li>
 <li><a href="#operating-system-version">Operating System Version</a></li>
+<li><a href="#machine-image-expiration-date">Machine Image Expiration Date</a></li>
 </ul></li>
 </ul></li>
 </ul>
@@ -1441,7 +1442,52 @@
 
 <h3 id="operating-system-version">Operating System Version</h3>
 
-<p>If you update the <code>.spec.machineImages</code> field in the CloudProfile used in the Shoot, then the maintenance controller will apply the new machine image to the Shoot spec (and will mark the Shoot to be reconciled) during the maintenance time window. During the reconciliation the corresponding <code>&lt;Provider&gt;MachineClass</code> resource in the Shoot namespace in the Seed will be updated and the machine controller manager will take care of the actual state to match the desired one.</p>
+<p>If a Shoot has <code>.spec.maintenance.autoUpdate.machineImageVersion: true</code> in the manifest, and you update the <code>.spec.machineImages</code> field in the CloudProfile used in the Shoot, then the maintenance controller will apply the new machine image to the Shoot spec (and will mark the Shoot to be reconciled) during the maintenance time window. During the reconciliation the corresponding <code>&lt;Provider&gt;MachineClass</code> resource in the Shoot namespace in the Seed will be updated and the machine controller manager will take care of the actual state to match the desired one.</p>
+
+<h3 id="machine-image-expiration-date">Machine Image Expiration Date</h3>
+
+<ul>
+<li>Automatic update from expired machine image version.</li>
+</ul>
+
+<p>Let&rsquo;s assume the following CloudProfile spec (only related fields are shown):</p>
+
+<pre><code class="language-yaml">spec:
+  machineImages:
+  - name: coreos
+    versions:
+    - version: 2191.5.0
+    - version: 2191.4.1
+    - version: 2135.6.0
+      expirationDate: &quot;2019-04-13T08:00:00Z&quot;
+</code></pre>
+
+<p>And let&rsquo;s the Shoot has the following spec:</p>
+
+<pre><code class="language-yaml">spec:
+  cloud:
+    aws:
+      workers:
+      - name: name
+        autoScalerMax: 1
+        autoScalerMin: 1
+        machineImage:
+          name: coreos
+          version: 2135.6.0
+        machineType: m5.large
+        maxSurge: 1
+        maxUnavailable: 0
+        volumeSize: 20Gi
+        volumeType: gp2
+  maintenance:
+    timeWindow:
+      begin: 220000+0100
+      end: 230000+0100
+    autoUpdate:
+      machineImageVersion: false
+</code></pre>
+
+<p>The Shoot refers a machine image version that has an <code>expirationDate</code>. In the maintenance window on 2019-04-12 the machine image version will stay the same as it is still not expired. But in the maintenance window on 2019-04-14 the machine image version of the Shoot will be updated to <code>2191.5.0</code> (no matter the value of <code>.spec.maintenance.autoUpdate.machineImageVersion</code>) as version <code>2135.6.0</code> will be expired.</p>
 
 
 
@@ -1482,20 +1528,20 @@
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1568301977"></script>
-    <script src="/js/perfect-scrollbar.min.js?1568301977"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1568301977"></script>
-    <script src="/js/jquery.sticky.js?1568301977"></script>
-    <script src="/js/featherlight.min.js?1568301977"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1568301977"></script>
-    <script src="/js/highlight.pack.js?1568301977"></script>
+    <script src="/js/clipboard.min.js?1568330779"></script>
+    <script src="/js/perfect-scrollbar.min.js?1568330779"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1568330779"></script>
+    <script src="/js/jquery.sticky.js?1568330779"></script>
+    <script src="/js/featherlight.min.js?1568330779"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1568330779"></script>
+    <script src="/js/highlight.pack.js?1568330779"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1568301977"></script>
-    <script src="/js/learn.js?1568301977"></script>
-    <script src="/js/hugo-learn.js?1568301977"></script>
+    <script src="/js/modernizr.custom.71422.js?1568330779"></script>
+    <script src="/js/learn.js?1568330779"></script>
+    <script src="/js/hugo-learn.js?1568330779"></script>
 
-    <link href="/mermaid/mermaid.css?1568301977" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1568301977"></script>
+    <link href="/mermaid/mermaid.css?1568330779" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1568330779"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

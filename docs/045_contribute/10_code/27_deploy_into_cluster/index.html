@@ -17,28 +17,28 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1575973073" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1575973073" rel="stylesheet">
-    <link href="/css/hybrid.css?1575973073" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1575973073" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1575973073" rel="stylesheet">
-    <link href="/css/auto-complete.css?1575973073" rel="stylesheet">
-    <link href="/css/skeleton.css?1575973073" rel="stylesheet">
-    <link href="/css/sheetslider.css?1575973073" rel="stylesheet">
+    <link href="/css/nucleus.css?1576059526" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1576059526" rel="stylesheet">
+    <link href="/css/hybrid.css?1576059526" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1576059526" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1576059526" rel="stylesheet">
+    <link href="/css/auto-complete.css?1576059526" rel="stylesheet">
+    <link href="/css/skeleton.css?1576059526" rel="stylesheet">
+    <link href="/css/sheetslider.css?1576059526" rel="stylesheet">
 
-    <script src="/js/moment.js?1575973073"></script>
-    <script src="/js/vivus.js?1575973073"></script>
-    <script src="/js/scrollreveal.js?1575973073"></script>
-    <script src="/js/inlineSVG.js?1575973073"></script>
-    <link href="/css/theme.css?1575973073" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1575973073" rel="stylesheet">
+    <script src="/js/moment.js?1576059526"></script>
+    <script src="/js/vivus.js?1576059526"></script>
+    <script src="/js/scrollreveal.js?1576059526"></script>
+    <script src="/js/inlineSVG.js?1576059526"></script>
+    <link href="/css/theme.css?1576059526" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1576059526" rel="stylesheet">
 
 
     
-      <link href="/css/theme-gardener.css?1575973073" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1576059526" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1575973073"></script>
+    <script src="/js/jquery-2.x.min.js?1576059526"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -106,14 +106,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1575973073"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1575973073"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1576059526"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1576059526"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1575973073"></script>
+<script type="text/javascript" src="/js/search.js?1576059526"></script>
 
   </div>
 
@@ -1434,7 +1434,12 @@
     <div class="wrapper">
 <nav id="TableOfContents">
 <ul>
-<li><a href="#deploying-the-gardener-into-a-kubernetes-cluster">Deploying the Gardener into a Kubernetes cluster</a></li>
+<li><a href="#deploying-the-gardener-into-a-kubernetes-cluster">Deploying the Gardener into a Kubernetes cluster</a>
+<ul>
+<li><a href="#deploying-the-gardener-control-plane-api-server-controller-manager-scheduler">Deploying the Gardener control plane (API server, controller manager, scheduler)</a></li>
+<li><a href="#deploying-gardener-extensions">Deploying Gardener extensions</a></li>
+<li><a href="#deploying-the-gardener-agent-gardenlet">Deploying the Gardener agent (Gardenlet)</a></li>
+</ul></li>
 </ul>
 </nav>
     </div>
@@ -1460,46 +1465,105 @@
 
 <h1 id="deploying-the-gardener-into-a-kubernetes-cluster">Deploying the Gardener into a Kubernetes cluster</h1>
 
-<p>As already mentioned, the Gardener is designed to run as API server extension in an existing Kubernetes cluster. In order to deploy it, you require valid <a href="https://kubernetes.io/docs/concepts/cluster-administration/manage-deployment/">Kubernetes manifests</a>. We use <a href="http://helm.sh/">Helm</a> in order to generate these manifests. The respective Helm chart for the Gardener can be found <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener">here</a>. In order to deploy it, execute</p>
+<p>Similar to Kubernetes, Gardener consists out of control plane components (Gardener API server, Gardener controller manager, Gardener scheduler), and an agent component (Gardenlet).
+The control plane is deployed in the so-called garden cluster while the agent is installed into every seed cluster.
+Please note that it is possible to use the garden cluster as seed cluster by simply deploying the Gardenlet into it.</p>
 
-<pre><code class="language-bash"># Check https://github.com/gardener/gardener/releases for current available releases.
-RELEASE=0.21.0
+<p>We are providing <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener">Helm charts</a> in order to manage the various resources of the components.
+Please always make sure that you use the Helm chart version that matches the Gardener version you want to deploy.</p>
 
-# Since master can have breaking changes after last release, checkout the tag for your release
-git checkout $RELEASE
+<h2 id="deploying-the-gardener-control-plane-api-server-controller-manager-scheduler">Deploying the Gardener control plane (API server, controller manager, scheduler)</h2>
 
-cat &lt;&lt;EOF &gt; gardener.values
-global:
-  apiserver:
-    image:
-      tag: $RELEASE
-  controller:
-    image:
-      tag: $RELEASE
-EOF
+<p>The <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener/controlplane/values.yaml">configuration values</a> depict the various options to configure the different components.
+Please consult <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../usage/configuration.md">this document</a> to get a detailed explanation of what can be configured for which component.
+Also note that all resources and deployments need to be created in the <code>garden</code> namespace (not overrideable).</p>
 
-helm install charts/gardener \
+<p>After preparing your values in a separate <code>controlplane-values.yaml</code> file, you can run the following command against your garden cluster:</p>
+
+<pre><code class="language-bash">helm install charts/gardener/controlplane \
   --namespace garden \
-  --name gardener \
-  -f gardener.values \
+  --name gardener-controlplane \
+  -f gardener-values.yaml \
   --wait
 </code></pre>
 
-<dl>
-<dt>You can check the <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener/values.yaml">default values file</a> for other configuration values. Please note that all resources and deployments need to be created in the <code>garden</code> namespace (not overrideable).</dt>
-</dl>
+<h2 id="deploying-gardener-extensions">Deploying Gardener extensions</h2>
 
-<p>:warning: The Seed Kubernetes clusters need to have a <code>nginx-ingress-controller</code> deployed to make the Gardener work properly. Moreover, there should exist a DNS record <code>*.ingress.&lt;SEED-CLUSTER-DOMAIN&gt;</code> where <code>&lt;SEED-CLUSTER-DOMAIN&gt;</code> is the value of the <code>ingressDomain</code> field of <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../example/50-seed.yaml">a Seed cluster resource</a>.</p>
+<p>Gardener is an extensible system that does not contain the logic for provider-specific things like DNS management, cloud infrastructures, network plugins, operating system configs, and many more.</p>
 
-<p>As we are progressing with <a href="https://github.com/gardener/gardener/blob/master/docs/proposals/01-extensibility.md">GEP-1</a> you need to install extensions for:</p>
+<p>You have to install extension controllers for these parts.
+Please consult <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../extensions/overview.md">the documentation regarding extensions</a> to get more information.</p>
 
-<ul>
-<li>DNS management</li>
-<li>Operating system config generation</li>
-<li>Provider-specific infrastructure creation</li>
-</ul>
+<h2 id="deploying-the-gardener-agent-gardenlet">Deploying the Gardener agent (Gardenlet)</h2>
 
-<p>Please consult <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../extensions/overview.md">the documentation regarding extensions</a> to get more information.</p>
+<p>The Gardenlet requires a bootstrap token as well as a bootstrap kubeconfig in order to properly register itself with the Gardener control plane.</p>
+
+<p>The <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener/gardenlet/values.yaml">configuration values</a> depict the various options to configure it.
+Please consult <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../concepts/gardenlet.md#component-configuration">this document</a> to get a detailed explanation of what can be configured.</p>
+
+<p>Prepare your values in a separate <code>gardenlet-values.yaml</code> file:</p>
+
+<ol>
+<li>Create a bootstrap token secret in the <code>kube-system</code> namespace of the garden cluster (see <a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">this</a> and <a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-tls-bootstrapping/#bootstrap-tokens">this</a>).</li>
+<li>Create a bootstrap kubeconfig containing this token:</li>
+</ol>
+
+<pre><code class="language-yaml">apiVersion: v1
+kind: Config
+current-context: gardenlet-bootstrap@default
+clusters:
+- cluster:
+    certificate-authority-data: &lt;ca-of-garden-cluster&gt;
+    server: https://&lt;endpoint-of-garden-cluster&gt;
+  name: default
+contexts:
+- context:
+    cluster: default
+    user: gardenlet-bootstrap
+  name: gardenlet-bootstrap@default
+users:
+- name: gardenlet-bootstrap
+  user:
+    token: &lt;bootstrap-token&gt;
+</code></pre>
+
+<ol>
+<li>Provide this bootstrap kubeconfig together with a desired name and namespace to the Gardenlet Helm chart values <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener/gardenlet/values.yaml#L31-L35">here</a>:</li>
+</ol>
+
+<pre><code class="language-yaml">gardenClientConnection:
+  bootstrapKubeconfig:
+    name: gardenlet-kubeconfig-bootstrap
+    namespace: garden
+    kubeconfig: |
+      &lt;bootstrap-kubeconfig&gt;
+</code></pre>
+
+<ol>
+<li>Define a name and namespace where the Gardenlet shall store the real kubeconfig it creates during the bootstrap process <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../charts/gardener/gardenlet/values.yaml#L31-L35">here</a>:</li>
+</ol>
+
+<pre><code class="language-yaml">gardenClientConnection:
+  kubeconfigSecret:
+    name: gardenlet-kubeconfig
+    namespace: garden
+</code></pre>
+
+<ol>
+<li>Define either <code>seedSelector</code> or <code>seedConfig</code> (see <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../concepts/gardenlet.md#seed-config-vs-seed-selector">this document</a></li>
+</ol>
+
+<p>Now you are ready to deploy the Helm chart:</p>
+
+<pre><code class="language-bash">helm install charts/gardener/gardenlet \
+  --namespace garden \
+  --name gardenlet \
+  -f gardenlet-values.yaml \
+  --wait
+</code></pre>
+
+<p>:warning: A current prerequisite of Kubernetes clusters that are used as seeds is to have a pre-deployed <code>nginx-ingress-controller</code> to make the Gardener work properly.
+Moreover, there should exist a DNS record <code>*.ingress.&lt;SEED-CLUSTER-DOMAIN&gt;</code> where <code>&lt;SEED-CLUSTER-DOMAIN&gt;</code> is the value of the <code>.dns.ingressDomain</code> field of <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../example/50-seed.yaml">a Seed cluster resource</a> (or the <a href="https://github.com/gardener/gardener/blob/master/docs/deployment/../../example/20-componentconfig-gardenlet.yaml#L84-L85">respective Gardenlet configuration</a>).</p>
 
 
 
@@ -1539,20 +1603,20 @@ helm install charts/gardener \
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1575973073"></script>
-    <script src="/js/perfect-scrollbar.min.js?1575973073"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1575973073"></script>
-    <script src="/js/jquery.sticky.js?1575973073"></script>
-    <script src="/js/featherlight.min.js?1575973073"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1575973073"></script>
-    <script src="/js/highlight.pack.js?1575973073"></script>
+    <script src="/js/clipboard.min.js?1576059526"></script>
+    <script src="/js/perfect-scrollbar.min.js?1576059526"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1576059526"></script>
+    <script src="/js/jquery.sticky.js?1576059526"></script>
+    <script src="/js/featherlight.min.js?1576059526"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1576059526"></script>
+    <script src="/js/highlight.pack.js?1576059526"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1575973073"></script>
-    <script src="/js/learn.js?1575973073"></script>
-    <script src="/js/hugo-learn.js?1575973073"></script>
+    <script src="/js/modernizr.custom.71422.js?1576059526"></script>
+    <script src="/js/learn.js?1576059526"></script>
+    <script src="/js/hugo-learn.js?1576059526"></script>
 
-    <link href="/mermaid/mermaid.css?1575973073" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1575973073"></script>
+    <link href="/mermaid/mermaid.css?1576059526" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1576059526"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

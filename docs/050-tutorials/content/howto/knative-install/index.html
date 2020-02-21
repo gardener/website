@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="description" content="Use a Helm chart to deploy some application or service">
+    <meta name="description" content="A walkthrough the steps for installing Knative in Gardener shoot clusters.">
 <meta name="author" content="Andreas Herz">
 
     <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon" />
 <link rel="icon" href="/images/favicon.png" type="image/x-icon" />
-    <title>Use a Helm chart to deploy some application or service :: Gardener Documentation</title>
+    <title>Install Knative in Gardener clusters :: Gardener Documentation</title>
 
     <link rel="icon" type="image/x-icon" href='https://gardener.cloud/images/favicon.ico'>
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-32x32.png' sizes="32x32">
@@ -52,7 +52,7 @@
   </head>
 
 
-  <body class="" data-url="/050-tutorials/content/howto/helm/">
+  <body class="" data-url="/050-tutorials/content/howto/knative-install/">
     <nav id="sidebar" class="">
 
   <div id="header-wrapper">
@@ -1377,7 +1377,7 @@
                   
                   
                   <div id="top-github-link">
-                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/helm/_index.md" target="blank">
+                    <a class="github-link" title='Edit this page' href="https://github.com/gardener/documentation/edit/master/website/documentation/050-tutorials/content/howto/knative-install/_index.md" target="blank">
                       <i class="fa fa-code-fork"></i>
                       <span id="top-github-link-text">Edit this page</span>
                     </a>
@@ -1418,7 +1418,7 @@
                     
             
             
-              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Use a Helm chart to deploy some application or service
+              <a href='/'>Gardener</a> > <a href='/tutorials/'>Tutorials</a> > Install Knative in Gardener clusters
             
           
                 
@@ -1442,9 +1442,19 @@
 <ul>
 <li>
 <ul>
-<li><a href="#create-a-service-account">Create a Service Account</a></li>
-<li><a href="#initialize-helm">Initialize Helm</a></li>
-<li><a href="#in-case-of-failure">In case of failure</a></li>
+<li><a href="#before-you-begin">Before you begin</a>
+<ul>
+<li><a href="#install-and-configure-kubectl">Install and configure kubectl</a></li>
+<li><a href="#access-gardener">Access Gardener</a></li>
+<li><a href="#creating-a-kubernetes-cluster">Creating a Kubernetes cluster</a></li>
+<li><a href="#configure-kubectl-for-your-cluster">Configure kubectl for your cluster</a></li>
+</ul></li>
+<li><a href="#installing-istio">Installing Istio</a></li>
+<li><a href="#installing-cluster-local-gateway-for-serving-cluster-internal-traffic">Installing <code>cluster-local-gateway</code> for serving cluster-internal traffic</a></li>
+<li><a href="#installing-knative">Installing Knative</a></li>
+<li><a href="#set-your-custom-domain">Set your custom domain</a></li>
+<li><a href="#what-s-next">What&rsquo;s next</a></li>
+<li><a href="#cleaning-up">Cleaning up</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -1457,8 +1467,8 @@
             <div class="tutorial-last-update">Updated <span>
 
 
-   <span id="3158778471b5ef7974fec39ba7a17736"></span>
-   <script>$("#3158778471b5ef7974fec39ba7a17736").html(moment("2018-09-21T14:44:14Z").fromNow())</script>
+   <span id="35d236a9cae1f7b0f85b09f70796487d"></span>
+   <script>$("#35d236a9cae1f7b0f85b09f70796487d").html(moment("2020-02-21T13:25:57Z").fromNow())</script>
 
 
 </span> by 
@@ -1466,7 +1476,9 @@
 
    
 
-<a href='mailto:a.herz@freegroup.de'>Andreas Herz</a>
+   
+
+<a href='mailto:georgi.pavlov@sap.com'>Georgi Pavlov</a>
 
 </div>
 
@@ -1483,55 +1495,207 @@
 
 
 
-<p>Basically, <a href="https://github.com/kubernetes/charts">Helm Charts</a> can be installed as described e.g. in the Helm
-<a href="https://docs.helm.sh/using_helm/#quickstart-guide">QuickStart Guide</a>. However, our clusters come with
-<a href="https://kubernetes.io/docs/admin/authorization/rbac">RBAC</a> enabled by default hence Helm must be installed as follows:</p>
+<p>This guide walks you through the installation of the latest version of Knative
+using pre-built images on a <a href="https://gardener.cloud">Gardener</a> created cluster
+environment. To set up your own Gardener, see the
+<a href="https://github.com/gardener/gardener/blob/master/docs/README.md">documentation</a>
+or have a look at the
+<a href="https://github.com/gardener/landscape-setup-template">landscape-setup-template</a>
+project. To learn more about this open source project, read the
+<a href="https://kubernetes.io/blog/2018/05/17/gardener/">blog on kubernetes.io</a>.</p>
 
-<h2 id="create-a-service-account">Create a Service Account</h2>
+<p>You can find <a href="./README.md">guides for other platforms here</a>.</p>
 
-<p>Create a service account via the following command:</p>
+<h2 id="before-you-begin">Before you begin</h2>
 
-<pre><code class="language-sh">cat &lt;&lt;EOF | kubectl create -f -
+<p>Knative requires a Kubernetes cluster v1.15 or newer.</p>
+
+<h3 id="install-and-configure-kubectl">Install and configure kubectl</h3>
+
+<ol>
+<li><p>If you already have <code>kubectl</code> CLI, run <code>kubectl version --short</code> to check
+the version. You need v1.10 or newer. If your <code>kubectl</code> is older, follow the
+next step to install a newer version.</p></li>
+
+<li><p><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl">Install the kubectl CLI</a>.</p></li>
+</ol>
+
+<h3 id="access-gardener">Access Gardener</h3>
+
+<ol>
+<li><p>Create a project in the Gardener dashboard. This will essentially create a
+Kubernetes namespace with the name <code>garden-&lt;my-project&gt;</code>.</p></li>
+
+<li><p><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#configure-kubectl">Configure access to your Gardener project</a>
+using a kubeconfig. If you are not the Gardener Administrator already, you
+can create a technical user in the Gardener dashboard: go to the &ldquo;Members&rdquo;
+section and add a service account. You can then download the kubeconfig for
+your project. You can skip this step if you create your cluster using the
+user interface; it is only needed for programmatic access, make sure you set
+<code>export KUBECONFIG=garden-my-project.yaml</code> in your shell.
+<img src="./images/gardener_service_account.png" alt="Download kubeconfig for Gardener" title="downloading the kubeconfig using a service account" /></p></li>
+</ol>
+
+<h3 id="creating-a-kubernetes-cluster">Creating a Kubernetes cluster</h3>
+
+<p>You can create your cluster using <code>kubectl</code> cli by providing a cluster
+specification yaml file. You can find an example for GCP
+<a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">here</a>.
+Make sure the namespace matches that of your project. Then just apply the
+prepared so-called &ldquo;shoot&rdquo; cluster crd with kubectl:</p>
+
+<pre><code>kubectl apply --filename my-cluster.yaml
+</code></pre>
+
+<p>The easier alternative is to create the cluster following the cluster creation
+wizard in the Gardener dashboard:
+<img src="./images/gardener_shoot_creation.png" alt="shoot creation" title="shoot creation via the dashboard" /></p>
+
+<h3 id="configure-kubectl-for-your-cluster">Configure kubectl for your cluster</h3>
+
+<p>You can now download the kubeconfig for your freshly created cluster in the
+Gardener dashboard or via cli as follows:</p>
+
+<pre><code>kubectl --namespace shoot--my-project--my-cluster get secret kubecfg --output jsonpath={.data.kubeconfig} | base64 --decode &gt; my-cluster.yaml
+</code></pre>
+
+<p>This kubeconfig file has full administrators access to you cluster. For the rest
+of this guide be sure you have <code>export KUBECONFIG=my-cluster.yaml</code> set.</p>
+
+<h2 id="installing-istio">Installing Istio</h2>
+
+<p>Knative depends on Istio. If your cloud platform offers a managed Istio
+installation, we recommend installing Istio that way, unless you need the
+ability to customize your installation.</p>
+
+<p>Otherwise, see the <a href="./installing-istio.md">Installing Istio for Knative guide</a>
+to install Istio.</p>
+
+<p>You must install Istio on your Kubernetes cluster before continuing with these
+instructions to install Knative.</p>
+
+<h2 id="installing-cluster-local-gateway-for-serving-cluster-internal-traffic">Installing <code>cluster-local-gateway</code> for serving cluster-internal traffic</h2>
+
+<p>If you installed Istio, you can install a <code>cluster-local-gateway</code> within your Knative cluster so that you can serve cluster-internal traffic. If you want to configure your revisions to use routes that are visible only within your cluster, <a href="./installing-istio.md#updating-your-install-to-use-cluster-local-gateway">install and use the <code>cluster-local-gateway</code></a>.</p>
+
+<h2 id="installing-knative">Installing Knative</h2>
+
+<p>The following commands install all available Knative components as well as the
+standard set of observability plugins. To customize your Knative installation,
+see <a href="./Knative-custom-install.md">Performing a Custom Knative Installation</a>.</p>
+
+<ol>
+<li>If you are upgrading from Knative 0.3.x: Update your domain and static IP
+address to be associated with the LoadBalancer <code>istio-ingressgateway</code> instead
+of <code>knative-ingressgateway</code>. Then run the following to clean up leftover
+resources:</li>
+</ol>
+
+<pre><code>   kubectl delete svc knative-ingressgateway -n istio-system
+   kubectl delete deploy knative-ingressgateway -n istio-system
+</code></pre>
+
+<p>If you have the Knative Eventing Sources component installed, you will also
+   need to delete the following resource before upgrading:</p>
+
+<pre><code>   kubectl delete statefulset/controller-manager -n knative-sources
+</code></pre>
+
+<p>While the deletion of this resource during the upgrade process will not
+   prevent modifications to Eventing Source resources, those changes will not be
+   completed until the upgrade process finishes.</p>
+
+<ol>
+<li>To install Knative, first install the CRDs by running the <code>kubectl apply</code>
+command once with the <code>-l knative.dev/crd-install=true</code> flag. This prevents
+race conditions during the install, which cause intermittent errors:</li>
+</ol>
+
+<pre><code class="language-bash">   kubectl apply --selector knative.dev/crd-install=true \
+   --filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml \
+   --filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml \
+   --filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+</code></pre>
+
+<ol>
+<li>To complete the install of Knative and its dependencies, run the
+<code>kubectl apply</code> command again, this time without the <code>--selector</code> flag, to
+complete the install of Knative and its dependencies:</li>
+</ol>
+
+<pre><code class="language-bash">   kubectl apply --filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml \
+   --filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml \
+   --filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+</code></pre>
+
+<ol>
+<li>Monitor the Knative components until all of the components show a <code>STATUS</code> of
+<code>Running</code>:
+<code>bash
+kubectl get pods --namespace knative-serving
+kubectl get pods --namespace knative-eventing
+kubectl get pods --namespace knative-monitoring
+</code></li>
+</ol>
+
+<h2 id="set-your-custom-domain">Set your custom domain</h2>
+
+<ol>
+<li>Fetch the external IP or CNAME of the knative-ingressgateway</li>
+</ol>
+
+<pre><code>kubectl --namespace istio-system get service knative-ingressgateway
+NAME                     TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                      AGE
+knative-ingressgateway   LoadBalancer   100.70.219.81   35.233.41.212   80:32380/TCP,443:32390/TCP,32400:32400/TCP   4d
+</code></pre>
+
+<ol>
+<li>Create a wildcard DNS entry in your custom domain to point to above IP or
+CNAME</li>
+</ol>
+
+<pre><code>*.knative.&lt;my domain&gt; == A 35.233.41.212
+# or CNAME if you are on AWS
+*.knative.&lt;my domain&gt; == CNAME a317a278525d111e89f272a164fd35fb-1510370581.eu-central-1.elb.amazonaws.com
+</code></pre>
+
+<ol>
+<li>Adapt your knative config-domain (set your domain in the data field)</li>
+</ol>
+
+<pre><code>kubectl --namespace knative-serving get configmaps config-domain --output yaml
 apiVersion: v1
-kind: ServiceAccount
-metadata:
- name: helm
- namespace: kube-system
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
- name: helm
-roleRef:
- apiGroup: rbac.authorization.k8s.io
- kind: ClusterRole
- name: cluster-admin
-subjects:
- - kind: ServiceAccount
-   name: helm
-   namespace: kube-system
-EOF
+data:
+  knative.&lt;my domain&gt;: &quot;&quot;
+kind: ConfigMap
+  name: config-domain
+  namespace: knative-serving
 </code></pre>
 
-<h2 id="initialize-helm">Initialize Helm</h2>
+<h2 id="what-s-next">What&rsquo;s next</h2>
 
-<p>Initialise Helm via <code>helm init --service-account helm</code>. You can now use <code>helm</code>.</p>
+<p>Now that your cluster has Knative installed, you can see what Knative has to
+offer.</p>
 
-<h2 id="in-case-of-failure">In case of failure</h2>
+<p>To deploy your first app with the
+<a href="../serving/getting-started-knative-app.md">Getting Started with Knative App Deployment</a>
+guide.</p>
 
-<p>In case you have already executed <code>helm init</code>, but without the above service account, you will get the following error:
- <code>Error: User &quot;system:serviceaccount:kube-system:default&quot; cannot list configmaps in the namespace &quot;kube-system&quot;. 
- (get configmaps)</code> (e.g. when you run <code>helm list</code>). You will now need to delete the Tiller deployment (Helm backend
- implicitly deployed to the Kubernetes cluster when you call <code>helm init</code>) as well as the local Helm files (usually
- <code>$HELM_HOME</code> is set to <code>~/.helm</code>):</p>
+<p>Get started with Knative Eventing by walking through one of the
+<a href="../eventing/samples/">Eventing Samples</a>.</p>
 
-<pre><code class="language-sh">kubectl delete deployment tiller-deploy --namespace=kube-system
-kubectl delete service tiller-deploy --namespace=kube-system 
-rm -rf ~/.helm/
+<p><a href="../serving/installing-cert-manager.md">Install Cert-Manager</a> if you want to use the
+<a href="../serving/using-auto-tls.md">automatic TLS cert provisioning feature</a>.</p>
+
+<h2 id="cleaning-up">Cleaning up</h2>
+
+<p>Use the Gardener dashboard to delete your cluster, or execute the following with
+kubectl pointing to your <code>garden-my-project.yaml</code> kubeconfig:</p>
+
+<pre><code>kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project annotate shoot my-cluster confirmation.garden.sapcloud.io/deletion=true
+
+kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project delete shoot my-cluster
 </code></pre>
-
-<p>Now follow the instructions above. For more details see this
-<a href="https://github.com/kubernetes/helm/issues/2687">Kubernetes Helm issue #2687</a>.</p>
 
 
 
@@ -1558,7 +1722,7 @@ rm -rf ~/.helm/
                     See a typo? Have a picture to recommend? Want to edit some words/phrases/sentences?
                     You can simply submit a ticket to request we make the change. If you are github savvy, submit a
                     pull request.
-                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/helm\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/helm\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
+                    <a href="#" onclick="return createIssue('https:\/\/github.com\/gardener\/documentation\/issues/new','050-tutorials\/content\/howto\/knative-install\/_index.md','https:\/\/github.com\/gardener\/documentation\/edit\/master\/website\/documentation\/050-tutorials\/content\/howto\/knative-install\/_index.md')" target="_blank">Open Github Issue <i class="fa fa-external-link" aria-hidden="true"></i></a>
                     <br>
                 </span>
             </div>

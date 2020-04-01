@@ -17,28 +17,28 @@
     <link rel="icon" type="image/png"    href='https://gardener.cloud/images/favicon-16x16.png' sizes="16x16">
 
     
-    <link href="/css/nucleus.css?1585666391" rel="stylesheet">
-    <link href="/css/fontawesome-all.min.css?1585666391" rel="stylesheet">
-    <link href="/css/hybrid.css?1585666391" rel="stylesheet">
-    <link href="/css/featherlight.min.css?1585666391" rel="stylesheet">
-    <link href="/css/perfect-scrollbar.min.css?1585666391" rel="stylesheet">
-    <link href="/css/auto-complete.css?1585666391" rel="stylesheet">
+    <link href="/css/nucleus.css?1585766554" rel="stylesheet">
+    <link href="/css/fontawesome-all.min.css?1585766554" rel="stylesheet">
+    <link href="/css/hybrid.css?1585766554" rel="stylesheet">
+    <link href="/css/featherlight.min.css?1585766554" rel="stylesheet">
+    <link href="/css/perfect-scrollbar.min.css?1585766554" rel="stylesheet">
+    <link href="/css/auto-complete.css?1585766554" rel="stylesheet">
 
-    <link href="/css/skeleton.css?1585666391" rel="stylesheet">
-    <link href="/css/sheetslider.css?1585666391" rel="stylesheet">
+    <link href="/css/skeleton.css?1585766554" rel="stylesheet">
+    <link href="/css/sheetslider.css?1585766554" rel="stylesheet">
 
-      <script src="/js/moment.js?1585666391"></script>
-      <script src="/js/vivus.js?1585666391"></script>
-      <script src="/js/scrollreveal.js?1585666391"></script>
-      <script src="/js/inlineSVG.js?1585666391"></script>
+      <script src="/js/moment.js?1585766554"></script>
+      <script src="/js/vivus.js?1585766554"></script>
+      <script src="/js/scrollreveal.js?1585766554"></script>
+      <script src="/js/inlineSVG.js?1585766554"></script>
 
-    <link href="/css/theme.css?1585666391" rel="stylesheet">
-    <link href="/css/hugo-theme.css?1585666391" rel="stylesheet">
+    <link href="/css/theme.css?1585766554" rel="stylesheet">
+    <link href="/css/hugo-theme.css?1585766554" rel="stylesheet">
     
-      <link href="/css/theme-gardener.css?1585666391" rel="stylesheet">
+      <link href="/css/theme-gardener.css?1585766554" rel="stylesheet">
     
 
-    <script src="/js/jquery-2.x.min.js?1585666391"></script>
+    <script src="/js/jquery-2.x.min.js?1585766554"></script>
     
     <style type="text/css">
       :root #header + #content > #left > #rlblock_left{ 
@@ -106,14 +106,14 @@
     <span data-search-clear=""><i class="fas fa-close"></i></span>
 </div>
 
-<script type="text/javascript" src="/js/lunr.min.js?1585666391"></script>
-<script type="text/javascript" src="/js/auto-complete.js?1585666391"></script>
+<script type="text/javascript" src="/js/lunr.min.js?1585766554"></script>
+<script type="text/javascript" src="/js/auto-complete.js?1585766554"></script>
 <script type="text/javascript">
     
         var baseurl = '\/';
     
 </script>
-<script type="text/javascript" src="/js/search.js?1585666391"></script>
+<script type="text/javascript" src="/js/search.js?1585766554"></script>
 
   </div>
 
@@ -1449,6 +1449,11 @@
 <li><a href="#character-restrictions">Character Restrictions</a></li>
 </ul></li>
 <li><a href="#certificate-resources">Certificate Resources</a></li>
+<li><a href="#custom-domains">Custom Domains</a>
+<ul>
+<li><a href="#dns-provider">DNS provider</a></li>
+<li><a href="#issuer">Issuer</a></li>
+</ul></li>
 <li><a href="#examples">Examples</a>
 <ul>
 <li><a href="#request-a-certificate-via-certificate">Request a certificate via Certificate</a></li>
@@ -1530,7 +1535,7 @@ endpoint. Furthermore, Gardener takes care about the renewal process for your re
 
 <h3 id="domains">Domains</h3>
 
-<p>Certificates may be received for any subdomain of your shoot&rsquo;s domain (see <code>.spec.dns.domain</code> of your shoot resource).</p>
+<p>Certificates may be received for any subdomain of your shoot&rsquo;s domain (see <code>.spec.dns.domain</code> of your shoot resource) with the default <code>issuer</code>.</p>
 
 <h3 id="character-restrictions">Character Restrictions</h3>
 
@@ -1588,6 +1593,45 @@ status:
   state: Ready
 </code></pre>
 
+<h2 id="custom-domains">Custom Domains</h2>
+
+<p>If you want to request certificates for domains other then any subdomain of <code>shoot.spec.dns.domain</code>, the following configuration is required:</p>
+
+<h3 id="dns-provider">DNS provider</h3>
+
+<p>In order to issue certificates for a custom domain you need to specify a DNS provider which is permitted to create DNS records for subdomains of your requested domain in the certificate. For example, if you request a certificate for <code>host.example.com</code> your DNS provider must be capable of managing subdomains of <code>host.example.com</code>.</p>
+
+<p>DNS providers are specified in the shoot manifest:</p>
+
+<pre><code class="language-yaml">kind: Shoot
+...
+spec:
+  dns:
+    providers:
+    - type: aws-route53 # consult the DNS provisioning controllers group (dnscontrollers) in https://github.com/gardener/external-dns-management#using-the-dns-controller-manager for possible values
+      secretName: provider-example-com # contains credentials for service account, see any 20-secret-&lt;provider&gt;-credentials.yaml in https://github.com/gardener/external-dns-management/tree/master/examples
+</code></pre>
+
+<p>The secret referenced by <code>secretName</code> can also be conveniently created via the Gardener dashboard.</p>
+
+<h3 id="issuer">Issuer</h3>
+
+<p>Another prerequisite to request certificates for custom domains is a dedicated issuer.</p>
+
+<pre><code class="language-yaml">kind: Shoot
+...
+spec:
+  extensions:
+  - type: shoot-cert-service
+    providerConfig:
+      apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+      kind: CertConfig
+      issuers:
+        - email: your-email@example.com
+          name: custom-issuer # issuer name must be specified in every custom issuer request, must not be &quot;garden&quot;
+          server: 'https://acme-v02.api.letsencrypt.org/directory'
+</code></pre>
+
 <h2 id="examples">Examples</h2>
 
 <h3 id="request-a-certificate-via-certificate">Request a certificate via Certificate</h3>
@@ -1604,6 +1648,8 @@ spec:
   secretRef:
     name: cert-example
     namespace: default
+# issuerRef:
+#   name: custom-issuer
 </code></pre>
 
 <blockquote>
@@ -1612,6 +1658,8 @@ spec:
 <p><code>spec.dnsName</code> additional domains the certificate should be valid for. Entries in this list can be longer than 64 characters.</p>
 
 <p><code>spec.secretRef</code> specifies the secret which contains the certificate/key pair. If the secret is not available yet, it&rsquo;ll be created automatically as soon as the X.509 certificate has been issued.</p>
+
+<p><code>spec.issuerRef</code> (optional) specifies the issuer you want to use. Only necessary if you request certificates for <a href="#Custom-Domains">custom domains</a>.</p>
 </blockquote>
 
 <h3 id="request-a-wildcard-certificate-via-certificate">Request a wildcard certificate via Certificate</h3>
@@ -1626,6 +1674,8 @@ spec:
   secretRef:
     name: cert-wildcard
     namespace: default
+# issuerRef:
+#   name: custom-issuer
 </code></pre>
 
 <blockquote>
@@ -1634,6 +1684,8 @@ spec:
 <p>Please note that verifications for wildcard domain certificates only succeed if the subdomain and wildcard domain are on the same level. For example: A certificate for <code>*.example.com</code> works for <code>foo.example.com</code> but not for <code>foo.bar.example.com</code>.</p>
 
 <p><code>spec.secretRef</code> specifies the secret which contains the certificate/key pair. If the secret is not available yet, it&rsquo;ll be created automatically as soon as the X.509 certificate has been issued.</p>
+
+<p><code>spec.issuerRef</code> (optional) specifies the issuer you want to use. Only necessary if you request certificates for <a href="#Custom-Domains">custom domains</a>.</p>
 </blockquote>
 
 <h3 id="request-a-certificate-via-ingress">Request a certificate via Ingress</h3>
@@ -1644,6 +1696,7 @@ metadata:
   name: vuejs-ingress
   annotations:
     cert.gardener.cloud/purpose: managed
+  # cert.gardener.cloud/issuer: custom-issuer
 spec:
   tls:
   # Must not exceed 64 characters.
@@ -1662,7 +1715,7 @@ spec:
 </code></pre>
 
 <blockquote>
-<p><code>metadata.annotations</code> must contain <code>cert.gardener.cloud/purpose: managed</code> to activate the certificate service on this resource.</p>
+<p><code>metadata.annotations</code> must contain <code>cert.gardener.cloud/purpose: managed</code> to activate the certificate service on this resource. <code>cert.gardener.cloud/issuer: &lt;name&gt;</code> is optional and may be specified if the certificate is request for a <a href="#Custom-Domains">custom domains</a>.</p>
 
 <p><code>spec.tls[].hosts</code> specifies for which domains the certificate request will be created. The first entry is always taken to fill the <code>Common Name</code> field and must therefore comply with the <a href="#Character-Restrictions">64 character</a> limit.</p>
 
@@ -1677,6 +1730,7 @@ metadata:
   name: vuejs-ingress
   annotations:
     cert.gardener.cloud/purpose: managed
+  # cert.gardener.cloud/issuer: custom-issuer
 spec:
   tls:
   # Must not exceed 64 characters.
@@ -1694,7 +1748,7 @@ spec:
 </code></pre>
 
 <blockquote>
-<p><code>metadata.annotations</code> must contain <code>cert.gardener.cloud/purpose: managed</code> to activate the certificate service on this resource.</p>
+<p><code>metadata.annotations</code> must contain <code>cert.gardener.cloud/purpose: managed</code> to activate the certificate service on this resource. <code>cert.gardener.cloud/issuer: &lt;name&gt;</code> is optional and may be specified if the certificate is request for a <a href="#Custom-Domains">custom domains</a>.</p>
 
 <p><code>spec.tls[].hosts</code> please make sure the wildcard domain complies with the <a href="#Character-Restrictions">64 character</a> limit.</p>
 
@@ -1708,6 +1762,7 @@ kind: Service
 metadata:
   annotations:
     cert.gardener.cloud/secretname: test-service-secret
+  # cert.gardener.cloud/issuer: custom-issuer
     dns.gardener.cloud/dnsnames: &quot;service.shoot.project.default-domain.gardener.cloud, morethan64characters.svc.shoot.project.default-domain.gardener.cloud&quot;
     dns.gardener.cloud/ttl: &quot;600&quot;
   name: test-service
@@ -1724,6 +1779,8 @@ spec:
 <blockquote>
 <p><code>metadata.annotations[cert.gardener.cloud/secretname]</code> specifies the secret which contains the certificate/key pair. If the secret is not available yet, it&rsquo;ll be created automatically as soon as the certificate has been issued.</p>
 
+<p><code>metadata.annotations[cert.gardener.cloud/issuer]</code> is optional and may be specified if the certificate is request for a <a href="#Custom-Domains">custom domains</a>.</p>
+
 <p><code>metadata.annotations[dns.gardener.cloud/dnsnames]</code> specifies for which domains the certificate request will be created. The first entry is always taken to fill the <code>Common Name</code> field and must therefore comply with the <a href="#Character-Restrictions">64 character</a> limit.</p>
 </blockquote>
 
@@ -1734,6 +1791,7 @@ kind: Service
 metadata:
   annotations:
     cert.gardener.cloud/secretname: test-service-secret
+  # cert.gardener.cloud/issuer: custom-issuer
     dns.gardener.cloud/dnsnames: &quot;*.service.shoot.project.default-domain.gardener.cloud&quot;
     dns.gardener.cloud/ttl: &quot;600&quot;
   name: test-service
@@ -1749,6 +1807,8 @@ spec:
 
 <blockquote>
 <p><code>metadata.annotations[cert.gardener.cloud/secretname]</code> specifies the secret which contains the certificate/key pair. If the secret is not available yet, it&rsquo;ll be created automatically as soon as the certificate has been issued.</p>
+
+<p><code>metadata.annotations[cert.gardener.cloud/issuer]</code> is optional and may be specified if the certificate is request for a <a href="#Custom-Domains">custom domains</a>.</p>
 
 <p><code>metadata.annotations[dns.gardener.cloud/dnsnames]</code> please make sure the wildcard domain complies with the <a href="#Character-Restrictions">64 character</a> limit.</p>
 
@@ -1823,20 +1883,20 @@ spec:
 
       <div style="border: none; box-sizing: content-box; height: 200px; margin: 0px; padding: 0px; width: 200px;"></div>
     </div>
-    <script src="/js/clipboard.min.js?1585666391"></script>
-    <script src="/js/perfect-scrollbar.min.js?1585666391"></script>
-    <script src="/js/perfect-scrollbar.jquery.min.js?1585666391"></script>
-    <script src="/js/jquery.sticky.js?1585666391"></script>
-    <script src="/js/featherlight.min.js?1585666391"></script>
-    <script src="/js/html5shiv-printshiv.min.js?1585666391"></script>
-    <script src="/js/highlight.pack.js?1585666391"></script>
+    <script src="/js/clipboard.min.js?1585766554"></script>
+    <script src="/js/perfect-scrollbar.min.js?1585766554"></script>
+    <script src="/js/perfect-scrollbar.jquery.min.js?1585766554"></script>
+    <script src="/js/jquery.sticky.js?1585766554"></script>
+    <script src="/js/featherlight.min.js?1585766554"></script>
+    <script src="/js/html5shiv-printshiv.min.js?1585766554"></script>
+    <script src="/js/highlight.pack.js?1585766554"></script>
     <script>hljs.initHighlightingOnLoad();</script>
-    <script src="/js/modernizr.custom.71422.js?1585666391"></script>
-    <script src="/js/learn.js?1585666391"></script>
-    <script src="/js/hugo-learn.js?1585666391"></script>
+    <script src="/js/modernizr.custom.71422.js?1585766554"></script>
+    <script src="/js/learn.js?1585766554"></script>
+    <script src="/js/hugo-learn.js?1585766554"></script>
 
-    <link href="/mermaid/mermaid.css?1585666391" type="text/css" rel="stylesheet" />
-    <script src="/mermaid/mermaid.js?1585666391"></script>
+    <link href="/mermaid/mermaid.css?1585766554" type="text/css" rel="stylesheet" />
+    <script src="/mermaid/mermaid.js?1585766554"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, htmlLables: true });
         function createIssue(issueUrl, page, url) {

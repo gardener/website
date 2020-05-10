@@ -11,28 +11,29 @@ function initLunr() {
     };
 
     // First retrieve the index file
-    $.getJSON(baseurl +"index.json")
+    $.getJSON(baseurl + "index.json")
         .done(function(index) {
-            pagesIndex =   index;
+            pagesIndex = index;
             // Set up lunrjs by declaring the fields we use
             // Also provide their boost level for the ranking
-            lunrIndex = new lunr.Index
-            lunrIndex.ref("uri");
-            lunrIndex.field('title', {
-                boost: 15
-            });
-            lunrIndex.field('tags', {
-                boost: 10
-            });
-            lunrIndex.field("content", {
-                boost: 5
-            });
-
-            // Feed lunr with each file and let lunr actually index them
-            pagesIndex.forEach(function(page) {
-                lunrIndex.add(page);
-            });
-            lunrIndex.pipeline.remove(lunrIndex.stemmer)
+            lunrIndex = lunr(function(){
+                this.ref("uri");
+                this.field('title', {
+                    boost: 15
+                });
+                this.field('tags', {
+                    boost: 10
+                });
+                this.field("content", {
+                    boost: 5
+                });
+    
+                // Feed lunr with each file and let lunr actually index them
+                pagesIndex.forEach(function(page) {
+                    this.add(page);
+                }, this);
+                this.pipeline.remove(this.stemmer)
+             })
         })
         .fail(function(jqxhr, textStatus, error) {
             var err = textStatus + ", " + error;

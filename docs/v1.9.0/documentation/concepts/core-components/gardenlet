@@ -1,0 +1,184 @@
+---
+frontmatter:
+    remote: https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md
+    title: gardenlet
+    type: docs
+    weight: 20
+---
+
+# Gardenlet
+
+Gardener is implemented using the [operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/): It uses custom controllers that act on our own custom resources, and apply Kubernetes principles to manage clusters
+instead of containers. Following this analogy, you can recognize components of the Gardener architecture as well-known Kubernetes components, for example, shoot clusters can be compared with pods, and seed clusters can be seen as worker
+nodes.
+
+The following Gardener components play a similar role as the corresponding components in the Kubernetes
+architecture:
+
+Gardener Component             | Kubernetes Component
+:------------------------------|:--------------------------
+`gardener-apiserver`           | `kube-apiserver`
+`gardener-controller-manager`  | `kube-controller-manager`
+`gardener-scheduler`           | `kube-scheduler`
+`gardenlet`                    | `kubelet`
+
+Similar to how the `kube-scheduler` of Kubernetes finds an appropriate node for newly created pods, the `gardener-scheduler` of Gardener finds an appropriate seed cluster to host the control plane for newly ordered clusters. By providing multiple seed clusters for a region or provider, and distributing the workload, Gardener also reduces the blast radius of potential
+issues.
+
+Kubernetes runs a primary "agent" on every node, the kubelet, which is responsible for managing pods and containers on its particular node. Decentralizing the responsibility to the kubelet has the advantage that the overall system is scalable. Gardener achieves the same for cluster management by using a **gardenlet** as primary "agent" on every seed cluster, and is only responsible for shoot clusters located in its particular seed
+cluster:
+
+![Counterparts in the Gardener Architecture and the Kubernetes
+Architecture](/__resources/4bca2c97-5e60-4a7c-b4d6-970436fd73b1.png)
+
+The `gardener-controller-manager` has control loops to manage resources of the Gardener API. However, instead of letting the `gardener-controller-manager` talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It's up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed
+clusters.
+
+Reversing the control flow allows placing seed clusters or shoot clusters behind firewalls without the necessity of direct access via VPN tunnels
+anymore.
+
+![Reversed Control Flow Using a
+Gardenlet](/__resources/79faa69f-bebf-4a82-8247-fb49a1dbade3.png)
+
+## TLS Bootstrapping
+
+Kubernetes doesn’t manage worker nodes itself, and it’s also not responsible for the lifecycle of the kubelet running on the workers. Similarly, Gardener doesn’t manage seed clusters itself, so Gardener is also not responsible for the lifecycle of the gardenlet running on the seeds. As a consequence, both the gardenlet and the kubelet need to prepare a trusted connection to the Gardener API server and the Kubernetes API server
+correspondingly.
+
+To prepare a trusted connection between the gardenlet and the Gardener API server, the gardenlet initializes a bootstrapping process after you deployed it into your seed
+clusters:
+
+1.  The gardenlet starts up with a bootstrap `kubeconfig` having a bootstrap token that allows to create `CertificateSigningRequest` (CSR)
+    resources.
+
+2.  After the CSR is signed, the gardenlet downloads the created client certificate, creates a new `kubeconfig` with it, and stores it inside a `Secret` in the seed
+    cluster.
+
+3.  The gardenlet deletes the bootstrap `kubeconfig` secret, and starts up with its new
+    `kubeconfig`.
+
+4.  The gardenlet starts normal
+    operation.
+
+The `gardener-controller-manager` runs a control loop that automatically signs CSRs created by
+gardenlets.
+
+> The gardenlet bootstrapping process is based on the kubelet bootstrapping process. More information: [Kubelet's TLS
+> bootstrapping](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-tls-bootstrapping/).
+
+If you don't want to run this bootstrap process you can create a `kubeconfig` pointing to the garden cluster for the gardenlet yourself, and use field `gardenClientConnection.kubeconfig` in the gardenlet configuration to share it with the
+gardenlet.
+
+## Gardenlet Certificate Rotation
+
+The certificate used to authenticate the gardenlet against the API server is valid for a year. After about 10 months, the gardenlet tries to automatically replace the current certificate with a new one (certificate
+rotation).
+
+To use certificate rotation, you need to specify the secret to store the `kubeconfig` with the rotated certificate in field `.gardenClientConnection.kubeconfigSecret` of the gardenlet [component
+configuration](#component-configuration).
+
+### Rotate certificates using bootstrap `kubeconfig`
+
+If the gardenlet created the certificate during the initial TLS Bootstrapping using the Bootstrap `kubeconfig`, certificates can be rotated automatically. The same control loop in the `gardener-controller-manager` that signs the CSRs during the initial TLS Bootstrapping also automatically signs the CSR during a certificate
+rotation.
+
+### Rotate Certificate Using Custom `kubeconfig`
+
+When trying to rotate a custom certificate that wasn’t created by gardenlet as part of the TLS Bootstrap, the x509 certificate's `Subject` field needs to conform to the following: - the Common Name (CN) is prefixed with `gardener.cloud:system:seed:` - the Organization (O) equals
+`gardener.cloud:system:seeds`
+
+Otherwise, the `gardener-controller-manager` doesn’t automatically sign the CSR. In this case, an external component or user needs to approve the CSR manually, for example, using command `kubectl certificate approve seed-csr-<...>`). If that doesn’t happen within 15 minutes, the gardenlet repeats the process and creates another
+CSR.
+
+## Seed Config versus Seed Selector
+
+The usage of the gardenlet is
+flexible:
+
+Usage           | Description
+:---------------|:-------------------------------------------------------------------------------------------------------
+`seedConfig`    | Run one gardenlet per seed cluster inside the seed cluster itself.
+`seedSelector`  | Use one gardenlet to manage multiple seed clusters. The gardenlet can run outside of the seed cluster.
+
+> For production use it’s recommended to go for the `seedConfig` option, because it makes scaling easier and leads to a better distribution of
+> responsibilities.
+
+ *  Provide a `seedConfig` that contains information about the seed cluster itself if you want the gardenlet in the standard way, see [the example gardenlet configuration](https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml). Once bootstrapped, the gardenlet creates and updates its `Seed` object
+    itself.
+
+ *  Provide a `seedSelector` that incorporates a label selector for the targeted seed clusters if you want the gardenlet to manage multiple seeds, see [the example gardenlet configuration](https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml). In this case, you have to create the `Seed` objects together with a `kubeconfig` pointing to the cluster
+    yourself.
+
+## Component Configuration
+
+In the component configuration for the gardenlet, it’s possible to
+define:
+
+ *  settings for the Kubernetes clients interacting with the various
+    clusters
+
+ *  settings for the control loops inside the
+    gardenlet
+
+ *  settings for leader election and log levels, feature gates, and seed selection or seed
+    configuration.
+
+More information: [Example Gardenlet Component
+Configuration](https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml).
+
+## Heartbeats
+
+Similar to how Kubernetes is meanwhile using `Lease` objects for node heart beats (see [KEP](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/0009-node-heartbeat.md)), the gardenlet is using `Lease` objects for heart beats of the seed cluster. Every two
+seconds, the gardenlet is checking its connectivity to the seed cluster and then it renews its lease. The status is reported in the `GardenletReady` condition in its `Seed` object list. Similarly to the `node-lifecycle-controller` inside the `kube-controller-manager`, the
+`gardener-controller-manager` features a `seed-lifecycle-controller` that sets the `GardenletReady` condition to `Unknown` in case the gardenlet stops sending its heartbeat signals. As a consequence, the `gardener-scheduler` doesn’t consider this seed cluster for newly created shoot clusters
+anymore.
+
+### `/healthz` Endpoint
+
+The gardenlet includes an HTTPS server that serves a `/healthz` endpoint. It’s used as a liveness probe in the `Deployment` of the gardenlet. If the gardenlet fails trying to renew its lease, then the endpoint returns `500 Internal Server Error`, otherwise it returns `200
+OK`.
+
+> ⚠️<br> In case the gardenlet is managing multiple seeds (that is, a seed selector is used) then the `/healthz` reports `500 Internal Server Error` if there is at least one seed for which it couldn’t renew its lease. Only if it can renew the lease for all seeds it reports `200
+> OK`.
+
+## Shooted Seeds
+
+Gardener users can use shoot clusters as seed clusters, so-called "shooted seeds", by using shoot cluster annotation `shoot.gardener.cloud/use-as-seed`. By default, the gardenlet that manages this shoot cluster then automatically creates a clone of itself with the same version and the same configuration that it currently has. Then it deploys the gardenlet clone into the shooted seed
+cluster.
+
+If you want to prevent the automatic gardenlet deployment, use the `no-gardenlet` value in the `shoot.gardener.cloud/use-as-seed` annotation. In this case, you have to deploy the gardenlet on your own into the seed
+cluster.
+
+> For example, if you annotate the shoot cluster with `shoot.gardener.cloud/use-as-seed="true,no-gardenlet,invisible"` the shooted seed is created without gardenlet, and the `garden-scheduler` ignores it (it’s
+> invisible).
+
+More information: [Create Shooted Seed
+Cluster](https://github.com/gardener/gardener/blob/master/docs/usage/shooted_seed.md)
+
+## Migrating from Previous Gardener Versions
+
+If your Gardener version doesn’t support gardenlets yet, no special migration is required, but the following prerequisites must be
+met:
+
+ *  Your Gardener version is at least 0.31 before upgrading to
+    v1.
+
+ *  You have to make sure that your garden cluster is exposed in a way that it’s reachable from all your seed
+    clusters.
+
+With previous Gardener versions, you had deployed the Gardener Helm chart (incorporating the API server, `controller-manager`, and scheduler). With v1, this stays the same, but you now have to deploy the gardenlet Helm chart as well into all of your seeds (if they aren’t shooted, as mentioned
+earlier).
+
+More information: [Deploy a Gardenlet](../../deployment/deploy_gardenlet) for all
+instructions.
+
+## Related Links
+
+[Gardener
+Architecture](https://github.com/gardener/documentation/wiki/Architecture)
+
+[Issue #356: Implement Gardener
+Scheduler](https://github.com/gardener/gardener/issues/356)
+
+[PR #2309: Add /healthz endpoint for
+Gardenlet](https://github.com/gardener/gardener/pull/2309)

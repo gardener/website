@@ -1,5 +1,5 @@
 <!doctype html><html lang=en class="js csstransforms3d"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="Project Gardener Website - A Managed Kubernetes Service Done Right"><meta name=copyright content="Copyright 2019 Gardener project authors."><meta name=google-site-verification content="9EoGiMwk2aq0E_tVh16iJgJbp7fbyqkfWH9b5sGybl0"><title>Worker resource :: Gardener</title><link rel=icon type=image/x-icon href=https://gardener.cloud/images/favicon.ico><link rel=icon type=image/png href=https://gardener.cloud/images/favicon-32x32.png sizes=32x32><link rel=icon type=image/png href=https://gardener.cloud/images/favicon-16x16.png sizes=16x16><script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-W2FGNSX');</script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
-gtag('js',new Date());gtag('config','UA-165447164-1');</script><link href=/css/nucleus.css?1613567098 rel=stylesheet><link href=/css/font-awesome.min.css?1613567098 rel=stylesheet><link href=/css/hybrid.css?1613567098 rel=stylesheet><link href=/css/featherlight.min.css?1613567098 rel=stylesheet><link href=/css/perfect-scrollbar.min.css?1613567098 rel=stylesheet><link href=/css/auto-complete.css?1613567098 rel=stylesheet><link href=/css/skeleton.css?1613567098 rel=stylesheet><link href=/css/sheetslider.css?1613567098 rel=stylesheet><link rel=stylesheet href=/css/gardener.e2ca9959244349715932e2bbb82ec914af6743c4148bb41946b0aea714f04a0d.css><script src=/js/moment.js?1613567098></script><script src=/js/vivus.js?1613567098></script><script src=/js/scrollreveal.js?1613567098></script><script src=/js/inlineSVG.js?1613567098></script><script src=/js/jquery.min.js?1613567098></script><script src=/js/fixed.js?1613567098></script><script src=/js/clipboard.min.js?1613567098></script><script src=https://platform.linkedin.com/in.js type=text/javascript>lang:en_US</script></head><body data-url=/documentation/concepts/extensions/worker/ class=has-sticky-navigation><script>$(document).ready(function(){function initStickyNav(){var stickyPoint;var tln=document.querySelector(".tln");if(!tln){return;}
+gtag('js',new Date());gtag('config','UA-165447164-1');</script><link href=/css/nucleus.css?1613568231 rel=stylesheet><link href=/css/font-awesome.min.css?1613568231 rel=stylesheet><link href=/css/hybrid.css?1613568231 rel=stylesheet><link href=/css/featherlight.min.css?1613568231 rel=stylesheet><link href=/css/perfect-scrollbar.min.css?1613568231 rel=stylesheet><link href=/css/auto-complete.css?1613568231 rel=stylesheet><link href=/css/skeleton.css?1613568231 rel=stylesheet><link href=/css/sheetslider.css?1613568231 rel=stylesheet><link rel=stylesheet href=/css/gardener.7593938070d708e7b1bec0e9172492ff8f780d7c20e680f994075d57795a3335.css><script src=/js/moment.js?1613568231></script><script src=/js/vivus.js?1613568231></script><script src=/js/scrollreveal.js?1613568231></script><script src=/js/inlineSVG.js?1613568231></script><script src=/js/jquery.min.js?1613568231></script><script src=/js/fixed.js?1613568231></script><script src=/js/clipboard.min.js?1613568231></script><script src=https://platform.linkedin.com/in.js type=text/javascript>lang:en_US</script></head><body data-url=/documentation/concepts/extensions/worker/ class=has-sticky-navigation><script>$(document).ready(function(){function initStickyNav(){var stickyPoint;var tln=document.querySelector(".tln");if(!tln){return;}
 var stickyPointEl=document.querySelector(".sticky-nav-point");if(stickyPointEl==null){stickyPointEl=document.querySelector("body");stickyPoint=0;}else{stickyPoint=stickyPointEl.clientHeight+stickyPointEl.offsetTop;}
 var bodySelector=document.getElementsByTagName("body")[0];var tlnHeight=tln.clientHeight;var stickyNavigation=function(){if(window.pageYOffset+tlnHeight>=stickyPoint){bodySelector.classList.add("has-sticky-navigation");tln.classList.add("sticky-top");}else{bodySelector.classList.remove("has-sticky-navigation");tln.classList.remove("sticky-top");}}
 window.onscroll=function(){stickyNavigation();};}
@@ -18,246 +18,246 @@ This controller is extending the Kubernetes API using custom resource definition
 This approach unlocks the possibility to manage virtual machines in the Kubernetes style and benefit from all its design principles.</p><h2 id=what-is-the-machine-controller-manager-exactly-doing>What is the machine-controller-manager exactly doing?</h2><p>Generally, there are provider-specific <code>MachineClass</code> objects (<code>AWSMachineClass</code>, <code>AzureMachineClass</code>, etc.; similar to <code>StorageClass</code>), and <code>MachineDeployment</code>, <code>MachineSet</code>, and <code>Machine</code> objects (similar to <code>Deployment</code>, <code>ReplicaSet</code>, and <code>Pod</code>).
 A machine class describes <strong>where</strong> and <strong>how</strong> to create virtual machines (in which networks, region, availability zone, SSH key, user-data for bootstrapping, etc.) while a <code>Machine</code> results in an actual virtual machine.
 You can read up <a href=https://github.com/gardener/machine-controller-manager>more information</a> in the machine-controller-manager&rsquo;s <a href=https://github.com/gardener/machine-controller-manager>repository</a>.</p><p>Before the introduction of the <code>Worker</code> extension resource Gardener was deploying the machine-controller-manager, the machine classes, and the machine deployments itself.
-Now, Gardener commissions an external, provider-specific controller to take over these tasks.</p><h2 id=what-needs-to-be-implemented-to-support-a-new-worker-provider>What needs to be implemented to support a new worker provider?</h2><p>As part of the shoot flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>extensions.gardener.cloud/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Worker<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>bar<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>type</span><span class=p>:</span><span class=w> </span>azure<span class=w>
-</span><span class=w>  </span><span class=k>region</span><span class=p>:</span><span class=w> </span>eu-west<span class=m>-1</span><span class=w>
-</span><span class=w>  </span><span class=k>secretRef</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>cloudprovider<span class=w>
-</span><span class=w>    </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w>  </span><span class=k>infrastructureProviderStatus</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>aws.provider.extensions.gardener.cloud/v1alpha1<span class=w>
-</span><span class=w>    </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>InfrastructureStatus<span class=w>
-</span><span class=w>    </span><span class=k>ec2</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>keyName</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-ssh-publickey<span class=w>
-</span><span class=w>    </span><span class=k>iam</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>instanceProfiles</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-nodes<span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>nodes<span class=w>
-</span><span class=w>      </span><span class=k>roles</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>arn</span><span class=p>:</span><span class=w> </span>arn<span class=p>:</span>aws<span class=p>:</span>iam<span class=p>::</span><span class=m>0123456789</span><span class=p>:</span>role/shoot--foo--bar-nodes<span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>nodes<span class=w>
-</span><span class=w>    </span><span class=k>vpc</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>id</span><span class=p>:</span><span class=w> </span>vpc<span class=m>-0123456789</span><span class=w>
-</span><span class=w>      </span><span class=k>securityGroups</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>id</span><span class=p>:</span><span class=w> </span>sg<span class=m>-1234567890</span><span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>nodes<span class=w>
-</span><span class=w>      </span><span class=k>subnets</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>id</span><span class=p>:</span><span class=w> </span>subnet<span class=m>-01234</span><span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>nodes<span class=w>
-</span><span class=w>        </span><span class=k>zone</span><span class=p>:</span><span class=w> </span>eu-west-1b<span class=w>
-</span><span class=w>      </span>- <span class=k>id</span><span class=p>:</span><span class=w> </span>subnet<span class=m>-56789</span><span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>public<span class=w>
-</span><span class=w>        </span><span class=k>zone</span><span class=p>:</span><span class=w> </span>eu-west-1b<span class=w>
-</span><span class=w>      </span>- <span class=k>id</span><span class=p>:</span><span class=w> </span>subnet-0123a<span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>nodes<span class=w>
-</span><span class=w>        </span><span class=k>zone</span><span class=p>:</span><span class=w> </span>eu-west-1c<span class=w>
-</span><span class=w>      </span>- <span class=k>id</span><span class=p>:</span><span class=w> </span>subnet-5678a<span class=w>
-</span><span class=w>        </span><span class=k>purpose</span><span class=p>:</span><span class=w> </span>public<span class=w>
-</span><span class=w>        </span><span class=k>zone</span><span class=p>:</span><span class=w> </span>eu-west-1c<span class=w>
-</span><span class=w>  </span><span class=k>pools</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>cpu-worker<span class=w>
-</span><span class=w>    </span><span class=k>minimum</span><span class=p>:</span><span class=w> </span><span class=m>3</span><span class=w>
-</span><span class=w>    </span><span class=k>maximum</span><span class=p>:</span><span class=w> </span><span class=m>5</span><span class=w>
-</span><span class=w>    </span><span class=k>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>    </span><span class=k>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
-</span><span class=w>    </span><span class=k>machineType</span><span class=p>:</span><span class=w> </span>m4.large<span class=w>
-</span><span class=w>    </span><span class=k>machineImage</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>name</span><span class=p>:</span><span class=w> </span>coreos<span class=w>
-</span><span class=w>      </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=m>1967.5.0</span><span class=w>
-</span><span class=w>    </span><span class=k>userData</span><span class=p>:</span><span class=w> </span>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K<span class=w>
-</span><span class=w>    </span><span class=k>volume</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>size</span><span class=p>:</span><span class=w> </span>20Gi<span class=w>
-</span><span class=w>      </span><span class=k>type</span><span class=p>:</span><span class=w> </span>gp2<span class=w>
-</span><span class=w>    </span><span class=k>zones</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- eu-west-1b<span class=w>
-</span><span class=w>    </span>- eu-west-1c<span class=w>
-</span><span class=w>    </span><span class=k>machineControllerManager</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>drainTimeout</span><span class=p>:</span><span class=w> </span>10m<span class=w>
-</span><span class=w>      </span><span class=k>healthTimeout</span><span class=p>:</span><span class=w> </span>10m<span class=w>
-</span><span class=w>      </span><span class=k>creationTimeout</span><span class=p>:</span><span class=w> </span>10m<span class=w>
-</span><span class=w>      </span><span class=k>maxEvictRetries</span><span class=p>:</span><span class=w> </span><span class=m>30</span><span class=w>
-</span><span class=w>      </span><span class=k>nodeConditions</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- ReadonlyFilesystem<span class=w>
-</span><span class=w>      </span>- DiskPressure<span class=w>
-</span><span class=w>      </span>- KernelDeadlock<span class=w>
+Now, Gardener commissions an external, provider-specific controller to take over these tasks.</p><h2 id=what-needs-to-be-implemented-to-support-a-new-worker-provider>What needs to be implemented to support a new worker provider?</h2><p>As part of the shoot flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>extensions.gardener.cloud/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Worker</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>azure</span><span class=w>
+</span><span class=w>  </span><span class=nt>region</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1</span><span class=w>
+</span><span class=w>  </span><span class=nt>secretRef</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>cloudprovider</span><span class=w>
+</span><span class=w>    </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>infrastructureProviderStatus</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>aws.provider.extensions.gardener.cloud/v1alpha1</span><span class=w>
+</span><span class=w>    </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>InfrastructureStatus</span><span class=w>
+</span><span class=w>    </span><span class=nt>ec2</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>keyName</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-ssh-publickey</span><span class=w>
+</span><span class=w>    </span><span class=nt>iam</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>instanceProfiles</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-nodes</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>nodes</span><span class=w>
+</span><span class=w>      </span><span class=nt>roles</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>arn</span><span class=p>:</span><span class=w> </span><span class=l>arn:aws:iam::0123456789:role/shoot--foo--bar-nodes</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>nodes</span><span class=w>
+</span><span class=w>    </span><span class=nt>vpc</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>vpc-0123456789</span><span class=w>
+</span><span class=w>      </span><span class=nt>securityGroups</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>sg-1234567890</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>nodes</span><span class=w>
+</span><span class=w>      </span><span class=nt>subnets</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>subnet-01234</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>nodes</span><span class=w>
+</span><span class=w>        </span><span class=nt>zone</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1b</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>subnet-56789</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>public</span><span class=w>
+</span><span class=w>        </span><span class=nt>zone</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1b</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>subnet-0123a</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>nodes</span><span class=w>
+</span><span class=w>        </span><span class=nt>zone</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1c</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>id</span><span class=p>:</span><span class=w> </span><span class=l>subnet-5678a</span><span class=w>
+</span><span class=w>        </span><span class=nt>purpose</span><span class=p>:</span><span class=w> </span><span class=l>public</span><span class=w>
+</span><span class=w>        </span><span class=nt>zone</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1c</span><span class=w>
+</span><span class=w>  </span><span class=nt>pools</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>cpu-worker</span><span class=w>
+</span><span class=w>    </span><span class=nt>minimum</span><span class=p>:</span><span class=w> </span><span class=m>3</span><span class=w>
+</span><span class=w>    </span><span class=nt>maximum</span><span class=p>:</span><span class=w> </span><span class=m>5</span><span class=w>
+</span><span class=w>    </span><span class=nt>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>    </span><span class=nt>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
+</span><span class=w>    </span><span class=nt>machineType</span><span class=p>:</span><span class=w> </span><span class=l>m4.large</span><span class=w>
+</span><span class=w>    </span><span class=nt>machineImage</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>coreos</span><span class=w>
+</span><span class=w>      </span><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=m>1967.5.0</span><span class=w>
+</span><span class=w>    </span><span class=nt>userData</span><span class=p>:</span><span class=w> </span><span class=l>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K</span><span class=w>
+</span><span class=w>    </span><span class=nt>volume</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>size</span><span class=p>:</span><span class=w> </span><span class=l>20Gi</span><span class=w>
+</span><span class=w>      </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>gp2</span><span class=w>
+</span><span class=w>    </span><span class=nt>zones</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=l>eu-west-1b</span><span class=w>
+</span><span class=w>    </span>- <span class=l>eu-west-1c</span><span class=w>
+</span><span class=w>    </span><span class=nt>machineControllerManager</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>drainTimeout</span><span class=p>:</span><span class=w> </span><span class=l>10m</span><span class=w>
+</span><span class=w>      </span><span class=nt>healthTimeout</span><span class=p>:</span><span class=w> </span><span class=l>10m</span><span class=w>
+</span><span class=w>      </span><span class=nt>creationTimeout</span><span class=p>:</span><span class=w> </span><span class=l>10m</span><span class=w>
+</span><span class=w>      </span><span class=nt>maxEvictRetries</span><span class=p>:</span><span class=w> </span><span class=m>30</span><span class=w>
+</span><span class=w>      </span><span class=nt>nodeConditions</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=l>ReadonlyFilesystem</span><span class=w>
+</span><span class=w>      </span>- <span class=l>DiskPressure</span><span class=w>
+</span><span class=w>      </span>- <span class=l>KernelDeadlock</span><span class=w>
 </span></code></pre></div><p>The <code>.spec.secretRef</code> contains a reference to the provider secret pointing to the account that shall be used to create the needed virtual machines.
 Also, as you can see, Gardener copies the output of the infrastructure creation (<code>.spec.infrastructureProviderStatus</code>), see <a href=../infrastructure><code>Infrastructure</code> resource</a>, into the <code>.spec</code>.</p><p>In the <code>.spec.pools[]</code> field the desired worker pools are listed.
 In the above example, one pool with machine type <code>m4.large</code> and <code>min=3</code>, <code>max=5</code> machines shall be spread over two availability zones (<code>eu-west-1b</code>, <code>eu-west-1c</code>).
 This information together with the infrastructure status must be used to determine the proper configuration for the machine classes.</p><p>The <code>spec.pools[].machineControllerManager</code> field allows to configure the settings for machine-controller-manager component. Providers must populate these settings on worker-pool to the related <a href=https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/machine_objects/machine-deployment.yaml#L30-L34>fields</a> in MachineDeployment.</p><p>When seeing such a resource your controller must make sure that it deploys the machine-controller-manager next to the control plane in the seed cluster.
 After that, it must compute the desired machine classes and the desired machine deployments.
 Typically, one class maps to one deployment, and one class/deployment is created per availability zone.
-Following this convention, the created resource would look like this:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Secret<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1-3db65<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w>  </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>gardener.cloud/purpose</span><span class=p>:</span><span class=w> </span>machineclass<span class=w>
-</span><span class=w></span><span class=k>type</span><span class=p>:</span><span class=w> </span>Opaque<span class=w>
-</span><span class=w></span><span class=k>data</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>providerAccessKeyId</span><span class=p>:</span><span class=w> </span>eW91ci1hd3MtYWNjZXNzLWtleS1pZAo=<span class=w>
-</span><span class=w>  </span><span class=k>providerSecretAccessKey</span><span class=p>:</span><span class=w> </span>eW91ci1hd3Mtc2VjcmV0LWFjY2Vzcy1rZXkK<span class=w>
-</span><span class=w>  </span><span class=k>userData</span><span class=p>:</span><span class=w> </span>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K<span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>machine.sapcloud.io/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>AWSMachineClass<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1-3db65<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>ami</span><span class=p>:</span><span class=w> </span>ami<span class=m>-0123456789</span><span class=w> </span><span class=c># Your controller must map the stated version to the provider specific machine image information, in the AWS case the AMI.</span><span class=w>
-</span><span class=w>  </span><span class=k>blockDevices</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>ebs</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>volumeSize</span><span class=p>:</span><span class=w> </span><span class=m>20</span><span class=w>
-</span><span class=w>      </span><span class=k>volumeType</span><span class=p>:</span><span class=w> </span>gp2<span class=w>
-</span><span class=w>  </span><span class=k>iam</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-nodes<span class=w>
-</span><span class=w>  </span><span class=k>keyName</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-ssh-publickey<span class=w>
-</span><span class=w>  </span><span class=k>machineType</span><span class=p>:</span><span class=w> </span>m4.large<span class=w>
-</span><span class=w>  </span><span class=k>networkInterfaces</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>securityGroupIDs</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- sg<span class=m>-1234567890</span><span class=w>
-</span><span class=w>    </span><span class=k>subnetID</span><span class=p>:</span><span class=w> </span>subnet<span class=m>-01234</span><span class=w>
-</span><span class=w>  </span><span class=k>region</span><span class=p>:</span><span class=w> </span>eu-west<span class=m>-1</span><span class=w>
-</span><span class=w>  </span><span class=k>secretRef</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1-3db65<span class=w>
-</span><span class=w>    </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w>  </span><span class=k>tags</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>kubernetes.io/cluster/shoot--foo--bar</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
-</span><span class=w>    </span><span class=k>kubernetes.io/role/node</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>machine.sapcloud.io/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>MachineDeployment<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>replicas</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>matchLabels</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>  </span><span class=k>strategy</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>type</span><span class=p>:</span><span class=w> </span>RollingUpdate<span class=w>
-</span><span class=w>    </span><span class=k>rollingUpdate</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>      </span><span class=k>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
-</span><span class=w>  </span><span class=k>template</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>    </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>class</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>AWSMachineClass<span class=w>
-</span><span class=w>        </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1-3db65<span class=w>
-</span></code></pre></div><p>for the first availability zone <code>eu-west-1b</code>, and</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Secret<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z2-5z6as<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w>  </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>gardener.cloud/purpose</span><span class=p>:</span><span class=w> </span>machineclass<span class=w>
-</span><span class=w></span><span class=k>type</span><span class=p>:</span><span class=w> </span>Opaque<span class=w>
-</span><span class=w></span><span class=k>data</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>providerAccessKeyId</span><span class=p>:</span><span class=w> </span>eW91ci1hd3MtYWNjZXNzLWtleS1pZAo=<span class=w>
-</span><span class=w>  </span><span class=k>providerSecretAccessKey</span><span class=p>:</span><span class=w> </span>eW91ci1hd3Mtc2VjcmV0LWFjY2Vzcy1rZXkK<span class=w>
-</span><span class=w>  </span><span class=k>userData</span><span class=p>:</span><span class=w> </span>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K<span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>machine.sapcloud.io/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>AWSMachineClass<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z2-5z6as<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>ami</span><span class=p>:</span><span class=w> </span>ami<span class=m>-0123456789</span><span class=w> </span><span class=c># Your controller must map the stated version to the provider specific machine image information, in the AWS case the AMI.</span><span class=w>
-</span><span class=w>  </span><span class=k>blockDevices</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>ebs</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>volumeSize</span><span class=p>:</span><span class=w> </span><span class=m>20</span><span class=w>
-</span><span class=w>      </span><span class=k>volumeType</span><span class=p>:</span><span class=w> </span>gp2<span class=w>
-</span><span class=w>  </span><span class=k>iam</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-nodes<span class=w>
-</span><span class=w>  </span><span class=k>keyName</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-ssh-publickey<span class=w>
-</span><span class=w>  </span><span class=k>machineType</span><span class=p>:</span><span class=w> </span>m4.large<span class=w>
-</span><span class=w>  </span><span class=k>networkInterfaces</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>securityGroupIDs</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- sg<span class=m>-1234567890</span><span class=w>
-</span><span class=w>    </span><span class=k>subnetID</span><span class=p>:</span><span class=w> </span>subnet-0123a<span class=w>
-</span><span class=w>  </span><span class=k>region</span><span class=p>:</span><span class=w> </span>eu-west<span class=m>-1</span><span class=w>
-</span><span class=w>  </span><span class=k>secretRef</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z2-5z6as<span class=w>
-</span><span class=w>    </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w>  </span><span class=k>tags</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>kubernetes.io/cluster/shoot--foo--bar</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
-</span><span class=w>    </span><span class=k>kubernetes.io/role/node</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>machine.sapcloud.io/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>MachineDeployment<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>matchLabels</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>  </span><span class=k>strategy</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>type</span><span class=p>:</span><span class=w> </span>RollingUpdate<span class=w>
-</span><span class=w>    </span><span class=k>rollingUpdate</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>      </span><span class=k>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
-</span><span class=w>  </span><span class=k>template</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>    </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>class</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>AWSMachineClass<span class=w>
-</span><span class=w>        </span><span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z2-5z6as<span class=w>
+Following this convention, the created resource would look like this:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Secret</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1-3db65</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>gardener.cloud/purpose</span><span class=p>:</span><span class=w> </span><span class=l>machineclass</span><span class=w>
+</span><span class=w></span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>Opaque</span><span class=w>
+</span><span class=w></span><span class=nt>data</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>providerAccessKeyId</span><span class=p>:</span><span class=w> </span><span class=l>eW91ci1hd3MtYWNjZXNzLWtleS1pZAo=</span><span class=w>
+</span><span class=w>  </span><span class=nt>providerSecretAccessKey</span><span class=p>:</span><span class=w> </span><span class=l>eW91ci1hd3Mtc2VjcmV0LWFjY2Vzcy1rZXkK</span><span class=w>
+</span><span class=w>  </span><span class=nt>userData</span><span class=p>:</span><span class=w> </span><span class=l>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>machine.sapcloud.io/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>AWSMachineClass</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1-3db65</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>ami</span><span class=p>:</span><span class=w> </span><span class=l>ami-0123456789</span><span class=w> </span><span class=c># Your controller must map the stated version to the provider specific machine image information, in the AWS case the AMI.</span><span class=w>
+</span><span class=w>  </span><span class=nt>blockDevices</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>ebs</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>volumeSize</span><span class=p>:</span><span class=w> </span><span class=m>20</span><span class=w>
+</span><span class=w>      </span><span class=nt>volumeType</span><span class=p>:</span><span class=w> </span><span class=l>gp2</span><span class=w>
+</span><span class=w>  </span><span class=nt>iam</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-nodes</span><span class=w>
+</span><span class=w>  </span><span class=nt>keyName</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-ssh-publickey</span><span class=w>
+</span><span class=w>  </span><span class=nt>machineType</span><span class=p>:</span><span class=w> </span><span class=l>m4.large</span><span class=w>
+</span><span class=w>  </span><span class=nt>networkInterfaces</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>securityGroupIDs</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=l>sg-1234567890</span><span class=w>
+</span><span class=w>    </span><span class=nt>subnetID</span><span class=p>:</span><span class=w> </span><span class=l>subnet-01234</span><span class=w>
+</span><span class=w>  </span><span class=nt>region</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1</span><span class=w>
+</span><span class=w>  </span><span class=nt>secretRef</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1-3db65</span><span class=w>
+</span><span class=w>    </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>tags</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>kubernetes.io/cluster/shoot--foo--bar</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
+</span><span class=w>    </span><span class=nt>kubernetes.io/role/node</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>machine.sapcloud.io/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>MachineDeployment</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>  </span><span class=nt>strategy</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>RollingUpdate</span><span class=w>
+</span><span class=w>    </span><span class=nt>rollingUpdate</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>      </span><span class=nt>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
+</span><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>class</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>AWSMachineClass</span><span class=w>
+</span><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1-3db65</span><span class=w>
+</span></code></pre></div><p>for the first availability zone <code>eu-west-1b</code>, and</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Secret</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z2-5z6as</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>gardener.cloud/purpose</span><span class=p>:</span><span class=w> </span><span class=l>machineclass</span><span class=w>
+</span><span class=w></span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>Opaque</span><span class=w>
+</span><span class=w></span><span class=nt>data</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>providerAccessKeyId</span><span class=p>:</span><span class=w> </span><span class=l>eW91ci1hd3MtYWNjZXNzLWtleS1pZAo=</span><span class=w>
+</span><span class=w>  </span><span class=nt>providerSecretAccessKey</span><span class=p>:</span><span class=w> </span><span class=l>eW91ci1hd3Mtc2VjcmV0LWFjY2Vzcy1rZXkK</span><span class=w>
+</span><span class=w>  </span><span class=nt>userData</span><span class=p>:</span><span class=w> </span><span class=l>c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>machine.sapcloud.io/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>AWSMachineClass</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z2-5z6as</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>ami</span><span class=p>:</span><span class=w> </span><span class=l>ami-0123456789</span><span class=w> </span><span class=c># Your controller must map the stated version to the provider specific machine image information, in the AWS case the AMI.</span><span class=w>
+</span><span class=w>  </span><span class=nt>blockDevices</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>ebs</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>volumeSize</span><span class=p>:</span><span class=w> </span><span class=m>20</span><span class=w>
+</span><span class=w>      </span><span class=nt>volumeType</span><span class=p>:</span><span class=w> </span><span class=l>gp2</span><span class=w>
+</span><span class=w>  </span><span class=nt>iam</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-nodes</span><span class=w>
+</span><span class=w>  </span><span class=nt>keyName</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-ssh-publickey</span><span class=w>
+</span><span class=w>  </span><span class=nt>machineType</span><span class=p>:</span><span class=w> </span><span class=l>m4.large</span><span class=w>
+</span><span class=w>  </span><span class=nt>networkInterfaces</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>securityGroupIDs</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=l>sg-1234567890</span><span class=w>
+</span><span class=w>    </span><span class=nt>subnetID</span><span class=p>:</span><span class=w> </span><span class=l>subnet-0123a</span><span class=w>
+</span><span class=w>  </span><span class=nt>region</span><span class=p>:</span><span class=w> </span><span class=l>eu-west-1</span><span class=w>
+</span><span class=w>  </span><span class=nt>secretRef</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z2-5z6as</span><span class=w>
+</span><span class=w>    </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w>  </span><span class=nt>tags</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>kubernetes.io/cluster/shoot--foo--bar</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
+</span><span class=w>    </span><span class=nt>kubernetes.io/role/node</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>machine.sapcloud.io/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>MachineDeployment</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>  </span><span class=nt>strategy</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>RollingUpdate</span><span class=w>
+</span><span class=w>    </span><span class=nt>rollingUpdate</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>maxSurge</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>      </span><span class=nt>maxUnavailable</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
+</span><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>class</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>AWSMachineClass</span><span class=w>
+</span><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z2-5z6as</span><span class=w>
 </span></code></pre></div><p>for the second availability zone <code>eu-west-1c</code>.</p><p>Another convention is the 5-letter hash at the end of the machine class names.
 Most controllers compute a checksum out of the specification of the machine class.
 This helps to trigger a rolling update of the worker nodes if, for example, the machine image version changes.
 In this case, a new checksum will be generated which results in the creation of a new machine class.
-The <code>MachineDeployment</code>'s machine class reference (<code>.spec.template.spec.class.name</code>) is updated which triggers the rolling update process in the machine-controller-manager.
+The <code>MachineDeployment</code>&rsquo;s machine class reference (<code>.spec.template.spec.class.name</code>) is updated which triggers the rolling update process in the machine-controller-manager.
 However, all of this is only a convention that eases writing the controller, but you can do it completely differently if you desire - as long as you make sure that the described behaviours are implemented correctly.</p><p>After the machine classes and machine deployments have been created the machine-controller-manager will start talking to the provider&rsquo;s IaaS API and create the virtual machines.
 Gardener makes sure that the content of the <code>userData</code> field that is used to bootstrap the machines contain the required configuration for installation of the kubelet and registering the VM as worker node in the shoot cluster.
 The <code>Worker</code> extension controller shall wait until all the created <code>MachineDeployment</code>s indicate healthiness/readiness before it ends the control loop.</p><h2 id=does-gardener-need-some-information-that-must-be-returned-back>Does Gardener need some information that must be returned back?</h2><p>Another important benefit of the machine-controller-manager&rsquo;s design principles (extending the Kubernetes API using CRDs) is that the <a href=https://github.com/gardener/autoscaler>cluster-autoscaler</a> can be used <strong>without</strong> any provider-specific implementation.
 We have forked the <a href=https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler>upstream Kubernetes community&rsquo;s cluster-autoscaler</a> and extended it so that it understands the machine API.
 Definitely, we will merge it back into the community&rsquo;s versions once it has been adapted properly.</p><p>Our cluster-autoscaler only needs to know the minimum and maximum number of replicas <strong>per</strong> <code>MachineDeployment</code> and is ready to act without that it needs to talk to the provider APIs (it just modifies the <code>.spec.replicas</code> field in the <code>MachineDeployment</code> object).
 Gardener deploys this autoscaler if there is at least one worker pool that specifies <code>max>min</code>.
-In order to know how it needs to configure it, the provider-specific <code>Worker</code> extension controller must expose which <code>MachineDeployment</code>s it had created and how the <code>min</code>/<code>max</code> numbers should look like.</p><p>Consequently, your controller should write this information into the <code>Worker</code> resource&rsquo;s <code>.status.machineDeployments</code> field:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>extensions.gardener.cloud/v1alpha1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Worker<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>worker<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>shoot--foo--bar<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>...<span class=w>
-</span><span class=w></span><span class=k>status</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>lastOperation</span><span class=p>:</span><span class=w> </span>...<span class=w>
-</span><span class=w>  </span><span class=k>machineDeployments</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z1<span class=w>
-</span><span class=w>    </span><span class=k>minimum</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
-</span><span class=w>    </span><span class=k>maximum</span><span class=p>:</span><span class=w> </span><span class=m>3</span><span class=w>
-</span><span class=w>  </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>shoot--foo--bar-cpu-worker-z2<span class=w>
-</span><span class=w>    </span><span class=k>minimum</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>    </span><span class=k>maximum</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
+In order to know how it needs to configure it, the provider-specific <code>Worker</code> extension controller must expose which <code>MachineDeployment</code>s it had created and how the <code>min</code>/<code>max</code> numbers should look like.</p><p>Consequently, your controller should write this information into the <code>Worker</code> resource&rsquo;s <code>.status.machineDeployments</code> field:</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>extensions.gardener.cloud/v1alpha1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Worker</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>worker</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=l>...</span><span class=w>
+</span><span class=w></span><span class=nt>status</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>lastOperation</span><span class=p>:</span><span class=w> </span><span class=l>...</span><span class=w>
+</span><span class=w>  </span><span class=nt>machineDeployments</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z1</span><span class=w>
+</span><span class=w>    </span><span class=nt>minimum</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
+</span><span class=w>    </span><span class=nt>maximum</span><span class=p>:</span><span class=w> </span><span class=m>3</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>shoot--foo--bar-cpu-worker-z2</span><span class=w>
+</span><span class=w>    </span><span class=nt>minimum</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>    </span><span class=nt>maximum</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
 </span></code></pre></div><p>In order to support a new worker provider you need to write a controller that watches all <code>Worker</code>s with <code>.spec.type=&lt;my-provider-name></code>.
 You can take a look at the below referenced example implementation for the AWS provider.</p><h2 id=that-sounds-like-a-lot-that-needs-to-be-done-can-you-help-me>That sounds like a lot that needs to be done, can you help me?</h2><p>All of the described behaviour is mostly the same for every provider.
 The only difference is maybe the version/configuration of the machine-controller-manager, and the machine class specification itself.
-You can take a look at our <a href=https://github.com/gardener/gardener/blob/master/extensions>extension library</a>, especially the <a href=https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker>worker controller</a> part where you will find a lot of utilities that you can use.
+You can take a look at our <a href=https://github.com/gardener/gardener/tree/master/extensions>extension library</a>, especially the <a href=https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker>worker controller</a> part where you will find a lot of utilities that you can use.
 Also, using the library you only need to implement your provider specifics - all the things that can be handled generically can be taken for free and do not need to be re-implemented.
 Take a look at the <a href=https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/worker>AWS worker controller</a> for finding an example.</p><h2 id=non-provider-specific-information-required-for-worker-creation>Non-provider specific information required for worker creation</h2><p>All the providers require further information that is not provider specific but already part of the shoot resource.
 One example for such information is whether the shoot is hibernated or not.
 In this case all the virtual machines should be deleted/terminated, and after that the machine controller-manager should be scaled down.
 You can take a look at the <a href=https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/worker>AWS worker controller</a> to see how it reads this information and how it is used.
 As Gardener cannot know which information is required by providers it simply mirrors the <code>Shoot</code>, <code>Seed</code>, and <code>CloudProfile</code> resources into the seed.
-They are part of the <a href=../cluster><code>Cluster</code> extension resource</a> and can be used to extract information that is not part of the <code>Worker</code> resource itself.</p><h2 id=references-and-additional-resources>References and additional resources</h2><ul><li><a href=https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_worker.go><code>Worker</code> API (Golang specification)</a></li><li><a href=https://github.com/gardener/gardener/blob/master/extensions>Extension controller library</a></li><li><a href=https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker>Generic worker controller</a></li><li><a href=https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/worker>Exemplary implementation for the AWS provider</a></li></ul></div></div></div><div class=howto_tickets><a href=https://github.com/gardener/gardener/issues/new/choose target=_blank><span>Let us know how can we improve.</span>
-<span>Open <img src=https://gardener.cloud/images/branding/github-mark-logo-green.svg> GitHub Issue <i class="fa fa-external-link" aria-hidden=true></i></span></a></div></section></div><style></style><footer class=footer><div class="container footer-wrapper"><ul class=nav><li><a href=/blog/>Blogs</a></li><li><a href=/community/>Community</a></li><li><a href=/adopter/>Adopters</a></li><li><a href=/documentation/home>Documentation</a></li></ul><img src=/images/lp/gardener-logo.svg alt="Logo Gardener" class=logo><ul class=media-wr><li><a target=_blank href=https://kubernetes.slack.com/archives/CB57N0BFG><img src=/images/branding/slack-logo-white.svg class=media-icon><div class=media-text>Slack</div></a></li><li><a target=_blank href=https://github.com/gardener><img src=/images/branding/github-mark-logo.png class=media-icon><div class=media-text>GitHub</div></a></li><li><a target=_blank href=https://www.youtube.com/channel/UCwUhwKFREV8Su0gwAJQX7tw><img src=/images/branding/youtube-logo-dark.svg class=media-icon><div class=media-text>YouTube</div></a></li><li><a target=_blank href=https://twitter.com/GardenerProject><img src=/images/branding/twitter-logo-white.svg class=media-icon><div class=media-text>Twitter</div></a></li></ul><span class=copyright>Copyright 2020 Gardener project authors. Privacy Statement</span></div></footer><script src=/js/perfect-scrollbar.min.js?1613567098></script><script src=/js/perfect-scrollbar.jquery.min.js?1613567098></script><script src=/js/jquery.sticky.js?1613567098></script><script src=/js/featherlight.min.js?1613567098></script><script src=/js/html5shiv-printshiv.min.js?1613567098></script><script src=/js/modernizr.custom.71422.js?1613567098></script><link href=/mermaid/mermaid.css?1613567098 type=text/css rel=stylesheet><script src=/mermaid/mermaid.js?1613567098></script><script src=/js/code-snippets.js?1613567098></script><script>mermaid.initialize({startOnLoad:true,htmlLables:true});function createIssue(issueUrl,page,url){var uri=issueUrl+"?title=Documentation issue on page \""+page+"\"";uri=uri+"&body=\n\n<- DESCRIBE MISSING OR FAULTY DOCUMENTATION HERE->\n\n---\nPage: ["+page+"]("+
+They are part of the <a href=../cluster><code>Cluster</code> extension resource</a> and can be used to extract information that is not part of the <code>Worker</code> resource itself.</p><h2 id=references-and-additional-resources>References and additional resources</h2><ul><li><a href=https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_worker.go><code>Worker</code> API (Golang specification)</a></li><li><a href=https://github.com/gardener/gardener/tree/master/extensions>Extension controller library</a></li><li><a href=https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker>Generic worker controller</a></li><li><a href=https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/worker>Exemplary implementation for the AWS provider</a></li></ul></div></div></div><div class=howto_tickets><a href=https://github.com/gardener/gardener/issues/new/choose target=_blank><span>Let us know how can we improve.</span>
+<span>Open <img src=https://gardener.cloud/images/branding/github-mark-logo-green.svg> GitHub Issue <i class="fa fa-external-link" aria-hidden=true></i></span></a></div></section></div><style></style><footer class=footer><div class="container footer-wrapper"><ul class=nav><li><a href=/blog/>Blogs</a></li><li><a href=/community/>Community</a></li><li><a href=/adopter/>Adopters</a></li><li><a href=/documentation/home>Documentation</a></li></ul><img src=/images/lp/gardener-logo.svg alt="Logo Gardener" class=logo><ul class=media-wr><li><a target=_blank href=https://kubernetes.slack.com/archives/CB57N0BFG><img src=/images/branding/slack-logo-white.svg class=media-icon><div class=media-text>Slack</div></a></li><li><a target=_blank href=https://github.com/gardener><img src=/images/branding/github-mark-logo.png class=media-icon><div class=media-text>GitHub</div></a></li><li><a target=_blank href=https://www.youtube.com/channel/UCwUhwKFREV8Su0gwAJQX7tw><img src=/images/branding/youtube-logo-dark.svg class=media-icon><div class=media-text>YouTube</div></a></li><li><a target=_blank href=https://twitter.com/GardenerProject><img src=/images/branding/twitter-logo-white.svg class=media-icon><div class=media-text>Twitter</div></a></li></ul><span class=copyright>Copyright 2020 Gardener project authors. Privacy Statement</span></div></footer><script src=/js/perfect-scrollbar.min.js?1613568231></script><script src=/js/perfect-scrollbar.jquery.min.js?1613568231></script><script src=/js/jquery.sticky.js?1613568231></script><script src=/js/featherlight.min.js?1613568231></script><script src=/js/html5shiv-printshiv.min.js?1613568231></script><script src=/js/modernizr.custom.71422.js?1613568231></script><link href=/mermaid/mermaid.css?1613568231 type=text/css rel=stylesheet><script src=/mermaid/mermaid.js?1613568231></script><script src=/js/code-snippets.js?1613568231></script><script>mermaid.initialize({startOnLoad:true,htmlLables:true});function createIssue(issueUrl,page,url){var uri=issueUrl+"?title=Documentation issue on page \""+page+"\"";uri=uri+"&body=\n\n<- DESCRIBE MISSING OR FAULTY DOCUMENTATION HERE->\n\n---\nPage: ["+page+"]("+
 url+")\ndon't remove the link to the page. It's required for the processor"
 var res=encodeURI(uri);res+="&labels=area/documentation"
 window.open(res,"issue")

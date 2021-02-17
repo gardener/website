@@ -1,5 +1,5 @@
 <!doctype html><html lang=en class="js csstransforms3d"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="Project Gardener Website - A Managed Kubernetes Service Done Right"><meta name=copyright content="Copyright 2019 Gardener project authors."><meta name=google-site-verification content="9EoGiMwk2aq0E_tVh16iJgJbp7fbyqkfWH9b5sGybl0"><title>Access service from outside Kubernetes cluster :: Gardener</title><link rel=icon type=image/x-icon href=https://gardener.cloud/images/favicon.ico><link rel=icon type=image/png href=https://gardener.cloud/images/favicon-32x32.png sizes=32x32><link rel=icon type=image/png href=https://gardener.cloud/images/favicon-16x16.png sizes=16x16><script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-W2FGNSX');</script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
-gtag('js',new Date());gtag('config','UA-165447164-1');</script><link href=/css/nucleus.css?1613567099 rel=stylesheet><link href=/css/font-awesome.min.css?1613567099 rel=stylesheet><link href=/css/hybrid.css?1613567099 rel=stylesheet><link href=/css/featherlight.min.css?1613567099 rel=stylesheet><link href=/css/perfect-scrollbar.min.css?1613567099 rel=stylesheet><link href=/css/auto-complete.css?1613567099 rel=stylesheet><link href=/css/skeleton.css?1613567099 rel=stylesheet><link href=/css/sheetslider.css?1613567099 rel=stylesheet><link rel=stylesheet href=/css/gardener.e2ca9959244349715932e2bbb82ec914af6743c4148bb41946b0aea714f04a0d.css><script src=/js/moment.js?1613567099></script><script src=/js/vivus.js?1613567099></script><script src=/js/scrollreveal.js?1613567099></script><script src=/js/inlineSVG.js?1613567099></script><script src=/js/jquery.min.js?1613567099></script><script src=/js/fixed.js?1613567099></script><script src=/js/clipboard.min.js?1613567099></script><script src=https://platform.linkedin.com/in.js type=text/javascript>lang:en_US</script></head><body data-url=/v1.12.8/guides/applications/service-access/ class=has-sticky-navigation><script>$(document).ready(function(){function initStickyNav(){var stickyPoint;var tln=document.querySelector(".tln");if(!tln){return;}
+gtag('js',new Date());gtag('config','UA-165447164-1');</script><link href=/css/nucleus.css?1613568231 rel=stylesheet><link href=/css/font-awesome.min.css?1613568231 rel=stylesheet><link href=/css/hybrid.css?1613568231 rel=stylesheet><link href=/css/featherlight.min.css?1613568231 rel=stylesheet><link href=/css/perfect-scrollbar.min.css?1613568231 rel=stylesheet><link href=/css/auto-complete.css?1613568231 rel=stylesheet><link href=/css/skeleton.css?1613568231 rel=stylesheet><link href=/css/sheetslider.css?1613568231 rel=stylesheet><link rel=stylesheet href=/css/gardener.7593938070d708e7b1bec0e9172492ff8f780d7c20e680f994075d57795a3335.css><script src=/js/moment.js?1613568231></script><script src=/js/vivus.js?1613568231></script><script src=/js/scrollreveal.js?1613568231></script><script src=/js/inlineSVG.js?1613568231></script><script src=/js/jquery.min.js?1613568231></script><script src=/js/fixed.js?1613568231></script><script src=/js/clipboard.min.js?1613568231></script><script src=https://platform.linkedin.com/in.js type=text/javascript>lang:en_US</script></head><body data-url=/v1.12.8/guides/applications/service-access/ class=has-sticky-navigation><script>$(document).ready(function(){function initStickyNav(){var stickyPoint;var tln=document.querySelector(".tln");if(!tln){return;}
 var stickyPointEl=document.querySelector(".sticky-nav-point");if(stickyPointEl==null){stickyPointEl=document.querySelector("body");stickyPoint=0;}else{stickyPoint=stickyPointEl.clientHeight+stickyPointEl.offsetTop;}
 var bodySelector=document.getElementsByTagName("body")[0];var tlnHeight=tln.clientHeight;var stickyNavigation=function(){if(window.pageYOffset+tlnHeight>=stickyPoint){bodySelector.classList.add("has-sticky-navigation");tln.classList.add("sticky-top");}else{bodySelector.classList.remove("has-sticky-navigation");tln.classList.remove("sticky-top");}}
 window.onscroll=function(){stickyNavigation();};}
@@ -15,39 +15,39 @@ v1.12.8</a></li></ul></div></li></ul></div></div></div></header></div><script>$(
 North-South traffic). For internal communication amongst pods and services (sometimes called East-West traffic) there
 are many examples, <a href=https://cloudnativelabs.github.io/post/2017-04-18-kubernetes-networking/>here</a> is one brief example.</p><h2 id=service-types>Service Types</h2><p>A Service in Kubernetes is an abstraction defining a logical set of Pods and an access policy.<br>Services can be exposed in different ways by specifying a <strong>type</strong> in the service spec,
 and different types determine accessibility from inside and outside of cluster.</p><ul><li>ClusterIP</li><li>NodePort</li><li>LoadBalancer</li></ul><p>Type <code>ExternalName</code> is a special case of service and not discussed here.</p><h3 id=type-clusterip>Type ClusterIP</h3><p>A service of type <code>ClusterIP</code> exposes a service on an internal IP in the cluster, which makes the service <strong>only reachable</strong>
-from within the cluster. This is the default value if no type is specified.</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>apps/v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Deployment<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-deployment<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>matchLabels</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>  </span><span class=k>template</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>    </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>containers</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>nginx<span class=w>
-</span><span class=w>        </span><span class=k>image</span><span class=p>:</span><span class=w> </span>nginx<span class=p>:</span><span class=m>1.13.12</span><span class=w>
-</span><span class=w>        </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span>- <span class=k>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Service<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-svc<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>default<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>type</span><span class=p>:</span><span class=w> </span>ClusterIP<span class=w>  </span><span class=c># use ClusterIP as type here</span><span class=w>
-</span><span class=w>  </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- <span class=k>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
+from within the cluster. This is the default value if no type is specified.</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>apps/v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Deployment</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-deployment</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx</span><span class=w>
+</span><span class=w>        </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:1.13.12</span><span class=w>
+</span><span class=w>        </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=nt>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-svc</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>ClusterIP </span><span class=w> </span><span class=c># use ClusterIP as type here</span><span class=w>
+</span><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
 </span></code></pre></div><p>Execute following commands to create deployment and service</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl create -f &lt;Your yaml file name&gt;
 </code></pre></div><p>Checking the service status</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ kubectl get svc nginx-svc
 NAME        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class=o>(</span>S<span class=o>)</span>   AGE
@@ -85,12 +85,12 @@ working. Further configuration is required.&lt;/p&gt;
 You need to make sure command <code>curl</code> is installed in the container.</li><li>You can also find out the dns name of the ClusterIP by command <code>kubectl exec -it &lt;POD_NAME> nslookup &lt;ClusterIP></code>,
 replace the IP address with the resolved name in your test.
 The resolved name typically looks like <code>nginx-svc.default.svc.cluster.local</code> where <code>nginx-svc</code> is the name of your
-service defined in the configuration file.</li></ul></blockquote><h3 id=type-nodeport>Type NodePort</h3><p>Follow the previous example, just replace the type with <code>NodePort</code></p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml>...<span class=w>
-</span><span class=w> </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>   </span><span class=k>type</span><span class=p>:</span><span class=w> </span>NodePort<span class=w>
-</span><span class=w>   </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>     </span>- <span class=k>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w></span>...<span class=w>
+service defined in the configuration file.</li></ul></blockquote><h3 id=type-nodeport>Type NodePort</h3><p>Follow the previous example, just replace the type with <code>NodePort</code></p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nn>...</span><span class=w>
+</span><span class=w> </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>   </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>NodePort</span><span class=w>
+</span><span class=w>   </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>     </span>- <span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w></span><span class=nn>...</span><span class=w>
 </span></code></pre></div><p>A service of type <code>NodePort</code> is a ClusterIP service with an additional capability: it is reachable at the IP address
 of the node as well as at the assigned cluster IP on the services network.
 The way this is accomplished is pretty straightforward: when Kubernetes creates a NodePort service kube-proxy allocates
@@ -122,39 +122,39 @@ kubectl <span class=nb>exec</span> -it nginx-deployment-74d949bf69-7n6bs curl 10
 
 <span class=c1>#via internal name of NodeIP</span>
 kubectl <span class=nb>exec</span> -it nginx-deployment-74d949bf69-7n6bs curl ip-10-250-20-203.eu-central-1.compute.internal:32521
-</code></pre></div><h3 id=type-loadbalancer>Type LoadBalancer</h3><p>The <code>LoadBalancer</code> type is the simplest approach, which is created by specifying type as <code>LoadBalancer</code>.</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>apps/v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Deployment<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-deployment<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>matchLabels</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>  </span><span class=k>template</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>    </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>containers</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>nginx<span class=w>
-</span><span class=w>        </span><span class=k>image</span><span class=p>:</span><span class=w> </span>nginx<span class=p>:</span><span class=m>1.13.12</span><span class=w>
-</span><span class=w>        </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span>- <span class=k>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Service<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-svc<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>default<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>type</span><span class=p>:</span><span class=w> </span>LoadBalancer<span class=w>  </span><span class=c># use LoadBalancer as type here</span><span class=w>
-</span><span class=w>  </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- <span class=k>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
+</code></pre></div><h3 id=type-loadbalancer>Type LoadBalancer</h3><p>The <code>LoadBalancer</code> type is the simplest approach, which is created by specifying type as <code>LoadBalancer</code>.</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>apps/v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Deployment</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-deployment</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx</span><span class=w>
+</span><span class=w>        </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:1.13.12</span><span class=w>
+</span><span class=w>        </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=nt>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-svc</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>LoadBalancer </span><span class=w> </span><span class=c># use LoadBalancer as type here</span><span class=w>
+</span><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
 </span></code></pre></div><p>Once the service is created, it has an external IP address as shown here:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ kubectl get services -l <span class=nv>app</span><span class=o>=</span>nginx-app -o wide
 NAME        TYPE           CLUSTER-IP       EXTERNAL-IP                                                                  PORT<span class=o>(</span>S<span class=o>)</span>        AGE       SELECTOR
 nginx-svc   LoadBalancer   100.67.182.148   a54a62300696611e88ba00af02406931-1787163476.eu-central-1.elb.amazonaws.com   80:31196/TCP   9m        <span class=nv>app</span><span class=o>=</span>nginx-app
@@ -189,53 +189,53 @@ external load balancer is forwarded to the kube-proxy that in turn forwards
 the traffic to the selected pods. In contrast, the Ingress LoadBalancer forwards the traffic straight to the selected
 pods which is more efficient.</p><p>Typically a service of type LoadBalancer costs at least 40$ per month. This means if your applications needs 10 of them
 you already pay 400$ per month just for load balancing.</p><h3 id=how-to-use-the-ingress>How to use the ingress?</h3><p>In the cluster, a nginx-ingress controller has been deployed for you as an LoadBalancer and also registered the DNS
-record. Depending on how your cluster is defined, the DNS registration is performed under following conventions:</p><ul><li><strong>k8s-hana.ondemand.com</strong></li></ul><p><code>&lt;gardener_cluster_name>.&lt;gardener_project_name>.shoot.canary.k8s-hana.ondemand.com</code>.</p><p>Both <code>&lt;gardener_cluster_name></code> and <code>&lt;gardener_project_name></code> are defined in Gardener which can be determined on Gardener dashboard.</p><p>This results in the following default DNS endpoints:</p><ul><li><code>api.&lt;cluster_domain></code> Kubernetes API</li><li><code>*.ingress.&lt;cluster_domain></code> Internal nginx ingress</li></ul><h3 id=example-configure-an-ingress-resource-with-service-type-nodeport>Example: Configure an Ingress resource with Service type: NodePort</h3><p>With the configuration below you can reach your service <strong>nginx-svc</strong> with:</p><p><code>http://test.ingress.&amp;lt;GARDENER-CLUSTER-NAME&amp;gt;.&amp;lt;GARDENER-PROJECT-NAME&amp;gt;.shoot.canary.k8s-hana.ondemand.com</code></p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>apps/v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Deployment<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-deployment<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>matchLabels</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
-</span><span class=w>  </span><span class=k>template</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>    </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>containers</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>name</span><span class=p>:</span><span class=w> </span>nginx<span class=w>
-</span><span class=w>        </span><span class=k>image</span><span class=p>:</span><span class=w> </span>nginx<span class=p>:</span><span class=m>1.13.12</span><span class=w>
-</span><span class=w>        </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span>- <span class=k>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Service<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>labels</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginx-svc<span class=w>
-</span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>default<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>type</span><span class=p>:</span><span class=w> </span>NodePort<span class=w>
-</span><span class=w>  </span><span class=k>ports</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span>- <span class=k>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
-</span><span class=w>  </span><span class=k>selector</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>app</span><span class=p>:</span><span class=w> </span>nginx-app<span class=w>
+record. Depending on how your cluster is defined, the DNS registration is performed under following conventions:</p><ul><li><strong>k8s-hana.ondemand.com</strong></li></ul><p><code>&lt;gardener_cluster_name>.&lt;gardener_project_name>.shoot.canary.k8s-hana.ondemand.com</code>.</p><p>Both <code>&lt;gardener_cluster_name></code> and <code>&lt;gardener_project_name></code> are defined in Gardener which can be determined on Gardener dashboard.</p><p>This results in the following default DNS endpoints:</p><ul><li><code>api.&lt;cluster_domain></code> Kubernetes API</li><li><code>*.ingress.&lt;cluster_domain></code> Internal nginx ingress</li></ul><h3 id=example-configure-an-ingress-resource-with-service-type-nodeport>Example: Configure an Ingress resource with Service type: NodePort</h3><p>With the configuration below you can reach your service <strong>nginx-svc</strong> with:</p><p><code>http://test.ingress.&amp;lt;GARDENER-CLUSTER-NAME&amp;gt;.&amp;lt;GARDENER-PROJECT-NAME&amp;gt;.shoot.canary.k8s-hana.ondemand.com</code></p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>apps/v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Deployment</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-deployment</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx</span><span class=w>
+</span><span class=w>        </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:1.13.12</span><span class=w>
+</span><span class=w>        </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=nt>containerPort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx-svc</span><span class=w>
+</span><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>NodePort</span><span class=w>
+</span><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>- <span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>nginx-app</span><span class=w>
 </span><span class=w>
-</span><span class=w></span>---<span class=w>
-</span><span class=w></span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>networking.k8s.io/v1beta1<span class=w>
-</span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Ingress<span class=w>
-</span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>nginxsvc-ingress<span class=w>
-</span><span class=w></span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span><span class=k>rules</span><span class=p>:</span><span class=w>
-</span><span class=w>  </span>- <span class=k>host</span><span class=p>:</span><span class=w> </span>nginxsvc.ingress.eecluster.cpet.shoot.canary.k8s-hana.ondemand.com<span class=w>
-</span><span class=w>    </span><span class=k>http</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>paths</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span>- <span class=k>backend</span><span class=p>:</span><span class=w>
-</span><span class=w>          </span><span class=k>serviceName</span><span class=p>:</span><span class=w> </span>nginx-svc<span class=w>
-</span><span class=w>          </span><span class=k>servicePort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span><span class=w></span><span class=nn>---</span><span class=w>
+</span><span class=w></span><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>networking.k8s.io/v1beta1</span><span class=w>
+</span><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Ingress</span><span class=w>
+</span><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginxsvc-ingress</span><span class=w>
+</span><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=nt>rules</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>- <span class=nt>host</span><span class=p>:</span><span class=w> </span><span class=l>nginxsvc.ingress.eecluster.cpet.shoot.canary.k8s-hana.ondemand.com</span><span class=w>
+</span><span class=w>    </span><span class=nt>http</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=nt>paths</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=nt>backend</span><span class=p>:</span><span class=w>
+</span><span class=w>          </span><span class=nt>serviceName</span><span class=p>:</span><span class=w> </span><span class=l>nginx-svc</span><span class=w>
+</span><span class=w>          </span><span class=nt>servicePort</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
 </span></code></pre></div><p>Show the newly created ingress and test it :</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ kubectl get ingress
 NAME                    HOSTS                                                               ADDRESS         PORTS     AGE
 nginxsvc-ingress        nginxsvc.ingress.eecluster.cpet.shoot.canary.k8s-hana.ondemand.com  10.250.20.203   <span class=m>80</span>        29s
@@ -255,7 +255,7 @@ Content           : &lt;!DOCTYPE html&gt;
                             font-family: Tahoma, Verdana, Arial, sans-serif<span class=p>;</span>
 ...
 </code></pre></div><h2 id=reference>Reference:</h2><ul><li><a href=https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types>Concepts: Kubernetes Service</a></li><li><a href=https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/#exposing-the-service>Concepts: Connecting Applications with Services</a></li><li><a href=https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/>Tutorial: Using a Service to Expose Your App</a></li><li><a href=https://kubernetes.io/docs/tutorials/services/source-ip>Tutorial: Using Source IP</a></li><li><a href=https://medium.com/google-cloud/understanding-kubernetes-networking-pods-7117dd28727>Kubernetes Networking</a></li><li><a href=http://alesnosek.com/blog/2017/02/14/accessing-kubernetes-pods-from-outside-of-the-cluster/>Accessing Kubernetes Pods from Outside of the Cluster</a></li></ul></div></div></div><div class=howto_tickets><a href=https://github.com/gardener/documentation/issues/new/choose target=_blank><span>Let us know how can we improve.</span>
-<span>Open <img src=https://gardener.cloud/images/branding/github-mark-logo-green.svg> GitHub Issue <i class="fa fa-external-link" aria-hidden=true></i></span></a></div></section></div><style></style><footer class=footer><div class="container footer-wrapper"><ul class=nav><li><a href=/blog/>Blogs</a></li><li><a href=/community/>Community</a></li><li><a href=/adopter/>Adopters</a></li><li><a href=/documentation/home>Documentation</a></li></ul><img src=/images/lp/gardener-logo.svg alt="Logo Gardener" class=logo><ul class=media-wr><li><a target=_blank href=https://kubernetes.slack.com/archives/CB57N0BFG><img src=/images/branding/slack-logo-white.svg class=media-icon><div class=media-text>Slack</div></a></li><li><a target=_blank href=https://github.com/gardener><img src=/images/branding/github-mark-logo.png class=media-icon><div class=media-text>GitHub</div></a></li><li><a target=_blank href=https://www.youtube.com/channel/UCwUhwKFREV8Su0gwAJQX7tw><img src=/images/branding/youtube-logo-dark.svg class=media-icon><div class=media-text>YouTube</div></a></li><li><a target=_blank href=https://twitter.com/GardenerProject><img src=/images/branding/twitter-logo-white.svg class=media-icon><div class=media-text>Twitter</div></a></li></ul><span class=copyright>Copyright 2020 Gardener project authors. Privacy Statement</span></div></footer><script src=/js/perfect-scrollbar.min.js?1613567099></script><script src=/js/perfect-scrollbar.jquery.min.js?1613567099></script><script src=/js/jquery.sticky.js?1613567099></script><script src=/js/featherlight.min.js?1613567099></script><script src=/js/html5shiv-printshiv.min.js?1613567099></script><script src=/js/modernizr.custom.71422.js?1613567099></script><link href=/mermaid/mermaid.css?1613567099 type=text/css rel=stylesheet><script src=/mermaid/mermaid.js?1613567099></script><script src=/js/code-snippets.js?1613567099></script><script>mermaid.initialize({startOnLoad:true,htmlLables:true});function createIssue(issueUrl,page,url){var uri=issueUrl+"?title=Documentation issue on page \""+page+"\"";uri=uri+"&body=\n\n<- DESCRIBE MISSING OR FAULTY DOCUMENTATION HERE->\n\n---\nPage: ["+page+"]("+
+<span>Open <img src=https://gardener.cloud/images/branding/github-mark-logo-green.svg> GitHub Issue <i class="fa fa-external-link" aria-hidden=true></i></span></a></div></section></div><style></style><footer class=footer><div class="container footer-wrapper"><ul class=nav><li><a href=/blog/>Blogs</a></li><li><a href=/community/>Community</a></li><li><a href=/adopter/>Adopters</a></li><li><a href=/documentation/home>Documentation</a></li></ul><img src=/images/lp/gardener-logo.svg alt="Logo Gardener" class=logo><ul class=media-wr><li><a target=_blank href=https://kubernetes.slack.com/archives/CB57N0BFG><img src=/images/branding/slack-logo-white.svg class=media-icon><div class=media-text>Slack</div></a></li><li><a target=_blank href=https://github.com/gardener><img src=/images/branding/github-mark-logo.png class=media-icon><div class=media-text>GitHub</div></a></li><li><a target=_blank href=https://www.youtube.com/channel/UCwUhwKFREV8Su0gwAJQX7tw><img src=/images/branding/youtube-logo-dark.svg class=media-icon><div class=media-text>YouTube</div></a></li><li><a target=_blank href=https://twitter.com/GardenerProject><img src=/images/branding/twitter-logo-white.svg class=media-icon><div class=media-text>Twitter</div></a></li></ul><span class=copyright>Copyright 2020 Gardener project authors. Privacy Statement</span></div></footer><script src=/js/perfect-scrollbar.min.js?1613568231></script><script src=/js/perfect-scrollbar.jquery.min.js?1613568231></script><script src=/js/jquery.sticky.js?1613568231></script><script src=/js/featherlight.min.js?1613568231></script><script src=/js/html5shiv-printshiv.min.js?1613568231></script><script src=/js/modernizr.custom.71422.js?1613568231></script><link href=/mermaid/mermaid.css?1613568231 type=text/css rel=stylesheet><script src=/mermaid/mermaid.js?1613568231></script><script src=/js/code-snippets.js?1613568231></script><script>mermaid.initialize({startOnLoad:true,htmlLables:true});function createIssue(issueUrl,page,url){var uri=issueUrl+"?title=Documentation issue on page \""+page+"\"";uri=uri+"&body=\n\n<- DESCRIBE MISSING OR FAULTY DOCUMENTATION HERE->\n\n---\nPage: ["+page+"]("+
 url+")\ndon't remove the link to the page. It's required for the processor"
 var res=encodeURI(uri);res+="&labels=area/documentation"
 window.open(res,"issue")

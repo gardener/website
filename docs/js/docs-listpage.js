@@ -1,3 +1,5 @@
+// listpage can be applied to DOM with certain structure as far as the filter and listed elements are concerned.
+// An example can be found here: https://github.com/gardener/website-generator/blob/e6e29775569ca454123ac140df820a8f26f3c637/hugo/layouts/docs/guides-home.html
 function listpage(contextElement, tilesElement) {
 
     // control .collapsible controls block visibility 

@@ -1,0 +1,1140 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Tutorials</title><link>https://gardener.cloud/docs/tutorials/</link><description>Recent content in Tutorials on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Tue, 01 Dec 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/docs/tutorials/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Authenticating with an Identity Provider</title><link>https://gardener.cloud/docs/tutorials/oidc-login/</link><pubDate>Tue, 01 Dec 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/oidc-login/</guid><description>
+&lt;p>Use an identity provider to authenticate users to access shoot clusters.&lt;/p>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Please read the following background material on &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens">Authenticating&lt;/a>.&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>Kubernetes on its own doesn’t provide any user management. In other words, users aren’t managed through Kubernetes resources. Whenever you refer to a human user it’s sufficient to use a unique ID, for example, an email address. Nevertheless, Gardener project owners can use an identity provider to authenticate user access for shoot clusters in the following way:&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="#configure-an-identity-provider">Configure an Identity Provider&lt;/a> using &lt;strong>OpenID Connect&lt;/strong> (OIDC).&lt;/li>
+&lt;li>&lt;a href="#configure-a-local-kubectl-oidc-login">Configure a local kubectl oidc-login&lt;/a> to enable &lt;code>oidc-login&lt;/code>.&lt;/li>
+&lt;li>&lt;a href="#configure-the-shoot-cluster">Configure the shoot cluster&lt;/a> to share details of the OIDC-compliant identity provider with the Kubernetes API Server.&lt;/li>
+&lt;li>&lt;a href="#authorize-an-authenticated-user">Authorize an authenticated user&lt;/a> using role-based access control (RBAC).&lt;/li>
+&lt;li>&lt;a href="#verify-the-result">Verify the result&lt;/a>&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>Gardener allows administrators to modify aspects of the control plane setup. It gives administrators full control of how the control plane is parameterized. While this offers much flexibility, administrators need to ensure that they don’t configure a control plane that goes beyond the service level agreements of the responsible operators team.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="configure-an-identity-provider">Configure an Identity Provider&lt;/h2>
+&lt;p>Create a tenant in an OIDC compatible Identity Provider. For simplicity, we use &lt;em>Auth0&lt;/em>, which has a free plan.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>In your tenant, create a client application to use authentication with &lt;code>kubectl&lt;/code>:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Create-client-application_9ff006.png" alt="Create client application">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Provide a &lt;em>Name&lt;/em>, choose &lt;em>Native&lt;/em> as application type, and choose &lt;em>CREATE&lt;/em>.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Choose-application-type_08fa62.png" alt="Choose application type">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>On tab &lt;em>Settings&lt;/em>, copy the following parameters to a local text file:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;em>Domain&lt;/em>&lt;/p>
+&lt;blockquote>
+&lt;p>Corresponds to the &lt;strong>issuer&lt;/strong> in OIDC. It must be an &lt;code>https&lt;/code>-secured endpoint (Auth0 requires a trailing &lt;code>/&lt;/code> at the end). More information: &lt;a href="https://openid.net/specs/openid-connect-core-1_0.html#Terminology">Issuer Identifier&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Client ID&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Client Secret&lt;/em>&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Basic-information_a3f3a1.png" alt="Basic information">&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Configure the client to have a callback url of http://localhost:8000. This callback connects to your local &lt;code>kubectl oidc-login&lt;/code> plugin:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Configure-callback_a7c1eb.png" alt="Configure callback">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Save your changes.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Verify that &lt;code>https://&amp;lt;Auth0 Domain&amp;gt;/.well-known/openid-configuration&lt;/code> is reachable.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Choose &lt;em>Users &amp;amp; Roles&lt;/em> &amp;gt; &lt;em>Users&lt;/em> &amp;gt; &lt;em>CREATE USERS&lt;/em> to create a user with a user and password:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Create-user_e28cd3.png" alt="Create user">&lt;/p>
+&lt;blockquote>
+&lt;p>Users must have a &lt;em>verified&lt;/em> email address.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="configure-a-local-kubectl-oidc-login">Configure a local &lt;code>kubectl&lt;/code> &lt;code>oidc-login&lt;/code>&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>Install the &lt;code>kubectl&lt;/code> plugin &lt;a href="https://github.com/int128/kubelogin">oidc-login&lt;/a>. We highly recommend the &lt;a href="https://github.com/kubernetes-sigs/krew">krew&lt;/a> install tool, which also makes other plugins easily available.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl krew install oidc-login
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The response looks like this:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">Updated the local copy of plugin index.
+Installing plugin: oidc-login
+CAVEATS:
+\
+| You need to setup the OIDC provider, Kubernetes API server, role binding and kubeconfig.
+| See https://github.com/int128/kubelogin for more.
+/
+Installed plugin: oidc-login
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Prepare a &lt;code>kubeconfig&lt;/code> for later use:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">cp ~/.kube/config ~/.kube/config-oidc
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Modify the configuration of &lt;code>~/.kube/config-oidc&lt;/code> as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">contexts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot--project--mycluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-oidc&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot--project--mycluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">users&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-oidc&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">exec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">client.authentication.k8s.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kubectl&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">oidc-login&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">get-token&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- --&lt;span class="l">oidc-issuer-url=https://&amp;lt;Issuer&amp;gt;/ &lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- --&lt;span class="l">oidc-client-id=&amp;lt;Client ID&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- --&lt;span class="l">oidc-client-secret=&amp;lt;Client Secret&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- --&lt;span class="l">oidc-extra-scope=email,offline_access,profile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>To test our OIDC-based authentication, context &lt;code>shoot--project--mycluster&lt;/code> of &lt;code>~/.kube/config-oidc&lt;/code> is used in a later step. For now, continue to use the configuration &lt;code>~/.kube/config&lt;/code> with administration rights for your cluster.&lt;/p>
+&lt;h2 id="configure-the-shoot-cluster">Configure the shoot cluster&lt;/h2>
+&lt;p>Modify the shoot cluster YAML as follows, using the client ID and the domain (as issuer) from the settings of the client application you created in Auth0:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden.sapcloud.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mycluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-project&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeAPIServer&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">oidcConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">clientID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;Client ID&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">issuerURL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;https://&amp;lt;Issuer&amp;gt;/&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usernameClaim&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">email&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This change of the &lt;code>Shoot&lt;/code> manifest triggers a reconciliation. Once the reconciliation is finished, your OIDC configuration is applied. It &lt;strong>doesn&amp;rsquo;t&lt;/strong> invalidate other certificate-based authentication methods. Wait for Gardener to reconcile the change. It can take up to 5 minutes.&lt;/p>
+&lt;h2 id="authorize-an-authenticated-user">Authorize an authenticated user&lt;/h2>
+&lt;p>In Auth0, you created a user with a verified email address, &lt;code>test@test.com&lt;/code> in our example. For simplicity, we authorize a single user identified by this email address with cluster role &lt;code>view&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRoleBinding&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">viewer-test&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">roleRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRole&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">view&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">subjects&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">User&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">test@test.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As administrator, apply the cluster role binding in your shoot cluster.&lt;/p>
+&lt;h2 id="verify-the-result">Verify the result&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>To step into the shoes of your user, use the prepared &lt;code>kubeconfig&lt;/code> file &lt;code>~/.kube/config-oidc&lt;/code>, and switch to the context that uses &lt;code>oidc-login&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">cd ~/.kube
+export KUBECONFIG=$(pwd)/config-oidc
+kubectl config use-context `shoot--project--mycluster`
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;code>kubectl&lt;/code> delegates the authentication to plugin &lt;code>oidc-login&lt;/code> the first time the user uses &lt;code>kubectl&lt;/code> to contact the API server, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl get all
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The plugin opens a browser for an interactive authentication session with Auth0, and in parallel serves a local webserver for the configured callback.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Enter your login credentials.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Login-through-identity-provider_471b16.png" alt="Login through identity provider">&lt;/p>
+&lt;p>You should get a successful response from the API server:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">Opening in existing browser session.
+NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
+service/kubernetes ClusterIP 100.64.0.1 &amp;lt;none&amp;gt; 443/TCP 86m
+&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>After a successful login, &lt;code>kubectl&lt;/code> uses a token for authentication so that you don’t have to provide user and password for every new &lt;code>kubectl&lt;/code> command. How long the token is valid can be configured. If you want to log in again earlier, reset plugin &lt;code>oidc-login&lt;/code>:&lt;/p>
+&lt;ol>
+&lt;li>Delete directory &lt;code>~/.kube/cache/oidc-login&lt;/code>.&lt;/li>
+&lt;li>Delete the browser cache.&lt;/li>
+&lt;/ol>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>To see if your user uses cluster role &lt;code>view&lt;/code>, do some checks with &lt;code>kubectl auth can-i&lt;/code>.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>The response for the following commands should be &lt;code>no&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl auth can-i create clusterrolebindings
+&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl auth can-i get secrets
+&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl auth can-i describe secrets
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>The response for the following commands should be &lt;code>yes&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl auth can-i list pods
+&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl auth can-i get pods
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;p>If the last step is successful, you’ve configured your cluster to authenticate against an identity provider using OIDC.&lt;/p>
+&lt;h2 id="related-links">Related Links&lt;/h2>
+&lt;p>&lt;a href="https://auth0.com/pricing/">Auth0 Pricing&lt;/a>&lt;/p></description></item><item><title>Docs: Dynamic Volume Provisioning</title><link>https://gardener.cloud/docs/tutorials/dynamic-pvc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/dynamic-pvc/</guid><description>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>The example shows how to run a postgres database on Kubernetes and how to dynamically provision and mount the storage
+volumes needed by the database&lt;/p>
+&lt;h2 id="run-postgres-database">Run postgres database&lt;/h2>
+&lt;p>Define the following Kubernetes resources in a yaml file&lt;/p>
+&lt;ul>
+&lt;li>PersistentVolumeClaim (PVC)&lt;/li>
+&lt;li>Deployment&lt;/li>
+&lt;/ul>
+&lt;h4 id="persistentvolumeclaim">PersistentVolumeClaim&lt;/h4>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">PersistentVolumeClaim&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgresdb-pvc&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">accessModes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">ReadWriteOnce&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">requests&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">storage&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">9Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">storageClassName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;default&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This defines a PVC using storage class &lt;code>default&lt;/code>. Storage classes abstract from the underlying storage provider as well
+as other parameters, like disk-type (e.g.; solid-state vs standard disks).&lt;/p>
+&lt;p>The default storage class has annotation &lt;strong>{&amp;ldquo;storageclass.kubernetes.io/is-default-class&amp;rdquo;:&amp;ldquo;true&amp;rdquo;}&lt;/strong>.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">
+$ kubectl describe sc default
+Name: default
+IsDefaultClass: Yes
+Annotations: kubectl.kubernetes.io/last-applied-configuration&lt;span class="o">={&lt;/span>&lt;span class="s2">&amp;#34;apiVersion&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;storage.k8s.io/v1beta1&amp;#34;&lt;/span>,&lt;span class="s2">&amp;#34;kind&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;StorageClass&amp;#34;&lt;/span>,&lt;span class="s2">&amp;#34;metadata&amp;#34;&lt;/span>:&lt;span class="o">{&lt;/span>&lt;span class="s2">&amp;#34;annotations&amp;#34;&lt;/span>:&lt;span class="o">{&lt;/span>&lt;span class="s2">&amp;#34;storageclass.kubernetes.io/is-default-class&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="o">}&lt;/span>,&lt;span class="s2">&amp;#34;labels&amp;#34;&lt;/span>:&lt;span class="o">{&lt;/span>&lt;span class="s2">&amp;#34;addonmanager.kubernetes.io/mode&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;Exists&amp;#34;&lt;/span>&lt;span class="o">}&lt;/span>,&lt;span class="s2">&amp;#34;name&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;default&amp;#34;&lt;/span>,&lt;span class="s2">&amp;#34;namespace&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;span class="o">}&lt;/span>,&lt;span class="s2">&amp;#34;parameters&amp;#34;&lt;/span>:&lt;span class="o">{&lt;/span>&lt;span class="s2">&amp;#34;type&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;gp2&amp;#34;&lt;/span>&lt;span class="o">}&lt;/span>,&lt;span class="s2">&amp;#34;provisioner&amp;#34;&lt;/span>:&lt;span class="s2">&amp;#34;kubernetes.io/aws-ebs&amp;#34;&lt;/span>&lt;span class="o">}&lt;/span>
+,storageclass.kubernetes.io/is-default-class&lt;span class="o">=&lt;/span>&lt;span class="nb">true&lt;/span>
+Provisioner: kubernetes.io/aws-ebs
+Parameters: &lt;span class="nv">type&lt;/span>&lt;span class="o">=&lt;/span>gp2
+AllowVolumeExpansion: &amp;lt;unset&amp;gt;
+MountOptions: &amp;lt;none&amp;gt;
+ReclaimPolicy: Delete
+VolumeBindingMode: Immediate
+Events: &amp;lt;none&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>A Persistent Volume is automatically created when it is dynamically provisioned. In following example, the PVC is defined
+as &amp;ldquo;postgresdb-pvc&amp;rdquo;, and a corresponding PV &amp;ldquo;pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb&amp;rdquo; is created and associated with pvc automatically.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl create -f .&lt;span class="se">\p&lt;/span>ostgres_deployment.yaml
+persistentvolumeclaim &lt;span class="s2">&amp;#34;postgresdb-pvc&amp;#34;&lt;/span> created
+$ kubectl get pv
+NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Delete Bound default/postgresdb-pvc default 3s
+$ kubectl get pvc
+NAME STATUS VOLUME CAPACITY ACCESS MODES STORAGECLASS AGE
+postgresdb-pvc Bound pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO default 8s
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Notice that the &lt;strong>RECLAIM POLICY&lt;/strong> is &lt;strong>Delete&lt;/strong> (default value), which is one of the two reclaim policies, the other
+one is &lt;strong>Retain&lt;/strong>. (A third policy &lt;strong>Recycle&lt;/strong> has been deprecated). In case of &lt;strong>Delete&lt;/strong>, the PV is deleted automatically
+when the PVC is removed, and the data on the PVC will also be lost.&lt;/p>
+&lt;p>On the other hand, PV with &lt;strong>Retain&lt;/strong> policy will not be deleted when the PVC is removed, and moved to &lt;strong>Release&lt;/strong> status, so
+that data can be recovered by Administrators later.&lt;/p>
+&lt;p>You can use the &lt;code>kubectl patch&lt;/code> command to change the reclaim policy as described here &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/change-pv-reclaim-policy/">here&lt;/a>
+or use &lt;code>kubectl edit pv &amp;lt;pv-name&amp;gt;&lt;/code> to edit online as below:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl get pv
+NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Delete Bound default/postgresdb-pvc default 44m
+&lt;span class="c1"># change the relcaim policy from &amp;#34;Delete&amp;#34; to &amp;#34;Retain&amp;#34;&lt;/span>
+$ kubectl edit pv pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb
+persistentvolume &lt;span class="s2">&amp;#34;pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb&amp;#34;&lt;/span> edited
+&lt;span class="c1"># check the reclaim policy afterwards&lt;/span>
+$ kubectl get pv
+NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Bound default/postgresdb-pvc default 45m
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="deployment">Deployment&lt;/h4>
+&lt;p>Once a PVC is created, you can use it in your container via &lt;code>volumes.persistentVolumeClaim.claimName&lt;/code>. In below
+example, pvc &lt;strong>postgresdb-pvc&lt;/strong> is mounted as readable and writable, and in &lt;code>volumeMounts&lt;/code> two paths in the container are mounted to subfolders in the volume.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">deployment.kubernetes.io/revision&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">strategy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">RollingUpdate&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">rollingUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maxUnavailable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maxSurge&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;cpettech.docker.repositories.sap.ondemand.com/jtrack_postgres:howto&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">env&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">POSTGRES_USER&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgres&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">POSTGRES_PASSWORD&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">p5FVqfuJFrM42cVX9muQXxrC3r8S9yn0zqWnFR6xCoPqxqVQ&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">POSTGRES_INITDB_XLOGDIR&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;/var/log/postgresql/logs&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">containerPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">5432&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumeMounts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/var/lib/postgresql/data&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgre-db&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">subPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">data &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># https://github.com/kubernetes/website/pull/2292. Solve the issue of crashing initdb due to non-empty directory (i.e. lost+found)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/var/log/postgresql/logs&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgre-db&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">subPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">logs&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgre-db&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">persistentVolumeClaim&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">claimName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">postgresdb-pvc&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">readOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">imagePullSecrets&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cpettechregistry&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To check the mount points in the container:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+postgres-7f485fd768-c5jf9 1/1 Running &lt;span class="m">0&lt;/span> 32m
+$ kubectl &lt;span class="nb">exec&lt;/span> -it postgres-7f485fd768-c5jf9 bash
+root@postgres-7f485fd768-c5jf9:/# ls /var/lib/postgresql/data/
+base pg_clog pg_dynshmem pg_ident.conf pg_multixact pg_replslot pg_snapshots pg_stat_tmp pg_tblspc PG_VERSION postgresql.auto.conf postmaster.opts
+global pg_commit_ts pg_hba.conf pg_logical pg_notify pg_serial pg_stat pg_subtrans pg_twophase pg_xlog postgresql.conf postmaster.pid
+root@postgres-7f485fd768-c5jf9:/# ls /var/log/postgresql/logs/
+&lt;span class="m">000000010000000000000001&lt;/span> archive_status
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="deleting-a-persistentvolumeclaim">Deleting a PersistentVolumeClaim&lt;/h4>
+&lt;p>In case of &amp;ldquo;Delete&amp;rdquo; policy, deleting a PVC will also delete its associated PV. If &amp;ldquo;Retain&amp;rdquo; is the reclaim policy, the
+PV will change status from &lt;strong>Bound&lt;/strong> to &lt;strong>Released&lt;/strong> when PVC is deleted.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># Check pvc and pv before deletion&lt;/span>
+$ kubectl get pvc
+NAME STATUS VOLUME CAPACITY ACCESS MODES STORAGECLASS AGE
+postgresdb-pvc Bound pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO default 50m
+$ kubectl get pv
+NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Bound default/postgresdb-pvc default 50m
+&lt;span class="c1"># delete pvc&lt;/span>
+$ kubectl delete pvc postgresdb-pvc
+persistentvolumeclaim &lt;span class="s2">&amp;#34;postgresdb-pvc&amp;#34;&lt;/span> deleted
+&lt;span class="c1"># pv changed to status &amp;#34;Released&amp;#34;&lt;/span>
+$ kubectl get pv
+NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Released default/postgresdb-pvc default 51m
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Gardener yourself a Shoot with Istio, custom Domains, and Certificates</title><link>https://gardener.cloud/docs/tutorials/shoot_istio_dns_certs/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/shoot_istio_dns_certs/</guid><description>
+&lt;p>As we ramp up more and more friends of Gardener, I thought it worthwile to explore and write a tutorial about how to simply&lt;/p>
+&lt;ul>
+&lt;li>create a Gardener managed Kubernetes Cluster (Shoot) via kubectl,&lt;/li>
+&lt;li>install Istio as a preferred, production ready Ingress/Service Mesh (instead of the Nginx Ingress addon),&lt;/li>
+&lt;li>attach your own custom domain to be managed by Gardener,&lt;/li>
+&lt;li>combine everything with certificates from Let&amp;rsquo;s Encrypt.&lt;/li>
+&lt;/ul>
+&lt;p>Here are some pre-pointers that you will need to go deeper:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/documentation/guides/administer_shoots/create-delete-shoot/">CRUD Gardener Shoot&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/documentation/guides/install_gardener/gardener_dns_management/">DNS Management&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/documentation/guides/install_gardener/gardener_certificate_management/">Certificate Management&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/documentation/guides/administer_shoots/dns_names/">Tutorial Domain Names&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/documentation/guides/administer_shoots/x509_certificates/">Tutorial Certificates&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;div class="notices tip" >
+&lt;p>If you try my instructions and fail, then read the alternative title of this tutorial as "Shoot yourself in foot with Gardener, custom Domains, Istio and Certificates".&lt;/p>
+&lt;/div>
+&lt;h2 id="first-things-first">First Things First&lt;/h2>
+&lt;p>Login to your Gardener landscape, setup a project with adequate infrastructure credentials and then navigate to your account. Note down the name of your secret. I chose the GCP infrastructure from the vast possible options that my Gardener provides me with, so i had named the secret as &lt;code>shoot-operator-gcp&lt;/code>.&lt;/p>
+&lt;p>From the Access widget (leave the default settings) download your personalized &lt;code>kubeconfig&lt;/code> into &lt;code>~/.kube/kubeconfig-garden-myproject&lt;/code>. Follow the instructions to setup &lt;code>kubelogin&lt;/code>:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/access_1f1c85.png" alt="access">&lt;/p>
+&lt;p>For convinience, let us set an alias command with&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">alias&lt;/span> &lt;span class="nv">kgarden&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;kubectl --kubeconfig ~/.kube/kubeconfig-garden-myproject.yaml&amp;#34;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kgarden&lt;/code> now gives you all botanical powers and connects you directly with your Gardener.&lt;/p>
+&lt;p>You should now be able to run &lt;code>kgarden get shoots&lt;/code>, automatically get an oidc token, and list already running clusters/shoots.&lt;/p>
+&lt;h2 id="prepare-your-custom-domain">Prepare your Custom Domain&lt;/h2>
+&lt;p>I am going to use &lt;a href="https://www.cloudflare.com/">Cloud Flare&lt;/a> as programmatic DNS of my custom domain &lt;code>mydomain.io&lt;/code>. Please follow detailed instructions from Cloud Flare on how to delegate your domain (the free account does not support delegating subdomains). Alternatively, AWS Route53 (and most others) support &lt;a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingNewSubdomain.html">delegating subdomains&lt;/a>.&lt;/p>
+&lt;p>I needed to follow these &lt;a href="https://github.com/gardener/external-dns-management/blob/master/docs/cloudflare/README.md">instructions&lt;/a> and created the following secret:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cloudflare-mydomain-io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">CLOUDFLARE_API_TOKEN&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">useYOURownDAMITzNDU2Nzg5MDEyMzQ1Njc4OQ==&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Apply this secret into your project with &lt;code>kgarden create -f cloudflare-mydomain-io.yaml&lt;/code>.&lt;/p>
+&lt;p>Our &lt;a href="https://github.com/gardener/external-dns-management/">External DNS Manager&lt;/a> also supports Amazon Route53, Google CloudDNS, AliCloud DNS, Azure DNS, or OpenStack Designate. Check it out.&lt;/p>
+&lt;h2 id="prepare-gardener-extensions">Prepare Gardener Extensions&lt;/h2>
+&lt;p>I now need to prepare the Gardener extensions &lt;code>shoot-dns-service&lt;/code> and &lt;code>shoot-cert-service&lt;/code> and set the parameters accordingly.&lt;/p>
+&lt;div class="notices note" >
+&lt;p>Please note, that the availability of Gardener Extensions depends on how your administrator has configured the Gardener landscape. Please contact your Gardener administrator in case you experience any issues during activation.&lt;/p>
+&lt;/div>
+&lt;p>The following snipplet allows Gardener to manage my entire custom domain, whereas with the &lt;code>include:&lt;/code> attribute I restrict all dynamic entries under the subdomain &lt;code>gsicdc.mydomain.io&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">domains&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">include&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">gsicdc.mydomain.io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">primary&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cloudflare-mydomain-io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cloudflare-dns&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">extensions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-dns-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The next snipplet allows Gardener to manage certificates automatically from &lt;em>&lt;a href="https://letsencrypt.org/">Let&amp;rsquo;s Encrypt&lt;/a>&lt;/em> on &lt;code>mydomain.io&lt;/code> for me:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="nt">extensions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-cert-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">service.cert.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">issuers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">me@mail.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mydomain&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">me@mail.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mydomain-staging&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="notices note" >
+&lt;p>Adjust the snipplets with your parameters (don't forget your email). And please use the mydomain-staging issuer while you are testing and learning. Otherwise, Let's Encrypt will rate limit your frequent requests and you can wait a week until you can continue.&lt;/p>
+&lt;/div>
+&lt;p>References for &lt;a href="https://letsencrypt.org">Let&amp;rsquo;s Encrypt&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://letsencrypt.org/docs/rate-limits/">Rate limit&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://letsencrypt.org/docs/staging-environment/">Staging environment&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://letsencrypt.org/docs/challenge-types/">Challenge Types&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://community.letsencrypt.org/t/acme-v2-production-environment-wildcards/55578">Wildcard Certificates&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="create-the-gardener-shoot-cluster">Create the Gardener Shoot Cluster&lt;/h2>
+&lt;p>Remember I chose to create the Shoot on GCP, so below is the simplest declarative shoot or cluster order document. Notice that I am referring to the infrastructure credentials with &lt;code>shoot-operator-gcp&lt;/code> and I combined the above snipplets into the yaml file:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gsicdc&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">domains&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">include&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">gsicdc.mydomain.io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">primary&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cloudflare-mydomain-io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cloudflare-dns&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">extensions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-dns-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-cert-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">service.cert.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">issuers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">me@mail.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mydomain&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">me@mail.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mydomain-staging&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cloudProfileName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gcp&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">allowPrivilegedContainers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.18.2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maintenance&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">autoUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetesVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImageVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networking&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.96.0.0&lt;/span>&lt;span class="l">/11&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.64.0.0&lt;/span>&lt;span class="l">/13&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controlPlaneConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gcp.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zone&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-d&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gcp.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gcp&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">machine&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlinux&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">11.29.2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">n1-standard-2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maxSurge&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maxUnavailable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-workerpool&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">pd-standard&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">europe-west1-d&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">purpose&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">testing&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretBindingName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-operator-gcp&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create your cluster and wait for it to be ready (about 5 to 7min).&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kgarden create -f gsicdc.yaml
+shoot.core.gardener.cloud/gsicdc created
+$ kgarden get shoot gsicdc --watch
+NAME CLOUDPROFILE VERSION SEED DOMAIN HIBERNATION OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
+gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Processing &lt;span class="m">38&lt;/span> Progressing Progressing Unknown Unknown 83s
+...
+gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Succeeded &lt;span class="m">100&lt;/span> True True True False 6m7s
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Get access to your freshly baked cluster and set your &lt;code>KUBECONFIG&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kgarden get secrets gsicdc.kubeconfig -o &lt;span class="nv">jsonpath&lt;/span>&lt;span class="o">={&lt;/span>.data.kubeconfig&lt;span class="o">}&lt;/span> &lt;span class="p">|&lt;/span> base64 -d &amp;gt;kubeconfig-gsicdc.yaml
+$ &lt;span class="nb">export&lt;/span> &lt;span class="nv">KUBECONFIG&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>/kubeconfig-gsicdc.yaml
+$ kubectl get all
+NAME TYPE CLUSTER-IP EXTERNAL-IP PORT&lt;span class="o">(&lt;/span>S&lt;span class="o">)&lt;/span> AGE
+service/kubernetes ClusterIP 100.64.0.1 &amp;lt;none&amp;gt; 443/TCP 89m
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="install-istio">Install Istio&lt;/h2>
+&lt;p>Please follow the Istio installation &lt;a href="https://istio.io/docs/setup/getting-started/">instructions&lt;/a> and download &lt;code>istioctl&lt;/code>. If you are on a Mac, I recommend&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ brew install istioctl
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>I want to install Istio with a default profile and SDS enabled. Furthermore I pass the following annotations to the service object &lt;code>istio-ingressgateway&lt;/code> in the &lt;code>istio-system&lt;/code> namespace.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cert.gardener.cloud/issuer&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mydomain-staging&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cert.gardener.cloud/secretname&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">wildcard-tls&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns.gardener.cloud/class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns.gardener.cloud/dnsnames&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns.gardener.cloud/ttl&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;120&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>With these annotations three things now happen automagically:&lt;/p>
+&lt;ol>
+&lt;li>The &lt;a href="https://gardener.cloud/documentation/guides/install_gardener/gardener_dns_management/">External DNS Manager&lt;/a>, provided to you as a service (&lt;code>dns.gardener.cloud/class: garden&lt;/code>), picks up the request and creates the wildcard DNS entry &lt;code>*.gsicdc.mydomain.io&lt;/code> with a time to live of 120sec at your DNS provider. My provider Cloud Flare is very very quick (as opposed to some other services). You should be able to verify the entry with &lt;code>dig lovemygardener.gsicdc.mydomain.io&lt;/code> within seconds.&lt;/li>
+&lt;li>The &lt;a href="https://gardener.cloud/documentation/guides/install_gardener/gardener_certificate_management/">Certificate Mangement&lt;/a> picks up the request as well and initates a DNS01 protocol exchange with Let&amp;rsquo;s Encrypt; using the staging environment referred to with the issuer behind &lt;code>mydomain-staging&lt;/code>.&lt;/li>
+&lt;li>After aproximately 70sec (give and take) you will receive the wildcard certificate in the &lt;code>wildcard-tls&lt;/code> secret in the namespace &lt;code>istio-system&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;div class="notices note" >
+&lt;p>Notice, that the namespace for the certificate secret is often the cause of many troubeshooting sessions: the secret must reside in the same namespace of the gateway.&lt;/p>
+&lt;/div>
+&lt;p>Here is the istio-install script:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ &lt;span class="nb">export&lt;/span> &lt;span class="nv">domainname&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>
+$ &lt;span class="nb">export&lt;/span> &lt;span class="nv">issuer&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;mydomain-staging&amp;#34;&lt;/span>
+$ cat &lt;span class="s">&amp;lt;&amp;lt;EOF | istioctl install -y -f -
+&lt;/span>&lt;span class="s">apiVersion: install.istio.io/v1alpha1
+&lt;/span>&lt;span class="s">kind: IstioOperator
+&lt;/span>&lt;span class="s">spec:
+&lt;/span>&lt;span class="s"> profile: default
+&lt;/span>&lt;span class="s"> components:
+&lt;/span>&lt;span class="s"> ingressGateways:
+&lt;/span>&lt;span class="s"> - name: istio-ingressgateway
+&lt;/span>&lt;span class="s"> enabled: true
+&lt;/span>&lt;span class="s"> k8s:
+&lt;/span>&lt;span class="s"> serviceAnnotations:
+&lt;/span>&lt;span class="s"> cert.gardener.cloud/issuer: &amp;#34;${issuer}&amp;#34;
+&lt;/span>&lt;span class="s"> cert.gardener.cloud/secretname: wildcard-tls
+&lt;/span>&lt;span class="s"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;span class="s"> dns.gardener.cloud/dnsnames: &amp;#34;${domainname}&amp;#34;
+&lt;/span>&lt;span class="s"> dns.gardener.cloud/ttl: &amp;#34;120&amp;#34;
+&lt;/span>&lt;span class="s">EOF&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Verify that setup is working and that DNS and certificates have been created/delivered:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl -n istio-system describe service istio-ingressgateway
+&amp;lt;snip&amp;gt;
+Events:
+Type Reason Age From Message
+---- ------ ---- ---- -------
+Normal EnsuringLoadBalancer 58s service-controller Ensuring load balancer
+Normal reconcile 58s cert-controller-manager created certificate object istio-system/istio-ingressgateway-service-pwqdm
+Normal cert-annotation 58s cert-controller-manager wildcard-tls: cert request is pending
+Normal cert-annotation 54s cert-controller-manager wildcard-tls: certificate pending: certificate requested, preparing/waiting &lt;span class="k">for&lt;/span> successful DNS01 challenge
+Normal cert-annotation 28s cert-controller-manager wildcard-tls: certificate ready
+Normal EnsuredLoadBalancer 26s service-controller Ensured load balancer
+Normal reconcile 26s dns-controller-manager created dns entry object shoot--core--gsicdc/istio-ingressgateway-service-p9qqb
+Normal dns-annotation 26s dns-controller-manager *.gsicdc.mydomain.io: dns entry is pending
+Normal dns-annotation 21s &lt;span class="o">(&lt;/span>x3 over 21s&lt;span class="o">)&lt;/span> dns-controller-manager *.gsicdc.mydomain.io: dns entry active
+$ dig lovemygardener.gsicdc.mydomain.io
+&lt;span class="p">;&lt;/span> &amp;lt;&amp;lt;&amp;gt;&amp;gt; DiG 9.10.6 &amp;lt;&amp;lt;&amp;gt;&amp;gt; lovemygardener.gsicdc.mydomain.io
+&amp;lt;snip&amp;gt;
+&lt;span class="p">;;&lt;/span> ANSWER SECTION:
+lovemygardener.gsicdc.mydomain.io. &lt;span class="m">120&lt;/span> IN A 35.195.120.62
+&amp;lt;snip&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>There you have it, the wildcard-tls certificate is ready and the *.gsicdc.mydomain.io dns entry is active. Traffic will be going your way.&lt;/p>
+&lt;h2 id="handy-tools-to-install">Handy tools to install&lt;/h2>
+&lt;p>Another set of fine tools to use are &lt;a href="https://get-kapp.io/">kapp&lt;/a> (formerly known as k14s), &lt;a href="https://k9scli.io/">k9s&lt;/a> and &lt;a href="https://httpie.org/">HTTPie&lt;/a>. While we are at it, let&amp;rsquo;s install them all. If you are on a Mac, I recommend:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">brew tap vmware-tanzu/carvel
+brew install ytt kbld kapp kwt imgpkg vendir
+brew install derailed/k9s/k9s
+brew install httpie
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="ingress-to-your-service">Ingress to your service&lt;/h2>
+&lt;div class="notices note" >
+&lt;p>Networking is a central part of Kubernetes, but it can be challenging to understand exactly how it is expected to work. You should learn about Kubernetes networking, and first try to debug problems yourself. With a solid managed cluster from Gardener, it is always PEBCAK!&lt;/p>
+&lt;/div>
+&lt;p>Kubernetes Ingress is a subject that is evolving to much broader standard. Please watch &lt;a href="https://www.youtube.com/watch?v=cduG0FrjdJA">Evolving the Kubernetes Ingress APIs to GA and Beyond&lt;/a> for a good introduction. In this example, I did not want to use the Kubernetes &lt;code>Ingress&lt;/code> compatibility option of Istio. Instead, I used &lt;code>VirtualService&lt;/code> and &lt;code>Gateway&lt;/code> from the Istio&amp;rsquo;s API group &lt;code>networking.istio.io/v1beta1&lt;/code> directly, and enabled istio-injection generically for the namespace.&lt;/p>
+&lt;p>I use &lt;a href="https://httpbin.org/">httpbin&lt;/a> as service that I want to expose to the internet, or where my ingress should be routed to (depends on your point of view, I guess).&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Namespace&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">production&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">istio-injection&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">enabled&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">production&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">http&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">8000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">targetPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">production&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">docker.io/kennethreitz/httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">imagePullPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">IfNotPresent&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">containerPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">networking.istio.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Gateway&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin-gw&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">production&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">istio&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingressgateway&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c">#! use istio default ingress gateway&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">servers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">number&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">http&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">protocol&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">HTTP&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tls&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">httpsRedirect&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hosts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">number&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">443&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">https&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">protocol&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">HTTPS&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tls&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mode&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">SIMPLE&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentialName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">wildcard-tls&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hosts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">networking.istio.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">VirtualService&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin-vs&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">production&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hosts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gateways&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">httpbin-gw&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">http&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">match&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">uri&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">regex&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/.*&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">route&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">destination&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">number&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">8000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">host&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">httpbin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let us now deploy the whole package of Kubernetes primitives using &lt;code>kapp&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kapp deploy -a httpbin -f httpbin-kapp.yaml
+Target cluster &lt;span class="s1">&amp;#39;https://api.gsicdc.myproject.shoot.devgarden.cloud&amp;#39;&lt;/span> &lt;span class="o">(&lt;/span>nodes: shoot--myproject--gsicdc-my-workerpool-z1-6586c8f6cb-x24kh&lt;span class="o">)&lt;/span>
+Changes
+Namespace Name Kind Conds. Age Op Wait to Rs Ri
+&lt;span class="o">(&lt;/span>cluster&lt;span class="o">)&lt;/span> production Namespace - - create reconcile - -
+production httpbin Deployment - - create reconcile - -
+^ httpbin Service - - create reconcile - -
+^ httpbin-gw Gateway - - create reconcile - -
+^ httpbin-vs VirtualService - - create reconcile - -
+Op: &lt;span class="m">5&lt;/span> create, &lt;span class="m">0&lt;/span> delete, &lt;span class="m">0&lt;/span> update, &lt;span class="m">0&lt;/span> noop
+Wait to: &lt;span class="m">5&lt;/span> reconcile, &lt;span class="m">0&lt;/span> delete, &lt;span class="m">0&lt;/span> noop
+Continue? &lt;span class="o">[&lt;/span>yN&lt;span class="o">]&lt;/span>: y
+5:36:31PM: ---- applying &lt;span class="m">1&lt;/span> changes &lt;span class="o">[&lt;/span>0/5 &lt;span class="k">done&lt;/span>&lt;span class="o">]&lt;/span> ----
+&amp;lt;snip&amp;gt;
+5:37:00PM: ok: reconcile deployment/httpbin &lt;span class="o">(&lt;/span>apps/v1&lt;span class="o">)&lt;/span> namespace: production
+5:37:00PM: ---- applying &lt;span class="nb">complete&lt;/span> &lt;span class="o">[&lt;/span>5/5 &lt;span class="k">done&lt;/span>&lt;span class="o">]&lt;/span> ----
+5:37:00PM: ---- waiting &lt;span class="nb">complete&lt;/span> &lt;span class="o">[&lt;/span>5/5 &lt;span class="k">done&lt;/span>&lt;span class="o">]&lt;/span> ----
+Succeeded
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let&amp;rsquo;s finaly test the service (Of course you can use the browser as well):&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ http httpbin.gsicdc.mydomain.io
+HTTP/1.1 &lt;span class="m">301&lt;/span> Moved Permanently
+content-length: &lt;span class="m">0&lt;/span>
+date: Wed, &lt;span class="m">13&lt;/span> May &lt;span class="m">2020&lt;/span> 21:29:13 GMT
+location: https://httpbin.gsicdc.mydomain.io/
+server: istio-envoy
+$ curl -k https://httpbin.gsicdc.mydomain.io/ip
+&lt;span class="o">{&lt;/span>
+&lt;span class="s2">&amp;#34;origin&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;10.250.0.2&amp;#34;&lt;/span>
+&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Quod erat demonstrandum.
+The proof of exchanging the issuer is now left to the reader.&lt;/p>
+&lt;div class="notices tip" >
+&lt;p>Remember that the certificate is actually not valid because it is issued from the Let's encrypt staging environment. Thus, we needed "curl -k" or "http --verify no".&lt;/p>
+&lt;/div>
+&lt;p>Hint: use the interactive k9s tool.
+&lt;img src="https://gardener.cloud/__resources/k9s_e59227.png" alt="k9s">&lt;/p>
+&lt;h2 id="cleanup">Cleanup&lt;/h2>
+&lt;p>Remove the cloud native application:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kapp ls
+Apps in namespace &lt;span class="s1">&amp;#39;default&amp;#39;&lt;/span>
+Name Namespaces Lcs Lca
+httpbin &lt;span class="o">(&lt;/span>cluster&lt;span class="o">)&lt;/span>,production &lt;span class="nb">true&lt;/span> 17m
+$ kapp delete -a httpbin
+...
+Continue? &lt;span class="o">[&lt;/span>yN&lt;span class="o">]&lt;/span>: y
+...
+11:47:47PM: ---- waiting &lt;span class="nb">complete&lt;/span> &lt;span class="o">[&lt;/span>8/8 &lt;span class="k">done&lt;/span>&lt;span class="o">]&lt;/span> ----
+Succeeded
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Remove Istio:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ istioctl x uninstall --purge
+clusterrole.rbac.authorization.k8s.io &lt;span class="s2">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
+clusterrolebinding.rbac.authorization.k8s.io &lt;span class="s2">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
+...
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Delete your Shoot:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kgarden annotate shoot gsicdc confirmation.gardener.cloud/deletion&lt;span class="o">=&lt;/span>&lt;span class="nb">true&lt;/span> --overwrite
+kgarden delete shoot gsicdc --wait&lt;span class="o">=&lt;/span>&lt;span class="nb">false&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: GPU Enabled Cluster</title><link>https://gardener.cloud/docs/tutorials/gpu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/gpu/</guid><description>
+&lt;h2 id="intro">Intro&lt;/h2>
+&lt;p>Be aware, that the following sections might be opinionated. Kubernetes, and the GPU support in particular,
+are rapidly evolving, which means that this guide is likely to be outdated sometime soon. For this reason,
+&lt;strong>contributions are highly appreciated&lt;/strong> to update this guide.&lt;/p>
+&lt;h2 id="create-a-cluster">Create a Cluster&lt;/h2>
+&lt;p>First thing first, let’s create a k8s cluster with GPU accelerated nodes. In this example we will use AWS
+&lt;strong>p2.xlarge&lt;/strong> EC2 instance because it&amp;rsquo;s the cheapest available option at the moment. Use such cheap instances
+for learning to limit your resource costs. &lt;strong>This costs around 1€/hour per GPU&lt;/strong>&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/howto-gpu_4413ce.png" alt="gpu-selection">&lt;/p>
+&lt;h2 id="install-nvidia-driver-as-daemonset">Install NVidia Driver as Daemonset&lt;/h2>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DaemonSet&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kube-system&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-driver-installer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">initContainers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">squat/modulus:4a1799e7aa0143bcbb70d354bab3e419b1f54972&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">modulus&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">compile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">nvidia&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;410.104&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">securityContext&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">privileged&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">env&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">MODULUS_CHROOT&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">MODULUS_INSTALL&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">MODULUS_INSTALL_DIR&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/drivers&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">MODULUS_CACHE_DIR&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/modulus/cache&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">MODULUS_LD_ROOT&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/root&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">IGNORE_MISSING_MODULE_SYMVERS&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumeMounts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">etc-coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/etc/coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">readOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">usr-share-coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/usr/share/coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">readOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ld-root&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/root&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">module-cache&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/modulus/cache&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">module-install-dir-base&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/drivers&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;gcr.io/google-containers/pause:3.1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">pause&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tolerations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">key&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;nvidia.com/gpu&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">effect&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;NoSchedule&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">operator&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;Exists&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">etc-coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/etc/coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">usr-share-coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/usr/share/coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ld-root&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">module-cache&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/modulus/cache&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">module-install-dir-base&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/opt/drivers&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="install-device-plugin">Install Device Plugin&lt;/h2>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DaemonSet&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-gpu-device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kube-system&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-gpu-device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c">#addonmanager.kubernetes.io/mode: Reconcile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-gpu-device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">k8s-app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-gpu-device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">scheduler.alpha.kubernetes.io/critical-pod&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">priorityClassName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">system-node-critical&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/var/lib/kubelet/device-plugins&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;k8s.gcr.io/nvidia-gpu-device-plugin@sha256:08509a36233c5096bb273a492251a9a5ca28558ab36d74007ca2a9d3f0b61e1d&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/usr/bin/nvidia-gpu-device-plugin&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;-logtostderr&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;-host-path=/opt/drivers/nvidia&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nvidia-gpu-device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">requests&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50m&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">10Mi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">limits&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50m&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">10Mi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">securityContext&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">privileged&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumeMounts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/device-plugin&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">updateStrategy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">RollingUpdate&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="test">Test&lt;/h2>
+&lt;p>To run an example training on a GPU node, start first a base image with Tensorflow with GPU support &amp;amp; Keras&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">deeplearning-workbench&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">deeplearning-workbench&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">deeplearning-workbench&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">deeplearning-workbench&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">afritzler/deeplearning-workbench&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">limits&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nvidia.com/gpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tolerations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">key&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;nvidia.com/gpu&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">effect&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;NoSchedule&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">operator&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;Exists&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note: the &lt;code>tolerations&lt;/code> section above is not required if you deploy the &lt;code>ExtendedResourceToleration&lt;/code>
+admission controller to your cluster. You can do this in the &lt;code>kubernetes&lt;/code> section of your Gardener
+cluster &lt;code>shoot.yaml&lt;/code> as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback"> kubernetes:
+kubeAPIServer:
+admissionPlugins:
+- name: ExtendedResourceToleration
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now exec into the container and start an example Keras training&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl &lt;span class="nb">exec&lt;/span> -it deeplearning-workbench-8676458f5d-p4d2v -- /bin/bash
+&lt;span class="nb">cd&lt;/span> /keras/example
+python imdb_cnn.py
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="acknowledgments--references">Acknowledgments &amp;amp; References&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/afritzler/kubernetes-gpu">Andreas Fritzler&lt;/a> from the Gardener Core team for the R&amp;amp;D and providing this setup.&lt;/li>
+&lt;li>&lt;a href="https://github.com/squat/modulus">Build and install NVIDIA driver on CoreOS&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/kubernetes/kubernetes/blob/master/cluster/addons/device-plugins/nvidia-gpu/daemonset.yaml">Nvidia Device Plugin&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Install Knative in Gardener clusters</title><link>https://gardener.cloud/docs/tutorials/knative-install/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/knative-install/</guid><description>
+&lt;p>This guide walks you through the installation of the latest version of Knative
+using pre-built images on a &lt;a href="https://gardener.cloud">Gardener&lt;/a> created cluster
+environment. To set up your own Gardener, see the
+&lt;a href="https://github.com/gardener/gardener/blob/master/docs/README.md">documentation&lt;/a>
+or have a look at the
+&lt;a href="https://github.com/gardener/landscape-setup-template">landscape-setup-template&lt;/a>
+project. To learn more about this open source project, read the
+&lt;a href="https://kubernetes.io/blog/2018/05/17/gardener/">blog on kubernetes.io&lt;/a>.&lt;/p>
+&lt;h2 id="before-you-begin">Before you begin&lt;/h2>
+&lt;p>Knative requires a Kubernetes cluster v1.15 or newer.&lt;/p>
+&lt;h3 id="install-and-configure-kubectl">Install and configure kubectl&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>If you already have &lt;code>kubectl&lt;/code> CLI, run &lt;code>kubectl version --short&lt;/code> to check
+the version. You need v1.10 or newer. If your &lt;code>kubectl&lt;/code> is older, follow the
+next step to install a newer version.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl">Install the kubectl CLI&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="access-gardener">Access Gardener&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>Create a project in the Gardener dashboard. This will essentially create a
+Kubernetes namespace with the name &lt;code>garden-&amp;lt;my-project&amp;gt;&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#configure-kubectl">Configure access to your Gardener project&lt;/a>
+using a kubeconfig. If you are not the Gardener Administrator already, you
+can create a technical user in the Gardener dashboard: go to the &amp;ldquo;Members&amp;rdquo;
+section and add a service account. You can then download the kubeconfig for
+your project. You can skip this step if you create your cluster using the
+user interface; it is only needed for programmatic access, make sure you set
+&lt;code>export KUBECONFIG=garden-my-project.yaml&lt;/code> in your shell.
+&lt;img src="https://gardener.cloud/__resources/gardener_service_account_0a4a8a.png" alt="Download kubeconfig for Gardener" title="downloading the kubeconfig using a service account">&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="creating-a-kubernetes-cluster">Creating a Kubernetes cluster&lt;/h3>
+&lt;p>You can create your cluster using &lt;code>kubectl&lt;/code> cli by providing a cluster
+specification yaml file. You can find an example for GCP
+&lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">here&lt;/a>.
+Make sure the namespace matches that of your project. Then just apply the
+prepared so-called &amp;ldquo;shoot&amp;rdquo; cluster crd with kubectl:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl apply --filename my-cluster.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The easier alternative is to create the cluster following the cluster creation
+wizard in the Gardener dashboard:
+&lt;img src="https://gardener.cloud/__resources/gardener_shoot_creation_49a4ca.png" alt="shoot creation" title="shoot creation via the dashboard">&lt;/p>
+&lt;h3 id="configure-kubectl-for-your-cluster">Configure kubectl for your cluster&lt;/h3>
+&lt;p>You can now download the kubeconfig for your freshly created cluster in the
+Gardener dashboard or via cli as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl --namespace shoot--my-project--my-cluster get secret kubecfg --output jsonpath={.data.kubeconfig} | base64 --decode &amp;gt; my-cluster.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>This kubeconfig file has full administrators access to you cluster. For the rest
+of this guide be sure you have &lt;code>export KUBECONFIG=my-cluster.yaml&lt;/code> set.&lt;/p>
+&lt;h2 id="installing-istio">Installing Istio&lt;/h2>
+&lt;p>Knative depends on Istio. If your cloud platform offers a managed Istio
+installation, we recommend installing Istio that way, unless you need the
+ability to customize your installation.&lt;/p>
+&lt;p>Otherwise, see the &lt;a href="https://knative.dev/docs/install/installing-istio/">Installing Istio for Knative guide&lt;/a>
+to install Istio.&lt;/p>
+&lt;p>You must install Istio on your Kubernetes cluster before continuing with these
+instructions to install Knative.&lt;/p>
+&lt;h2 id="installing-cluster-local-gateway-for-serving-cluster-internal-traffic">Installing &lt;code>cluster-local-gateway&lt;/code> for serving cluster-internal traffic&lt;/h2>
+&lt;p>If you installed Istio, you can install a &lt;code>cluster-local-gateway&lt;/code> within your Knative cluster so that you can serve cluster-internal traffic. If you want to configure your revisions to use routes that are visible only within your cluster, &lt;a href="https://knative.dev/v0.12-docs/install/knative-with-gardener/#updating-your-install-to-use-cluster-local-gateway">install and use the &lt;code>cluster-local-gateway&lt;/code>&lt;/a>.&lt;/p>
+&lt;h2 id="installing-knative">Installing Knative&lt;/h2>
+&lt;p>The following commands install all available Knative components as well as the
+standard set of observability plugins. To customize your Knative installation,
+see &lt;a href="https://knative.dev/v0.12-docs/install/knative-custom-install/">Performing a Custom Knative Installation&lt;/a>.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>If you are upgrading from Knative 0.3.x: Update your domain and static IP
+address to be associated with the LoadBalancer &lt;code>istio-ingressgateway&lt;/code> instead
+of &lt;code>knative-ingressgateway&lt;/code>. Then run the following to clean up leftover
+resources:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl delete svc knative-ingressgateway -n istio-system
+kubectl delete deploy knative-ingressgateway -n istio-system
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you have the Knative Eventing Sources component installed, you will also
+need to delete the following resource before upgrading:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl delete statefulset/controller-manager -n knative-sources
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>While the deletion of this resource during the upgrade process will not
+prevent modifications to Eventing Source resources, those changes will not be
+completed until the upgrade process finishes.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>To install Knative, first install the CRDs by running the &lt;code>kubectl apply&lt;/code>
+command once with the &lt;code>-l knative.dev/crd-install=true&lt;/code> flag. This prevents
+race conditions during the install, which cause intermittent errors:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply --selector knative.dev/crd-install&lt;span class="o">=&lt;/span>&lt;span class="nb">true&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>To complete the install of Knative and its dependencies, run the
+&lt;code>kubectl apply&lt;/code> command again, this time without the &lt;code>--selector&lt;/code> flag, to
+complete the install of Knative and its dependencies:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply --filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Monitor the Knative components until all of the components show a &lt;code>STATUS&lt;/code> of
+&lt;code>Running&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl get pods --namespace knative-serving
+kubectl get pods --namespace knative-eventing
+kubectl get pods --namespace knative-monitoring
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="set-your-custom-domain">Set your custom domain&lt;/h2>
+&lt;ol>
+&lt;li>Fetch the external IP or CNAME of the knative-ingressgateway&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl --namespace istio-system get service knative-ingressgateway
+NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
+knative-ingressgateway LoadBalancer 100.70.219.81 35.233.41.212 80:32380/TCP,443:32390/TCP,32400:32400/TCP 4d
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="2">
+&lt;li>Create a wildcard DNS entry in your custom domain to point to above IP or
+CNAME&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">*.knative.&amp;lt;my domain&amp;gt; == A 35.233.41.212
+# or CNAME if you are on AWS
+*.knative.&amp;lt;my domain&amp;gt; == CNAME a317a278525d111e89f272a164fd35fb-1510370581.eu-central-1.elb.amazonaws.com
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>Adapt your knative config-domain (set your domain in the data field)&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl --namespace knative-serving get configmaps config-domain --output yaml
+apiVersion: v1
+data:
+knative.&amp;lt;my domain&amp;gt;: &amp;#34;&amp;#34;
+kind: ConfigMap
+name: config-domain
+namespace: knative-serving
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="whats-next">What&amp;rsquo;s next&lt;/h2>
+&lt;p>Now that your cluster has Knative installed, you can see what Knative has to
+offer.&lt;/p>
+&lt;p>To deploy your first app with the
+&lt;a href="https://knative.dev/v0.12-docs/serving/getting-started-knative-app/">Getting Started with Knative App Deployment&lt;/a>
+guide.&lt;/p>
+&lt;p>Get started with Knative Eventing by walking through one of the
+&lt;a href="https://knative.dev/docs/eventing/samples/">Eventing Samples&lt;/a>.&lt;/p>
+&lt;p>&lt;a href="https://knative.dev/v0.12-docs/serving/installing-cert-manager/">Install Cert-Manager&lt;/a> if you want to use the
+&lt;a href="https://knative.dev/docs/serving/using-auto-tls/">automatic TLS cert provisioning feature&lt;/a>.&lt;/p>
+&lt;h2 id="cleaning-up">Cleaning up&lt;/h2>
+&lt;p>Use the Gardener dashboard to delete your cluster, or execute the following with
+kubectl pointing to your &lt;code>garden-my-project.yaml&lt;/code> kubeconfig:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project annotate shoot my-cluster confirmation.gardener.cloud/deletion=true
+kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project delete shoot my-cluster
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shared storage with S3 backend</title><link>https://gardener.cloud/docs/tutorials/s3/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/s3/</guid><description>
+&lt;h2 id="shared-storage-with-s3-backend">Shared storage with S3 backend&lt;/h2>
+&lt;p>The storage is definitely the most complex and important part of an application setup, once this part is
+completed, 80% of the tasks are completed.&lt;/p>
+&lt;p>Mounting an S3 bucket into a pod using FUSE allows you to access the data as if it were on the local disk. The
+mount is a pointer to an S3 location, so the data is never synced locally. Once mounted, any pod can read or even write
+from that directory without the need for explicit keys.&lt;/p>
+&lt;p>However, it can be used to import and parse large amounts of data into a database.&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>&lt;img src="https://github.com/images/s3-mount.png" alt="s3-mount">&lt;/p>
+&lt;h2 id="limitations">Limitations&lt;/h2>
+&lt;p>Generally S3 cannot offer the same performance or semantics as a local file system. More specifically:&lt;/p>
+&lt;ul>
+&lt;li>random writes or appends to files require rewriting the entire file&lt;/li>
+&lt;li>metadata operations such as listing directories have poor performance due to network latency&lt;/li>
+&lt;li>eventual consistency can temporarily yield stale data(Amazon S3 Data Consistency Model)&lt;/li>
+&lt;li>no atomic renames of files or directories&lt;/li>
+&lt;li>no coordination between multiple clients mounting the same bucket&lt;/li>
+&lt;li>no hard links&lt;/li>
+&lt;/ul>
+&lt;h2 id="before-you-begin">Before you Begin&lt;/h2>
+&lt;p>You need to have a Kubernetes cluster, and the kubectl command-line tool must be configured to communicate with
+your cluster. If you do not already have a cluster, you can create one by using the &lt;a href="https://gardener.kubernetes.sap.corp/login">Gardener&lt;/a>.&lt;/p>
+&lt;p>Ensure that you have create the &amp;ldquo;imagePullSecret&amp;rdquo; in your cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl create secret docker-registry artifactory --docker-server&lt;span class="o">=&lt;/span>&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username&lt;span class="o">=&lt;/span>&amp;lt;USERNAME&amp;gt; --docker-password&lt;span class="o">=&lt;/span>&amp;lt;PASSWORD&amp;gt; --docker-email&lt;span class="o">=&lt;/span>&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setup">Setup&lt;/h2>
+&lt;p>The first step is to clone this repository. Next is the Secret for the AWS API credentials of the user that has
+full access to our S3 bucket. Copy the &lt;code>configmap_secrets_template.yaml&lt;/code> to &lt;code>configmap_secrets.yaml&lt;/code> and place
+your secrets at the right place&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ConfigMap&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">s3-config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">S3_BUCKET&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-S3-BUCKET-NAME&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-ACCESS-KEY&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_SECRET_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-SECRET&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="build-and-deploy">Build and deploy&lt;/h2>
+&lt;p>Change the settings in the &lt;code>build.sh&lt;/code> file with your docker registry settings.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="cp">#!/usr/bin/env bash
+&lt;/span>&lt;span class="cp">&lt;/span>
+&lt;span class="c1">########################################################################################################################&lt;/span>
+&lt;span class="c1"># PREREQUISTITS&lt;/span>
+&lt;span class="c1">########################################################################################################################&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># - ensure that you have a valid Artifactory or other Docker registry account&lt;/span>
+&lt;span class="c1"># - Create your image pull secret in your namespace&lt;/span>
+&lt;span class="c1"># kubectl create secret docker-registry artifactory --docker-server=&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username=&amp;lt;USERNAME&amp;gt; --docker-password=&amp;lt;PASSWORD&amp;gt; --docker-email=&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;&lt;/span>
+&lt;span class="c1"># - change the settings below arcording your settings&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># usage:&lt;/span>
+&lt;span class="c1"># Call this script with the version to build and push to the registry. After build/push the&lt;/span>
+&lt;span class="c1"># yaml/* files are deployed into your cluster&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># ./build.sh 1.0&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="nv">VERSION&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="nv">$1&lt;/span>
+&lt;span class="nv">PROJECT&lt;/span>&lt;span class="o">=&lt;/span>kube-s3
+&lt;span class="nv">REPOSITORY&lt;/span>&lt;span class="o">=&lt;/span>cp-enablement.docker.repositories.sap.ondemand.com
+&lt;span class="c1"># causes the shell to exit if any subcommand or pipeline returns a non-zero status.&lt;/span>
+&lt;span class="nb">set&lt;/span> -e
+&lt;span class="c1"># set debug mode&lt;/span>
+&lt;span class="c1">#set -x&lt;/span>
+.
+.
+.
+.
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create the S3Fuse Pod and check the status:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="c1"># build and push the image to your docker registry&lt;/span>
+./build.sh 1.0
+&lt;span class="c1"># check that the pods are up and running&lt;/span>
+kubectl get pods
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="check-success">Check success&lt;/h2>
+&lt;p>Create a demo Pod and check the status:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl apply -f ./yaml/example_pod.yaml
+&lt;span class="c1"># wait some second to get the pod up and running...&lt;/span>
+kubectl get pods
+&lt;span class="c1"># go into the pd and check that the /var/s3 is mounted with your S3 bucket content inside&lt;/span>
+kubectl &lt;span class="nb">exec&lt;/span> -ti test-pd sh
+&lt;span class="c1"># inside the pod&lt;/span>
+ls -la /var/s3
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="why-does-this-work">Why does this work?&lt;/h2>
+&lt;p>Docker engine 1.10 added a new feature which allows containers to share the host mount namespace. This feature makes
+it possible to mount a s3fs container file system to a host file system through a shared mount, providing a persistent
+network storage with S3 backend.&lt;/p>
+&lt;p>The key part is mountPath: &lt;code>/var/s3:shared&lt;/code> which enables the volume to be mounted as shared inside the pod. When the
+container starts it will mount the S3 bucket onto &lt;code>/var/s3&lt;/code> and consequently the data will be available under
+&lt;code>/mnt/data-s3fs&lt;/code> on the host and thus to any other container/pod running on it (and has &lt;code>/mnt/data-s3fs&lt;/code> mounted too).&lt;/p></description></item></channel></rss>

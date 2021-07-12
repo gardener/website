@@ -1,0 +1,375 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Core Components</title><link>https://gardener.cloud/docs/concepts/core-components/</link><description>Recent content in Core Components on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/concepts/core-components/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Gardener API Server</title><link>https://gardener.cloud/docs/concepts/core-components/api-server/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/core-components/api-server/</guid><description>
+&lt;h1 id="gardener-api-server">Gardener API server&lt;/h1>
+&lt;p>The Gardener API server is a Kubernetes-native extension based on its &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/apiserver-aggregation/">aggregation layer&lt;/a>.
+It is registered via an &lt;code>APIService&lt;/code> object and designed to run inside a Kubernetes cluster whose API it wants to extend.&lt;/p>
+&lt;p>After registration, it exposes the following resources:&lt;/p>
+&lt;h2 id="cloudprofiles">&lt;code>CloudProfile&lt;/code>s&lt;/h2>
+&lt;p>&lt;code>CloudProfile&lt;/code>s are resources that describe a specific environment of an underlying infrastructure provider, e.g. AWS, Azure, etc.
+Each shoot has to reference a &lt;code>CloudProfile&lt;/code> to declare the environment it should be created in.
+In a &lt;code>CloudProfile&lt;/code> the gardener operator specifies certain constraints like available machine types, regions, which Kubernetes versions they want to offer, etc.
+End-users can read &lt;code>CloudProfile&lt;/code>s to see these values, but only operators can change the content or create/delete them.
+When a shoot is created or updated then an admission plugin checks that only values are used that are allowed via the referenced &lt;code>CloudProfile&lt;/code>.&lt;/p>
+&lt;p>Additionally, a &lt;code>CloudProfile&lt;/code> may contain a &lt;code>providerConfig&lt;/code> which is a special configuration dedicated for the infrastructure provider.
+Gardener does not evaluate or understand this config, but extension controllers might need for declaration of provider-specific constraints, or global settings.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">this&lt;/a> example manifest and consult the documentation of your provider extension controller to get information about its &lt;code>providerConfig&lt;/code>.&lt;/p>
+&lt;h2 id="seeds">&lt;code>Seed&lt;/code>s&lt;/h2>
+&lt;p>&lt;code>Seed&lt;/code>s are resources that represent seed clusters.
+Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.15 and passes the Kubernetes conformance tests.
+The Gardener operator has to either deploy the Gardenlet into the cluster they want to use as seed (recommended, then the Gardenlet will create the &lt;code>Seed&lt;/code> object itself after bootstrapping), or they provide the kubeconfig to the cluster inside a secret (that is referenced by the &lt;code>Seed&lt;/code> resource) and create the &lt;code>Seed&lt;/code> resource themselves.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/45-secret-seed-backup.yaml">this&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">this&lt;/a>(, and optionally &lt;a href="https://github.com/gardener/gardener/blob/master/example/40-secret-seed.yaml">this&lt;/a>) example manifests.&lt;/p>
+&lt;h2 id="quotas">&lt;code>Quota&lt;/code>s&lt;/h2>
+&lt;p>In order to allow end-users not having their own dedicated infrastructure account to try out Gardener the operator can register an account owned by them that they allow to be used for trial clusters.
+Trial clusters can be put under quota such that they don&amp;rsquo;t consume too many resources (resulting in costs), and so that one user cannot consume all resources on their own.
+These clusters are automatically terminated after a specified time, but end-users may extend the lifetime manually if needed.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/60-quota.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="projects">&lt;code>Project&lt;/code>s&lt;/h2>
+&lt;p>The first thing before creating a shoot cluster is to create a &lt;code>Project&lt;/code>.
+A project is used to group multiple shoot clusters together.
+End-users can invite colleagues to the project to enable collaboration, and they can either make them &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code>.
+After an end-user has created a project they will get a dedicated namespace in the garden cluster for all their shoots.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/05-project-dev.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="secretbindings">&lt;code>SecretBinding&lt;/code>s&lt;/h2>
+&lt;p>Now that the end-user has a namespace the next step is registering their infrastructure provider account.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/70-secret-provider.yaml">this&lt;/a> example manifest and consult the documentation of the extension controller for the respective infrastructure provider to get information about which keys are required in this secret.&lt;/p>
+&lt;p>After the secret has been created the end-user has to create a special &lt;code>SecretBinding&lt;/code> resource that binds this secret.
+Later when creating shoot clusters they will reference such a binding.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/80-secretbinding.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="shoots">&lt;code>Shoot&lt;/code>s&lt;/h2>
+&lt;p>Shoot cluster contain various settings that influence how end-user Kubernetes clusters will look like in the end.
+As Gardener heavily relies on extension controllers for operating system configuration, networking, and infrastructure specifics, the end-user has the possibility (and responsibility) to provide these provider-specific configurations as well.
+Such configurations are not evaluated by Gardener (because it doesn&amp;rsquo;t know/understand them), but they are only transported to the respective extension controller.&lt;/p>
+&lt;p>:warning: This means that any configuration issues/mistake on the end-user side that relates to a provider-specific flag or setting cannot be caught during the update request itself but only later during the reconciliation (unless a validator webhook has been registered in the garden cluster by an operator).&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">this&lt;/a> example manifest and consult the documentation of the provider extension controller to get information about its &lt;code>spec.provider.controlPlaneConfig&lt;/code>, &lt;code>.spec.provider.infrastructureConfig&lt;/code>, and &lt;code>.spec.provider.workers[].providerConfig&lt;/code>.&lt;/p>
+&lt;h2 id="clusteropenidconnectpresets">&lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s&lt;/h2>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/openidconnect-presets.md">this&lt;/a> separate documentation file.&lt;/p></description></item><item><title>Docs: Gardener Scheduler</title><link>https://gardener.cloud/docs/concepts/core-components/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/core-components/scheduler/</guid><description>
+&lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
+&lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
+Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>
+&lt;p>Either the scheduling strategy or the shoot cluster purpose hereby determines how the scheduler is operating.
+The following sections explain the configuration and flow in greater detail.&lt;/p>
+&lt;h2 id="why-is-the-gardener-scheduler-needed">Why is the Gardener Scheduler needed?&lt;/h2>
+&lt;h3 id="1-decoupling">1. Decoupling&lt;/h3>
+&lt;p>Previously, an admission plugin in the Gardener API server conducted the scheduling decisions.
+This implies changes to the API server whenever adjustments of the scheduling are needed.
+Decoupling the API server and the scheduler comes with greater flexibility to develop these components independently from each other.&lt;/p>
+&lt;h3 id="2-extensibility">2. Extensibility&lt;/h3>
+&lt;p>It should be possible to easily extend and tweak the scheduler in the future.
+Possibly, similar to the Kubernetes scheduler, hooks could be provided which influence the scheduling decisions.
+It should be also possible to completely replace the standard Gardener Scheduler with a custom implementation.&lt;/p>
+&lt;h2 id="algorithm-overview">Algorithm overview&lt;/h2>
+&lt;p>The following &lt;strong>sequence&lt;/strong> describes the steps involved to determine a seed candidate:&lt;/p>
+&lt;ol>
+&lt;li>Determine usable seeds with &amp;ldquo;usable&amp;rdquo; defined as follows:
+&lt;ul>
+&lt;li>no &lt;code>.metadata.deletionTimestamp&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.settings.scheduling.visible&lt;/code> is &lt;code>true&lt;/code>&lt;/li>
+&lt;li>conditions &lt;code>Bootstrapped&lt;/code>, &lt;code>GardenletReady&lt;/code>, &lt;code>BackupBucketsReady&lt;/code> (if available) are &lt;code>true&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Filter seeds:
+&lt;ul>
+&lt;li>matching &lt;code>.spec.seedSelector&lt;/code> in &lt;code>CloudProfile&lt;/code> used by the &lt;code>Shoot&lt;/code>&lt;/li>
+&lt;li>matching &lt;code>.spec.seedSelector&lt;/code> in &lt;code>Shoot&lt;/code>&lt;/li>
+&lt;li>having no network intersection with the &lt;code>Shoot&lt;/code>&amp;rsquo;s networks (due to the VPN connectivity between seeds and shoots their networks must be disjoint)&lt;/li>
+&lt;li>having &lt;code>.spec.settings.shootDNS.enabled=false&lt;/code> (only if the shoot specifies a DNS domain or does not use the &lt;code>unmanaged&lt;/code> DNS provider)&lt;/li>
+&lt;li>whose taints (&lt;code>.spec.taints&lt;/code>) are tolerated by the &lt;code>Shoot&lt;/code> (&lt;code>.spec.tolerations&lt;/code>)&lt;/li>
+&lt;li>whose capacity for shoots would not be exceeded if the shoot is scheduled onto the seed, see &lt;a href="#ensuring-seeds-capacity-for-shoots-is-not-exceeded">Ensuring seeds capacity for shoots is not exceeded&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Apply active &lt;a href="#strategies">strategy&lt;/a> e.g., &lt;em>Minimal Distance strategy&lt;/em>&lt;/li>
+&lt;li>Choose least utilized seed, i.e., the one with the least number of shoot control planes, will be the winner and written to the &lt;code>.spec.seedName&lt;/code> field of the &lt;code>Shoot&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;h2 id="configuration">Configuration&lt;/h2>
+&lt;p>The Gardener Scheduler configuration has to be supplied on startup. It is a mandatory and also the only available flag.
+&lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-scheduler.yaml">Here&lt;/a> is an example scheduler configuration.&lt;/p>
+&lt;p>Most of the configuration options are the same as in the Gardener Controller Manager (leader election, client connection, &amp;hellip;).
+However, the Gardener Scheduler on the other hand does not need a TLS configuration, because there are currently no webhooks configurable.&lt;/p>
+&lt;h2 id="strategies">Strategies&lt;/h2>
+&lt;p>The scheduling strategy is defined in the &lt;em>&lt;strong>candidateDeterminationStrategy&lt;/strong>&lt;/em> of the scheduler&amp;rsquo;s configuration and can have the possible values &lt;code>SameRegion&lt;/code> and &lt;code>MinimalDistance&lt;/code>.
+The &lt;code>SameRegion&lt;/code> strategy is the default strategy.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;em>Same Region strategy&lt;/em>&lt;/p>
+&lt;p>The Gardener Scheduler reads the &lt;code>spec.provider.type&lt;/code> and &lt;code>.spec.region&lt;/code> fields from the &lt;code>Shoot&lt;/code> resource.
+It tries to find a seed that has the identical &lt;code>.spec.provider.type&lt;/code> and &lt;code>.spec.provider.region&lt;/code> fields set.
+If it cannot find a suitable seed, it adds an event to the shoot stating, that it is unschedulable.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Minimal Distance strategy&lt;/em>&lt;/p>
+&lt;p>The Gardener Scheduler tries to find a valid seed with minimal distance to the shoot&amp;rsquo;s intended region.
+The distance is calculated based on the Levenshtein distance of the region. Therefore the region name
+is split into a base name and an orientation. Possible orientations are &lt;code>north&lt;/code>, &lt;code>south&lt;/code>, &lt;code>east&lt;/code>, &lt;code>west&lt;/code> and &lt;code>central&lt;/code>.
+The distance then is twice the Levenshtein distance of the region&amp;rsquo;s base name plus a correction value based on the
+orientation and the provider.&lt;/p>
+&lt;p>If the orientations of shoot and seed candidate match, the correction value is 0, if they differ it is 2 and if
+either the seed&amp;rsquo;s or the shoot&amp;rsquo;s region does not have an orientation it is 1.
+If the provider differs the correction value is additionally incremented by 2.&lt;/p>
+&lt;p>Because of this a matching region with a matching provider is always prefered.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>In order to put the scheduling decision into effect, the scheduler sends an update request for the &lt;code>Shoot&lt;/code> resource to
+the API server. After validation, the Gardener Aggregated API server updates the shoot to have the &lt;code>spec.seedName&lt;/code> field set.
+Subsequently, the Gardenlet picks up and starts to create the cluster on the specified seed.&lt;/p>
+&lt;ol start="3">
+&lt;li>&lt;em>Special handling based on shoot cluster purpose&lt;/em>&lt;/li>
+&lt;/ol>
+&lt;p>Every shoot cluster can have a purpose that describes what the cluster is used for, and also influences how the cluster is setup (see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_purposes.md">this document&lt;/a> for more information).&lt;/p>
+&lt;p>In case the shoot has the &lt;code>testing&lt;/code> purpose then the scheduler only reads the &lt;code>.spec.provider.type&lt;/code> from the &lt;code>Shoot&lt;/code> resource and tries to find a &lt;code>Seed&lt;/code> that has the identical &lt;code>.spec.provider.type&lt;/code>.
+The region does not matter, i.e., &lt;code>testing&lt;/code> shoots may also be scheduled on a seed in a complete different region if it is better for balancing the whole Gardener system.&lt;/p>
+&lt;h2 id="seedselector-field-in-the-shoot-specification">&lt;code>seedSelector&lt;/code> field in the &lt;code>Shoot&lt;/code> specification&lt;/h2>
+&lt;p>Similar to the &lt;code>.spec.nodeSelector&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedSelector&lt;/code> field.
+It allows the user to provide a label selector that must match the labels of &lt;code>Seed&lt;/code>s in order to be scheduled to one of them.
+The labels on &lt;code>Seed&lt;/code>s are usually controlled by Gardener administrators/operators - end users cannot add arbitrary labels themselves.
+If provided, the Gardener Scheduler will only consider those seeds as &amp;ldquo;suitable&amp;rdquo; whose labels match those provided in the &lt;code>.spec.seedSelector&lt;/code> of the &lt;code>Shoot&lt;/code>.&lt;/p>
+&lt;p>By default only seeds with the same provider than the shoot are selected. By adding a &lt;code>providerTypes&lt;/code> field to the &lt;code>seedSelector&lt;/code>
+a dedicated set of possible providers (&lt;code>*&lt;/code> means all provider types) can be selected.&lt;/p>
+&lt;h2 id="ensuring-seeds-capacity-for-shoots-is-not-exceeded">Ensuring seeds capacity for shoots is not exceeded&lt;/h2>
+&lt;p>Seeds have a practical limit of how many shoots they can accommodate. Exceeding this limit is undesirable as the system performance will be noticeably impacted. Therefore, the scheduler ensures that a seed&amp;rsquo;s capacity for shoots is not exceeded by taking into account a maximum number of shoots that can be scheduled onto a seed.&lt;/p>
+&lt;p>This mechanism works as follows:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>gardenlet&lt;/code> is configured with certain &lt;em>resources&lt;/em> and their total &lt;em>capacity&lt;/em> (and, for certain resources, the amount &lt;em>reserved&lt;/em> for Gardener), see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">/example/20-componentconfig-gardenlet.yaml&lt;/a>. Currently, the only such resource is the maximum number of shoots that can be scheduled onto a seed.&lt;/li>
+&lt;li>The &lt;code>gardenlet&lt;/code> seed controller updates the &lt;code>capacity&lt;/code> and &lt;code>allocatable&lt;/code> fields in Seed status with the capacity of each resource and how much of it is actually available to be consumed by shoots. The &lt;code>allocatable&lt;/code> value of a resource is equal to &lt;code>capacity&lt;/code> minus &lt;code>reserved&lt;/code>.&lt;/li>
+&lt;li>When scheduling shoots, the scheduler filters out all candidate seeds whose allocatable capacity for shoots would be exceeded if the shoot is scheduled onto the seed.&lt;/li>
+&lt;/ul>
+&lt;h2 id="failure-to-determine-a-suitable-seed">Failure to determine a suitable seed&lt;/h2>
+&lt;p>In case the scheduler fails to find a suitable seed, the operation is being retried with exponential backoff.&lt;/p>
+&lt;h2 id="current-limitation--future-plans">Current Limitation / Future Plans&lt;/h2>
+&lt;ul>
+&lt;li>Azure has unfortunately a geographically non-hierarchical naming pattern and does not start with the continent. This is the reason why we will exchange the implementation of the &lt;code>MinimalRegion&lt;/code> strategy with a more suitable one in the future.&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Gardener Seed Admission Controller</title><link>https://gardener.cloud/docs/concepts/core-components/seed-admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/core-components/seed-admission-controller/</guid><description>
+&lt;h1 id="gardener-seed-admission-controller">Gardener Seed Admission Controller&lt;/h1>
+&lt;p>The Gardener Seed admission controller is deployed by the Gardenlet as part of its seed bootstrapping phase and, consequently, running in every seed cluster.
+It&amp;rsquo;s main purpose is to serve webhooks (validating or mutating) in order to admit or deny certain requests to the seed&amp;rsquo;s API server.&lt;/p>
+&lt;h2 id="what-is-it-doing-concretely">What is it doing concretely?&lt;/h2>
+&lt;h3 id="validating-webhooks">Validating Webhooks&lt;/h3>
+&lt;h4 id="unconfirmed-deletion-prevention">Unconfirmed Deletion Prevention&lt;/h4>
+&lt;p>As part of Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/concepts/extensions">extensibility concepts&lt;/a> a lot of &lt;code>CustomResourceDefinition&lt;/code>s are deployed to the seed clusters that serve as extension points for provider-specific controllers.
+For example, the &lt;a href="https://gardener.cloud/docs/concepts/extensions/infrastructure">&lt;code>Infrastructure&lt;/code> CRD&lt;/a> triggers the provider extension to prepare the IaaS infrastructure of the underlying cloud provider for a to-be-created shoot cluster.
+Consequently, these extension CRDs have a lot of power and control large portions of the end-user&amp;rsquo;s shoot cluster.
+Accidental or undesired deletions of those resource can cause tremendous and hard-to-recover-from outages and should be prevented.&lt;/p>
+&lt;p>Together with the deployment of the Gardener seed admission controller a &lt;code>ValidatingWebhookConfiguration&lt;/code> for &lt;code>CustomResourceDefinitions&lt;/code> and most (custom) resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group is registered.
+It prevents &lt;code>DELETE&lt;/code> requests for those &lt;code>CustomResourceDefinitions&lt;/code> labeled with &lt;code>gardener.cloud/deletion-protected=true&lt;/code>, and for all mentioned custom resources if they were not previously annotated with the &lt;code>confirmation.gardener.cloud/deletion=true&lt;/code>.
+This prevents that undesired &lt;code>kubectl delete &amp;lt;...&amp;gt;&lt;/code> requests are accepted.&lt;/p>
+&lt;h3 id="mutating-webhooks">Mutating Webhooks&lt;/h3>
+&lt;p>The admission controller endpoint &lt;code>/webhooks/default-pod-scheduler-name/gardener-kube-scheduler&lt;/code> mutates &lt;code>pods&lt;/code> and adds &lt;code>gardener-kube-scheduler&lt;/code> to &lt;code>.spec.scheduleName&lt;/code>.&lt;/p>
+&lt;p>When &lt;code>SeedKubeScheduler&lt;/code> feature gate is enabled, all control plane components are mutated. The scheduler scores &lt;code>Nodes&lt;/code> with most resource usage higher than the rest, resulting in greater resource utilization.&lt;/p></description></item><item><title>Docs: gardenlet</title><link>https://gardener.cloud/docs/concepts/core-components/gardenlet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/core-components/gardenlet/</guid><description>
+&lt;h1 id="gardenlet">Gardenlet&lt;/h1>
+&lt;p>Gardener is implemented using the &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/">operator pattern&lt;/a>:
+It uses custom controllers that act on our own custom resources,
+and apply Kubernetes principles to manage clusters instead of containers.
+Following this analogy, you can recognize components of the Gardener architecture
+as well-known Kubernetes components, for example, shoot clusters can be compared with pods,
+and seed clusters can be seen as worker nodes.&lt;/p>
+&lt;p>The following Gardener components play a similar role as the corresponding components
+in the Kubernetes architecture:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Gardener Component&lt;/th>
+&lt;th style="text-align:left">Kubernetes Component&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>gardener-apiserver&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>kube-apiserver&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>gardener-controller-manager&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>kube-controller-manager&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>gardener-scheduler&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>kube-scheduler&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>gardenlet&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>kubelet&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Similar to how the &lt;code>kube-scheduler&lt;/code> of Kubernetes finds an appropriate node
+for newly created pods, the &lt;code>gardener-scheduler&lt;/code> of Gardener finds an appropriate seed cluster
+to host the control plane for newly ordered clusters.
+By providing multiple seed clusters for a region or provider, and distributing the workload,
+Gardener also reduces the blast radius of potential issues.&lt;/p>
+&lt;p>Kubernetes runs a primary &amp;ldquo;agent&amp;rdquo; on every node, the kubelet,
+which is responsible for managing pods and containers on its particular node.
+Decentralizing the responsibility to the kubelet has the advantage that the overall system
+is scalable. Gardener achieves the same for cluster management by using a &lt;strong>gardenlet&lt;/strong>
+as primary &amp;ldquo;agent&amp;rdquo; on every seed cluster, and is only responsible for shoot clusters
+located in its particular seed cluster:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-similarities_23499e.png" alt="Counterparts in the Gardener Architecture and the Kubernetes Architecture">&lt;/p>
+&lt;p>The &lt;code>gardener-controller-manager&lt;/code> has control loops to manage resources of the Gardener API. However, instead of letting the &lt;code>gardener-controller-manager&lt;/code> talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It&amp;rsquo;s up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed clusters.&lt;/p>
+&lt;p>Reversing the control flow allows placing seed clusters or shoot clusters behind firewalls without the necessity of direct access via VPN tunnels anymore.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-detailed_9c0931.png" alt="Reversed Control Flow Using a Gardenlet">&lt;/p>
+&lt;h2 id="tls-bootstrapping">TLS Bootstrapping&lt;/h2>
+&lt;p>Kubernetes doesn’t manage worker nodes itself, and it’s also not
+responsible for the lifecycle of the kubelet running on the workers.
+Similarly, Gardener doesn’t manage seed clusters itself,
+so Gardener is also not responsible for the lifecycle of the gardenlet running on the seeds.
+As a consequence, both the gardenlet and the kubelet need to prepare
+a trusted connection to the Gardener API server
+and the Kubernetes API server correspondingly.&lt;/p>
+&lt;p>To prepare a trusted connection between the gardenlet
+and the Gardener API server, the gardenlet initializes
+a bootstrapping process after you deployed it into your seed clusters:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>The gardenlet starts up with a bootstrap &lt;code>kubeconfig&lt;/code>
+having a bootstrap token that allows to create &lt;code>CertificateSigningRequest&lt;/code> (CSR) resources.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>After the CSR is signed, the gardenlet downloads
+the created client certificate, creates a new &lt;code>kubeconfig&lt;/code> with it,
+and stores it inside a &lt;code>Secret&lt;/code> in the seed cluster.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The gardenlet deletes the bootstrap &lt;code>kubeconfig&lt;/code> secret,
+and starts up with its new &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The gardenlet starts normal operation.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>The &lt;code>gardener-controller-manager&lt;/code> runs a control loop
+that automatically signs CSRs created by gardenlets.&lt;/p>
+&lt;blockquote>
+&lt;p>The gardenlet bootstrapping process is based on the
+kubelet bootstrapping process. More information:
+&lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-tls-bootstrapping/">Kubelet&amp;rsquo;s TLS bootstrapping&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;p>If you don&amp;rsquo;t want to run this bootstrap process you can create
+a &lt;code>kubeconfig&lt;/code> pointing to the garden cluster for the gardenlet yourself,
+and use field &lt;code>gardenClientConnection.kubeconfig&lt;/code> in the
+gardenlet configuration to share it with the gardenlet.&lt;/p>
+&lt;h2 id="gardenlet-certificate-rotation">Gardenlet Certificate Rotation&lt;/h2>
+&lt;p>The certificate used to authenticate the gardenlet against the API server
+is valid for a year.
+After about 10 months, the gardenlet tries to automatically replace
+the current certificate with a new one (certificate rotation).&lt;/p>
+&lt;p>To use certificate rotation, you need to specify the secret to store
+the &lt;code>kubeconfig&lt;/code> with the rotated certificate in field
+&lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> of the
+gardenlet &lt;a href="#component-configuration">component configuration&lt;/a>.&lt;/p>
+&lt;h3 id="rotate-certificates-using-bootstrap-kubeconfig">Rotate certificates using bootstrap &lt;code>kubeconfig&lt;/code>&lt;/h3>
+&lt;p>If the gardenlet created the certificate during the initial TLS Bootstrapping
+using the Bootstrap &lt;code>kubeconfig&lt;/code>, certificates can be rotated automatically.
+The same control loop in the &lt;code>gardener-controller-manager&lt;/code> that signs
+the CSRs during the initial TLS Bootstrapping also automatically signs
+the CSR during a certificate rotation.&lt;/p>
+&lt;h3 id="rotate-certificate-using-custom-kubeconfig">Rotate Certificate Using Custom &lt;code>kubeconfig&lt;/code>&lt;/h3>
+&lt;p>When trying to rotate a custom certificate that wasn’t created by gardenlet
+as part of the TLS Bootstrap, the x509 certificate&amp;rsquo;s &lt;code>Subject&lt;/code> field
+needs to conform to the following:&lt;/p>
+&lt;ul>
+&lt;li>the Common Name (CN) is prefixed with &lt;code>gardener.cloud:system:seed:&lt;/code>&lt;/li>
+&lt;li>the Organization (O) equals &lt;code>gardener.cloud:system:seeds&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Otherwise, the &lt;code>gardener-controller-manager&lt;/code> doesn’t automatically
+sign the CSR.
+In this case, an external component or user needs to approve the CSR manually,
+for example, using command &lt;code>kubectl certificate approve seed-csr-&amp;lt;...&amp;gt;&lt;/code>).
+If that doesn’t happen within 15 minutes,
+the gardenlet repeats the process and creates another CSR.&lt;/p>
+&lt;h2 id="configuring-the-seed-to-work-with">Configuring the Seed to work with&lt;/h2>
+&lt;p>The Gardenlet works with a single seed, which must be configured in the
+&lt;code>GardenletConfiguration&lt;/code> under &lt;code>.seedConfig&lt;/code>. This must be a copy of the
+&lt;code>Seed&lt;/code> resource, for example (see &lt;code>example/20-componentconfig-gardenlet.yaml&lt;/code>
+for a more complete example):&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet.config.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">GardenletConfiguration&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">seedConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># ...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-seed-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When using &lt;code>make start-gardenlet&lt;/code>, the corresponding script will automatically
+fetch the seed cluster&amp;rsquo;s &lt;code>kubeconfig&lt;/code> based on the &lt;code>seedConfig.spec.secretRef&lt;/code>
+and set the environment accordingly.&lt;/p>
+&lt;p>On startup, gardenlet registers a &lt;code>Seed&lt;/code> resource using the given template
+in &lt;code>seedConfig&lt;/code> if it&amp;rsquo;s not present already.&lt;/p>
+&lt;h2 id="component-configuration">Component Configuration&lt;/h2>
+&lt;p>In the component configuration for the gardenlet, it’s possible to define:&lt;/p>
+&lt;ul>
+&lt;li>settings for the Kubernetes clients interacting with the various clusters&lt;/li>
+&lt;li>settings for the control loops inside the gardenlet&lt;/li>
+&lt;li>settings for leader election and log levels, feature gates, and seed selection or seed configuration.&lt;/li>
+&lt;/ul>
+&lt;p>More information: &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Example Gardenlet Component Configuration&lt;/a>.&lt;/p>
+&lt;h2 id="heartbeats">Heartbeats&lt;/h2>
+&lt;p>Similar to how Kubernetes uses &lt;code>Lease&lt;/code> objects for node heart beats
+(see &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/589-efficient-node-heartbeats/README.md">KEP&lt;/a>),
+the gardenlet is using &lt;code>Lease&lt;/code> objects for heart beats of the seed cluster.
+Every two seconds, the gardenlet checks that the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code>
+endpoint returns HTTP status code 200.
+If that is the case, the gardenlet renews the lease in the Garden cluster in the &lt;code>gardener-system-seed-lease&lt;/code> namespace and updates
+the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource(s).&lt;/p>
+&lt;p>Similarly to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
+the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-lifecycle-controller&lt;/code> that sets
+the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
+As a consequence, the &lt;code>gardener-scheduler&lt;/code> doesn’t consider this seed cluster for newly created shoot clusters anymore.&lt;/p>
+&lt;h3 id="healthz-endpoint">&lt;code>/healthz&lt;/code> Endpoint&lt;/h3>
+&lt;p>The gardenlet includes an HTTPS server that serves a &lt;code>/healthz&lt;/code> endpoint.
+It’s used as a liveness probe in the &lt;code>Deployment&lt;/code> of the gardenlet.
+If the gardenlet fails to renew its lease
+then the endpoint returns &lt;code>500 Internal Server Error&lt;/code>, otherwise it returns &lt;code>200 OK&lt;/code>.&lt;/p>
+&lt;p>Please note that the &lt;code>/healthz&lt;/code> only indicates whether the gardenlet
+could successfully probe the Seed&amp;rsquo;s API server and renew the lease with
+the Garden cluster.
+It does &lt;em>not&lt;/em> show that the Gardener extension API server (with the Gardener resource groups)
+is available.
+However, the Gardenlet is designed to withstand such connection outages and
+retries until the connection is reestablished.&lt;/p>
+&lt;h2 id="control-loops">Control Loops&lt;/h2>
+&lt;p>The gardenlet consists out of several controllers which are now described in more detail.&lt;/p>
+&lt;p>⚠️ This section is not necessarily complete and might be under construction.&lt;/p>
+&lt;h3 id="backupentry-controller">&lt;code>BackupEntry&lt;/code> Controller&lt;/h3>
+&lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
+Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
+&lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciled it (see &lt;a href="https://gardener.cloud/docs/concepts/extensions/backupentry">this&lt;/a> for more details).
+The status is populated in the &lt;code>.status.lastOperation&lt;/code> field.&lt;/p>
+&lt;p>The &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource has an owner reference pointing to the corresponding &lt;code>Shoot&lt;/code>.
+Hence, if the &lt;code>Shoot&lt;/code> is deleted, also the &lt;code>BackupEntry&lt;/code> resource gets deleted.
+In this case, the controller deletes the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource in the seed cluster and waits until the responsible extension controller has deleted it.
+Afterwards, the finalizer of the &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource is released so that it finally disappears from the system.&lt;/p>
+&lt;h4 id="keep-backup-for-deleted-shoots">Keep Backup for Deleted Shoots&lt;/h4>
+&lt;p>In some scenarios it might be beneficial to not immediately delete the &lt;code>BackupEntry&lt;/code>s (and with them, the etcd backup) for deleted &lt;code>Shoot&lt;/code>s.&lt;/p>
+&lt;p>In this case you can configure the &lt;code>.controllers.backupEntry.deletionGracePeriodHours&lt;/code> field in the component configuration of the gardenlet.
+For example, if you set it to &lt;code>48&lt;/code>, then the &lt;code>BackupEntry&lt;/code>s for deleted &lt;code>Shoot&lt;/code>s will only be deleted &lt;code>48&lt;/code> hours after the &lt;code>Shoot&lt;/code> was deleted.&lt;/p>
+&lt;p>Additionally, you can limit the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_purposes.md">shoot purposes&lt;/a> for which this applies by setting &lt;code>.controllers.backupEntry.deletionGracePeriodShootPurposes[]&lt;/code>.
+For example, if you set it to &lt;code>[production]&lt;/code> then only the &lt;code>BackupEntry&lt;/code>s for &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose=production&lt;/code> will be deleted after the configured grace period. All others will be deleted immediately after the &lt;code>Shoot&lt;/code> deletion.&lt;/p>
+&lt;h2 id="managed-seeds">Managed Seeds&lt;/h2>
+&lt;p>Gardener users can use shoot clusters as seed clusters, so-called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;),
+by creating &lt;code>ManagedSeed&lt;/code> resources.
+By default, the gardenlet that manages this shoot cluster then automatically
+creates a clone of itself with the same version and the same configuration
+that it currently has.
+Then it deploys the gardenlet clone into the managed seed cluster.&lt;/p>
+&lt;p>If you want to prevent the automatic gardenlet deployment,
+specify the &lt;code>seedTemplate&lt;/code> section in the &lt;code>ManagedSeed&lt;/code> resource, and don&amp;rsquo;t specify
+the &lt;code>gardenlet&lt;/code> section.
+In this case, you have to deploy the gardenlet on your own into the seed cluster.&lt;/p>
+&lt;p>More information: &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/managed_seed.md">Register Shoot as Seed&lt;/a>&lt;/p>
+&lt;h2 id="migrating-from-previous-gardener-versions">Migrating from Previous Gardener Versions&lt;/h2>
+&lt;p>If your Gardener version doesn’t support gardenlets yet,
+no special migration is required, but the following prerequisites must be met:&lt;/p>
+&lt;ul>
+&lt;li>Your Gardener version is at least 0.31 before upgrading to v1.&lt;/li>
+&lt;li>You have to make sure that your garden cluster is exposed in a way
+that it’s reachable from all your seed clusters.&lt;/li>
+&lt;/ul>
+&lt;p>With previous Gardener versions, you had deployed the Gardener Helm chart
+(incorporating the API server, &lt;code>controller-manager&lt;/code>, and scheduler).
+With v1, this stays the same, but you now have to deploy the gardenlet Helm chart as well
+into all of your seeds (if they aren’t managed, as mentioned earlier).&lt;/p>
+&lt;p>More information: &lt;a href="https://gardener.cloud/docs/concepts/deployment/deploy_gardenlet">Deploy a Gardenlet&lt;/a> for all instructions.&lt;/p>
+&lt;h2 id="related-links">Related Links&lt;/h2>
+&lt;p>&lt;a href="https://github.com/gardener/documentation/wiki/Architecture">Gardener Architecture&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://github.com/gardener/gardener/issues/356">Issue #356: Implement Gardener Scheduler&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://github.com/gardener/gardener/pull/2309">PR #2309: Add /healthz endpoint for Gardenlet&lt;/a>&lt;/p></description></item></channel></rss>

@@ -1,0 +1,612 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Monitor and Troubleshoot</title><link>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/</link><description>Recent content in Monitor and Troubleshoot on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Get a Shell to a Gardener Shoot Worker Node</title><link>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/shell-to-node/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/shell-to-node/</guid><description>
+&lt;h1 id="get-a-shell-to-a-kubernetes-node">Get a Shell to a Kubernetes Node&lt;/h1>
+&lt;p>To troubleshoot certain problems in a Kubernetes cluster, operators need access to the host of the Kubernetes node to troubleshoot
+problems. This can be required if a node misbehaves or fails to join the cluster in the first place.&lt;/p>
+&lt;p>With access to the host, it is for instance possible to check the &lt;code>kubelet&lt;/code> logs and interact with common tools such as &lt;code>systemctl&lt;/code>and &lt;code>journalctl&lt;/code>.&lt;/p>
+&lt;p>The first section of this guide explores options to get a shell to the node of a Gardener Kubernetes cluster.
+The options described in the second section do not rely on Kubernetes capabilities to get shell access to a node and thus can also be used if an instance failed to join the cluster.&lt;/p>
+&lt;p>This guide only covers how to get access to the host, but does not cover troubleshooting methods.&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#get-a-shell-to-a-kubernetes-node">Get a Shell to a Kubernetes Node&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#get-a-shell-to-an-operational-cluster-node">Get a Shell to an operational cluster node&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#gardener-dashboard">Gardener Dashboard&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#gardenctl-shell">gardenctl shell&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#gardener-ops-toolbelt">Gardener Ops Toolbelt&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#custom-root-pod">Custom root pod&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#ssh-access-to-a-node-that-failed-to-join-the-cluster">SSH access to a node that failed to join the cluster&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#identifying-the-problematic-instance">Identifying the problematic instance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#gardenctl-ssh">gardenctl ssh&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#ssh-with-manually-created-bastion-on-aws">SSH with manually created Bastion on AWS&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#create-the-bastion-security-group">Create the Bastion Security Group&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#create-the-bastion-instance">Create the bastion instance&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#connecting-to-the-target-instance">Connecting to the target instance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#cleanup">Cleanup&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h1 id="get-a-shell-to-an-operational-cluster-node">Get a Shell to an operational cluster node&lt;/h1>
+&lt;p>The following describes four different approaches to get a shell to an operational Shoot worker node.
+As a prerequisite to troubleshooting a Kubernetes node, the node must have joined the cluster successfully and be able to run a pod.
+All of the described approaches involve scheduling a pod with root permissions and mounting the root filesystem.&lt;/p>
+&lt;h2 id="gardener-dashboard">Gardener Dashboard&lt;/h2>
+&lt;p>&lt;strong>Prerequisite&lt;/strong>: the terminal feature is configured for the Gardener dashboard.&lt;/p>
+&lt;p>Navigate to the cluster overview page and find the &lt;code>Terminal&lt;/code> in the &lt;code>Access&lt;/code> tile.&lt;/p>
+&lt;img style="margin-left:0;width:80%;height:auto;" alt="Access Tile" src="https://gardener.cloud/__resources/9fb6ca4ff9b7480f93debba833f48590_9d3149.png"/>
+&lt;br>
+&lt;p>Select the target Cluster (Garden, Seed / Control Plane, Shoot cluster) depending on the requirements and
+access rights (only certain users have access to the Seed Control Plane).&lt;/p>
+&lt;p>To open the terminal configuration, click on the top right-hand corner of the screen.&lt;/p>
+&lt;img style="margin-left:0" alt="Terminal configuration" src="https://gardener.cloud/__resources/db573582bfc544d294cbde8906a74e07_671e84.png"/>
+&lt;br>
+&lt;p>Set the Terminal Runtime to &amp;ldquo;Privileged.
+Also specify the target node from the drop-down menu.&lt;/p>
+&lt;img style="margin-left:0;width:50%;height:auto" alt="Dashboard terminal pod configuration" src="https://gardener.cloud/__resources/f7b10d48edf44c17ba838ff5c429e39d_595683.png"/>
+&lt;br>
+&lt;p>The dashboard then schedules a pod and opens a shell session to the node.&lt;/p>
+&lt;p>To get access to common binaries installed on the host, prefix the command with &lt;code>chroot /hostroot&lt;/code>.
+Note that the path depends on where the root path is mounted in the container.
+In the default image used by the Dashboard, it is under &lt;code>/hostroot&lt;/code>.&lt;/p>
+&lt;img style="margin-left:0" alt="Dashboard terminal pod configuration" src="https://gardener.cloud/__resources/3da659e9cc4744a2ad3e1c6a50d39c04_1a182a.png"/>
+&lt;br>
+&lt;h2 id="gardenctl-shell">gardenctl shell&lt;/h2>
+&lt;p>&lt;strong>Prerequisite&lt;/strong>: &lt;code>kubectl&lt;/code> and &lt;a href="https://github.com/gardener/gardenctl">gardenctl are available and configured&lt;/a>.&lt;/p>
+&lt;p>First, target a Garden cluster containing all the Shoot definitions.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl target garden &amp;lt;target-garden&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Target an available Shoot by name.
+This sets up the context and configures the &lt;code>kubeconfig&lt;/code> file of the Shoot cluster.
+Subsequent commands will execute in this context.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl target shoot &amp;lt;target-shoot&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Get the nodes of the Shoot cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl kubectl get nodes
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Pick a node name from the list above and get a root shell access to it.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl shell &amp;lt;target-node&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="gardener-ops-toolbelt">Gardener Ops Toolbelt&lt;/h2>
+&lt;p>&lt;strong>Prerequisite&lt;/strong>: &lt;code>kubectl&lt;/code> is available.&lt;/p>
+&lt;p>The &lt;a href="https://github.com/gardener/ops-toolbelt">Gardener ops-toolbelt&lt;/a> can be used as a convenient way to deploy a root pod to a node.
+The pod uses an image that is bundled with a bunch of useful &lt;a href="https://github.com/gardener/ops-toolbelt/tree/master/dockerfile-configs">troubleshooting tools&lt;/a>.
+This is also the same image that is used by default when using the Gardener Dashboard terminal feature as described in the &lt;a href="#gardener-dashboard">previous section&lt;/a>.&lt;/p>
+&lt;p>The easiest way to use the &lt;a href="https://github.com/gardener/ops-toolbelt">Gardener ops-toolbelt&lt;/a> is to execute
+the &lt;a href="https://github.com/gardener/ops-toolbelt/blob/master/hacks/ops-pod">&lt;code>ops-pod&lt;/code> script&lt;/a> in the &lt;code>hacks&lt;/code> folder.
+To get root shell access to a node, execute the aforementioned script by supplying the target node name as an argument:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ &amp;lt;path-to-ops-toolbelt-repo&amp;gt;/hacks/ops-pod &amp;lt;target-node&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="custom-root-pod">Custom root pod&lt;/h2>
+&lt;p>Alternatively, a pod can be &lt;a href="https://kubernetes.io/docs/concepts/configuration/assign-pod-node/">assigned&lt;/a> to a target node and a shell can
+be opened via &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/">standard Kubernetes means&lt;/a>.
+To enable root access to the node, the pod specification requires proper &lt;code>securityContext&lt;/code> and &lt;code>volume&lt;/code> properties.&lt;/p>
+&lt;p>For instance you can use the following pod manifest, after changing &lt;target-node-name> with the name of the node you want this pod attached to:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Pod&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">privileged-pod&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodeSelector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes.io/hostname&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;target-node-name&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">busybox&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">busybox&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">stdin&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">securityContext&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">privileged&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumeMounts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">host-root-volume&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mountPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/host&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">readOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">host-root-volume&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostNetwork&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hostPID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">restartPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Never&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h1 id="ssh-access-to-a-node-that-failed-to-join-the-cluster">SSH access to a node that failed to join the cluster&lt;/h1>
+&lt;p>This section explores two options that can be used to get SSH access to a node that failed to join the cluster.
+As it is not possible to schedule a pod on the node, the Kubernetes-based methods explored so far cannot be used in this scenario.&lt;/p>
+&lt;p>Additionally, Gardener typically provisions worker instances in a private subnet of the VPC, hence - there is no public IP address that could be used for direct SSH access.&lt;/p>
+&lt;p>For this scenario, cloud providers typically have extensive documentation (e.g &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstances.html">AWS&lt;/a> &amp;amp; &lt;a href="https://cloud.google.com/compute/docs/instances/connecting-to-instance">GCP&lt;/a>
+and in &lt;a href="https://cloud.google.com/compute/docs/instances/connecting-advanced#vpn">some cases tooling support&lt;/a>).
+However, these approaches are mostly cloud provider specific, require interaction via their CLI and API or sometimes
+the installation of a &lt;a href="https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-ssm-agent.html">cloud provider specific agent&lt;/a> one the node.&lt;/p>
+&lt;p>Alternatively, &lt;code>gardenctl&lt;/code> can be used providing a cloud provider agnostic and out-of-the-box support to get ssh access to an instance in a private subnet.
+Currently &lt;code>gardenctl&lt;/code> supports AWS, GCP, Openstack, Azure and Alibaba Cloud.&lt;/p>
+&lt;h2 id="identifying-the-problematic-instance">Identifying the problematic instance&lt;/h2>
+&lt;p>First, the problematic instance has to be identified.
+In Gardener, worker pools can be created in different cloud provider regions, zones and accounts.&lt;/p>
+&lt;p>The instance would typically show up as successfully started / running in the cloud provider dashboard or API and it is not immediately obvious which one has a problem.
+Instead, we can use the Gardener API / CRDs to obtain the faulty instance identifier in a cloud-agnostic way.&lt;/p>
+&lt;p>Gardener uses the &lt;a href="https://github.com/gardener/machine-controller-manager">Machine Controller Manager&lt;/a> to create the Shoot worker nodes.
+For each worker node, the Machine Controller Manager creates a &lt;code>Machine&lt;/code> CRD in the Shoot namespace in the respective &lt;code>Seed&lt;/code> cluster.
+Usually the problematic instance can be identified as the respective &lt;code>Machine&lt;/code> CRD has status &lt;code>pending&lt;/code>.&lt;/p>
+&lt;p>The instance / node name can be obtained from the &lt;code>Machine&lt;/code> &lt;code>.status&lt;/code> field:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ kubectl get machine &amp;lt;machine-name&amp;gt; -o json | jq -r .status.node
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is all the information needed to go ahead and use &lt;code>gardenctl ssh&lt;/code> to get a shell to the node.
+In addition, the used cloud provider, the specific identifier of the instance and the instance region can be identified from the &lt;code>Machine&lt;/code> CRD.&lt;/p>
+&lt;p>Get the identifier of the instance via:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ kubectl get machine &amp;lt;machine-name&amp;gt; -o json | jq -r .spec.providerID // e.g aws:///eu-north-1/i-069733c435bdb4640
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The identifier shows that the instance belongs to the cloud provider &lt;code>aws&lt;/code> with the ec2 instance-id &lt;code>i-069733c435bdb4640&lt;/code> in region &lt;code>eu-north-1&lt;/code>.&lt;/p>
+&lt;p>To get more information about the instance, check out the &lt;code>MachineClass&lt;/code> (e.g &lt;code>AWSMachineClass&lt;/code>) that is associated with each &lt;code>Machine&lt;/code> CRD in the &lt;code>Shoot&lt;/code> namespace of the &lt;code>Seed&lt;/code> cluster.
+The &lt;code>AWSMachineClass&lt;/code> contains the machine image (&lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html">ami&lt;/a>), machine-type, iam information, network-interfaces, subnets, security groups and attached volumes.&lt;/p>
+&lt;p>Of course, the information can also be used to get the instance with the cloud provider CLI / API.&lt;/p>
+&lt;h2 id="gardenctl-ssh">gardenctl ssh&lt;/h2>
+&lt;p>Using the node name of the problematic instance, we can use the &lt;code>gardenctl ssh&lt;/code> command to get SSH access to the cloud provider
+instance via an automatically set up &lt;a href="https://en.wikipedia.org/wiki/Bastion_host">bastion host&lt;/a>.
+&lt;code>gardenctl&lt;/code> takes care of spinning up the &lt;code>bastion&lt;/code> instance, setting up the SSH keys, ports and security groups and opens a root shell on the target instance.
+After the SSH session has ended, &lt;code>gardenctl&lt;/code> deletes the created cloud provider resources.&lt;/p>
+&lt;p>Use the following commands:&lt;/p>
+&lt;p>First, target a Garden cluster containing all the Shoot definitions.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl target garden &amp;lt;target-garden&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Target an available Shoot by name.
+This sets up the context, configures the &lt;code>kubeconfig&lt;/code> file of the Shoot cluster and downloads the cloud provider credentials.
+Subsequent commands will execute in this context.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl target shoot &amp;lt;target-shoot&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>This uses the cloud provider credentials to spin up the bastion and to open a shell on the target instance.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ gardenctl ssh &amp;lt;target-node&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="ssh-with-manually-created-bastion-on-aws">SSH with manually created Bastion on AWS&lt;/h2>
+&lt;p>In case you are not using &lt;code>gardenctl&lt;/code> or want to control the bastion instance yourself, you can also manually set it up.
+The steps described here are generally the same as &lt;a href="https://github.com/gardener/gardenctl/blob/10a537942b94234914758c0f6d053dc1cf218ecd/pkg/cmd/ssh_aws.go#L53-L52">those used by &lt;code>gardenctl&lt;/code> internally&lt;/a>.
+Despite some cloud provider specifics they can be generalized to the following list:&lt;/p>
+&lt;ul>
+&lt;li>Open port 22 on the target instance.&lt;/li>
+&lt;li>Create an instance / VM in a public subnet (bastion instance needs to have public ip address).&lt;/li>
+&lt;li>Set-up security groups, roles and open port 22 for the bastion instance.&lt;/li>
+&lt;/ul>
+&lt;p>The following diagram shows an overview how the SSH access to the target instance works:&lt;/p>
+&lt;img style="margin-left:0" alt="SSH Bastion diagram" src="https://gardener.cloud/__resources/913441003e5641bc90249bdc07d55656_a35abd.png"/>
+&lt;br>
+&lt;p>This guide demonstrates the setup of a bastion on AWS.&lt;/p>
+&lt;p>&lt;strong>Prerequisites:&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>AWS CLI&lt;/code> is set up.&lt;/li>
+&lt;li>Obtain target instance-id (see &lt;a href="#identifying-the-problematic-instance">here&lt;/a>).&lt;/li>
+&lt;li>Obtain the VPC ID the Shoot resources are created in. This can be found in the &lt;code>Infrastructure&lt;/code> CRD in the &lt;code>Shoot&lt;/code> namespace in the &lt;code>Seed&lt;/code>.&lt;/li>
+&lt;li>Make sure that port 22 on the target instance is open (default for Gardener deployed instances).
+&lt;ul>
+&lt;li>Extract security group via&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 describe-instances --instance-ids &amp;lt;instance-id&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>Check for rule that allows inbound connections on port 22:&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 describe-security-groups --group-ids=&amp;lt;security-group-id&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>If not available, create the rule with the following comamnd:&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 authorize-security-group-ingress --group-id &amp;lt;security-group-id&amp;gt; --protocol tcp --port 22 --cidr 0.0.0.0/0
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;h3 id="create-the-bastion-security-group">Create the Bastion Security Group&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>The common name of the security group is &lt;code>&amp;lt;shoot-name&amp;gt;-bsg&lt;/code>. Create the security group:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 create-security-group --group-name &amp;lt;bastion-security-group-name&amp;gt; --description ssh-access --vpc-id &amp;lt;VPC-ID&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Optionally, create identifying tags for the security group:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 create-tags --resources &amp;lt;bastion-security-group-id&amp;gt; --tags Key=component,Value=&amp;lt;tag&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Create permission in the bastion security group that allows ssh access on port 22.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws ec2 authorize-security-group-ingress --group-id &amp;lt;bastion-security-group-id&amp;gt; --protocol tcp --port 22 --cidr 0.0.0.0/0
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Create an IAM role for the bastion instance with the name &lt;code>&amp;lt;shoot-name&amp;gt;-bastions&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws iam create-role --role-name &amp;lt;shoot-name&amp;gt;-bastions
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The content should be:&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json">&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Version&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;2012-10-17&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Statement&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;ec2:DescribeRegions&amp;#34;&lt;/span>
+&lt;span class="p">],&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>
+&lt;p>Create the instance profile with name &lt;code>&amp;lt;shoot-name&amp;gt;-bastions&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws iam create-instance-profile --instance-profile-name &amp;lt;name&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Add the created role to the instance profile:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ aws iam add-role-to-instance-profile --instance-profile-name &amp;lt;instance-profile-name&amp;gt; --role-name &amp;lt;role-name&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;h3 id="create-the-bastion-instance">Create the bastion instance&lt;/h3>
+&lt;p>Next, in order to be able to &lt;code>ssh&lt;/code> into the bastion instance, the instance has to be set up with a user with a public ssh key.
+Create a user &lt;code>gardener&lt;/code> that has the same Gardener-generated public ssh key as the target instance.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>First, we need to get the public part of the &lt;code>Shoot&lt;/code> ssh-key.
+The ssh-key is stored in a secret in the the project namespace in the Garden cluster.
+The name is: &lt;code>&amp;lt;shoot-name&amp;gt;-ssh-publickey&lt;/code>.
+Get the key via:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ kubectl get secret aws-gvisor.ssh-keypair -o json | jq -r .data.\&amp;#34;id_rsa.pub\&amp;#34;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>A script handed over as &lt;code>user-data&lt;/code> to the bastion &lt;code>ec2&lt;/code> instance, can be used to create the &lt;code>gardener&lt;/code> user and add the ssh-key.
+For your convenience, you can use the following script to generate the &lt;code>user-data&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="cp">#!/bin/bash -eu
+&lt;/span>&lt;span class="cp">&lt;/span>saveUserDataFile &lt;span class="o">()&lt;/span> &lt;span class="o">{&lt;/span>
+&lt;span class="nv">ssh_key&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="nv">$1&lt;/span>
+cat &amp;gt; gardener-bastion-userdata.sh &lt;span class="s">&amp;lt;&amp;lt;EOF
+&lt;/span>&lt;span class="s">#!/bin/bash -eu
+&lt;/span>&lt;span class="s">id gardener || useradd gardener -mU
+&lt;/span>&lt;span class="s">mkdir -p /home/gardener/.ssh
+&lt;/span>&lt;span class="s">echo &amp;#34;$ssh_key&amp;#34; &amp;gt; /home/gardener/.ssh/authorized_keys
+&lt;/span>&lt;span class="s">chown gardener:gardener /home/gardener/.ssh/authorized_keys
+&lt;/span>&lt;span class="s">echo &amp;#34;gardener ALL=(ALL) NOPASSWD:ALL&amp;#34; &amp;gt;/etc/sudoers.d/99-gardener-user
+&lt;/span>&lt;span class="s">EOF&lt;/span>
+&lt;span class="o">}&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -p /dev/stdin &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">read&lt;/span> -r input
+cat &lt;span class="p">|&lt;/span> saveUserDataFile &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$input&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">else&lt;/span>
+pbpaste &lt;span class="p">|&lt;/span> saveUserDataFile &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$input&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>
+&lt;p>Use the script by handing-over the public ssh-key of the &lt;code>Shoot&lt;/code> cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ kubectl get secret aws-gvisor.ssh-keypair -o json | jq -r .data.\&amp;#34;id_rsa.pub\&amp;#34; | ./generate-userdata.sh
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>This generates a file called &lt;code>gardener-bastion-userdata.sh&lt;/code> in the same directory containing the &lt;code>user-data&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The following information is needed to create the bastion instance:&lt;/p>
+&lt;p>&lt;code>bastion-IAM-instance-profile-name&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>Use the created instance profile with name &lt;code>&amp;lt;shoot-name&amp;gt;-bastions&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>image-id&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>Possible use the same image-id as for the target instance (or any other image). Has cloud provider specific format (AWS: &lt;code>ami&lt;/code>).&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>ssh-public-key-name&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>This is the ssh key pair already created in the Shoot&amp;rsquo;s cloud provider account by Gardener during the &lt;code>Infrastructure&lt;/code> CRD reconciliation.&lt;/li>
+&lt;li>The name is usually: &lt;code>&amp;lt;shoot-name&amp;gt;-ssh-publickey&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>subnet-id&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>Choose a subnet that is attached to an &lt;code>Internet Gateway&lt;/code> and &lt;code>NAT Gateway&lt;/code> (bastion instance must have a public IP).&lt;/li>
+&lt;li>The Gardener created public subnet with the name &lt;code>&amp;lt;shoot-name&amp;gt;-public-utility-&amp;lt;xy&amp;gt;&lt;/code> can be used.
+Please check the created subnets with the cloud provider.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>bastion-security-group-id&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>Use the id of the created bastion security group.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>file-path-to-userdata&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Use the filepath to &lt;code>user-data&lt;/code> file generated in the previous step.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>bastion-instance-name&lt;/code>&lt;/p>
+&lt;ul>
+&lt;li>Optional to tag the instance.&lt;/li>
+&lt;li>Usually &lt;code>&amp;lt;shoot-name&amp;gt;-bastions&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Create the bastion instance via:&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ ec2 run-instances --iam-instance-profile Name=&amp;lt;bastion-IAM-instance-profile-name&amp;gt; --image-id &amp;lt;image-id&amp;gt; --count 1 --instance-type t3.nano --key-name &amp;lt;ssh-public-key-name&amp;gt; --security-group-ids &amp;lt;bastion-security-group-id&amp;gt; --subnet-id &amp;lt;subnet-id&amp;gt; --associate-public-ip-address --user-data &amp;lt;file-path-to-userdata&amp;gt; --tag-specifications ResourceType=instance,Tags=[{Key=Name,Value=&amp;lt;bastion-instance-name&amp;gt;},{Key=component,Value=&amp;lt;mytag&amp;gt;}] ResourceType=volume,Tags=[{Key=component,Value=&amp;lt;mytag&amp;gt;}]&amp;#34;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Capture the &lt;code>instance-id&lt;/code> from the reponse and wait until the &lt;code>ec2&lt;/code> instance is running and has a public ip address.&lt;/p>
+&lt;h2 id="connecting-to-the-target-instance">Connecting to the target instance&lt;/h2>
+&lt;p>Save the private key of the ssh-key-pair in a temporary local file for later use.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ umask 077
+$ kubectl get secret &amp;lt;shoot-name&amp;gt;.ssh-keypair -o json | jq -r .data.\&amp;#34;id_rsa\&amp;#34; | base64 -d &amp;gt; id_rsa.key
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Use the private ssh key to ssh into the bastion instance.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ ssh -i &amp;lt;path-to-private-key&amp;gt; gardener@&amp;lt;public-bastion-instance-ip&amp;gt; 
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>If that works, connect from your local terminal to the target instance via the bastion.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ ssh  -i &amp;lt;path-to-private-key&amp;gt; -o ProxyCommand=&amp;#34;ssh -W %h:%p -i &amp;lt;private-key&amp;gt; -o IdentitiesOnly=yes -o StrictHostKeyChecking=no gardener@&amp;lt;public-ip-bastion&amp;gt;&amp;#34; gardener@&amp;lt;private-ip-target-instance&amp;gt; -o IdentitiesOnly=yes -o StrictHostKeyChecking=no
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="cleanup">Cleanup&lt;/h2>
+&lt;p>Do not forget to cleanup the created resources. Otherwise Gardener will eventually fail to delete the Shoot.&lt;/p></description></item><item><title>Docs: How to debug a pod</title><link>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/debug-a-pod/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/debug-a-pod/</guid><description>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>Kubernetes offers powerful options to get more details about startup or runtime failures of pods as e.g. described in
+&lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging&lt;/a>
+or &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers&lt;/a>.&lt;/p>
+&lt;p>In order to identify pods with potential issus you could e.g. run &lt;code>kubectl get pods --all-namespaces | grep -iv Running &lt;/code> to filter
+out the pods which are not in the state &lt;code>Running&lt;/code>. One of frequent error state is &lt;code>CrashLoopBackOff&lt;/code>, which tells that
+a pod crashes right after the start. Kubernetes then tries to restart the pod, but often the pod startup fails again.&lt;/p>
+&lt;p>&lt;strong>Here is a short list of possible reasons which might lead to a pod crash:&lt;/strong>&lt;/p>
+&lt;ol>
+&lt;li>error during image pull caused by e.g. wrong/missing secrets or wrong/missing image&lt;/li>
+&lt;li>the app runs in an error state caused e.g. by missing environmental variables (ConfigMaps) or secrets&lt;/li>
+&lt;li>liveness probe failed&lt;/li>
+&lt;li>too high resource consumption (memory and/or CPU) or too strict quota settings&lt;/li>
+&lt;li>persistent volumes can&amp;rsquo;t be created/mounted&lt;/li>
+&lt;li>the container image is not updated&lt;/li>
+&lt;/ol>
+&lt;p>Basically, the commands &lt;code>kubectl logs ...&lt;/code> and &lt;code>kubectl describe ...&lt;/code> with additional parameters are used to get more
+detailed information. By calling e.g. &lt;code>kubectl logs --help&lt;/code> you get more detailed information about the command and its
+parameters.&lt;/p>
+&lt;p>In the next sections you&amp;rsquo;ll find some basic approaches to get some ideas what went wrong.&lt;/p>
+&lt;p>Remarks:&lt;/p>
+&lt;ul>
+&lt;li>Even if the pods seem to be running as the status &lt;code>Running&lt;/code> indicates, a high counter of the &lt;code>Restarts&lt;/code> shows potential problems&lt;/li>
+&lt;li>There is as well an &lt;a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">interactive Tutorial Troubleshooting with Kubectl&lt;/a>
+available which explains basic debugging activities&lt;/li>
+&lt;li>The examples below are deployed into the namespace &lt;code>default&lt;/code>. In case you want to change it use the optional
+parameter &lt;code>--namespace &amp;lt;your-namespace&amp;gt;&lt;/code> to select the target namespace. They require Kubernetes release ≥ &lt;em>1.8&lt;/em>.&lt;/li>
+&lt;/ul>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Your deployment was successful (no logical/syntactical errors in the manifest files), but the pod(s) aren&amp;rsquo;t running.&lt;/p>
+&lt;h2 id="error-caused-by-wrong-image-name">Error caused by wrong image name&lt;/h2>
+&lt;p>You run &lt;code>kubectl describe pod &amp;lt;your-pod&amp;gt; &amp;lt;your-namespace&amp;gt;&lt;/code> to get detailed information about the pod startup.&lt;/p>
+&lt;p>In the &lt;code>Events&lt;/code> section, you get an error message like &lt;code>Failed to pull image ...&lt;/code> and &lt;code>Reason: Failed&lt;/code>. The pod is
+in state &lt;code>ImagePullBackOff&lt;/code>.&lt;/p>
+&lt;p>The example below is based on &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/determine-reason-pod-failure/">demo in Kubernetes documentation&lt;/a>. In all examples the &lt;code>default&lt;/code> namespace is used.&lt;/p>
+&lt;p>First, cleanup with&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl delete pod termination-demo
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, create a resource based on the yaml content below&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Pod &lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo-container&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debiann&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/bin/sh&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;-c&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;sleep 10 &amp;amp;&amp;amp; echo Sleep expired &amp;gt; /dev/termination-log&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kubectl describe pod termination-demo&lt;/code> lists the following content in the &lt;code>Event&lt;/code> section&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">Events:
+FirstSeen LastSeen Count From SubObjectPath Type Reason Message
+--------- -------- ----- ---- ------------- -------- ------ -------
+2m 2m 1 default-scheduler Normal Scheduled Successfully assigned termination-demo to ip-10-250-17-112.eu-west-1.compute.internal
+2m 2m 1 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Normal SuccessfulMountVolume MountVolume.SetUp succeeded &lt;span class="k">for&lt;/span> volume &lt;span class="s2">&amp;#34;default-token-sgccm&amp;#34;&lt;/span>
+2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal Pulling pulling image &lt;span class="s2">&amp;#34;debiann&amp;#34;&lt;/span>
+2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Warning Failed Failed to pull image &lt;span class="s2">&amp;#34;debiann&amp;#34;&lt;/span>: rpc error: &lt;span class="nv">code&lt;/span> &lt;span class="o">=&lt;/span> Unknown &lt;span class="nv">desc&lt;/span> &lt;span class="o">=&lt;/span> Error: image library/debiann:latest not found
+2m 54s 10 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Warning FailedSync Error syncing pod
+2m 54s 6 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal BackOff Back-off pulling image &lt;span class="s2">&amp;#34;debiann&amp;#34;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The error message with &lt;code>Reason: Failed&lt;/code> tells that there is an error during pulling the image. A closer look at the
+image name indicates a misspelling.&lt;/p>
+&lt;h2 id="app-runs-in-an-error-state-caused-by-missing-configmaps-or-secrets">App runs in an error state caused by missing ConfigMaps or Secrets&lt;/h2>
+&lt;p>This example illustrates the behavior in case of the app expecting environment variables but the corresponding
+Kubernetes artifacts are missing.&lt;/p>
+&lt;p>First, cleanup with&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="l">kubectl delete deployment termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="l">kubectl delete configmaps app-env&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, deploy this manifest&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo-container&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debian&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/bin/sh&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;-c&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;sed \&amp;#34;s/foo/bar/\&amp;#34; &amp;lt; $MYFILE&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now, the command &lt;code>kubectl get pods&lt;/code> lists the pod &lt;code>termination-demo-xxx&lt;/code> in the state &lt;code>Error&lt;/code> or &lt;code>CrashLoopBackOff&lt;/code>.
+The command &lt;code>kubectl describe pod termination-demo-xxx&lt;/code> tells that there is no error during startup but gives no clue
+about what caused the crash.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">Events:
+FirstSeen LastSeen Count From SubObjectPath Type Reason Message
+--------- -------- ----- ---- ------------- -------- ------ -------
+19m 19m 1 default-scheduler Normal Scheduled Successfully assigned termination-demo-5fb484867d-xz2x9 to ip-10-250-17-112.eu-west-1.compute.internal
+19m 19m 1 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Normal SuccessfulMountVolume MountVolume.SetUp succeeded &lt;span class="k">for&lt;/span> volume &lt;span class="s2">&amp;#34;default-token-sgccm&amp;#34;&lt;/span>
+19m 19m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal Pulling pulling image &lt;span class="s2">&amp;#34;debian&amp;#34;&lt;/span>
+19m 19m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal Pulled Successfully pulled image &lt;span class="s2">&amp;#34;debian&amp;#34;&lt;/span>
+19m 19m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal Created Created container
+19m 19m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Normal Started Started container
+19m 14m 24 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers&lt;span class="o">{&lt;/span>termination-demo-container&lt;span class="o">}&lt;/span> Warning BackOff Back-off restarting failed container
+19m 4m 69 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Warning FailedSync Error syncing pod
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command &lt;code>kubectl get logs termination-demo-xxx&lt;/code> gives access to the output, the application writes on stderr and
+stdout. In this case, you get an output like&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">/bin/sh: 1: cannot open : No such file
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>So you need to have a closer look at the application. In this case the environmental variable &lt;code>MYFILE&lt;/code>is missing. To fix this
+issue you could e.g. add a ConfigMap to your deployment as it is shown in the manifest listed below.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ConfigMap&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">app-env&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">MYFILE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;/etc/profile&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo-container&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debian&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/bin/sh&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;-c&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;sed \&amp;#34;s/foo/bar/\&amp;#34; &amp;lt; $MYFILE&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">envFrom&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">configMapRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">app-env &lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that once you fix the error and re-run the scenario, you might still see the pod in &lt;code>CrashLoopBackOff&lt;/code> status.
+It is because the container finishes the command &lt;code>sed ...&lt;/code> and runs to completion. In order to keep the container in &lt;code>Running&lt;/code> status,
+a long running task is required, e.g.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ConfigMap&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">app-env&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">MYFILE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;/etc/profile&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">SLEEP&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;5&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo-container&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debian&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/bin/sh&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># args: [&amp;#34;-c&amp;#34;, &amp;#34;sed \&amp;#34;s/foo/bar/\&amp;#34; &amp;lt; $MYFILE&amp;#34;]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;-c&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;while true; do sleep $SLEEP; echo sleeping; done;&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">envFrom&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">configMapRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">app-env&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="too-high-resource-consumption-or-too-strict-quota-settings">Too high resource consumption or too strict quota settings&lt;/h2>
+&lt;p>You can optionally specify the amount of memory and/or CPU your container gets during runtime. In case these settings are missing,
+the default requests settings are taken: CPU: 0m (in Milli CPU) and RAM: 0Gi which indicate no other limits than the
+ones of the node(s) itself. Find more details in &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and
+Limits for a Namespace&lt;/a>,&lt;/p>
+&lt;p>In case your application needs more resources, Kubernetes distinguishes between &lt;code>requests&lt;/code> and &lt;code>limit&lt;/code> settings: &lt;code>requests&lt;/code>
+specify the guaranteed amount of resource, whereas &lt;code>limit&lt;/code> tells Kubernetes the maximum amount of resource the container might
+need. Mathematically both settings could be described by the relation &lt;code>0 &amp;lt;= requests &amp;lt;= limit&lt;/code>. For both settings you need to
+consider the total amount of resources the available nodes provide. For a detailed description of the concept see &lt;a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of
+Service in Kubernetes&lt;/a>.&lt;/p>
+&lt;p>Use &lt;code>kubectl describe nodes&lt;/code> to get a first overview of the resource consumption of your cluster. Of special interest are the
+figures indicating the amount of CPU and Memory Requests at the bottom of the output.&lt;/p>
+&lt;p>The next example demonstrates what happens in case the CPU request is too high in order to be managed by your cluster.&lt;/p>
+&lt;p>First, cleanup with&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="l">kubectl delete deployment termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="l">kubectl delete configmaps app-env&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, adapt the &lt;code>cpu&lt;/code> in the yaml below to be slightly higher than the remaining cpu resources in your cluster and deploy
+this manifest. In this example &lt;code>600m&lt;/code> (milli CPUs) are requested in a Kubernetes system with a single 2 Core worker
+node which results in an error message.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Deployment&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">termination-demo-container&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debian&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/bin/sh&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;-c&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;sleep 10 &amp;amp;&amp;amp; echo Sleep expired &amp;gt; /dev/termination-log&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">requests&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;600m&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command &lt;code>kubectl get pods&lt;/code> lists the pod &lt;code>termination-demo-xxx&lt;/code> in the state &lt;code>Pending&lt;/code>. More details on why this happens
+could be found by using the command &lt;code>kubectl describe pod termination-demo-xxx&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl describe po termination-demo-fdb7bb7d9-mzvfw
+Name: termination-demo-fdb7bb7d9-mzvfw
+Namespace: default
+...
+Containers:
+termination-demo-container:
+Image: debian
+Port: &amp;lt;none&amp;gt;
+Host Port: &amp;lt;none&amp;gt;
+Command:
+/bin/sh
+Args:
+-c
+sleep &lt;span class="m">10&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nb">echo&lt;/span> Sleep expired &amp;gt; /dev/termination-log
+Requests:
+cpu: &lt;span class="m">6&lt;/span>
+Environment: &amp;lt;none&amp;gt;
+Mounts:
+/var/run/secrets/kubernetes.io/serviceaccount from default-token-t549m &lt;span class="o">(&lt;/span>ro&lt;span class="o">)&lt;/span>
+Conditions:
+Type Status
+PodScheduled False
+Events:
+Type Reason Age From Message
+---- ------ ---- ---- -------
+Warning FailedScheduling 9s &lt;span class="o">(&lt;/span>x7 over 40s&lt;span class="o">)&lt;/span> default-scheduler 0/2 nodes are available: &lt;span class="m">2&lt;/span> Insufficient cpu.
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>More details in&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">Managing Compute Resources for Containters&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of Service in Kubernetes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>Remark:&lt;/p>
+&lt;ul>
+&lt;li>This example works similarly when specifying a too high request for memory&lt;/li>
+&lt;li>In case you configured an autoscaler range when creating your Kubernetes cluster another worker node will be started automatically if you didn&amp;rsquo;t reach the maximum number of worker nodes&lt;/li>
+&lt;li>If your app is running out of memory (the memory settings are too small), you typically find &lt;code>OOMKilled&lt;/code> (Out Of Memory) message in the &lt;code>Events&lt;/code> section fo the &lt;code>kubectl describe pod ...&lt;/code> output&lt;/li>
+&lt;/ul>
+&lt;h2 id="why-was-the-container-image-not-updated">Why was the container image not updated?&lt;/h2>
+&lt;p>You applied a fix in your app, created a new container image and pushed it into your container repository. After
+redeploying your Kubernetes manifests you expected to get the updated app, but still the same bug is in the new
+deployment present.&lt;/p>
+&lt;p>This behavior is related to how Kubernetes decides whether to pull a new docker image or to use the cached one.&lt;/p>
+&lt;p>In case you didn&amp;rsquo;t change the image tag, the default image policy &lt;em>IfNotPresent&lt;/em> tells Kubernetes to use the cached
+image (see &lt;a href="https://kubernetes.io/docs/concepts/containers/images/">Images&lt;/a>).&lt;/p>
+&lt;p>As a best practice you should not use the tag &lt;code>latest&lt;/code> and change the image tag whenever you changed anything in your
+image (see &lt;a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Configuration Best Practices&lt;/a>).&lt;/p>
+&lt;p>Find more details in &lt;a href="https://github.com/gardener/documentation/blob/master/website/documentation/guides/applications/imagePullPolicy">FAQ Container Image not updating&lt;/a>&lt;/p>
+&lt;h2 id="links">Links&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/cluster-administration/logging/">Logging Architecture&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and Limits for a Namespace&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">Managing Compute Resources for Containters&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md">Resource Quality of Service in Kubernetes&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">Interactive Tutorial Troubleshooting with Kubectl&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/containers/images/">Images&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Kubernetes Best Practises&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: tail -f /var/log/my-application.log</title><link>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/tail-logfile/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/tail-logfile/</guid><description>
+&lt;h2 id="problem">Problem&lt;/h2>
+&lt;p>One thing that always bothered me was that I couldn&amp;rsquo;t get logs of several pods at once with &lt;code>kubectl&lt;/code>. A simple
+&lt;code>tail -f &amp;lt;path-to-logfile&amp;gt;&lt;/code> isn&amp;rsquo;t possible at all. Certainly you can use &lt;code>kubectl logs -f &amp;lt;pod-id&amp;gt;&lt;/code>, but it doesn&amp;rsquo;t
+help if you want to monitor more than one pod at a time.&lt;/p>
+&lt;p>This is something you really need a lot, at least if you run several instances of a pod behind a &lt;code>deployment&lt;/code>.
+This is even more so if you don&amp;rsquo;t have a Kibana setup or similar.&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/howto-kubetail_dd56d4.png" width="100%">
+&lt;h2 id="solution">Solution&lt;/h2>
+&lt;p>Luckily, there are smart developers out there who always come up with solutions. The &lt;strong>finding of the week&lt;/strong> is
+a small bash script that allows you to aggregate log files of several pods at the same time in
+a simple way. The script is called &lt;code>kubetail&lt;/code> and is available at
+&lt;a href="https://github.com/johanhaleby/kubetail">GitHub&lt;/a>.&lt;/p></description></item></channel></rss>

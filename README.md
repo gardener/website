@@ -15,3 +15,4 @@ Landing page. Add/Remove/Modify/ pages or content here
 ### Generator
 https://github.com/gardener/website-generator contains the site generator *Hugo*
 and all the layout and js stuff.
+

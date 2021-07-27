@@ -2093,91 +2093,7 @@ Now, Gardener commissions an external, provider-specific controller to take over
 &lt;li>&lt;a href="https://gardener.cloud/docs/concepts/extensions/backupbucket">&lt;code>BackupBucket&lt;/code> resource documentation&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md">Shared bucket proposal&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/controllermanager/apis/config/types.go#L101-#L107">Gardener-controller-manager-component-config API specification&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Bouquet</title><link>https://gardener.cloud/components/bouquet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/components/bouquet/</guid><description>
-&lt;h1 id="bouquet">Bouquet&lt;/h1>
-&lt;p>Bouquet is a draft addon manager for the Gardener.
-It incorporates some of the requested features of the community but not
-yet all of them.&lt;/p>
-&lt;blockquote>
-&lt;p>Caution: This software is early alpha. It is not meant for production use
-and shall (currently) only serve as a possible outlook of what is possible
-with pre-deployed software on Gardener Kubernetes clusters.&lt;/p>
-&lt;/blockquote>
-&lt;h2 id="installation">Installation&lt;/h2>
-&lt;p>If you want to deploy Bouquet on a target Gardener cluster, run the following:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">helm install charts/bouquet &lt;span class="se">\
-&lt;/span>&lt;span class="se">&lt;/span> --name gardener-bouquet &lt;span class="se">\
-&lt;/span>&lt;span class="se">&lt;/span> --namespace garden
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will deploy Bouquet with the required permissions into your garden
-cluster.&lt;/p>
-&lt;h2 id="structure">Structure&lt;/h2>
-&lt;p>As of now, Bouquet comes with two new custom resources: &lt;code>AddonManifest&lt;/code> and
-&lt;code>AddonInstance&lt;/code>.&lt;/p>
-&lt;p>An &lt;code>AddonManifest&lt;/code> can be considered equivalent to a Helm template. The
-manifest itself only contains metadata (like the name, default values etc.).
-The actual content of a manifest is specified via its &lt;code>source&lt;/code> attribute.
-Currently, the only available source is a &lt;code>ConfigMap&lt;/code>.&lt;/p>
-&lt;p>An &lt;code>AddonInstance&lt;/code> references an &lt;code>AddonManifest&lt;/code> and a target &lt;code>Shoot&lt;/code>. It
-may also contain value overrides in its spec. As soon as an &lt;code>AddonInstance&lt;/code>
-is created, Bouquet will apply the values to the templates and then ensure
-that the objects exist in the target shoot.
-If an &lt;code>AddonInstance&lt;/code> is deleted, Bouquet will also make sure that the
-created objects are deleted as well.&lt;/p>
-&lt;h2 id="example-use-case">Example use case&lt;/h2>
-&lt;p>Say you want your cluster to contain istio right from the start. How can you
-do that?&lt;/p>
-&lt;p>First you need to get the &lt;code>.yaml&lt;/code> files necessary to deploy istio into your
-cluster. Download an istio release as follows:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">wget -O istio.yaml https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/addons/istio/noauth/istio.yaml
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will fetch a &lt;code>.yaml&lt;/code> file containing all necessary kubernetes objects
-of istio. To make this data available in your garden cluster, create a
-configmap in your cluster via&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl -n garden create configmap istio-files --from-file ./istio.yaml
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now you need to create an &lt;code>AddonManifest&lt;/code> that references this file and push
-it to Kubernetes. The file could look like the following:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;garden.sapcloud.io/v1alpha1&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;AddonManifest&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;istio-0.0.1&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">configMap&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;istio-files&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can submit this manifest to Kubernetes via &lt;code>kubectl&lt;/code> (given that you saved
-the file to &lt;code>addonmanifest.yaml&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl -n garden apply -f addonmanifest.yaml
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Once this is done, the only thing left to do is to create an &lt;code>AddonInstance&lt;/code>
-referencing both your target &lt;code>Shoot&lt;/code> and your &lt;code>AddonManifest&lt;/code>. This
-&lt;code>AddonInstance&lt;/code> has to be in the same namespace as your target &lt;code>Shoot&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;garden.sapcloud.io/v1alpha1&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;AddonInstance&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;example&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">finalizers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;bouquet&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">manifest&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;garden&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;istio&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;0.0.1&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">shoot&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;addon-test&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>And apply it via &lt;code>kubectl&lt;/code> (given that you saved the file to
-&lt;code>addoninstance.yaml&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl -n garden-addon-test apply -f addoninstance.yaml
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Bouquet will then start deploying your objects to the target &lt;code>Shoot&lt;/code> once
-it is ready.&lt;/p>
-&lt;h2 id="outlook--future">Outlook / Future&lt;/h2>
-&lt;p>Since this is just a tech-preview, features like value / chart updates, more
-efficient templating, company addon guidelines etc. are not yet implemented /
-yet to come / yet to be discussed. It is also not yet clear whether this
-should eventually move into the Gardener or remain as a stand-alone component.&lt;/p>
-&lt;p>Core points that have to be tackled are:&lt;/p>
-&lt;ul>
-&lt;li>Fire and forget mode (only deploy objects once, don&amp;rsquo;t monitor afterwards)&lt;/li>
-&lt;li>Reconciliation (currently, updating behavior is not correctly implemented)&lt;/li>
-&lt;li>Updates of an addon (-&amp;gt; Update strategies)&lt;/li>
-&lt;li>Dependent addons / dependency resolution / dependency lifecycle&lt;/li>
-&lt;/ul>
-&lt;p>As such, contributions and help on shaping this topic is highly appreciated.&lt;/p></description></item><item><title>Docs: Cluster resource</title><link>https://gardener.cloud/docs/concepts/extensions/cluster/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/extensions/cluster/</guid><description>
+&lt;/ul></description></item><item><title>Docs: Cluster resource</title><link>https://gardener.cloud/docs/concepts/extensions/cluster/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/extensions/cluster/</guid><description>
 &lt;h1 id="cluster-resource">&lt;code>Cluster&lt;/code> resource&lt;/h1>
 &lt;p>As part of the extensibility epic a lot of responsibility that was previously taken over by Gardener directly has now been shifted to extension controllers running in the seed clusters.
 These extensions often serve a well-defined purpose, e.g. the management of &lt;a href="https://gardener.cloud/docs/concepts/extensions/dns">DNS records&lt;/a>, &lt;a href="https://gardener.cloud/docs/concepts/extensions/infrastructure">infrastructure&lt;/a>, etc.
@@ -7112,4 +7028,91 @@ registration of the shoot-cert-service.&lt;/p>
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">custom-issuer&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">requestsPerDayQuota&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shared storage with S3 backend</title><link>https://gardener.cloud/docs/tutorials/s3/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/s3/</guid><description>
+&lt;h2 id="shared-storage-with-s3-backend">Shared storage with S3 backend&lt;/h2>
+&lt;p>The storage is definitely the most complex and important part of an application setup, once this part is
+completed, 80% of the tasks are completed.&lt;/p>
+&lt;p>Mounting an S3 bucket into a pod using FUSE allows you to access the data as if it were on the local disk. The
+mount is a pointer to an S3 location, so the data is never synced locally. Once mounted, any pod can read or even write
+from that directory without the need for explicit keys.&lt;/p>
+&lt;p>However, it can be used to import and parse large amounts of data into a database.&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>&lt;img src="https://github.com/images/s3-mount.png" alt="s3-mount">&lt;/p>
+&lt;h2 id="limitations">Limitations&lt;/h2>
+&lt;p>Generally S3 cannot offer the same performance or semantics as a local file system. More specifically:&lt;/p>
+&lt;ul>
+&lt;li>random writes or appends to files require rewriting the entire file&lt;/li>
+&lt;li>metadata operations such as listing directories have poor performance due to network latency&lt;/li>
+&lt;li>eventual consistency can temporarily yield stale data(Amazon S3 Data Consistency Model)&lt;/li>
+&lt;li>no atomic renames of files or directories&lt;/li>
+&lt;li>no coordination between multiple clients mounting the same bucket&lt;/li>
+&lt;li>no hard links&lt;/li>
+&lt;/ul>
+&lt;h2 id="before-you-begin">Before you Begin&lt;/h2>
+&lt;p>You need to have a Kubernetes cluster, and the kubectl command-line tool must be configured to communicate with
+your cluster. If you do not already have a cluster, you can create one by using the &lt;a href="https://gardener.cloud/">Gardener&lt;/a>.&lt;/p>
+&lt;p>Ensure that you have create the &amp;ldquo;imagePullSecret&amp;rdquo; in your cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl create secret docker-registry artifactory --docker-server&lt;span class="o">=&lt;/span>&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username&lt;span class="o">=&lt;/span>&amp;lt;USERNAME&amp;gt; --docker-password&lt;span class="o">=&lt;/span>&amp;lt;PASSWORD&amp;gt; --docker-email&lt;span class="o">=&lt;/span>&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setup">Setup&lt;/h2>
+&lt;p>The first step is to clone this repository. Next is the Secret for the AWS API credentials of the user that has
+full access to our S3 bucket. Copy the &lt;code>configmap_secrets_template.yaml&lt;/code> to &lt;code>configmap_secrets.yaml&lt;/code> and place
+your secrets at the right place&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ConfigMap&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">s3-config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">S3_BUCKET&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-S3-BUCKET-NAME&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-ACCESS-KEY&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_SECRET_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-SECRET&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="build-and-deploy">Build and deploy&lt;/h2>
+&lt;p>Change the settings in the &lt;code>build.sh&lt;/code> file with your docker registry settings.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="cp">#!/usr/bin/env bash
+&lt;/span>&lt;span class="cp">&lt;/span>
+&lt;span class="c1">########################################################################################################################&lt;/span>
+&lt;span class="c1"># PREREQUISTITS&lt;/span>
+&lt;span class="c1">########################################################################################################################&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># - ensure that you have a valid Artifactory or other Docker registry account&lt;/span>
+&lt;span class="c1"># - Create your image pull secret in your namespace&lt;/span>
+&lt;span class="c1"># kubectl create secret docker-registry artifactory --docker-server=&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username=&amp;lt;USERNAME&amp;gt; --docker-password=&amp;lt;PASSWORD&amp;gt; --docker-email=&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;&lt;/span>
+&lt;span class="c1"># - change the settings below arcording your settings&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># usage:&lt;/span>
+&lt;span class="c1"># Call this script with the version to build and push to the registry. After build/push the&lt;/span>
+&lt;span class="c1"># yaml/* files are deployed into your cluster&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="c1"># ./build.sh 1.0&lt;/span>
+&lt;span class="c1">#&lt;/span>
+&lt;span class="nv">VERSION&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="nv">$1&lt;/span>
+&lt;span class="nv">PROJECT&lt;/span>&lt;span class="o">=&lt;/span>kube-s3
+&lt;span class="nv">REPOSITORY&lt;/span>&lt;span class="o">=&lt;/span>cp-enablement.docker.repositories.sap.ondemand.com
+&lt;span class="c1"># causes the shell to exit if any subcommand or pipeline returns a non-zero status.&lt;/span>
+&lt;span class="nb">set&lt;/span> -e
+&lt;span class="c1"># set debug mode&lt;/span>
+&lt;span class="c1">#set -x&lt;/span>
+.
+.
+.
+.
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create the S3Fuse Pod and check the status:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="c1"># build and push the image to your docker registry&lt;/span>
+./build.sh 1.0
+&lt;span class="c1"># check that the pods are up and running&lt;/span>
+kubectl get pods
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="check-success">Check success&lt;/h2>
+&lt;p>Create a demo Pod and check the status:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl apply -f ./yaml/example_pod.yaml
+&lt;span class="c1"># wait some second to get the pod up and running...&lt;/span>
+kubectl get pods
+&lt;span class="c1"># go into the pd and check that the /var/s3 is mounted with your S3 bucket content inside&lt;/span>
+kubectl &lt;span class="nb">exec&lt;/span> -ti test-pd sh
+&lt;span class="c1"># inside the pod&lt;/span>
+ls -la /var/s3
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="why-does-this-work">Why does this work?&lt;/h2>
+&lt;p>Docker engine 1.10 added a new feature which allows containers to share the host mount namespace. This feature makes
+it possible to mount a s3fs container file system to a host file system through a shared mount, providing a persistent
+network storage with S3 backend.&lt;/p>
+&lt;p>The key part is mountPath: &lt;code>/var/s3:shared&lt;/code> which enables the volume to be mounted as shared inside the pod. When the
+container starts it will mount the S3 bucket onto &lt;code>/var/s3&lt;/code> and consequently the data will be available under
+&lt;code>/mnt/data-s3fs&lt;/code> on the host and thus to any other container/pod running on it (and has &lt;code>/mnt/data-s3fs&lt;/code> mounted too).&lt;/p></description></item></channel></rss>

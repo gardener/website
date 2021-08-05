@@ -832,7 +832,7 @@ handled by the compagnion dns-controller-manager from &lt;a href="https://github
 &lt;li>&lt;a href="#development">Development&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;h2 id="quick-start-using-certificates-in-a-gardener-shoot-cluster">Quick start using certificates in a Gardener shoot cluster&lt;/h2>
-&lt;p>This component is typically deployed by the &lt;a href="https://gardener.cloud/docs/guides/install_gardener/setup">Gardener Extension for certificate services&lt;/a>
+&lt;p>This component is typically deployed by the &lt;a href="https://gardener.cloud/docs/guides/install_gardener/certificate_management">Gardener Extension for certificate services&lt;/a>
 to simplify requesting certificates for Gardener shoot clusters.&lt;/p>
 &lt;p>For a quick start please see &lt;a href="https://gardener.cloud/docs/guides/administer_shoots/request_cert/">Request X.509 Certificates&lt;/a>&lt;/p>
 &lt;h2 id="setting-up-issuers">Setting up Issuers&lt;/h2>
@@ -4718,7 +4718,74 @@ Drop the deepest target.&lt;/li>
 &lt;li>&lt;a href="https://www.sap-tv.com/video/40962/gardener-planting-the-seeds-of-success-in-the-cloud">Introduction movie: &amp;ldquo;Gardener - Planting the Seeds of Success in the Cloud&amp;rdquo;&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://www.youtube.com/watch?v=bfw22WPg99A">&amp;ldquo;Thinking Cloud Native&amp;rdquo; talk at EclipseCon 2018&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://blogs.sap.com/2018/07/26/showcase-of-gardener-at-oscon/">Blog - &amp;ldquo;Showcase of Gardener at OSCON 2018&amp;rdquo;&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Gardener Container Runtime Extension</title><link>https://gardener.cloud/docs/concepts/extensions/containerruntime/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/extensions/containerruntime/</guid><description>
+&lt;/ul></description></item><item><title>Docs: Gardener Certificate Management</title><link>https://gardener.cloud/docs/guides/install_gardener/certificate_management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/install_gardener/certificate_management/</guid><description>
+&lt;h1 id="gardener-certificate-management">Gardener Certificate Management&lt;/h1>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>Gardener comes with an extension that enables shoot owners to request X.509 compliant certificates for shoot domains.&lt;/p>
+&lt;h2 id="extension-installation">Extension Installation&lt;/h2>
+&lt;p>The &lt;code>Shoot-Cert-Service&lt;/code> extension can be deployed and configured via Gardener&amp;rsquo;s native resource &lt;a href="https://gardener.cloud/docs/concepts/extensions/controllerregistration">ControllerRegistration&lt;/a>.&lt;/p>
+&lt;h3 id="prerequisites">Prerequisites&lt;/h3>
+&lt;p>To let the &lt;code>Shoot-Cert-Service&lt;/code> operate properly, you need to have:&lt;/p>
+&lt;ul>
+&lt;li>a &lt;a href="https://github.com/gardener/external-dns-management">DNS service&lt;/a> in your seed&lt;/li>
+&lt;li>contact details and optionally a private key for a pre-existing &lt;a href="https://letsencrypt.org/">Let&amp;rsquo;s Encrypt&lt;/a> account&lt;/li>
+&lt;/ul>
+&lt;h3 id="controllerregistration">ControllerRegistration&lt;/h3>
+&lt;p>An example of a &lt;code>ControllerRegistration&lt;/code> for the &lt;code>Shoot-Cert-Service&lt;/code> can be found here: &lt;a href="https://github.com/gardener/gardener-extension-shoot-cert-service/blob/master/example/controller-registration.yaml">https://github.com/gardener/gardener-extension-shoot-cert-service/blob/master/example/controller-registration.yaml&lt;/a>&lt;/p>
+&lt;p>The &lt;code>ControllerRegistration&lt;/code> contains a Helm chart which eventually deploy the &lt;code>Shoot-Cert-Service&lt;/code> to seed clusters. It offers some configuration options, mainly to set up a default issuer for shoot clusters. With a default issuer, pre-existing Let&amp;rsquo;s Encrypt accounts can be used and shared with shoot clusters (See &amp;ldquo;One Account or Many?&amp;rdquo; of the &lt;a href="https://letsencrypt.org/docs/integration-guide/">Integration Guide&lt;/a>).&lt;/p>
+&lt;blockquote>
+&lt;p>Please keep the Let&amp;rsquo;s Encrypt &lt;a href="https://letsencrypt.org/docs/rate-limits/">Rate Limits&lt;/a> in mind when using this shared account model. Depending on the amount of shoots and domains it is recommended to use an account with increased rate limits.&lt;/p>
+&lt;/blockquote>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControllerRegistration&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">values&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">certificateConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">defaultIssuer&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">foo@example.com&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">privateKey&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">|-&lt;/span>&lt;span class="sd">
+&lt;/span>&lt;span class="sd"> -----BEGIN RSA PRIVATE KEY-----
+&lt;/span>&lt;span class="sd"> ...
+&lt;/span>&lt;span class="sd"> -----END RSA PRIVATE KEY-----
+&lt;/span>&lt;span class="sd"> server: https://acme-v02.api.letsencrypt.org/directory&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default-issuer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># restricted: true # restrict default issuer to any sub-domain of shoot.spec.dns.domain&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># defaultRequestsPerDayQuota: 50&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># precheckNameservers: 8.8.8.8,8.8.4.4&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># caCertificates: | # optional custom CA certificates when using private ACME provider&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># -----BEGIN CERTIFICATE-----&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># ...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># -----END CERTIFICATE-----&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c">#&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># -----BEGIN CERTIFICATE-----&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># ...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># -----END CERTIFICATE-----&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">shootIssuers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># if true, allows to specify issuers in the shoot clusters&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="enablement">Enablement&lt;/h4>
+&lt;p>If the &lt;code>Shoot-Cert-Service&lt;/code> should be enabled for every shoot cluster in your Gardener managed environment, you need to globally enable it in the &lt;code>ControllerRegistration&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControllerRegistration&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">globallyEnabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Extension&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-cert-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you&amp;rsquo;re given the option to only enable the service for certain shoots:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">extensions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-cert-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Gardener Container Runtime Extension</title><link>https://gardener.cloud/docs/concepts/extensions/containerruntime/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/concepts/extensions/containerruntime/</guid><description>
 &lt;h1 id="gardener-container-runtime-extension">Gardener Container Runtime Extension&lt;/h1>
 &lt;p>At the lowest layers of a Kubernetes node is the software that, among other things, starts and stops containers. It is called “Container Runtime”.
 The most widely known container runtime is Docker, but it is not alone in this space. In fact, the container runtime space has been rapidly evolving.&lt;/p>
@@ -4752,7 +4819,7 @@ Gardener would deploy four &lt;code>ContainerRuntime&lt;/code> resources. For &l
 Gardener labels the shoot nodes according to the CRI configured: &lt;code>worker.gardener.cloud/cri-name=&amp;lt;value&amp;gt;&lt;/code> (e.g &lt;code>worker.gardener.cloud/cri-name=containerd&lt;/code>) and multiple labels for each of the container runtimes configured for the shoot Worker machine:
 &lt;code>containerruntime.worker.gardener.cloud/&amp;lt;container-runtime-type-value&amp;gt;=true&lt;/code> (e.g &lt;code>containerruntime.worker.gardener.cloud/gvisor=true&lt;/code>).
 The way to install the binaries is by creating a daemon set which copies the binaries from an image in a docker registry to the relevant labeled Worker&amp;rsquo;s nodes (avoid downloading binaries from internet to also cater with isolated environments).&lt;/p>
-&lt;p>For additional reference, please have a look at the &lt;a href="https://github.com/gardener/gardener-extension-runtime-gvisor">runtime-gvsior&lt;/a> provider extension, which provides more information on how to configure the necessary charts as well as the actuators required to reconcile container runtime inside the &lt;code>Shoot&lt;/code> cluster to the desired state.&lt;/p></description></item><item><title>Docs: Gardener DNS Management for Shoots</title><link>https://gardener.cloud/docs/guides/install_gardener/setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/install_gardener/setup/</guid><description>
+&lt;p>For additional reference, please have a look at the &lt;a href="https://github.com/gardener/gardener-extension-runtime-gvisor">runtime-gvsior&lt;/a> provider extension, which provides more information on how to configure the necessary charts as well as the actuators required to reconcile container runtime inside the &lt;code>Shoot&lt;/code> cluster to the desired state.&lt;/p></description></item><item><title>Docs: Gardener DNS Management for Shoots</title><link>https://gardener.cloud/docs/guides/install_gardener/dns_management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/install_gardener/dns_management/</guid><description>
 &lt;h1 id="gardener-dns-management-for-shoots">Gardener DNS Management for Shoots&lt;/h1>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>Gardener allows Shoot clusters to request DNS names for Ingresses and Services out of the box.
@@ -7044,91 +7111,4 @@ registration of the shoot-cert-service.&lt;/p>
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">custom-issuer&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s1">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">requestsPerDayQuota&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shared storage with S3 backend</title><link>https://gardener.cloud/docs/tutorials/s3/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/tutorials/s3/</guid><description>
-&lt;h2 id="shared-storage-with-s3-backend">Shared storage with S3 backend&lt;/h2>
-&lt;p>The storage is definitely the most complex and important part of an application setup, once this part is
-completed, 80% of the tasks are completed.&lt;/p>
-&lt;p>Mounting an S3 bucket into a pod using FUSE allows you to access the data as if it were on the local disk. The
-mount is a pointer to an S3 location, so the data is never synced locally. Once mounted, any pod can read or even write
-from that directory without the need for explicit keys.&lt;/p>
-&lt;p>However, it can be used to import and parse large amounts of data into a database.&lt;/p>
-&lt;h2 id="overview">Overview&lt;/h2>
-&lt;p>&lt;img src="https://github.com/freegroup/kube-s3/raw/master/images/s3-mount.png" alt="s3-mount">&lt;/p>
-&lt;h2 id="limitations">Limitations&lt;/h2>
-&lt;p>Generally S3 cannot offer the same performance or semantics as a local file system. More specifically:&lt;/p>
-&lt;ul>
-&lt;li>random writes or appends to files require rewriting the entire file&lt;/li>
-&lt;li>metadata operations such as listing directories have poor performance due to network latency&lt;/li>
-&lt;li>eventual consistency can temporarily yield stale data(Amazon S3 Data Consistency Model)&lt;/li>
-&lt;li>no atomic renames of files or directories&lt;/li>
-&lt;li>no coordination between multiple clients mounting the same bucket&lt;/li>
-&lt;li>no hard links&lt;/li>
-&lt;/ul>
-&lt;h2 id="before-you-begin">Before you Begin&lt;/h2>
-&lt;p>You need to have a Kubernetes cluster, and the kubectl command-line tool must be configured to communicate with
-your cluster. If you do not already have a cluster, you can create one by using the &lt;a href="https://gardener.cloud/">Gardener&lt;/a>.&lt;/p>
-&lt;p>Ensure that you have create the &amp;ldquo;imagePullSecret&amp;rdquo; in your cluster.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl create secret docker-registry artifactory --docker-server&lt;span class="o">=&lt;/span>&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username&lt;span class="o">=&lt;/span>&amp;lt;USERNAME&amp;gt; --docker-password&lt;span class="o">=&lt;/span>&amp;lt;PASSWORD&amp;gt; --docker-email&lt;span class="o">=&lt;/span>&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setup">Setup&lt;/h2>
-&lt;p>The first step is to clone this repository. Next is the Secret for the AWS API credentials of the user that has
-full access to our S3 bucket. Copy the &lt;code>configmap_secrets_template.yaml&lt;/code> to &lt;code>configmap_secrets.yaml&lt;/code> and place
-your secrets at the right place&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ConfigMap&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">s3-config&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">S3_BUCKET&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-S3-BUCKET-NAME&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-ACCESS-KEY&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">AWS_SECRET_KEY&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;YOUR-AWS-TECH-USER-SECRET&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="build-and-deploy">Build and deploy&lt;/h2>
-&lt;p>Change the settings in the &lt;code>build.sh&lt;/code> file with your docker registry settings.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="cp">#!/usr/bin/env bash
-&lt;/span>&lt;span class="cp">&lt;/span>
-&lt;span class="c1">########################################################################################################################&lt;/span>
-&lt;span class="c1"># PREREQUISTITS&lt;/span>
-&lt;span class="c1">########################################################################################################################&lt;/span>
-&lt;span class="c1">#&lt;/span>
-&lt;span class="c1"># - ensure that you have a valid Artifactory or other Docker registry account&lt;/span>
-&lt;span class="c1"># - Create your image pull secret in your namespace&lt;/span>
-&lt;span class="c1"># kubectl create secret docker-registry artifactory --docker-server=&amp;lt;YOUR-REGISTRY&amp;gt;.docker.repositories.sap.ondemand.com --docker-username=&amp;lt;USERNAME&amp;gt; --docker-password=&amp;lt;PASSWORD&amp;gt; --docker-email=&amp;lt;EMAIL&amp;gt; -n &amp;lt;NAMESPACE&amp;gt;&lt;/span>
-&lt;span class="c1"># - change the settings below arcording your settings&lt;/span>
-&lt;span class="c1">#&lt;/span>
-&lt;span class="c1"># usage:&lt;/span>
-&lt;span class="c1"># Call this script with the version to build and push to the registry. After build/push the&lt;/span>
-&lt;span class="c1"># yaml/* files are deployed into your cluster&lt;/span>
-&lt;span class="c1">#&lt;/span>
-&lt;span class="c1"># ./build.sh 1.0&lt;/span>
-&lt;span class="c1">#&lt;/span>
-&lt;span class="nv">VERSION&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="nv">$1&lt;/span>
-&lt;span class="nv">PROJECT&lt;/span>&lt;span class="o">=&lt;/span>kube-s3
-&lt;span class="nv">REPOSITORY&lt;/span>&lt;span class="o">=&lt;/span>cp-enablement.docker.repositories.sap.ondemand.com
-&lt;span class="c1"># causes the shell to exit if any subcommand or pipeline returns a non-zero status.&lt;/span>
-&lt;span class="nb">set&lt;/span> -e
-&lt;span class="c1"># set debug mode&lt;/span>
-&lt;span class="c1">#set -x&lt;/span>
-.
-.
-.
-.
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create the S3Fuse Pod and check the status:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">&lt;span class="c1"># build and push the image to your docker registry&lt;/span>
-./build.sh 1.0
-&lt;span class="c1"># check that the pods are up and running&lt;/span>
-kubectl get pods
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="check-success">Check success&lt;/h2>
-&lt;p>Create a demo Pod and check the status:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">kubectl apply -f ./yaml/example_pod.yaml
-&lt;span class="c1"># wait some second to get the pod up and running...&lt;/span>
-kubectl get pods
-&lt;span class="c1"># go into the pd and check that the /var/s3 is mounted with your S3 bucket content inside&lt;/span>
-kubectl &lt;span class="nb">exec&lt;/span> -ti test-pd sh
-&lt;span class="c1"># inside the pod&lt;/span>
-ls -la /var/s3
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="why-does-this-work">Why does this work?&lt;/h2>
-&lt;p>Docker engine 1.10 added a new feature which allows containers to share the host mount namespace. This feature makes
-it possible to mount a s3fs container file system to a host file system through a shared mount, providing a persistent
-network storage with S3 backend.&lt;/p>
-&lt;p>The key part is mountPath: &lt;code>/var/s3:shared&lt;/code> which enables the volume to be mounted as shared inside the pod. When the
-container starts it will mount the S3 bucket onto &lt;code>/var/s3&lt;/code> and consequently the data will be available under
-&lt;code>/mnt/data-s3fs&lt;/code> on the host and thus to any other container/pod running on it (and has &lt;code>/mnt/data-s3fs&lt;/code> mounted too).&lt;/p></description></item></channel></rss>
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

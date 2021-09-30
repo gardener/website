@@ -1,265 +1,572 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – How-To Guides</title><link>https://gardener.cloud/docs/guides/</link><description>Recent content in How-To Guides on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Thu, 19 Nov 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/docs/guides/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Set Up Client Tools</title><link>https://gardener.cloud/docs/guides/client_tools/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/client_tools/</guid><description/></item><item><title>Docs: Install Gardener</title><link>https://gardener.cloud/docs/guides/install_gardener/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/install_gardener/</guid><description/></item><item><title>Docs: Administer Client (Shoot) Clusters</title><link>https://gardener.cloud/docs/guides/administer_shoots/</link><pubDate>Thu, 19 Nov 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/</guid><description/></item><item><title>Docs: Monitor and Troubleshoot</title><link>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/monitoring_and_troubleshooting/</guid><description/></item><item><title>Docs: Applications</title><link>https://gardener.cloud/docs/guides/applications/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/</guid><description/></item><item><title>Docs: Landscape Setup</title><link>https://gardener.cloud/docs/guides/landscape-setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/landscape-setup/</guid><description>
-&lt;h1 id="---deprecated---">&amp;mdash;DEPRECATED&amp;mdash;&lt;/h1>
-&lt;p>&lt;strong>This project is outdated and won&amp;rsquo;t be updated anymore. Please use &lt;a href="https://github.com/gardener/garden-setup">https://github.com/gardener/garden-setup&lt;/a> instead!&lt;/strong>&lt;/p>
-&lt;h1 id="gardener-setup-scripts">Gardener Setup Scripts&lt;/h1>
-&lt;p>This README is the installation manual for a simple Gardener setup. The installation scripts in this repo are embedded in a configuration template in the &lt;a href="https://github.com/gardener/landscape-setup-template">landscape-setup-template&lt;/a> project. You can find further information there.&lt;/p>
-&lt;p>We do recommend this simplified setup for demonstration purposes only. For productive workloads we do recommend that all components (Gardener/Seed/Shoot) run in their own IaaS accounts and that network policies are enabled and properly tested on the seed clusters. A documentation on how to do this is currently work in progress.&lt;/p>
-&lt;!-- TOC -->
+&lt;h1 id="install-gardener-on-your-kubernetes-landscape">Install Gardener on your Kubernetes Landscape&lt;/h1>
+&lt;p>Gardener uses Kubernetes to manage Kubernetes clusters. This documentation describes how to install Gardener on an existing Kubernetes cluster of your IaaS provider.&lt;/p>
+&lt;blockquote>
+&lt;p>Where reference is made in this document to the &lt;em>base cluster&lt;/em>, we are actually referring to the existing cluster where you will install Gardener. This helps to distinguish them from the clusters that you will create after the installation using Gardener. Once it&amp;rsquo;s installed, it is also referred to as &lt;em>garden cluster&lt;/em>. Whenever you create clusters, Gardener will create &lt;em>seed clusters&lt;/em> and &lt;em>shoot clusters&lt;/em>. In this documentation we will only cover the installation of clusters in one region of one IaaS provider. More information: &lt;a href="https://gardener.cloud/documentation/030-architecture/">Architecture&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;ul>
-&lt;li>&lt;a href="#gardener-setup-scripts">Gardener Setup Scripts&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#prerequisites">Prerequisites&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#gardener-installation">Gardener Installation&lt;/a>
+&lt;li>The installation was tested on Linux and MacOS&lt;/li>
+&lt;li>You need to have the following tools installed:
 &lt;ul>
-&lt;li>&lt;a href="#tldr">TL;DR&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#kubectl-aliases">Kubectl Aliases&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://docs.docker.com/install/">Docker&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://git-scm.com/downloads">git&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">kubectl&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>&lt;a href="#step-1-clone-the-repositories-and-get-dependencies">Step 1: Clone the Repositories and get Dependencies&lt;/a>
+&lt;li>You need a &lt;em>base cluster&lt;/em>. Currently, the installation tools supports to install Gardener on the following Kubernetes clusters:
 &lt;ul>
-&lt;li>&lt;a href="#submodule-management">Submodule Management&lt;/a>&lt;/li>
+&lt;li>Kubernetes version &amp;gt;= 1.11 or enable the feature gate &lt;code>CustomResourceSubresources&lt;/code> for 1.10 clusters&lt;/li>
+&lt;li>&lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-cluster">Google Kubernetes Engine (GKE)&lt;/a> on Google Cloud Platform (GCP)&lt;/li>
+&lt;li>&lt;a href="https://docs.aws.amazon.com/eks/">Elastic Container Service for Kubernetes (EKS)&lt;/a> or &lt;a href="https://github.com/kubernetes/kops">Kubernetes Operations (kops)&lt;/a> on Amazon Web Services (AWS)
+&lt;ul>
+&lt;li>Standard EKS clusters impose some additional difficulties for deploying a Gardener, one example being the EKS networking plugin that uses the same CIDR for nodes and pods, which Gardener can&amp;rsquo;t handle. We are working on an improved documentation for this case. In the meantime, it is recommended to use other means for getting the initial cluster to avoid additional efforts.&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>&lt;a href="#step-2-configure-the-landscape">Step 2: Configure the Landscape&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#building-the-landscapeyaml-file">Building the &amp;lsquo;landscape.yaml&amp;rsquo; File&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#the-base-cluster">The Base Cluster&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#kubify">Kubify&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#shoot-cluster">Shoot Cluster&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#using-an-arbitrary-base-cluster">Using an Arbitrary Base Cluster&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://docs.microsoft.com/en-us/azure/aks/">Azure Kubernetes Service (AKS)&lt;/a> on Microsoft Azure&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#step-3-build-and-run-docker-container">Step 3: Build and Run Docker Container&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#step-4-10-deploying-components">Step 4-10: Deploying Components&lt;/a>
+&lt;li>Your base cluster needs at least 4 nodes with a size of 8GB for each node
 &lt;ul>
-&lt;li>&lt;a href="#undeploying-components">Undeploying Components&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#the-all-component">The &amp;lsquo;all&amp;rsquo; Component&lt;/a>&lt;/li>
+&lt;li>This is only a rough estimate for the required resources, you can also use fewer or more nodes if the node size is adjusted accordingly&lt;/li>
+&lt;li>If you don&amp;rsquo;t create additional seeds, all shoots' controlplanes will be hosted on your base cluster and these minimal requirements won&amp;rsquo;t hold&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>&lt;a href="#step-4-10-deploying-components-detailed">Step 4-10: Deploying Components (detailed)&lt;/a>
+&lt;li>You need a service account for the virtual machine instance of your IaaS provider where your Kubernetes version runs&lt;/li>
+&lt;li>You need to have permissions to access your base cluster&amp;rsquo;s private key&lt;/li>
+&lt;li>You are connected to your Kubernetes cluster (environment variable &lt;code>KUBECONFIG&lt;/code> is set)
 &lt;ul>
-&lt;li>&lt;a href="#step-4-kubify--etcd">Step 4: Kubify / etcd&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#step-5-generate-certificates">Step 5: Generate Certificates&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#step-6-deploy-tiller">Step 6: Deploy tiller&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#step-7-deploy-gardener">Step 7: Deploy Gardener&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#step-8-register-garden-cluster-as-seed-cluster">Step 8: Register Garden Cluster as Seed Cluster&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#configuring-additional-seeds">Configuring Additional Seeds&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#creating-a-shoot">Creating a Shoot&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#viewing_kubeconfig">Viewing kubeconfig (GKE)&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html">Create a kubeconfig for Amazon EKS&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://docs.microsoft.com/en-us/azure/aks/control-kubeconfig-access">Use Azure role-based access controls to define access to the Kubernetes configuration file in Azure Kubernetes Service (AKS)&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>&lt;a href="#step-9-install-identity-and-dashboard">Step 9: Install Identity and Dashboard&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#create-cname-entry">Create CNAME Entry&lt;/a>&lt;/li>
+&lt;li>You need to have the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Vertical Pod Autoscaler (VPA)&lt;/a> installed on the base cluster and each seed cluster (Gardener deploys it on &lt;a href="https://github.com/gardener/garden-setup/blob/master/docs/extended/iaas.md#shooted-seeds">shooted seeds&lt;/a> automatically).&lt;/li>
 &lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#step-10-apply-valid-certificates">Step 10: Apply Valid Certificates&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#letsencrypt-quota-limits">Letsencrypt Quota Limits&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#accessing-the-dashboard">Accessing the Dashboard&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#tearing-down-the-landscape">Tearing Down the Landscape&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#cleanup">Cleanup&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;!-- /TOC -->
-&lt;h1 id="prerequisites">Prerequisites&lt;/h1>
-&lt;p>Before getting started make sure you have the following at hand:&lt;/p>
-&lt;ul>
-&lt;li>You need a cloud account with sufficient quota to set up a Kubernetes cluster with a couple of VMs. &lt;strong>The Gardener supports AWS, Azure, GCP, and Openstack, but this simplified setup currently only supports AWS and Openstack.&lt;/strong>&lt;/li>
-&lt;li>A Linux machine (virtual machine is fine) or a Mac with basic tools such as a git client and the Docker runtime installed.&lt;/li>
-&lt;/ul>
-&lt;h1 id="gardener-installation">Gardener Installation&lt;/h1>
-&lt;p>Follow these steps to install Gardener. Do not proceed to the next step in case of errors.&lt;/p>
-&lt;h2 id="tldr">TL;DR&lt;/h2>
-&lt;p>If you are already familiar with the installation procedure and just want a short summary of the commands you have to use, here it is:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># setup&lt;/span>
-git clone --recursive https://github.com/gardener/landscape-setup-template.git landscape
-&lt;span class="c1"># fill in landscape/landscape_config.yaml now&lt;/span>
-&lt;span class="nb">cd&lt;/span> landscape/setup
-./docker_run.sh
-deploy all
-&lt;span class="c1"># -------------------------------------------------------------------&lt;/span>
-&lt;span class="c1"># teardown&lt;/span>
-undeploy all
-./cleanup.sh
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Otherwise, follow the detailed guide below.&lt;/p>
-&lt;h3 id="kubectl-aliases">Kubectl Aliases&lt;/h3>
-&lt;p>The following aliases can be used within the docker container:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">k =&amp;gt; kubectl
-ks =&amp;gt; kubectl -n kube-system
-kg =&amp;gt; kubectl -n garden
-kn =&amp;gt; kubectl -n
-ka =&amp;gt; kubectl get --all-namespaces
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Bash completion works for all of them except for &lt;code>ka&lt;/code>.&lt;/p>
-&lt;h2 id="step-1-clone-the-repositories-and-get-dependencies">Step 1: Clone the Repositories and get Dependencies&lt;/h2>
-&lt;p>Get the &lt;code>landscape-setup-template&lt;/code> from GitHub and initialize the submodules:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git clone --recursive https://github.com/gardener/landscape-setup-template.git landscape
+&lt;h2 id="procedure">Procedure&lt;/h2>
+&lt;p>To install Gardener in your base cluster, a command line tool &lt;a href="https://github.com/gardener/sow">sow&lt;/a> is used. It depends on other tools to be installed. To make it simple, we have created a Docker image that already contains &lt;code>sow&lt;/code> and all required tools. To execute &lt;code>sow&lt;/code> you call a &lt;a href="https://github.com/gardener/sow/tree/master/docker/bin">wrapper script&lt;/a> which starts &lt;code>sow&lt;/code> in a Docker container (Docker will download the image from &lt;a href="http://eu.gcr.io/gardener-project/sow">eu.gcr.io/gardener-project/sow&lt;/a> if it is not available locally yet). Docker executes the sow command with the given arguments, and mounts parts of your file system into that container so that &lt;code>sow&lt;/code> can read configuration files for the installation of Gardener components, and can persist the state of your installation. After &lt;code>sow&lt;/code>&amp;rsquo;s execution Docker removes the container again.&lt;/p>
+&lt;p>Which version of &lt;code>sow&lt;/code> is compatible with this version of garden-setup is specified in the &lt;a href="https://github.com/gardener/garden-setup/blob/master/SOW_VERSION">SOW_VERSION&lt;/a> file. Other versions might work too, but especially older versions of &lt;code>sow&lt;/code> are probably incompatible with newer versions of garden-setup.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Clone the &lt;code>sow&lt;/code> repository and add the path to our &lt;a href="https://github.com/gardener/sow/tree/master/docker/bin">wrapper script&lt;/a> to your &lt;code>PATH&lt;/code> variable so you can call &lt;code>sow&lt;/code> on the command line.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># setup for calling sow via the wrapper&lt;/span>
+git clone &lt;span class="s2">&amp;#34;https://github.com/gardener/sow&amp;#34;&lt;/span>
+&lt;span class="nb">cd&lt;/span> sow
+&lt;span class="nb">export&lt;/span> &lt;span class="nv">PATH&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="nv">$PATH&lt;/span>:&lt;span class="nv">$PWD&lt;/span>/docker/bin
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Create a directory &lt;code>landscape&lt;/code> for your Gardener landscape and clone this repository into a subdirectory called &lt;code>crop&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> ..
+mkdir landscape
 &lt;span class="nb">cd&lt;/span> landscape
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>After step 2, this repository will contain all passwords and keys for your landscape. You will be in trouble if you loose them so we recommend that you store this landscape configuration in a private repository. It might be a good idea to change the origin so you do not accidentally publish your secrets to the public template repository.&lt;/p>
-&lt;h3 id="submodule-management">Submodule Management&lt;/h3>
-&lt;p>This project needs the &lt;a href="https://github.com/gardener/gardener">Gardener&lt;/a> and &lt;a href="https://github.com/gardener/dashboard">dashboard&lt;/a> as submodules. To avoid conflicts between the checked out versions and the ones specified in the &lt;code>landscape_base.yaml&lt;/code> file, automatic version management has been added. As long as the &lt;code>managed&lt;/code> field in the chart area of each submodule is set to &lt;code>true&lt;/code>, the version specified in the &lt;code>tag&lt;/code> field will be checked out before deploying.&lt;/p>
-&lt;p>To check vor the correct version, the &lt;code>VERSION&lt;/code> file in the submodule&amp;rsquo;s main folder is read and compared to the tag in the config file. If the &lt;code>VERSION&lt;/code> file doesn&amp;rsquo;t exist, the component is added as a submodule. If it exists, but the versions differ, the fitting version will be checked out. If it exists and the versions are identical, nothing is done. The automatic version management will fail if a) the component is already added as a submodule, but the &lt;code>VERSION&lt;/code> file is missing or b) the landscape folder is not a git repo.&lt;/p>
-&lt;p>It is also possible to trigger the version update manually: call the &lt;code>manage_submodule&lt;/code> function with &lt;code>gardener&lt;/code> or &lt;code>dashboard&lt;/code> as an argument, or run the &lt;code>manage_submodules.sh&lt;/code> script which will update Gardener and dashboard. Both will only work from inside the docker container / with sourced &lt;code>init.sh&lt;/code> file.&lt;/p>
-&lt;h2 id="step-2-configure-the-landscape">Step 2: Configure the Landscape&lt;/h2>
-&lt;p>There is a &lt;code>landscape_config.yaml&lt;/code> file in the landscape project. This is the only file that you need to modify - all other configuration files will be derived from this and the &lt;code>landscape_base.yaml&lt;/code> file. The latter one contains the merging instructions as well as technical configurations and it shouldn&amp;rsquo;t be touched unless you know what you are doing.&lt;/p>
-&lt;h4 id="building-the-landscapeyaml-file">Building the &amp;lsquo;landscape.yaml&amp;rsquo; File&lt;/h4>
-&lt;p>Both config files - &lt;code>landscape_config.yaml&lt;/code> and &lt;code>landscape_base.yaml&lt;/code> - are merged into one &lt;code>landscape.yaml&lt;/code> file which is then used as configuration for the scripts. Sourcing the &lt;code>init.sh&lt;/code> file (which happens automatically when entering the docker image) will perform this merge &lt;strong>unless the file already exists.&lt;/strong> This means if you change something in one of the original config files after the &lt;code>landscape.yaml&lt;/code> file has already been created, you need to manually rebuild it in order for the changes to take effect.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./build_landscape_yaml.sh
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This script will recreate the &lt;code>landscape.yaml&lt;/code> file. It will also source the &lt;code>init.sh&lt;/code> file again, as some of the environment variables are extracted from this file.&lt;/p>
-&lt;h4 id="the-base-cluster">The Base Cluster&lt;/h4>
-&lt;p>Gardener extends the Kubernetes apiserver, so in order to deploy it, you need a Kubernetes cluster first. This setup gives you two options for this:&lt;/p>
-&lt;h5 id="kubify">Kubify&lt;/h5>
-&lt;p>You can use &lt;a href="https://github.com/gardener/kubify">Kubify&lt;/a> to create the initial cluster. Kubify uses Terraform to create the cluster and it is integrated into this project - you don&amp;rsquo;t need to create the cluster yourself, just make sure you fill out all relevant parts of the config file.&lt;/p>
-&lt;h5 id="shoot-cluster">Shoot Cluster&lt;/h5>
-&lt;p>A shoot cluster is a cluster created by a Gardener instance and it can be used as a base cluster for this project. These flags have to be set for the kube-apiserver (if not set, the Gardener will still work, but the dashboard won&amp;rsquo;t):&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">--&lt;span class="l">oidc-issuer-url=https://identity.ingress.&amp;lt;your cluster domain&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>--&lt;span class="l">oidc-client-id=kube-kubectl&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>--&lt;span class="l">oidc-username-claim=email&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>--&lt;span class="l">oidc-groups-claim=groups&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For a shoot this can be done by setting &lt;code>issuerUrl&lt;/code>, &lt;code>clientID&lt;/code>, &lt;code>usernameClaim&lt;/code>, and &lt;code>groupsClaim&lt;/code> in &lt;code>spec.kubernetes.kubeAPIServer.oidcConfig&lt;/code> in the shoot manifest.&lt;/p>
-&lt;p>Also make sure that the CIDRs of your base cluster and the from your Gardener spawned shoots don&amp;rsquo;t overlap - if you want to be able to create shoots from the Gardener dashboard later, then don&amp;rsquo;t use the default CIDRs for this base cluster.&lt;/p>
-&lt;p>Some fields in the &lt;code>landscape_config.yaml&lt;/code> are marked with &lt;code># kubify only&lt;/code>, they can be ignored when using a shoot as the base cluster. The etcd server address defaults to the address for Kubify and needs to be changed for the shoot setup (see the comments in the config file).&lt;/p>
-&lt;p>The &lt;em>kubeconfig&lt;/em> for the base cluster is expected to be named &lt;code>kubeconfig&lt;/code> and reside in the directory containing this project&amp;rsquo;s directory (next to the &lt;code>landscape_config.yaml&lt;/code> file).&lt;/p>
-&lt;h5 id="using-an-arbitrary-base-cluster">Using an Arbitrary Base Cluster&lt;/h5>
-&lt;p>While this setup has only been tested for clusters created by Kubify or the Gardener (shoot clusters), it is theoretically possible to use the shoot setup method to deploy the Gardener to an arbitrary kubernetes cluster.&lt;/p>
-&lt;h2 id="step-3-build-and-run-docker-container">Step 3: Build and Run Docker Container&lt;/h2>
-&lt;p>First, &lt;code>cd&lt;/code> into the folder containing this project.&lt;/p>
-&lt;p>Then run the container:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./docker_run.sh
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>After this,&lt;/p>
+git clone &lt;span class="s2">&amp;#34;https://github.com/gardener/garden-setup&amp;#34;&lt;/span> crop
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>If you don&amp;rsquo;t have your &lt;code>kubekonfig&lt;/code> stored locally somewhere yet, download it. For example, for GKE you would use the following command:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">gcloud container clusters get-credentials &amp;lt;your_cluster&amp;gt; --zone &amp;lt;your_zone&amp;gt; --project &amp;lt;your_project&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Save your &lt;code>kubeconfig&lt;/code> somewhere in your &lt;code>landscape&lt;/code> directory. For the remaining steps we will assume that you saved it using file path &lt;code>landscape/kubeconfig&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In your &lt;code>landscape&lt;/code> directory, create a configuration file called &lt;code>acre.yaml&lt;/code>. The structure of the configuration file is described &lt;a href="#configuration-file-acreyaml">below&lt;/a>. Note that the relative file path &lt;code>./kubeconfig&lt;/code> file must be specified in field &lt;code>landscape.cluster.kubeconfig&lt;/code> in the configuration file.&lt;/p>
+&lt;blockquote>
+&lt;p>Do not use file &lt;code>acre.yaml&lt;/code> in directory &lt;code>crop&lt;/code>. This file is used internally by the installation tool.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>The Gardener itself, but also garden-setup can only handle kubeconfigs with standard authentication methods (basic auth, token, &amp;hellip;). Authentication methods that require a third party tool, e.g. the &lt;code>aws&lt;/code> or &lt;code>gcloud&lt;/code> CLI, are not supported.&lt;/p>
 &lt;ul>
-&lt;li>you will be connected to the container via an interactive shell&lt;/li>
-&lt;li>the landscape folder will be mounted in that container&lt;/li>
-&lt;li>your current working directory will be &lt;code>setup&lt;/code> folder&lt;/li>
-&lt;li>&lt;code>setup/init.sh&lt;/code> is sourced, meaning
+&lt;li>
+&lt;p>If you created the base cluster using GKE, you can convert your &lt;code>kubeconfig&lt;/code> file to one that uses basic authentication by using the &lt;code>sow convertkubeconfig&lt;/code> command:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sow convertkubeconfig
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>When asked for credentials, enter the ones that the GKE dashboard shows when clicking on &lt;code>show credentials&lt;/code>.&lt;/p>
+&lt;p>&lt;code>sow&lt;/code> will replace the file specified in &lt;code>landscape.cluster.kubeconfig&lt;/code> of your &lt;code>acre.yaml&lt;/code> file by a kubeconfig file that uses basic authentication.&lt;/p>
+&lt;p>The basic autentication is disabled by default starting with Kubernetes &lt;code>1.12&lt;/code>, &lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#restrict_authn_methods">see more details here&lt;/a>.&lt;/p>
+&lt;p>In case it is disabled on your cluster, the following command can be used to enable it:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">gcloud container clusters update &amp;lt;your-cluster&amp;gt; --enable-basic-auth
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>If you are not using GKE and don&amp;rsquo;t know how to get a kubeconfig with standard authentication, you can also create a serviceaccount, grant it cluster-admin privileges by adding it to the corresponding &lt;code>ClusterRoleBinding&lt;/code>, and construct a kubeconfig using that serviceaccount&amp;rsquo;s token.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Open a second terminal window which current directory is your &lt;code>landscape&lt;/code> directory. Set the &lt;code>KUBECONFIG&lt;/code> environment variable as specified in &lt;code>landscape.cluster.kubeconfig&lt;/code>, and watch the progress of the Gardener installation:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">export&lt;/span> &lt;span class="nv">KUBECONFIG&lt;/span>&lt;span class="o">=&lt;/span>./kubeconfig
+watch -d kubectl -n garden get pods,ingress,sts,svc
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>In your first terminal window, use the following command to check in which order the components will be installed. Nothing will be deployed yet and you can test this way if your syntax in &lt;code>acre.yaml&lt;/code> is correct:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sow order -A
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>If there are no error messages, use the following command to deploy Gardener on your base cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sow deploy -A
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;code>sow&lt;/code> now starts to install Gardener in your base cluster. The installation can take about 30 minutes. &lt;code>sow&lt;/code> prints out status messages to the terminal window so that you can check the status of the installation. The other terminal window will show the newly created Kubernetes resources after a while and if their deployment was successful. Wait until the last component is deployed and all created Kubernetes resources are in status &lt;code>Running&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Use the following command to find out the URL of the Gardener dashboard.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sow url
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>More information: &lt;a href="#most-important-commands-and-directories">Most Important Commands and Directories&lt;/a>&lt;/p>
+&lt;h2 id="concept-the-virtual-cluster">Concept: The &amp;lsquo;Virtual&amp;rsquo; Cluster&lt;/h2>
+&lt;p>As a part of garden-setup, a &lt;code>kube-apiserver&lt;/code> and &lt;code>kube-controller-manager&lt;/code> will be deployed into your base cluster, creating the so-called &amp;lsquo;virtual&amp;rsquo; cluster. The name comes from the fact that it behaves like a kubernetes cluster, but there aren&amp;rsquo;t any nodes behind this kube-apiserver and thus no workload will actually run on this cluster. This kube-apiserver is then extended by the Gardener apiserver.&lt;/p>
+&lt;h3 id="reasoning">Reasoning&lt;/h3>
+&lt;p>At first glance, this feels unintuitive. Why do we create another kube-apiserver which needs its own kubeconfig? However, there are two major reasons for this approach:&lt;/p>
+&lt;h4 id="full-control">Full Control&lt;/h4>
+&lt;p>The kube-apiserver needs to be configured in a certain way so that it can be used for a Gardener landscape. For example, the Gardener dashboard needs some OIDC configuration to be set on the kube-apiserver, otherwise authentication at the dashboard won&amp;rsquo;t work. However, since garden-setup relies on a base cluster created by other means, many people will probably use a managed kubernetes service (like GKE) to create the initial cluster - but most of the managed services do not grant access to the kube-apiserver to the end-users.
+By deploying an own kube-apiserver, garden-setup ensures full control over its configuration, which improves stability and reduces complexity of the landscape setup.&lt;/p>
+&lt;h4 id="disaster-recovery">Disaster Recovery&lt;/h4>
+&lt;p>Garden-setup also deploys an own etcd for the kube-apiserver. Because the kube-apiserver - and thus its etcd - is only being used for Gardener resources, restoring the state of a Gardener landscape from an etcd backup is significantly easier than it would be if the Gardener resources were mixed with other resources in the etcd.&lt;/p>
+&lt;h3 id="disadvantage-two-kubeconfigs">Disadvantage: Two kubeconfigs&lt;/h3>
+&lt;p>The major disadvantage of this approach is that two kubeconfigs are needed to operate the Gardener: one for the base cluster, where all the pods are running, and one for the &amp;lsquo;virtual&amp;rsquo; cluster where the Gardener resources - &lt;code>shoot&lt;/code>, &lt;code>seed&lt;/code>, &lt;code>cloudprofile&lt;/code>, &amp;hellip; - are maintained. The kubeconfig for the &amp;lsquo;virtual&amp;rsquo; cluster can be found in the landscape folder at &lt;code>export/kube-apiserver/kubeconfig&lt;/code> or it can be pulled from the secret &lt;code>garden-kubeconfig-for-admin&lt;/code> in the &lt;code>garden&lt;/code> namespace of the base cluster after the &lt;code>kube-apiserver&lt;/code> component of garden-setup has been deployed.&lt;/p>
+&lt;h3 id="tldr">TL;DR&lt;/h3>
+&lt;p>Use the kubeconfig at &lt;code>export/kube-apiserver/kubeconfig&lt;/code> to access the cluster where the Gardener resources - &lt;code>shoot&lt;/code>, &lt;code>seed&lt;/code>, &lt;code>cloudprofile&lt;/code>, and so on - are maintained.&lt;/p>
+&lt;h2 id="configuration-file-acreyaml">Configuration File acre.yaml&lt;/h2>
+&lt;p>This file will be evaluated using &lt;code>spiff&lt;/code>, a dynamic templating language for yaml files. For example, this simplifies the specification of field values that are used multiple times in the yaml file. For more information, see the &lt;a href="https://github.com/mandelsoft/spiff/blob/master/README.md">spiff repository&lt;/a>.&lt;/p>
+&lt;blockquote>
+&lt;p>Please note that, for the sake of clarity, not all configuration options are listed in this readme. Instead, the more advanced configuration options have been moved into a set of additional documentation files. You can access these pages via their &lt;a href="https://github.com/gardener/garden-setup/blob/master/docs/extended/README.md">index&lt;/a> and they are usually linked in their corresponding sections below.&lt;/p>
+&lt;/blockquote>
+&lt;pre>
+landscape:
+&lt;a href="#landscapename">name&lt;/a>: &amp;lt;Identifier&amp;gt; # general Gardener landscape identifier, for example, `my-gardener`
+&lt;a href="#landscapedomain">domain&lt;/a>: &amp;lt;prefix&amp;gt;.&amp;lt;cluster domain&amp;gt; # unique basis domain for DNS entries
+&lt;a href="#landscapecluster">cluster&lt;/a>: # information about your base cluster
+kubeconfig: &amp;lt;relative path + filename&amp;gt; # path to your `kubeconfig` file, rel. to directory `landscape` (defaults to `./kubeconfig`)
+&lt;a href="#landscapenetworks">networks&lt;/a>: # &lt;a target="_blank" rel="noopener noreferrer" href="https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing">CIDR IP ranges&lt;/a> of base cluster
+nodes: &amp;lt;CIDR IP range&amp;gt;
+pods: &amp;lt;CIDR IP range&amp;gt;
+services: &amp;lt;CIDR IP range&amp;gt;
+&lt;a href="#landscapeiaas">iaas&lt;/a>:
+- name: (( iaas[0].type )) # name of the seed
+type: &amp;lt;gcp|aws|azure|openstack|vsphere&amp;gt; # iaas provider
+region: &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt; # region for initial seed
+zones: # remove zones block for Azure
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example: europe-west1-b
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example: europe-west1-c
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example: europe-west1-d
+credentials: # provide access to IaaS layer used for creating resources for shoot clusters
+- name: # see above
+type: &amp;lt;gcp|aws|azure|openstack&amp;gt; # see above
+region: &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt; # region for seed
+zones: # remove zones block for Azure
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # Example: europe-west1-b
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # Example: europe-west1-c
+- &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # Example: europe-west1-d
+cluster: # information about your seed's base cluster
+networks: # CIDR IP ranges of seed cluster
+nodes: &amp;lt;CIDR IP range&amp;gt;
+pods: &amp;lt;CIDR IP range&amp;gt;
+services: &amp;lt;CIDR IP range&amp;gt;
+kubeconfig: # kubeconfig for seed cluster
+apiVersion: v1
+kind: Config
+...
+credentials:
+&lt;a href="#landscapeetcd">etcd&lt;/a>: # optional for gcp/aws/azure/openstack, default values based on `landscape.iaas`
+backup:
+type: &amp;lt;gcs|s3|abs|swift&amp;gt; # type of blob storage
+resourceGroup: # Azure resource group you would like to use for your backup
+region: (( iaas.region )) # region of blob storage (default: same as above)
+credentials: (( iaas.credentials )) # credentials for the blob storage's IaaS provider (default: same as above)
+&lt;a href="#landscapedns">dns&lt;/a>: # optional for gcp/aws/azure/openstack, default values based on `landscape.iaas`
+type: &amp;lt;google-clouddns|aws-route53|azure-dns|openstack-designate|cloudflare-dns|infoblox-dns&amp;gt; # dns provider
+credentials: (( iaas.credentials )) # credentials for the dns provider
+&lt;a href="#landscapeidentity">identity&lt;/a>:
+users:
+- email: # email (used for Gardener dashboard login)
+username: # username (displayed in Gardener dashboard)
+password: # clear-text password (used for Gardener dashboard login)
+- email: # see above
+username: # see above
+hash: # bcrypted hash of password, see above
+&lt;a href="#landscapecert-manager">cert-manager&lt;/a>:
+email: # email for acme registration
+server: &amp;lt;live|staging|self-signed|url&amp;gt; # which kind of certificates to use for the dashboard/identity ingress (defaults to `self-signed`)
+privateKey: # optional existing user account's private key
+&lt;/pre>
+&lt;h3 id="landscapename">landscape.name&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">landscape&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;Identifier&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Arbitrary name for your landscape. The name will be part of the names for resources, for example, the etcd buckets.&lt;/p>
+&lt;h3 id="landscapedomain">landscape.domain&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">domain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;prefix&amp;gt;.&amp;lt;cluster domain&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Basis domain for DNS entries. As a best practice, use an individual prefix together with the cluster domain of your base cluster.&lt;/p>
+&lt;h3 id="landscapecluster">landscape.cluster&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;relative path + filename&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Information about your base cluster, where the Gardener will be deployed on.&lt;/p>
+&lt;p>&lt;code>landscape.cluster.kubeconfig&lt;/code> contains the path to your kubeconfig, relative to your landscape directory. It is recommended to create a kubeconfig file in your landscape directory to be able to sync all files relevant for your installation with a git repository. This value is optional and will default to &lt;code>./kubeconfig&lt;/code> if not specified.&lt;/p>
+&lt;p>&lt;code>landscape.cluster.networks&lt;/code> contains the CIDR ranges of your base cluster.
+Finding out CIDR ranges of your cluster is not trivial. For example, GKE only tells you a &amp;ldquo;pod address range&amp;rdquo; which is actually a combination of pod and service CIDR. However, since the &lt;code>kubernetes&lt;/code> service typically has the first IP of the service IP range and most methods to get a kubernetes cluster tell you at least something about the CIDRs, it is usually possible to find out the CIDRs with a little bit of educated guessing.&lt;/p>
+&lt;h3 id="landscapeiaas">landscape.iaas&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">iaas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">(( type )) &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># name of the seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;gcp|aws|azure|openstack|vsphere&amp;gt; &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># iaas provider&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt; &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># region for initial seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># remove zones block for Azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-c&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-d&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># provide access to IaaS layer used for creating resources for shoot clusters&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># see above&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;gcp|aws|azure|openstack|vsphere&amp;gt; &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># see above&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt; &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># region for seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># remove zones block for Azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-c&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">&amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt;-&amp;lt;zone&amp;gt; # example&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">europe-west1-d&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># information about your seed&amp;#39;s base cluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># CIDR IP ranges of seed cluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CIDR IP range&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># kubeconfig for seed cluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Contains the information where Gardener will create intial seed clusters and cloudprofiles to create shoot clusters.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Field&lt;/th>
+&lt;th style="text-align:left">Type&lt;/th>
+&lt;th style="text-align:left">Description&lt;/th>
+&lt;th style="text-align:left">Examples&lt;/th>
+&lt;th style="text-align:left">Iaas Provider Documentation&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>name&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Custom value&lt;/td>
+&lt;td style="text-align:left">Name of the seed/cloudprofile. Must be unique.&lt;/td>
+&lt;td style="text-align:left">&lt;code>gcp&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>type&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Fixed value&lt;/td>
+&lt;td style="text-align:left">IaaS provider for the seed.&lt;/td>
+&lt;td style="text-align:left">&lt;code>gcp&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>region&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Region for the seed cluster. The convention to use &amp;lt;major region&amp;gt;-&amp;lt;minor region&amp;gt; does not apply to all providers.&lt;br/>&lt;br/>In Azure, use &lt;a href="https://docs.microsoft.com/en-us/cli/azure/account?view=azure-cli-latest#az-account-list-locations">az account list-locations&lt;/a> to find out the location name (&lt;code>name&lt;/code> attribute = lower case name without spaces).&lt;/td>
+&lt;td style="text-align:left">&lt;code>europe-west1&lt;/code> (GCP)&lt;br/>&lt;br/>&lt;code>eu-west-1&lt;/code> (AWS) &lt;br/>&lt;br/> &lt;code>westeurope&lt;/code> (Azure)&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/managing-clusters#viewing_your_clusters">GCP (HowTo)&lt;/a>, &lt;a href="https://cloud.google.com/docs/geography-and-regions">GCP (overview)&lt;/a>; &lt;a href="https://docs.aws.amazon.com/cli/latest/reference/eks/describe-cluster.html">AWS (HowTo)&lt;/a>, &lt;a href="https://docs.aws.amazon.com/general/latest/gr/rande.html">AWS (Overview)&lt;/a>; &lt;a href="https://azure.microsoft.com/en-us/global-infrastructure/geographies/">Azure (Overview)&lt;/a>, &lt;a href="https://docs.microsoft.com/en-us/cli/azure/account?view=azure-cli-latest#az-account-list-locations">Azure (HowTo)&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>zones&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Zones for the seed cluster. Not needed for Azure.&lt;/td>
+&lt;td style="text-align:left">&lt;code>europe-west1-b&lt;/code> (GCP)&lt;br/>&lt;/br>&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/managing-clusters#viewing_your_clusters">GCP (HowTo)&lt;/a>, &lt;a href="https://cloud.google.com/docs/geography-and-regions">GCP (overview)&lt;/a>; &lt;a href="https://docs.aws.amazon.com/cli/latest/reference/eks/describe-cluster.html">AWS (HowTo)&lt;/a>, &lt;a href="https://docs.aws.amazon.com/general/latest/gr/rande.html">AWS (Overview)&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>credentials&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Credentials in a provider-specific format.&lt;/td>
+&lt;td style="text-align:left">See table with yaml keys below.&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys#creating_service_account_keys">GCP&lt;/a>, &lt;a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html#id_users_service_accounts">AWS&lt;/a>, &lt;a href="https://docs.microsoft.com/en-us/azure/aks/kubernetes-walkthrough-portal">Azure&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>cluster.kubeconfig&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Kubeconfig&lt;/td>
+&lt;td style="text-align:left">The kubeconfig for your seed base cluster. Must have basic auth authentification.&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>cluster.networks&lt;/code>&lt;/td>
+&lt;td style="text-align:left">CIDRs&lt;/td>
+&lt;td style="text-align:left">The CIDRs of your seed cluster. See &lt;a href="#landscapecluster">landscape.cluster&lt;/a> for more information.&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;td style="text-align:left">&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Here a list of configurations can be given. The setup will create one cloudprofile and seed per entry. Currently, you will have to provide the cluster you want to use as a seed - in future, the setup will be able to create a shoot and configure that shoot as a seed. The &lt;code>type&lt;/code> should match the type of the underlying cluster.&lt;/p>
+&lt;p>The first entry of the &lt;code>landscape.iaas&lt;/code> list is special:&lt;/p>
 &lt;ul>
-&lt;li>the environment variables will be set&lt;/li>
-&lt;li>kubectl will be configured to communicate with your cluster&lt;/li>
-&lt;li>&lt;code>landscape.yaml&lt;/code> file will have been created if it didn&amp;rsquo;t exist before&lt;/li>
+&lt;li>It has to exist - the list needs at least one entry.&lt;/li>
+&lt;li>Don&amp;rsquo;t specify the &lt;code>cluster&lt;/code> node for it - it will configure your base cluster as seed.
+&lt;ul>
+&lt;li>Its &lt;code>type&lt;/code> should match the one of your base cluster.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
-&lt;p>The &lt;code>docker_run.sh&lt;/code> script searches for the image locally and pulls it from an image repository, if it isn&amp;rsquo;t found.
-If pulling the image doesn&amp;rsquo;t work for whatever reason, you can use the &lt;code>docker_build.sh&lt;/code> script to build the image locally.&lt;/p>
-&lt;h2 id="step-4-10-deploying-components">Step 4-10: Deploying Components&lt;/h2>
-&lt;p>The Gardener deployment is splitted into components. A single component can be easily deployed using&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy &amp;lt;component name&amp;gt;
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please take care that most of the components depend on each other and therefore have to be deployed in the order given below.&lt;/p>
-&lt;p>The &lt;code>deploy&lt;/code> command is added to the &lt;code>PATH&lt;/code> environment variable and can thus be called from anywhere. Bash auto-completion can be used for the component names.&lt;/p>
-&lt;h4 id="undeploying-components">Undeploying Components&lt;/h4>
-&lt;p>It is also possible to &amp;ldquo;undeploy&amp;rdquo; a component using&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">undeploy &amp;lt;component name&amp;gt;
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Components need to be undeployed in the inverse order. Do not undeploy components without undeploying their successors in the component order first. Take care to delete all shoots before undeploying the &lt;code>gardener&lt;/code> or &lt;code>seed-config&lt;/code> components (although both undeploy scripts will check for that and trigger a deletion themselves).&lt;/p>
-&lt;h4 id="the-all-component">The &amp;lsquo;all&amp;rsquo; Component&lt;/h4>
-&lt;p>The &lt;code>all&lt;/code> component is a special component: it serves as a dummy to deploy several components in one go. Usually, manual intervention between deploying components is not necessary and most of them are deployed directly one after the other, so the &lt;code>all&lt;/code> component makes the &amp;ldquo;normal&amp;rdquo; use-case easier.&lt;/p>
-&lt;p>For better control which components are deployed, a component range can be given as an argument. The argument should have the form &lt;code>&amp;lt;start component name&amp;gt;:&amp;lt;end component name&amp;gt;&lt;/code> and then the start component, the end component, and all components in between will be deployed. The order of the arguments is taken from the environment variables with the &lt;code>$COMPONENT_ORDER_&lt;/code> prefix. The variable with the suffix that matches the &lt;code>clusters.base_cluster&lt;/code> entry in the config file will be used.&lt;/p>
-&lt;p>It is also possible to drop one part of the range or to drop the whole argument. For missing parts the defaults will be used, which are the first and the last component of the active component order, respectively.&lt;/p>
-&lt;p>The &lt;code>undeploy&lt;/code> command can also be used with the &lt;code>all&lt;/code> component, but take care that the component order is inverted.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># Examples&lt;/span>
-&lt;span class="c1"># (start and end component are always inclusive)&lt;/span>
-deploy all &lt;span class="c1"># deploys all components&lt;/span>
-deploy all gardener:dashboard &lt;span class="c1"># deploys &amp;#39;gardener&amp;#39; through &amp;#39;dashboard&amp;#39; &lt;/span>
-deploy all gardener: &lt;span class="c1"># deploys all components starting from &amp;#39;gardener&amp;#39;&lt;/span>
-deploy all :gardener &lt;span class="c1"># deploys all components up to &amp;#39;gardener&amp;#39;&lt;/span>
-&lt;span class="c1"># (all undeploy commands use the inverse component order)&lt;/span>
-undeploy all &lt;span class="c1"># undeploys all components&lt;/span>
-undeploy all :helm-tiller &lt;span class="c1"># undeploys all components up to &amp;#39;helm-tiller&amp;#39;&lt;/span>
-undeploy all dashboard:cert &lt;span class="c1"># undeploys &amp;#39;dashboard&amp;#39; through &amp;#39;cert&amp;#39;&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="step-4-10-deploying-components-detailed">Step 4-10: Deploying Components (detailed)&lt;/h2>
-&lt;h3 id="step-4-kubify--etcd">Step 4: Kubify / etcd&lt;/h3>
-&lt;p>If you want to create a Kubify cluster, deploy the component:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy kubify
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The script will wait some time for the cluster to come up and then partly validate that the cluster is ready.&lt;/p>
-&lt;p>If you get errors during the cluster setup, just try to run the command again.&lt;/p>
-&lt;p>Once completed the following command should show all deployed pods:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">root@c41327633d6d:/landscape# kubectl get pods --all-namespaces
-NAMESPACE NAME READY STATUS RESTARTS AGE
-kube-system etcd-operator-75dcfcf4f7-xkm4h 1/1 Running 0 6m
-kube-system heapster-c8fb4f746-tvts6 2/2 Running 0 2m
-kube-system kube-apiserver-hcdnc 1/1 Running 0 6m
-[...]
-&lt;/code>&lt;/pre>&lt;/div>&lt;hr>
-&lt;p>If you already have a cluster, you don&amp;rsquo;t need Kubify. To deploy an etcd in your cluster, run&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy etcd
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This component is not meant to be used in combination with Kubify and might require manual steps to make it work.&lt;/p>
-&lt;p>It should also be possible to plug in your own etcd - check the deploy scripts for the &lt;code>etcd&lt;/code> and &lt;code>gardener&lt;/code> components for information on where to put the certificates, etc.&lt;/p>
-&lt;h3 id="step-5-generate-certificates">Step 5: Generate Certificates&lt;/h3>
-&lt;p>This step will generate a self-signed cluster CA and sign some certificates with it.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy cert
-&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="step-6-deploy-tiller">Step 6: Deploy tiller&lt;/h3>
-&lt;p>Tiller is needed to deploy the Helm charts of Gardener and other components.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy helm-tiller
-&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="step-7-deploy-gardener">Step 7: Deploy Gardener&lt;/h3>
-&lt;p>Now we can deploy Gardener. If the previous steps were executed successfully this should be completed in a couple of seconds.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy gardener
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>You might see a couple of messages like these:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">Gardener API server not yet reachable. Waiting...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>while the script waits for the Gardener to start. Once Gardener is up when the deployment script finished you can verify the correct setup by running the following command:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl get shoots
-No resources found.
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>As we do not have a seed cluster yet we cannot create any shoot clusters.
-The Gardener itself is installed in the &lt;code>garden&lt;/code> namespace:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl get po -n garden
-NAME READY STATUS RESTARTS AGE
-gardener-apiserver-56cc665667-nvrjl 1/1 Running 0 6m
-gardener-controller-manager-5c9f8db55-hfcts 1/1 Running 0 6m
-&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="step-8-register-garden-cluster-as-seed-cluster">Step 8: Register Garden Cluster as Seed Cluster&lt;/h3>
-&lt;p>In heterogeneous productive environments one would run Gardener and seed in separate clusters but for simplicity and resource consumption reasons we will register the Gardener cluster that we have just created also as the seed cluster. Make sure that the &lt;code>seed_config&lt;/code> in the landscape file is correct and matches the region that you are using. Keep in mind that image ids differ between regions as well. Also, valid credentials for the seed provider have to be specified in the &lt;code>authentication&lt;/code> part of the &lt;code>landscape_config.yaml&lt;/code> file (the etcd backups of the shoot clusters are stored on the seed).&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy seed-config
-&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="configuring-additional-seeds">Configuring Additional Seeds&lt;/h4>
-&lt;p>By default, this step will create a seed for the cloud provider the Gardener has been deployed on and thus creating shoots on this provider will be possible. If you want to create shoots on other cloud providers, you will have to configure additional seeds. There are two options for that:&lt;/p>
-&lt;p>If the seed-config deploy script is called without any arguments (as shown above), it will create seeds for all providers specified in the &lt;code>seed_config.seeds&lt;/code> section in the &lt;code>landscape_config.yaml&lt;/code> file. By default, the only entry in that list is the cloud provider chosen for the Gardener cluster, but you can extend the list.&lt;/p>
-&lt;p>It is also possible to provide the seed-config deploy script with additional arguments specifying which seeds should be created. Multiple arguments can be given and the script will ignore the list in the &lt;code>landscape_config.yaml&lt;/code> file when called with arguments. Only the specified seeds will be created, already existing seeds are not affected. If a given seed already exists, it will be updated to the current configuration.&lt;/p>
-&lt;p>In both cases, the corresponding variant nodes in &lt;code>authentication&lt;/code> and &lt;code>seed_config&lt;/code> have to be filled out in the config file.&lt;/p>
-&lt;p>Valid values for seeds are &lt;code>aws&lt;/code>, &lt;code>az&lt;/code> (for Azure), &lt;code>gcp&lt;/code>, and &lt;code>openstack&lt;/code>. Please note, that while it is possible to create seeds for any cloud provider on any cloud provider, shoot creation may not work across cloud providers for every combination. It should always work if seed (Gardener cluster in this setup) and shoot are on the same provider, though.&lt;/p>
-&lt;h4 id="creating-a-shoot">Creating a Shoot&lt;/h4>
-&lt;p>That&amp;rsquo;s it! If everything went fine you should now be able to create shoot clusters.
-You can start with a sample &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot-aws.yaml">manifest&lt;/a> and create a shoot cluster by standard Kubernetes means:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f shoot-aws.yaml
-&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="step-9-install-identity-and-dashboard">Step 9: Install Identity and Dashboard&lt;/h3>
-&lt;p>Creating clusters based on a shoot manifest is quite nice but also a little complex. While almost all aspects of a shoot cluster can be configured, it can be quite difficult for beginners, so go on and install the dashboard:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy identity
-&lt;span class="o">[&lt;/span>...&lt;span class="o">]&lt;/span>
-deploy dashboard
-&lt;span class="o">[&lt;/span>...&lt;span class="o">]&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="create-cname-entry">Create CNAME Entry&lt;/h4>
-&lt;p>Dashboard and identity need a CNAME entry pointing the domain &lt;code>*.ingress.&amp;lt;your cluster domain&amp;gt;&lt;/code> to your cluster&amp;rsquo;s nginx ingress ip/hostname. Kubify creates this entry automatically. If you are not using kubify to create your base cluster, you can create the CNAME entry with the corresponding component:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy cname
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The script uses the AWS CLI to create the entry, so it will only work for route53.&lt;/p>
-&lt;h3 id="step-10-apply-valid-certificates">Step 10: Apply Valid Certificates&lt;/h3>
-&lt;p>The following command will install the &lt;a href="https://github.com/jetstack/cert-manager">cert-manager&lt;/a> and request valid letsencrypt certificates for both the identity and dashboard ingresses:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deploy certmanager
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>After a few minutes valid certificates should be installed.&lt;/p>
-&lt;h3 id="letsencrypt-quota-limits">Letsencrypt Quota Limits&lt;/h3>
-&lt;p>Letsencrypt &lt;a href="https://letsencrypt.org/docs/rate-limits/">limits&lt;/a> how many certificates you can get for the same host within a short time. To avoid hitting these limits, you can use the letsencrypt staging server for testing, which has a significantly higher rate limit but produces untrusted certificates.&lt;br>
-The &lt;code>charts.[certmanager].live&lt;/code> field in the config file allows to switch between live and staging server (remember to rebuild the &lt;code>landscape.yaml&lt;/code> file after you changed something in the &lt;code>landscape_config.yaml&lt;/code> file).&lt;/p>
-&lt;h4 id="accessing-the-dashboard">Accessing the Dashboard&lt;/h4>
-&lt;p>After step 9 you will be able to access the Gardener dashboard. There is a difference in how you access it depending on whether you used the letsencrypt live server or the staging one (and thus have untrusted credentials in the latter case).&lt;/p>
-&lt;p>The &lt;code>print_dashboard_urls.sh&lt;/code> script constructs two URLs from the domain name given in the &lt;code>landscape.yaml&lt;/code> file and prints them.&lt;/p>
-&lt;p>If you have trusted certificates, just use the second one (the one for the dashboard) and everything will be fine.&lt;/p>
-&lt;p>If you used the letsencrypt staging server, you will need to visit the first link first. Your browser will show a warning regarding untrusted certificates, you need to ignore that warning. You will then see a nearly blank page with some 404 message. After that, you can open the dashboard link, ignore the certificate warning again and should be able to login.
-If you skip the first link, you will still be able to see the dashboard, but the login button probably won&amp;rsquo;t work.
-While you will be able to login and create projects with the untrusted certificates from the letsencrypt staging server, creating secrets or shoots won&amp;rsquo;t be possible. You&amp;rsquo;ll need trusted certificates for that.&lt;/p>
-&lt;p>To log into the dashboard, use the options you have specified in the identity chart part of the &lt;code>landscape_config.yaml&lt;/code>.&lt;/p>
-&lt;h1 id="tearing-down-the-landscape">Tearing Down the Landscape&lt;/h1>
-&lt;p>Make sure that you delete all shoot clusters prior to tearing down the cluster. Not deleting &lt;code>project&lt;/code> resources before deleting the Gardener can also cause troubles, because the namespaces associated with the projects have a finalizer which can&amp;rsquo;t be handled anymore when the Gardener is gone. Both, shoots and projects, can be deleted using the &lt;code>delete_all.sh&lt;/code> script (give &amp;lsquo;shoots&amp;rsquo; or &amp;lsquo;projects&amp;rsquo; as an argument). To delete a single shoot/project, use &lt;a href="https://github.com/gardener/gardener/blob/master/hack/delete">this&lt;/a> script.&lt;/p>
-&lt;p>The following command should not return any shoot clusters:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">kubectl get shoots --all-namespaces
-No resources found.
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you created your base cluster with the Kubify component, you can destroy it using the undeploy command:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">undeploy kubify
-&lt;/code>&lt;/pre>&lt;/div>&lt;h1 id="cleanup">Cleanup&lt;/h1>
-&lt;p>After destroying the Kubify cluster, there will be some files left that prevent you from simply starting the project up again.&lt;/p>
-&lt;p>&lt;strong>ATTENTION: Only do this if you are sure the cluster has been completely destroyed!&lt;/strong>
-Since this removes the terraform state, an automated deletion of resources won&amp;rsquo;t be possible anymore - you will have to clean up any leftovers manually.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./cleanup.sh
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will reset your landscape folder to its initial state (including the deletion of &lt;code>landscape.yaml&lt;/code>).&lt;/p>
-&lt;p>The script takes an optional &amp;ldquo;-y&amp;rdquo; argument to skip the confirmation.&lt;/p></description></item></channel></rss>
+&lt;p>See the &lt;a href="https://github.com/gardener/garden-setup/blob/master/docs/extended/iaas.md">advanced documentation&lt;/a> for more advanced configuration options and information about Openstack.&lt;/p>
+&lt;h4 id="shooted-seeds">Shooted Seeds&lt;/h4>
+&lt;p>It&amp;rsquo;s also possible to have the setup create shoots and then configure them as seeds. This has advantages compared to configuring existing clusters as seeds, e.g. you don&amp;rsquo;t have to provide the clusters as they will be created automatically, the shooted seed clusters can leverage the Gardener&amp;rsquo;s autoscaling capabilities, &amp;hellip;&lt;/p>
+&lt;p>How to configure shooted seeds is explained in the &lt;a href="https://github.com/gardener/garden-setup/blob/master/docs/extended/iaas.md#shooted-seeds">advanced documentation&lt;/a>.&lt;/p>
+&lt;h4 id="credentials">Credentials&lt;/h4>
+&lt;p>The credentials will be used to give Gardener access to the IaaS layer:&lt;/p>
+&lt;ul>
+&lt;li>To create a secret that will be used on the Gardener dashboard to create shoot clusters.&lt;/li>
+&lt;li>To allow the control plane of the seed clusters to store the etcd backups of the shoot clusters.&lt;/li>
+&lt;/ul>
+&lt;p>Use the following yaml keys depending on your provider (excerpts):&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">&lt;b>AWS&lt;/b>&lt;/th>
+&lt;th style="text-align:left">&lt;b>GCP&lt;/b>&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;pre>credentials: &lt;br/> accessKeyID: &amp;hellip;&lt;br/> secretAccessKey: &amp;hellip; &lt;/pre>&lt;/td>
+&lt;td style="text-align:left">&lt;pre>credentials: &lt;br/> serviceaccount.json: |&lt;br/> {&lt;/br> &amp;ldquo;type&amp;rdquo;: &amp;ldquo;&amp;hellip;&amp;rdquo;,&lt;/br> &amp;ldquo;project_id&amp;rdquo;: &amp;ldquo;&amp;hellip;&amp;rdquo;,&lt;/br> &amp;hellip;&lt;/br> }&lt;/pre>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;b>Azure&lt;/b>&lt;/td>
+&lt;td style="text-align:left">&lt;b>Openstack&lt;/b>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;pre>credentials:&lt;br/> clientID: &amp;hellip;&lt;br/> clientSecret: &amp;hellip;&lt;br/> subscriptionID: &amp;hellip;&lt;br/> tenantID: &amp;hellip;&lt;/pre>&lt;/td>
+&lt;td style="text-align:left">&lt;pre>credentials:&lt;br/> username: &amp;hellip;&lt;br/> password: &amp;hellip;&lt;br/> tenantName: &amp;hellip;&lt;br/> domainName: &amp;hellip;&lt;br/> authURL: &amp;hellip;&lt;br/> region: &amp;hellip; # DNS only&lt;/pre>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>The &lt;code>region&lt;/code> field in the openstack credentials is only evaluated within the &lt;code>dns&lt;/code> block (as &lt;code>iaas&lt;/code> and &lt;code>etcd.backup&lt;/code> have their own region fields, which will be used instead).&lt;/p>
+&lt;h3 id="landscapeetcd">landscape.etcd&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">etcd&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">backup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># active: true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;gcs|s3|abs|swift&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resourceGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">(( iaas.region ))&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">(( iaas.credentials ))&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Configuration of what blob storage to use for the etcd key-value store. If your IaaS provider offers a blob storage you can use the same values for &lt;code>etc.backup.region&lt;/code> and &lt;code>etc.backup.credentials&lt;/code> as above for &lt;code>iaas.region&lt;/code> and &lt;code>iaas.credentials&lt;/code> correspondingly by using the &lt;a href="https://github.com/mandelsoft/spiff/blob/master/README.md#-foo-">(( foo ))&lt;/a> expression of spiff.
+If the type of &lt;code>landscape.iaas[0]&lt;/code> is one of &lt;code>gcp&lt;/code>, &lt;code>aws&lt;/code>, &lt;code>azure&lt;/code>, or &lt;code>openstack&lt;/code>, this block can be defaulted - either partly or as a whole - based on values from &lt;code>landscape.iaas&lt;/code>. The &lt;code>resourceGroup&lt;/code>, which is necessary for Azure, cannot be defaulted and must be specified. Make sure that the specified &lt;code>resourceGroup&lt;/code> is empty and unused as deleting the cluster using &lt;code>sow delete all&lt;/code> deletes this &lt;code>resourceGroup&lt;/code>.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Field&lt;/th>
+&lt;th style="text-align:left">Type&lt;/th>
+&lt;th style="text-align:left">Description&lt;/th>
+&lt;th style="text-align:left">Example&lt;/th>
+&lt;th style="text-align:left">Iaas Provider Documentation&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>backup.active&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Boolean&lt;/td>
+&lt;td style="text-align:left">If set to &lt;code>false&lt;/code>, deactivates the etcd backup for the virtual cluster etcd. Defaults to &lt;code>true&lt;/code>.&lt;/td>
+&lt;td style="text-align:left">&lt;code>true&lt;/code>&lt;/td>
+&lt;td style="text-align:left">n.a.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>backup.type&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Fixed value&lt;/td>
+&lt;td style="text-align:left">Type of your blob store. Supported blob stores: &lt;code>gcs&lt;/code> (&lt;a href="https://cloud.google.com/storage/">Google Cloud Storage&lt;/a>), &lt;code>s3&lt;/code> (&lt;a href="https://aws.amazon.com/s3/">Amazon S3&lt;/a>), &lt;code>abs&lt;/code> (&lt;a href="https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-overview">Azure Blob Storage&lt;/a>), and &lt;code>swift&lt;/code> (&lt;a href="https://docs.openstack.org/swift/latest/">Openstack Swift&lt;/a>).&lt;/td>
+&lt;td style="text-align:left">&lt;code>gcs&lt;/code>&lt;/td>
+&lt;td style="text-align:left">n.a.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>backup.resourceGroup&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Azure specific. Create an Azure blob store first which uses a resource group. Provide the resource group here.&lt;/td>
+&lt;td style="text-align:left">&lt;code>my-Azure-RG&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://docs.microsoft.com/en-us/azure/storage/common/storage-quickstart-create-account?tabs=azure-portal">Azure&lt;/a> (HowTo)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>backup.region&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Region of blob storage.&lt;/td>
+&lt;td style="text-align:left">&lt;code>(( iaas.region ))&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/docs/geography-and-regions">GCP (overview)&lt;/a>, &lt;a href="https://docs.aws.amazon.com/general/latest/gr/rande.html">AWS (overview)&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>backup.credentials&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Service account credentials in a provider-specific format.&lt;/td>
+&lt;td style="text-align:left">&lt;code>(( iaas.creds ))&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys#creating_service_account_keys">GCP&lt;/a>, &lt;a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html#id_users_service_accounts">AWS&lt;/a>, &lt;a href="https://docs.microsoft.com/en-us/rest/api/storageservices/authorization-for-the-azure-storage-services">Azure&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h3 id="landscapedns">landscape.dns&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;google-clouddns|aws-route53|azure-dns|openstack-designate|cloudflare-dns|infoblox-dns&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Configuration for the Domain Name Service (DNS) provider. If your IaaS provider also offers a DNS service you can use the same values for &lt;code>dns.credentials&lt;/code> as for &lt;code>iaas.creds&lt;/code> above by using the &lt;a href="https://github.com/mandelsoft/spiff/blob/master/README.md#-foo-">(( foo ))&lt;/a> expression of spiff. If they belong to another account (or to another IaaS provider) the appropriate credentials (and their type) have to be configured.
+Similar to &lt;code>landscape.etcd&lt;/code>, this block - and parts of it - are optional if the type of &lt;code>landscape.iaas[0]&lt;/code> is one of &lt;code>gcp&lt;/code>, &lt;code>aws&lt;/code>, &lt;code>azure&lt;/code>, or &lt;code>openstack&lt;/code>. Missing values will be derived from &lt;code>landscape.iaas&lt;/code>.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Field&lt;/th>
+&lt;th style="text-align:left">Type&lt;/th>
+&lt;th style="text-align:left">Description&lt;/th>
+&lt;th style="text-align:left">Example&lt;/th>
+&lt;th style="text-align:left">IaaS Provider Documentation&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>type&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Fixed value&lt;/td>
+&lt;td style="text-align:left">Your DNS provider. Supported providers: &lt;code>google-clouddns&lt;/code> (&lt;a href="https://cloud.google.com/dns/docs/">Google Cloud DNS&lt;/a>), &lt;code>aws-route53&lt;/code> (&lt;a href="https://aws.amazon.com/route53/">Amazon Route 53&lt;/a>), &lt;code>azure-dns&lt;/code> (&lt;a href="https://azure.microsoft.com/de-de/services/dns/">Azure DNS&lt;/a>), &lt;code>openstack-designate&lt;/code> (&lt;a href="https://docs.openstack.org/designate/latest/">Openstack Designate&lt;/a>), &lt;code>cloudflare-dns&lt;/code> (&lt;a href="https://www.cloudflare.com/dns/">Cloudflare DNS&lt;/a>), and &lt;code>infoblox-dns&lt;/code> (&lt;a href="https://www.infoblox.com/products/dns/">Infoblox DNS&lt;/a>).&lt;/td>
+&lt;td style="text-align:left">&lt;code>google-clouddns&lt;/code>&lt;/td>
+&lt;td style="text-align:left">n.a.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>credentials&lt;/code>&lt;/td>
+&lt;td style="text-align:left">IaaS provider specific&lt;/td>
+&lt;td style="text-align:left">Service account credentials in a provider-specific format (see above).&lt;/td>
+&lt;td style="text-align:left">&lt;code>(( iaas.credentials ))&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys#creating_service_account_keys">GCP&lt;/a>, &lt;a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html#id_users_service_accounts">AWS&lt;/a>, &lt;a href="https://docs.microsoft.com/en-us/azure/azure-stack/user/azure-stack-create-service-principals">Azure&lt;/a>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h4 id="cloudflare-credentials">Cloudflare Credentials&lt;/h4>
+&lt;p>The credentials to use Cloudflare DNS consist of a single key &lt;code>apiToken&lt;/code>, containing your API token.&lt;/p>
+&lt;h4 id="infoblox-credentials-and-configuration">Infoblox Credentials and Configuration&lt;/h4>
+&lt;p>For Infoblox DNS, you have to specify &lt;code>USERNAME&lt;/code>, &lt;code>PASSWORD&lt;/code>, and &lt;code>HOST&lt;/code> in the &lt;code>credentials&lt;/code> node. For a complete list of optional credentials keys see &lt;a href="https://github.com/gardener/external-dns-management/tree/master/docs/infoblox#create-secret-with-infoblox-credentials">here&lt;/a>&lt;/p>
+&lt;h3 id="landscapeidentity">landscape.identity&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">identity&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">users&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">username&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">password&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">username&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">hash&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Configures the identity provider that allows access to the Gardener dashboard. The easiest method is to provide a list of &lt;code>users&lt;/code>, each containing &lt;code>email&lt;/code>, &lt;code>username&lt;/code>, and either a clear-text &lt;code>password&lt;/code> or a bcrypted &lt;code>hash&lt;/code> of the password.
+You can then login into the dashboard using one of the specified email/password combinations.&lt;/p>
+&lt;h3 id="landscapeingress">landscape.ingress&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">service.beta.kubernetes.io/aws-load-balancer-internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># example for internal loadbalancers on aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can add &lt;a href="https://github.com/gardener/garden-setup/blob/master/components/ingress-controller/chart/templates/00-ingress-controller.yaml#L249">annotations&lt;/a> for the ingress controller load balancer service. This can be used for example to deploy an internal load balancer on your cloud provider (see the example for aws above).&lt;/p>
+&lt;h3 id="landscapecert-manager">landscape.cert-manager&lt;/h3>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="nt">cert-manager&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;live|staging|self-signed|url&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">privateKey&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># optional&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The setup deploys a &lt;a href="https://github.com/jetstack/cert-manager">cert-manager&lt;/a> to provide a certificate for the Gardener dashboard, which can be configured here.&lt;/p>
+&lt;p>The entire &lt;code>landscape.cert-manager&lt;/code> block is optional.&lt;/p>
+&lt;p>If not specified, &lt;code>landscape.cert-manager.server&lt;/code> defaults to &lt;code>self-signed&lt;/code>. This means, that a selfs-signed CA will be created, which is used by the cert-manager (using a &lt;a href="https://docs.cert-manager.io/en/latest/tasks/issuers/setup-ca.html">CA issuer&lt;/a>) to sign the certificate. Since the CA is not publicly trusted, your webbrowser will show a &amp;lsquo;untrusted certificate&amp;rsquo; warning when accessing the dashboard.
+The &lt;code>landscape.cert-manager.email&lt;/code> field is not evaluated in &lt;code>self-signed&lt;/code> mode.&lt;/p>
+&lt;p>If set to &lt;code>live&lt;/code>, the cert-manager will use the &lt;a href="https://letsencrypt.org/">letsencrypt&lt;/a> ACME server to get trusted certificates for the dashboard. Beware the &lt;a href="https://letsencrypt.org/docs/rate-limits/">rate limits&lt;/a> of letsencrypt.
+Letsencrypt requires an email address and will send information about expiring certificates to that address. If &lt;code>landscape.cert-manager.email&lt;/code> is not specified, &lt;code>landscape.identity.users[0].email&lt;/code> will be used. One of the two fields has to be present.&lt;/p>
+&lt;p>If set to &lt;code>staging&lt;/code>, the cert-manager will use the letsencrypt staging server. This is for testing purposes mainly. The communication with letsencrypt works exactly as for the &lt;code>live&lt;/code> case, but the staging server does not produce trusted certificates, so you will still get the browser warning. The rate limits are significantly higher for the staging server, though.&lt;/p>
+&lt;p>If set to anything else, it is assumed to be the URL of an ACME server and the setup will create an &lt;a href="https://docs.cert-manager.io/en/latest/tasks/issuers/setup-acme/index.html">ACME issuer&lt;/a> for it.&lt;/p>
+&lt;p>See the &lt;a href="https://github.com/gardener/garden-setup/blob/master/docs/extended/cert-manager.md">advanced configuration&lt;/a> for more configuration options.&lt;/p>
+&lt;p>If the given email address is already registers at letsencrypt, you can specify the private key of the associated user account with &lt;code>landscape.cert-manager.privateKey&lt;/code>.&lt;/p>
+&lt;h2 id="uninstall-gardener">Uninstall Gardener&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>Run &lt;code>sow delete -A&lt;/code> to delete all components from your base Kubernetes cluster in inverse order.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>During the deletion, the corresponding contents in directories &lt;code>gen&lt;/code>, &lt;code>export&lt;/code>, and &lt;code>state&lt;/code> in your &lt;code>landscape&lt;/code> directory are deleted automatically as well.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="most-important-commands-and-directories">Most Important Commands and Directories&lt;/h2>
+&lt;h3 id="commands">Commands&lt;/h3>
+&lt;p>These are the most important &lt;code>sow&lt;/code> commands for deploying and deleting components:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Command&lt;/th>
+&lt;th style="text-align:left">Use&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Same as &lt;code>sow deploy &amp;lt;component&amp;gt;&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow delete &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deletes a single component&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow delete -A&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deletes all components in the inverse order&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow delete all&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Same as &lt;code>sow delete -A&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow delete -a &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deletes a component and all components that depend on it (including transitive dependencies)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow deploy &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deploys a single component. The deployment will fail if the dependencies have not been deployed before.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow deploy -A&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deploys all components in the order specified by &lt;code>sow order -A&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow deploy -An&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deploys all components that are not deployed yet&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow deploy all&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Same as &lt;code>sow deploy -A&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow deploy -a &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Deploys a component and all of its dependencies&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow help&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Displays a command overview for sow&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow order -a &amp;lt;component&amp;gt;&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Displays all dependencies of a given component (in the order they should be deployed in)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow order -A&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Displays the order in which all components can be deployed&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>sow url&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Displays the URL for the Gardener dashboard (after a successful installation)&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h3 id="directories">Directories&lt;/h3>
+&lt;p>After using sow to deploy the components, you will notice that there are new directories inside your landscape directory:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Directory&lt;/th>
+&lt;th style="text-align:left">Use&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>gen&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Temporary files that are created during the deployment of components, for example, generated manifests.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>export&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Allows communication (exports and imports) between components. It also contains the kubeconfig for the virtual cluster that handles the Gardener resources.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>state&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Important state information of the components is stored here, for example, the terraform state and generated certificates. It is crucial that this directory is not deleted while the landscape is active. While the contents of the &lt;em>export&lt;/em> and &lt;em>gen&lt;/em> directorys will be overwritten when a component is deployed again, the contents of &lt;em>state&lt;/em> will be reused instead. In some cases, it is necessary to delete the state of a component before deploying it again, for example if you want to create new certificates for it.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table></description></item></channel></rss>

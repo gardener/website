@@ -1,0 +1,236 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Testing</title><link>https://gardener.cloud/docs/gardener/testing/</link><description>Recent content in Testing on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/testing/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Integration Tests</title><link>https://gardener.cloud/docs/gardener/testing/integration_tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/testing/integration_tests/</guid><description>
+&lt;h1 id="integration-testing-manual">Integration Testing Manual&lt;/h1>
+&lt;p>This manual gives an overview about existing integration tests of Gardener.&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#add-a-new-test">Add a new test&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#test-labels">Available test labels&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#framework">Framework&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="structure">Structure&lt;/h2>
+&lt;p>Gardener integration test are split into 2 big test suites that can be found under &lt;a href="https://github.com/gardener/gardener/tree/master/test/suites">gardener/test/suites&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;strong>Gardener Test Suite&lt;/strong> contains all tests that only require a running gardener instance.&lt;/li>
+&lt;li>The &lt;strong>Shoot Test Suite&lt;/strong> contains all tests that require a predefined running shoot cluster.&lt;/li>
+&lt;/ul>
+&lt;p>The corresponding tests of a test suite are defined in the import statement of the suite definition see &lt;a href="https://github.com/gardener/gardener/blob/master/test/suites/shoot/run_suite_test.go">gardener/test/suites/shoot/run_suite_test.go&lt;/a>
+and their source code can be found under &lt;a href="https://github.com/gardener/gardener/tree/master/test/integration">gardener/test/integration&lt;/a>&lt;/p>
+&lt;p>The testing directory
+is divided into the following major subdirectories:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">├── framework
+│   ├── applications
+│   ├── config
+│   ├── reporter
+│   ├── resources
+├── integration
+│   ├── gardener
+│   │   ├── scheduler
+│   │   └── security
+│   ├── plants
+│   └── shoots
+│   ├── applications
+│   ├── logging
+│   ├── maintenance
+│   └── operations
+├── suites
+│   ├── gardener
+│   └── shoot
+└── system
+├── complete_reconcile
+├── shoot_creation
+├── shoot_deletion
+└── shoot_update
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>A suite can be executed by running the suite definition with ginkgo&amp;rsquo;s &lt;code>focus&lt;/code> and &lt;code>skip&lt;/code> flags
+to control the execution of specific labeled test. See example below:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -timeout=0 -mod=vendor ./test/suites/shoot \
+--v -ginkgo.v -ginkgo.progress -ginkgo.noColor \
+--report-file=/tmp/report.json \ # write elasticsearch formatted output to a file
+--disable-dump=false \ # disables dumping of teh current state if a test fails
+-kubecfg=/path/to/gardener/kubeconfig \
+-shoot-name=&amp;lt;shoot-name&amp;gt; \ # Name of the shoot to test
+-project-namespace=&amp;lt;gardener project namespace&amp;gt; \ # Name of the gardener project the test shoot resides
+-ginkgo.focus=&amp;#34;\[RELEASE\]&amp;#34; \ # Run all tests that are tagged as release
+-ginkgo.skip=&amp;#34;\[SERIAL\]|\[DISRUPTIVE\]&amp;#34; # Exclude all tests that are tagged SERIAL or DISRUPTIVE
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="add-a-new-test">Add a new test&lt;/h2>
+&lt;p>To add a new test the framework requires the following steps:&lt;/p>
+&lt;p>(The step 1. and 2. can be skipped if the test is added to an already existing package)&lt;/p>
+&lt;ol>
+&lt;li>Create a new test file e.g. &lt;code>test/integration/shoot/security/my-sec-test.go&lt;/code>&lt;/li>
+&lt;li>Import the test into the appropriate framework you want use (gardener or shoot): &lt;code>import _ &amp;quot;github.com/gardener/gardener/test/integration/shoot/security&amp;quot;&lt;/code>&lt;/li>
+&lt;li>Define your test with the testframework. The framework will automatically add its initialization, cleanup and dump functions.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-golang" data-lang="golang">&lt;span class="kd">var&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="nx">ginkgo&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Describe&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;my suite&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(){&lt;/span>
+&lt;span class="nx">f&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">framework&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewShootFramework&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">nil&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">f&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Beta&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">CIt&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;my first test&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">ctx&lt;/span> &lt;span class="nx">context&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Context&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">f&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ShootClient&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Get&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">xx&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// testing ...
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="p">})&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The newly created test can be tested by focusing the test with the default ginkgo focus &lt;code>f.Beta().FCIt(&amp;quot;my first test&amp;quot;, func(ctx context.Context)&lt;/code>
+and run the shoot test suite with:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -timeout=0 -mod=vendor ./test/suites/shoot \
+--v -ginkgo.v -ginkgo.progress -ginkgo.noColor \
+--report-file=/tmp/report.json \ # write elasticsearch formatted output to a file
+--disable-dump=false \ # disables dumping of the current state if a test fails
+-kubecfg=/path/to/gardener/kubeconfig \
+-shoot-name=&amp;lt;shoot-name&amp;gt; \ # Name of the shoot to test
+-project-namespace=&amp;lt;gardener project namespace&amp;gt; \
+-fenced=&amp;lt;true|false&amp;gt; # Tested shoot is running in a fenced environment and cannot be reached by gardener
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>or for the gardener suite with:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -timeout=0 -mod=vendor ./test/suites/gardener \
+--v -ginkgo.v -ginkgo.progress -ginkgo.noColor \
+--report-file=/tmp/report.json \ # write elasticsearch formatted output to a file
+--disable-dump=false \ # disables dumping of the current state if a test fails
+-kubecfg=/path/to/gardener/kubeconfig \
+-project-namespace=&amp;lt;gardener project namespace&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>:warning: Make sure that you do not commit any code focused test as this feature is only intended for local development!&lt;/p>
+&lt;p>Alternatively, a test can be triggered by specifying a ginkgo focus regex with the name of the test e.g.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -timeout=0 -mod=vendor ./test/suites/gardener \
+--v -ginkgo.v -ginkgo.progress -ginkgo.noColor \
+--report-file=/tmp/report.json \ # write elasticsearch formatted output to a file
+-kubecfg=/path/to/gardener/kubeconfig \
+-project-namespace=&amp;lt;gardener project namespace&amp;gt; \
+-ginkgo.focus=&amp;#34;my first test&amp;#34; # regex to match test cases
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="test-labels">Test Labels&lt;/h2>
+&lt;p>Every test should be labeled by using the predefined labels available with every framework to have consistent labeling across
+all gardener integration tests.
+The labels are applied to every new &lt;code>It()/CIt()&lt;/code> definition by:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-golang" data-lang="golang">&lt;span class="nx">f&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">framework&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewCommonFramework&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">f&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Default&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">Serial&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">It&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;my test&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="s">&amp;#34;[DEFAULT] [SERIAL] my test&amp;#34;&lt;/span>
+&lt;span class="nx">f&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">framework&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewShootFramework&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">f&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Default&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">Serial&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">It&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;my test&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="s">&amp;#34;[DEFAULT] [SERIAL] [SHOOT] my test&amp;#34;&lt;/span>
+&lt;span class="nx">f&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">framework&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewGardenerFramework&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">f&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Default&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">Serial&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nf">It&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;my test&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="s">&amp;#34;[DEFAULT] [GARDENER] [SERIAL] my test&amp;#34;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Labels:&lt;/p>
+&lt;ul>
+&lt;li>&lt;em>Beta&lt;/em>: Newly created tests with no experience on stableness should be first labeled as beta tests.
+They should be watched (and probably improved) until stable enough to be promoted to &lt;em>Default&lt;/em>.&lt;/li>
+&lt;li>&lt;em>Default&lt;/em>: Tests that were &lt;em>Beta&lt;/em> before and proved to be stable are promoted to &lt;em>Default&lt;/em> eventually.
+&lt;em>Default&lt;/em> tests run more often, produce alerts and are &lt;em>considered&lt;/em> during the release decision although they don&amp;rsquo;t necessarily block a release.&lt;/li>
+&lt;li>&lt;em>Release&lt;/em>: Test are release relevant. A failing &lt;em>Release&lt;/em> test blocks the release pipeline.
+Therefore these tests need to be stable. Only tests proven to be stable will eventually be promoted to &lt;em>Release&lt;/em>.&lt;/li>
+&lt;/ul>
+&lt;p>Behavior Labels:&lt;/p>
+&lt;ul>
+&lt;li>&lt;em>Serial&lt;/em>: The test should always be executed in serial with no other tests running as it may impact other tests.&lt;/li>
+&lt;li>&lt;em>Destructive&lt;/em>: The test is destructive. Which means that is runs with no other tests and may break gardener or the shoot.
+Only create such tests if really necessary as the execution will be expensive (neither gardener nor the shoot can be reused in this case for other tests).&lt;/li>
+&lt;/ul>
+&lt;h2 id="framework">Framework&lt;/h2>
+&lt;p>The framework directory contains all the necessary functions / utilities for running the integration test suite.
+For example, there are methods for creation/deletion of shoots, waiting for shoot deletion/creation, downloading/installing/deploying helm charts, logging, etc.&lt;/p>
+&lt;p>The framework itself consists of 3 different framework that expect different prerequisites and offer context specific functionality.&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>CommonFramework&lt;/strong>: The common framework is the base framework that handles logging and setup of commonly needed resources like helm.
+It also contains common functions for interacting with kubernetes clusters like &lt;code>Waiting for resources to be ready&lt;/code> or &lt;code>Exec into a running pod&lt;/code>.&lt;/li>
+&lt;li>&lt;strong>GardenerFramework&lt;/strong> contains all functions of the common framework and expects a running gardener instance with the provided gardener kubeconfig and a project namespace.
+It also contains functions to interact with gardener like &lt;code>Waiting for a shoot to be reconciled&lt;/code> or &lt;code>Patch a shoot&lt;/code> or &lt;code>Get a seed&lt;/code>.&lt;/li>
+&lt;li>&lt;strong>ShootFramework&lt;/strong>: contains all functions of the common and the gardener framework.
+It expects a running shoot cluster defined by the shoot&amp;rsquo;s name and namespace(project namespace).
+This framework contains functions to directly interact with the specific shoot.&lt;/li>
+&lt;/ul>
+&lt;p>The whole framework also includes commonly used checks, ginkgo wrapper, etc. as well as commonly used tests.
+Theses common application tests (like the guestbook test) can be used within multiple tests to have a default application (with ingress, deployment, stateful backend) to test external factors.&lt;/p>
+&lt;p>&lt;strong>Config&lt;/strong>&lt;/p>
+&lt;p>Every framework commandline flag can also be defined by a configuration file (the value of the configuration file is only used if flag is not specified by commandline).
+The test suite searches for a configuration file (yaml is preferred) if the command line flag &lt;code>--config=/path/to/config/file&lt;/code> is provided.
+A framework can be defined in the configuration file by just using the flag name as root key e.g.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">verbose&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">debug&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kubecfg&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/kubeconfig/path&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">project-namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-it&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;strong>Report&lt;/strong>&lt;/p>
+&lt;p>The framework automatically writes the default ginkgo default report to stdout and a specifically structured elastichsearch bulk report file to a specified location.
+The elastichsearch bulk report will write one json document per testcase and injects metadata of the whole testsuite.
+An example document for one test case would look like the following document:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">{
+&amp;#34;suite&amp;#34;: {
+&amp;#34;name&amp;#34;: &amp;#34;Shoot Test Suite&amp;#34;,
+&amp;#34;phase&amp;#34;: &amp;#34;Succeeded&amp;#34;,
+&amp;#34;tests&amp;#34;: 3,
+&amp;#34;failures&amp;#34;: 1,
+&amp;#34;errors&amp;#34;: 0,
+&amp;#34;time&amp;#34;: 87.427
+},
+&amp;#34;name&amp;#34;: &amp;#34;Shoot application testing [DEFAULT] [RELEASE] [SHOOT] should download shoot kubeconfig successfully&amp;#34;,
+&amp;#34;shortName&amp;#34;: &amp;#34;should download shoot kubeconfig successfully&amp;#34;,
+&amp;#34;labels&amp;#34;: [
+&amp;#34;DEFAULT&amp;#34;,
+&amp;#34;RELEASE&amp;#34;,
+&amp;#34;SHOOT&amp;#34;
+],
+&amp;#34;phase&amp;#34;: &amp;#34;Succeeded&amp;#34;,
+&amp;#34;time&amp;#34;: 0.724512057
+}
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;strong>Resources&lt;/strong>&lt;/p>
+&lt;p>The resources directory contains all the templates, helm config files (e.g., repositories.yaml, charts, and cache index which are downloaded upon the start of the test), shoot configs, etc.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">resources
+├── charts
+├── repository
+│   └── repositories.yaml
+└── templates
+├── guestbook-app.yaml.tpl
+└── logger-app.yaml.tpl
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>There are two special directories that are dynamically filled with the correct test files:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>charts:&lt;/strong> the charts will be downloaded and saved in this directory&lt;/li>
+&lt;li>&lt;strong>repository&lt;/strong> contains the repository.yaml file that the target helm repos will be read from and the cache where the &lt;code>stable-index.yaml&lt;/code> file will be created&lt;/li>
+&lt;/ul>
+&lt;h3 id="system-tests">System Tests&lt;/h3>
+&lt;p>This directory contains the system tests that have a special meaning for the testmachinery with their own Test Definition.
+Currently these system tests consists of:&lt;/p>
+&lt;ul>
+&lt;li>Shoot creation&lt;/li>
+&lt;li>Shoot deletion&lt;/li>
+&lt;li>Shoot Kubernetes update&lt;/li>
+&lt;li>Gardener Full reconcile check&lt;/li>
+&lt;/ul>
+&lt;h4 id="shoot-creation-test">Shoot Creation test&lt;/h4>
+&lt;p>Create Shoot test is meant to test shoot creation.&lt;/p>
+&lt;p>&lt;strong>Example Run&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -mod=vendor -timeout=0 ./test/system/shoot_creation \
+--v -ginkgo.v -ginkgo.progress \
+-kubecfg=$HOME/.kube/config \
+-shoot-name=$SHOOT_NAME \
+-cloud-profile=$CLOUDPROFILE \
+-seed=$SEED \
+-secret-binding=$SECRET_BINDING \
+-provider-type=$PROVIDER_TYPE \
+-region=$REGION \
+-k8s-version=$K8S_VERSION \
+-project-namespace=$PROJECT_NAMESPACE \
+-annotations=$SHOOT_ANNOTATIONS \
+-infrastructure-provider-config-filepath=$INFRASTRUCTURE_PROVIDER_CONFIG_FILEPATH \
+-controlplane-provider-config-filepath=$CONTROLPLANE_PROVIDER_CONFIG_FILEPATH \
+-workers-config-filepath=$$WORKERS_CONFIG_FILEPATH \
+-worker-zone=$ZONE \
+-networking-pods=$NETWORKING_PODS \
+-networking-services=$NETWORKING_SERVICES \
+-networking-nodes=$NETWORKING_NODES \
+-start-hibernated=$START_HIBERNATED
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="shoot-deletion-test">Shoot Deletion test&lt;/h4>
+&lt;p>Delete Shoot test is meant to test the deletion of a shoot.&lt;/p>
+&lt;p>&lt;strong>Example Run&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -mod=vendor -timeout=0 -ginkgo.v -ginkgo.progress \
+./test/system/shoot_deletion \
+-kubecfg=$HOME/.kube/config \
+-shoot-name=$SHOOT_NAME \
+-project-namespace=$PROJECT_NAMESPACE
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="shoot-update-test">Shoot Update test&lt;/h4>
+&lt;p>The Update Shoot test is meant to test the kubernetes version update of a existing shoot.
+If no specific version is provided the next patch version is automatically selected.
+If there is no available newer version this test is a noop.&lt;/p>
+&lt;p>&lt;strong>Example Run&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -mod=vendor -timeout=0 ./test/system/shoot_update \
+--v -ginkgo.v -ginkgo.progress \
+-kubecfg=$HOME/.kube/config \
+-shoot-name=$SHOOT_NAME \
+-project-namespace=$PROJECT_NAMESPACE \
+-version=$K8S_VERSION
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="gardener-full-reconcile-test">Gardener Full Reconcile test&lt;/h4>
+&lt;p>The Gardener Full Reconcile test is meant to test if all shoots of a gardener instance are successfully reconciled.&lt;/p>
+&lt;p>&lt;strong>Example Run&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">go test -mod=vendor -timeout=0 ./test/system/complete_reconcile \
+--v -ginkgo.v -ginkgo.progress \
+-kubecfg=$HOME/.kube/config \
+-project-namespace=$PROJECT_NAMESPACE \
+-gardenerVersion=$GARDENER_VERSION # needed to validate the last acted gardener version of a shoot
+&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

@@ -1116,8 +1116,12 @@ By default, all namespaces in the target cluster are watched, however, this can 
 &lt;p>This controller provides the service to create and auto-renew tokens via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">&lt;code>TokenRequest&lt;/code> API&lt;/a>.&lt;/p>
 &lt;p>It provides a functionality similar to the kubelet&amp;rsquo;s &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">Service Account Token Volume Projection&lt;/a>.
 It was created to handle the special case of issuing tokens to pods that run in a different cluster than the API server they communicate with (hence, using the native token volume projection feature is not possible).&lt;/p>
+&lt;p>The controller differentiates between &lt;code>source cluster&lt;/code> and &lt;code>target cluster&lt;/code>.
+The &lt;code>source cluster&lt;/code> hosts the gardener-resource-manager pod. Secrets in this cluster are watched and modified by the controller.
+The &lt;code>target cluster&lt;/code> &lt;em>can&lt;/em> be configured to point to another cluster. The existence of ServiceAccounts are ensured and token requests are issued against the target.
+When the gardener-resource-manager is deployed next to the Shoot&amp;rsquo;s controlplane in the Seed the &lt;code>source cluster&lt;/code> is the Seed while the &lt;code>target cluster&lt;/code> points to the Shoot.&lt;/p>
 &lt;h4 id="reconciliation-loop">Reconciliation Loop&lt;/h4>
-&lt;p>This controller reconciles secrets in all namespaces in the targetCluster with the label: &lt;code>resources.gardener.cloud/purpose: token-requestor&lt;/code>.
+&lt;p>This controller reconciles secrets in all namespaces in the source cluster with the label: &lt;code>resources.gardener.cloud/purpose: token-requestor&lt;/code>.
 See &lt;a href="../../example/resource-manager/30-secret-tokenrequestor.yaml">here&lt;/a> for an example of the secret.&lt;/p>
 &lt;p>The controller ensures a &lt;code>ServiceAccount&lt;/code> exists in the target cluster as specified in the annotations of the &lt;code>Secret&lt;/code> in the source cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">serviceaccount.resources.gardener.cloud/name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;sa-name&amp;gt;&lt;/span>&lt;span class="w">
@@ -1152,7 +1156,42 @@ By default, the tokens are issued to expire after 12 hours. The expiration time 
 &lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It automatically renews once 80% of the lifetime is reached or after &lt;code>24h&lt;/code>.&lt;/p>
 &lt;p>If the &lt;code>Secret&lt;/code> is annotated with&lt;/p>
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">serviceaccount.resources.gardener.cloud/skip-deletion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>then the respective &lt;code>ServiceAccount&lt;/code> will not be deleted when the &lt;code>Secret&lt;/code> is deleted.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>then the respective &lt;code>ServiceAccount&lt;/code> will not be deleted when the &lt;code>Secret&lt;/code> is deleted.&lt;/p>
+&lt;h2 id="webhooks">Webhooks&lt;/h2>
+&lt;h3 id="auto-mounting-projected-serviceaccount-tokens">Auto-Mounting Projected &lt;code>ServiceAccount&lt;/code> Tokens&lt;/h3>
+&lt;p>When this webhook is activated then it automatically injects projected &lt;code>ServiceAccount&lt;/code> token volumes into &lt;code>Pod&lt;/code>s and all its containers if all of the following preconditions are fulfilled:&lt;/p>
+&lt;ol>
+&lt;li>The &lt;code>Pod&lt;/code> is NOT labeled with &lt;code>projected-token-mount.resources.gardener.cloud/skip=true&lt;/code>.&lt;/li>
+&lt;li>The &lt;code>Pod&lt;/code>&amp;rsquo;s &lt;code>.spec.serviceAccountName&lt;/code> field is NOT empty and NOT set to &lt;code>default&lt;/code>.&lt;/li>
+&lt;li>The &lt;code>ServiceAccount&lt;/code> specified in the &lt;code>Pod&lt;/code>&amp;rsquo;s &lt;code>.spec.serviceAccountName&lt;/code> sets &lt;code>.automountServiceAccountToken=false&lt;/code>.&lt;/li>
+&lt;li>The &lt;code>Pod&lt;/code>&amp;rsquo;s &lt;code>.spec.volumes[]&lt;/code> DO NOT already contain a volume with a name prefixed with &lt;code>kube-api-access-&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;p>The projected volume will look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kube-api-access-gardener&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">projected&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">defaultMode&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">420&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">sources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">serviceAccountToken&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">expirationSeconds&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">43200&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">token&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">configMap&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">items&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">key&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ca.crt&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ca.crt&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kube-root-ca.crt&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">downwardAPI&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">items&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">fieldRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">fieldPath&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">metadata.namespace&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">namespace&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>The &lt;code>expirationSeconds&lt;/code> are defaulted to &lt;code>12h&lt;/code> and can be overwritten with the &lt;code>--projected-token-mount-expiration-seconds&lt;/code> flag, or with the &lt;code>projected-token-mount.resources.gardener.cloud/expiration-seconds&lt;/code> annotation on a &lt;code>Pod&lt;/code> resource.&lt;/p>
+&lt;/blockquote>
+&lt;p>The volume will be mounted into all containers specified in the &lt;code>Pod&lt;/code> to the path &lt;code>/var/run/secrets/kubernetes.io/serviceaccount&lt;/code>.
+This is the default location where client libraries expect to find the tokens and mimics the &lt;a href="https://github.com/kubernetes/kubernetes/tree/v1.22.2/plugin/pkg/admission/serviceaccount">upstream &lt;code>ServiceAccount&lt;/code> admission plugin&lt;/a>, see &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#serviceaccount-admission-controller">this document&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
 &lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>

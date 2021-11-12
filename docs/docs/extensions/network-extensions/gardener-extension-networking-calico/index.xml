@@ -1,0 +1,100 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Calico CNI</title><link>https://gardener.cloud/docs/extensions/network-extensions/gardener-extension-networking-calico/</link><description>Recent content in Calico CNI on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/network-extensions/gardener-extension-networking-calico/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Usage As End User</title><link>https://gardener.cloud/docs/extensions/network-extensions/gardener-extension-networking-calico/docs/usage-as-end-user/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/network-extensions/gardener-extension-networking-calico/docs/usage-as-end-user/</guid><description>
+&lt;h1 id="using-the-networking-calico-extension-with-gardener-as-end-user">Using the Networking Calico extension with Gardener as end-user&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">&lt;code>core.gardener.cloud/v1beta1.Shoot&lt;/code> resource&lt;/a> declares a &lt;code>networking&lt;/code> field that is meant to contain network-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for Calico and provide an example &lt;code>Shoot&lt;/code> manifest with minimal configuration that you can use to create a cluster.&lt;/p>
+&lt;h2 id="calico-typha">Calico Typha&lt;/h2>
+&lt;p>Calico Typha is an optional component of Project Calico designed to offload the Kubernetes API server. The Typha daemon sits between the datastore (such as the Kubernetes API server which is the one used by Gardener managed Kubernetes) and many instances of Felix. Typha’s main purpose is to increase scale by reducing each node’s impact on the datastore. You can opt-out Typha via &lt;code>.spec.networking.providerConfig.typha.enabled=false&lt;/code> of your Shoot manifest. By default the Typha is enabled.&lt;/p>
+&lt;h2 id="ebpf-dataplane">EBPF Dataplane&lt;/h2>
+&lt;p>Calico can be run in ebpf dataplane mode. This has several benefits, calico scales to higher troughput, uses less cpu per GBit and has native support for kubernetes services (without needing kube-proxy).
+To switch to a pure ebpf dataplane it is recommended to run without an overlay network. The following configuration can be used to run without an overlay and without kube-proxy.&lt;/p>
+&lt;p>An example ebpf dataplane &lt;code>NetworkingConfig&lt;/code> manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico.networking.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">NetworkConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">ipv4&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mode&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Never&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">ebpfDataplane&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">backend&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">bird&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To disable kube-proxy set the enabled field to false in the shoot manifest.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ebpf-shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeProxy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="example-networkingconfig-manifest">Example &lt;code>NetworkingConfig&lt;/code> manifest&lt;/h2>
+&lt;p>An example &lt;code>NetworkingConfig&lt;/code> for the Calico extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico.networking.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">NetworkConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">ipam&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">host-local&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cidr&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">usePodCIDR&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">ipv4&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">mode&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Always&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">vethMTU&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1440&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">backend&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">bird&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">typha&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="example-shoot-manifest">Example &lt;code>Shoot&lt;/code> manifest&lt;/h2>
+&lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest with calico networking configratations:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">johndoe-azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cloudProfileName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">westeurope&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretBindingName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core-azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">azure.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vnet&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cidr&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/19&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zoned&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controlPlaneConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">azure.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">worker-xoluy&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machine&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Standard_D4_v3&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Standard_LRS&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;2&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networking&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico.networking.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">NetworkConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ipam&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">host-local&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vethMTU&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1440&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">backend&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">bird&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">typha&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.16.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maintenance&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">autoUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetesVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImageVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">addons&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes-dashboard&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nginx-ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

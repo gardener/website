@@ -15736,7 +15736,151 @@ bool
 &lt;hr/>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
-&lt;/em>&lt;/p></description></item><item><title>Docs: Csi Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
+&lt;/em>&lt;/p></description></item><item><title>Docs: Cp Support New</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
+&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
+&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
+&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
+&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
+&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
+&lt;ol>
+&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
+&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
+&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mkdir -p &lt;span class="nv">$GOPATH&lt;/span>/src/github.com/&lt;span class="o">{&lt;/span>your-github-username&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to this created directory.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> &lt;span class="nv">$GOPATH&lt;/span>/src/github.com/&lt;span class="o">{&lt;/span>your-github-username&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-&lt;span class="o">{&lt;/span>provider-name&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate into the newly-created directory.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> machine-controller-manager-provider-&lt;span class="o">{&lt;/span>provider-name&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git remote set-url origin git@github.com:&lt;span class="o">{&lt;/span>your-github-username&lt;span class="o">}&lt;/span>/machine-controller-manager-provider-&lt;span class="o">{&lt;/span>provider-name&lt;span class="o">}&lt;/span>.git
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make rename-project &lt;span class="nv">PROJECT_NAME&lt;/span>&lt;span class="o">={&lt;/span>github-org/your-github-username&lt;span class="o">}&lt;/span> &lt;span class="nv">PROVIDER_NAME&lt;/span>&lt;span class="o">={&lt;/span>provider-name&lt;span class="o">}&lt;/span>
+eg:
+make rename-project &lt;span class="nv">PROJECT_NAME&lt;/span>&lt;span class="o">=&lt;/span>gardener &lt;span class="nv">PROVIDER_NAME&lt;/span>&lt;span class="o">=&lt;/span>AmazonWebServices &lt;span class="o">(&lt;/span>or&lt;span class="o">)&lt;/span>
+make rename-project &lt;span class="nv">PROJECT_NAME&lt;/span>&lt;span class="o">=&lt;/span>githubusername &lt;span class="nv">PROVIDER_NAME&lt;/span>&lt;span class="o">=&lt;/span>AWS
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Now, commit your changes and push them upstream.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git add -A
+git commit -m &lt;span class="s2">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
+git push origin master
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
+&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/__resources/machine_error_codes_0a796e.MD">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
+&lt;p>:warning:&lt;/p>
+&lt;ul>
+&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
+&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
+&lt;/ul>
+&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
+&lt;ol>
+&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
+&lt;ul>
+&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
+&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
+&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
+&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
+&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make &lt;span class="nb">test&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Re-generate the vendors to update any new vendors imported.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make revendor
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
+&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
+&lt;/ol>
+&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
+&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
+&lt;ol>
+&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
+&lt;ul>
+&lt;li>Run the machine controller (driver) using the command below.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make start
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
+&lt;ul>
+&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git clone git@github.com:gardener/machine-controller-manager.git
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to the newly-created directory.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> machine-controller-manager
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f kubernetes/crds
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make start
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
+&lt;ul>
+&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-class&lt;/code>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f kubernetes/machine-class.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f kubernetes/secret.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f kubernetes/machine.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f kubernetes/machine-deployment.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl delete -f kubernetes/machine.yaml
+kubectl delete -f kubernetes/machine-deployment.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
+&lt;ol>
+&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
+&lt;li>To release your docker image, run the following.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> make release &lt;span class="nv">IMAGE_REPOSITORY&lt;/span>&lt;span class="o">=&lt;/span>&amp;lt;link-to-image-repo&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Cp Support Ol</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
+&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
+&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
+&lt;ol>
+&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
+&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
+&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
+&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
+&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
+&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
+&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
+&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
+&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
+&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
+&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Csi Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
 &lt;h1 id="custom-csi-components">(Custom) CSI Components&lt;/h1>
 &lt;p>Some provider extensions for Gardener are using CSI components to manage persistent volumes in the shoot clusters.
 Additionally, most of the provider extensions are deploying controllers for taking volume snapshots (CSI snapshotter).&lt;/p>
@@ -15963,586 +16107,4 @@ This procedure is the preferred way to add additional seed clusters, because sho
 &lt;p>The advantage of this approach is that there’s only one initial gardenlet installation required. Every other managed seed cluster has a gardenlet deployed automatically.&lt;/p>
 &lt;h2 id="related-links">Related Links&lt;/h2>
 &lt;p>&lt;a href="https://gardener.cloud/docs/gardener/usage/managed_seed">Register Shoot as Seed&lt;/a>&lt;/p>
-&lt;p>&lt;a href="http://github.com/gardener/garden-setup">garden-setup&lt;/a>&lt;/p></description></item><item><title>Docs: Deploy Gardenlet Manually</title><link>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/</guid><description>
-&lt;h1 id="deploy-a-gardenlet-manually">Deploy a Gardenlet Manually&lt;/h1>
-&lt;p>Manually deploying a gardenlet is required in the following cases:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>The Kubernetes cluster to be registered as a seed cluster has no public endpoint,
-because it is behind a firewall.
-The gardenlet must then be deployed into the cluster itself.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The Kubernetes cluster to be registered as a seed cluster is managed externally
-(the Kubernetes cluster is not a shoot cluster, so &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically">Automatic Deployment of Gardenlets&lt;/a> cannot be used).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The gardenlet runs outside of the Kubernetes cluster
-that should be registered as a seed cluster.
-(The gardenlet is not restricted to run in the seed cluster or
-to be deployed into a Kubernetes cluster at all).&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>Once you’ve deployed a gardenlet manually, for example, behind a firewall, you can deploy new gardenlets automatically. The manually deployed gardenlet is then used as a template for the new gardenlets. More information: &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically">Automatic Deployment of Gardenlets&lt;/a>.&lt;/p>
-&lt;/blockquote>
-&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
-&lt;h3 id="kubernetes-cluster-that-should-be-registered-as-a-seed-cluster">Kubernetes cluster that should be registered as a seed cluster&lt;/h3>
-&lt;ul>
-&lt;li>
-&lt;p>Verify that the cluster has a &lt;a href="https://gardener.cloud/docs/gardener/usage/supported_k8s_versions">supported Kubernetes version&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Determine the nodes, pods, and services CIDR of the cluster.
-You need to configure this information in the &lt;code>Seed&lt;/code> configuration.
-Gardener uses this information to check that the shoot cluster isn’t created with overlapping CIDR ranges.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Every Seed cluster needs an Ingress controller which distributes external requests to internal components like grafana and prometheus. Gardener supports two approaches to achieve this:&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;p>a. Gardener managed Ingress controller and DNS records. For this configure the following lines in your &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Seed resource&lt;/a>:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws-route53&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingress-secret&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">domain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingress.my-seed.example.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controller&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">nginx&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;some-optional-provider-specific-config-for-the-ingressController&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠ Please note that if you set &lt;code>.spec.ingress&lt;/code> then &lt;code>.spec.dns.ingressDomain&lt;/code> must be &lt;code>nil&lt;/code>.&lt;/p>
-&lt;p>b. Self-managed DNS record and Ingress controller:&lt;/p>
-&lt;p>:warning:
-There should exist a DNS record &lt;code>*.ingress.&amp;lt;SEED-CLUSTER-DOMAIN&amp;gt;&lt;/code> where &lt;code>&amp;lt;SEED-CLUSTER-DOMAIN&amp;gt;&lt;/code> is the value of the &lt;code>.dns.ingressDomain&lt;/code> field of &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">a Seed cluster resource&lt;/a> (or the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml#L84-L85">respective Gardenlet configuration&lt;/a>).&lt;/p>
-&lt;p>&lt;em>This is how it could be done for the Nginx ingress controller&lt;/em>&lt;/p>
-&lt;p>Deploy nginx into the &lt;code>kube-system&lt;/code> namespace in the Kubernetes cluster that should be registered as a &lt;code>Seed&lt;/code>.&lt;/p>
-&lt;p>Nginx will on most cloud providers create the service with type &lt;code>LoadBalancer&lt;/code> with an external ip.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">NAME TYPE CLUSTER-IP EXTERNAL-IP
-nginx-ingress-controller LoadBalancer 10.0.15.46 34.200.30.30
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create a wildcard &lt;code>A&lt;/code> record (e.g *.ingress.sweet-seed.&lt;my-domain>. IN A 34.200.30.30) with your DNS provider and point it to the external ip of the ingress service. This ingress domain is later required to register the &lt;code>Seed&lt;/code> cluster.&lt;/p>
-&lt;p>Please configure the ingress domain in the &lt;code>Seed&lt;/code> specification as follows:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ingressDomain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingress.sweet-seed.&amp;lt;my-domain&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠ Please note that if you set &lt;code>.spec.dns.ingressDomain&lt;/code> then &lt;code>.spec.ingress&lt;/code> must be &lt;code>nil&lt;/code>.&lt;/p>
-&lt;h3 id="kubeconfig-for-the-seed-cluster">&lt;code>kubeconfig&lt;/code> for the Seed Cluster&lt;/h3>
-&lt;p>The &lt;code>kubeconfig&lt;/code> is required to deploy the gardenlet Helm chart to the seed cluster.
-The gardenlet requires certain privileges to be able to operate.
-These privileges are described in RBAC resources in the gardenlet Helm chart (see &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/gardenlet/charts/runtime/templates">charts/gardener/gardenlet/charts/runtime/templates&lt;/a>).
-The Helm chart contains a service account &lt;code>gardenlet&lt;/code>
-that the gardenlet deployment uses by default to talk to the Seed API server.&lt;/p>
-&lt;blockquote>
-&lt;p>If the gardenlet isn’t deployed in the seed cluster,
-the gardenlet can be configured to use a &lt;code>kubeconfig&lt;/code>,
-which also requires the above-mentioned privileges, from a mounted directory.
-The &lt;code>kubeconfig&lt;/code> is specified in section &lt;code>seedClientConnection.kubeconfig&lt;/code>
-of the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Gardenlet configuration&lt;/a>.
-This configuration option isn’t used in the following,
-as this procedure only describes the recommended setup option
-where the gardenlet is running in the seed cluster itself.&lt;/p>
-&lt;/blockquote>
-&lt;h2 id="procedure-overview">Procedure Overview&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>Prepare the garden cluster:&lt;/p>
-&lt;ol>
-&lt;li>&lt;a href="#create-a-bootstrap-token-secret-in-the-kube-system-namespace-of-the-garden-cluster">Create a bootstrap token secret in the &lt;code>kube-system&lt;/code> namespace of the garden cluster&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#create-rbac-roles-for-the-gardenlet-to-allow-bootstrapping-in-the-garden-cluster">Create RBAC roles for the gardenlet to allow bootstrapping in the garden cluster&lt;/a>&lt;/li>
-&lt;/ol>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#prepare-the-gardenlet-helm-chart">Prepare the gardenlet Helm chart&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#automatically-register-shoot-cluster-as-a-seed-cluster">Automatically register shoot cluster as a seed cluster&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#deploy-the-gardenlet">Deploy the gardenlet&lt;/a>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#check-that-the-gardenlet-is-successfully-deployed">Check that the gardenlet is successfully deployed&lt;/a>&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="create-a-bootstrap-token-secret-in-the-kube-system-namespace-of-the-garden-cluster">Create a bootstrap token secret in the &lt;code>kube-system&lt;/code> namespace of the garden cluster&lt;/h2>
-&lt;p>The gardenlet needs to talk to the &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver">Gardener API server&lt;/a> residing in the garden cluster.&lt;/p>
-&lt;p>The gardenlet can be configured with an already existing garden cluster &lt;code>kubeconfig&lt;/code> in one of the following ways:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Either by specifying &lt;code>gardenClientConnection.kubeconfig&lt;/code>
-in the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Gardenlet configuration&lt;/a> or&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>by supplying the environment variable &lt;code>GARDEN_KUBECONFIG&lt;/code> pointing to
-a mounted &lt;code>kubeconfig&lt;/code> file).&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;p>The preferred way however, is to use the gardenlets ability to request
-a signed certificate for the garden cluster by leveraging
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">Kubernetes Certificate Signing Requests&lt;/a>.
-The gardenlet performs a TLS bootstrapping process that is similar to the
-&lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-tls-bootstrapping/">Kubelet TLS Bootstrapping&lt;/a>.
-Make sure that the API server of the garden cluster has
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/#enabling-bootstrap-token-authentication">bootstrap token authentication&lt;/a>
-enabled.&lt;/p>
-&lt;p>The client credentials required for the gardenlets TLS bootstrapping process,
-need to be either &lt;code>token&lt;/code> or &lt;code>certificate&lt;/code> (OIDC isn’t supported) and have permissions
-to create a Certificate Signing Request (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">CSR&lt;/a>).
-It’s recommended to use &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap tokens&lt;/a>
-due to their desirable security properties (such as a limited token lifetime).&lt;/p>
-&lt;p>Therefore, first create a bootstrap token secret for the garden cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Name MUST be of form &amp;#34;bootstrap-token-&amp;lt;token id&amp;gt;&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">bootstrap-token-07401b&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kube-system&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># Type MUST be &amp;#39;bootstrap.kubernetes.io/token&amp;#39;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">bootstrap.kubernetes.io/token&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">stringData&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Human readable description. Optional.&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">description&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;Token to be used by the gardenlet for Seed `sweet-seed`.&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Token ID and secret. Required.&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">token-id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">07401b&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># 6 characters&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">token-secret&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">f395accd246ae52d&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># 16 characters&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Expiration. Optional.&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># expiration: 2017-03-10T03:22:11Z&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Allowed usages.&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usage-bootstrap-authentication&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usage-bootstrap-signing&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When you later prepare the gardenlet Helm chart,
-a &lt;code>kubeconfig&lt;/code> based on this token is shared with the gardenlet upon deployment.&lt;/p>
-&lt;h2 id="create-rbac-roles-for-the-gardenlet-to-allow-bootstrapping-in-the-garden-cluster">Create RBAC roles for the gardenlet to allow bootstrapping in the garden cluster&lt;/h2>
-&lt;p>This step is only required if the gardenlet you deploy is the first gardenlet
-in the Gardener installation.
-Additionally, when using the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">control plane chart&lt;/a>,
-the following resources are already contained in the Helm chart,
-that is, if you use it you can skip these steps as the needed RBAC roles already exist.&lt;/p>
-&lt;p>The gardenlet uses the configured bootstrap &lt;code>kubeconfig&lt;/code> in &lt;code>gardenClientConnection.bootstrapKubeconfig&lt;/code> to request a signed certificate for the user &lt;code>gardener.cloud:system:seed:&amp;lt;seed-name&amp;gt;&lt;/code> in the group &lt;code>gardener.cloud:system:seeds&lt;/code>.&lt;/p>
-&lt;p>Create a &lt;code>ClusterRole&lt;/code> and &lt;code>ClusterRoleBinding&lt;/code> that grant full admin permissions to authenticated gardenlets.&lt;/p>
-&lt;p>Create the following resources in the garden cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRole&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seeds&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">rules&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">apiGroups&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s1">&amp;#39;*&amp;#39;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s1">&amp;#39;*&amp;#39;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">verbs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s1">&amp;#39;*&amp;#39;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRoleBinding&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seeds&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">roleRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRole&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seeds&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">subjects&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Group&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seeds&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRole&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seed-bootstrapper&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">rules&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">apiGroups&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">certificates.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">certificatesigningrequests&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">verbs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">create&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">get&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">apiGroups&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">certificates.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">certificatesigningrequests/seedclient&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">verbs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">create&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># A kubelet/gardenlet authenticating using bootstrap tokens is authenticated as a user in the group system:bootstrappers&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># Allows the Gardenlet to create a CSR&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRoleBinding&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seed-bootstrapper&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">roleRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterRole&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardener.cloud:system:seed-bootstrapper&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">subjects&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Group&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">system:bootstrappers&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">rbac.authorization.k8s.io&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ After bootstrapping, the gardenlet has full administrative access to the garden cluster.
-You might be interested to harden this and limit its permissions to only resources related to the seed cluster it is responsible for.
-Please take a look into &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access">this document&lt;/a>.&lt;/p>
-&lt;h2 id="prepare-the-gardenlet-helm-chart">Prepare the gardenlet Helm chart&lt;/h2>
-&lt;p>This section only describes the minimal configuration,
-using the global configuration values of the gardenlet Helm chart.
-For an overview over all values, see the &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/gardenlet/values.yaml">configuration values&lt;/a>.
-We refer to the global configuration values as &lt;em>gardenlet configuration&lt;/em> in the remaining procedure.&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>Create a gardenlet configuration &lt;code>gardenlet-values.yaml&lt;/code> based on &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/gardenlet/values.yaml">this template&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Create a bootstrap &lt;code>kubeconfig&lt;/code> based on the bootstrap token created in the garden cluster.&lt;/p>
-&lt;p>Replace the &lt;code>&amp;lt;bootstrap-token&amp;gt;&lt;/code> with &lt;code>token-id.token-secret&lt;/code> (from our previous example: &lt;code>07401b.f395accd246ae52d&lt;/code>) from the bootstrap token secret.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Config&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">current-context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-bootstrap@default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">clusters&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">certificate-authority-data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;ca-of-garden-cluster&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">https://&amp;lt;endpoint-of-garden-cluster&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">contexts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-bootstrap&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-bootstrap@default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">users&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-bootstrap&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">token&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;bootstrap-token&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>In section &lt;code>gardenClientConnection.bootstrapKubeconfig&lt;/code> of your gardenlet configuration, provide the bootstrap &lt;code>kubeconfig&lt;/code> together with a name and namespace to the gardenlet Helm chart.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">gardenClientConnection&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">bootstrapKubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-kubeconfig-bootstrap&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">|&lt;/span>&lt;span class="sd">
-&lt;/span>&lt;span class="sd"> &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;bootstrap-kubeconfig&amp;gt; &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># will be base64 encoded by helm&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The bootstrap &lt;code>kubeconfig&lt;/code> is stored in the specified secret.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>In section &lt;code>gardenClientConnection.kubeconfigSecret&lt;/code> of your gardenlet configuration,
-define a name and a namespace where the gardenlet stores
-the real &lt;code>kubeconfig&lt;/code> that it creates during the bootstrap process. If the secret doesn&amp;rsquo;t exist,
-the gardenlet creates it for you.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">gardenClientConnection&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfigSecret&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-kubeconfig&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h2 id="automatically-register-shoot-cluster-as-a-seed-cluster">Automatically register shoot cluster as a seed cluster&lt;/h2>
-&lt;p>A seed cluster can either be registered by manually creating
-the &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">&lt;code>Seed&lt;/code> resource&lt;/a>
-or automatically by the gardenlet.
-This functionality is useful for managed seed clusters,
-as the gardenlet in the garden cluster deploys a copy of itself
-into the cluster with automatic registration of the &lt;code>Seed&lt;/code> configured.
-However, it can also be used to have a streamlined seed cluster registration process when manually deploying the gardenlet.&lt;/p>
-&lt;blockquote>
-&lt;p>This procedure doesn’t describe all the possible configurations
-for the &lt;code>Seed&lt;/code> resource. For more information, see:&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Example Seed resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/usage/seed_settings">Configurable Seed settings&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;/blockquote>
-&lt;h3 id="adjust-the-gardenlet-component-configuration">Adjust the gardenlet component configuration&lt;/h3>
-&lt;ol>
-&lt;li>
-&lt;p>Supply the &lt;code>Seed&lt;/code> resource in section &lt;code>seedConfig&lt;/code> of your gardenlet configuration &lt;code>gardenlet-values.yaml&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Add the &lt;code>seedConfig&lt;/code> to your gardenlet configuration &lt;code>gardenlet-values.yaml&lt;/code>.
-The field &lt;code>seedConfig.spec.provider.type&lt;/code> specifies the infrastructure provider type (for example, &lt;code>aws&lt;/code>) of the seed cluster.
-For all supported infrastructure providers, see &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#known-extension-implementations">Known Extension Implementations&lt;/a>.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">...&lt;/span>&lt;span class="l">.&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">seedConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ingressDomain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingress.sweet-seed.&amp;lt;my-domain&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># see prerequisites&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># see prerequisites&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.240.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.244.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.32.0.0&lt;/span>&lt;span class="l">/13&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">shootDefaults: # optional&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">non-overlapping default CIDRs for shoot clusters of that Seed&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.96.0.0&lt;/span>&lt;span class="l">/11&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.64.0.0&lt;/span>&lt;span class="l">/13&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-west-1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;provider&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h3 id="optional-enable-backup-and-restore">Optional: Enable backup and restore&lt;/h3>
-&lt;p>The seed cluster can be set up with backup and restore
-for the main &lt;code>etcds&lt;/code> of shoot clusters.&lt;/p>
-&lt;p>Gardener uses &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a>
-that &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/doc/usage/getting_started.md#usage">integrates with different storage providers&lt;/a>
-to store the shoot cluster&amp;rsquo;s main &lt;code>etcd&lt;/code> backups.
-Make sure to obtain client credentials that have sufficient permissions with the chosen storage provider.&lt;/p>
-&lt;p>Create a secret in the garden cluster with client credentials for the storage provider.
-The format of the secret is cloud provider specific and can be found
-in the repository of the respective Gardener extension.
-For example, the secret for AWS S3 can be found in the AWS provider extension
-(&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-etcd-backup-secret.yaml">30-etcd-backup-secret.yaml&lt;/a>).&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed-backup&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># client credentials format is provider specific&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Configure the &lt;code>Seed&lt;/code> resource in section &lt;code>seedConfig&lt;/code> of your gardenlet configuration to use backup and restore:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">seedConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">backup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;provider&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed-backup&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deploy-the-gardenlet">Deploy the gardenlet&lt;/h2>
-&lt;blockquote>
-&lt;p>The gardenlet doesn’t have to run in the same Kubernetes cluster as the seed cluster
-it’s registering and reconciling, but it is in most cases advantageous
-to use in-cluster communication to talk to the Seed API server.
-Running a gardenlet outside of the cluster is mostly used for local development.&lt;/p>
-&lt;/blockquote>
-&lt;p>The &lt;code>gardenlet-values.yaml&lt;/code> looks something like this
-(with automatic Seed registration and backup for shoot clusters enabled):&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">global&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Gardenlet configuration values&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gardenlet&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;default config&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gardenClientConnection&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">bootstrapKubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-bootstrap-kubeconfig&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">|&lt;/span>&lt;span class="sd">
-&lt;/span>&lt;span class="sd"> apiVersion: v1
-&lt;/span>&lt;span class="sd"> clusters:
-&lt;/span>&lt;span class="sd"> - cluster:
-&lt;/span>&lt;span class="sd"> certificate-authority-data: &amp;lt;dummy&amp;gt;
-&lt;/span>&lt;span class="sd"> server: &amp;lt;my-garden-cluster-endpoint&amp;gt;
-&lt;/span>&lt;span class="sd"> name: my-kubernetes-cluster
-&lt;/span>&lt;span class="sd"> ....&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubeconfigSecret&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gardenlet-kubeconfig&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;default config&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">seedConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dns&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ingressDomain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ingress.sweet-seed.&amp;lt;my-domain&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.240.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.244.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.32.0.0&lt;/span>&lt;span class="l">/13&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">shootDefaults&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">pods&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.96.0.0&lt;/span>&lt;span class="l">/11&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">100.64.0.0&lt;/span>&lt;span class="l">/13&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-west-1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;provider&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">backup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;provider&amp;gt;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">sweet-seed-backup&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Deploy the gardenlet Helm chart to the Kubernetes cluster.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">helm install gardenlet charts/gardener/gardenlet &lt;span class="se">\
-&lt;/span>&lt;span class="se">&lt;/span> --namespace garden &lt;span class="se">\
-&lt;/span>&lt;span class="se">&lt;/span> -f gardenlet-values.yaml &lt;span class="se">\
-&lt;/span>&lt;span class="se">&lt;/span> --wait
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>This helm chart creates:&lt;/p>
-&lt;ul>
-&lt;li>A service account &lt;code>gardenlet&lt;/code> that the gardenlet can use to talk to the Seed API server.&lt;/li>
-&lt;li>RBAC roles for the service account (full admin rights at the moment).&lt;/li>
-&lt;li>The secret (&lt;code>garden&lt;/code>/&lt;code>gardenlet-bootstrap-kubeconfig&lt;/code>) containing the bootstrap &lt;code>kubeconfig&lt;/code>.&lt;/li>
-&lt;li>The gardenlet deployment in the &lt;code>garden&lt;/code> namespace.&lt;/li>
-&lt;/ul>
-&lt;h2 id="check-that-the-gardenlet-is-successfully-deployed">Check that the gardenlet is successfully deployed&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>Check that the gardenlets certificate bootstrap was successful.&lt;/p>
-&lt;p>Check if the secret &lt;code>gardenlet-kubeconfig&lt;/code> in the namespace &lt;code>garden&lt;/code> in the seed cluster
-is created and contains a &lt;code>kubeconfig&lt;/code> with a valid certificate.&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>Get the &lt;code>kubeconfig&lt;/code> from the created secret.&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ kubectl -n garden get secret gardenlet-kubeconfig -o json | jq -r .data.kubeconfig | base64 -d
-&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Test against the garden cluster and verify it’s working.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Extract the &lt;code>client-certificate-data&lt;/code> from the user &lt;code>gardenlet&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>View the certificate:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-fallback" data-lang="fallback">$ openssl x509 -in ./gardenlet-cert -noout -text
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Check that the certificate is valid for a year (that is the lifetime of new certificates).&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;/li>
-&lt;li>
-&lt;p>Check that the bootstrap secret &lt;code>gardenlet-bootstrap-kubeconfig&lt;/code> has been deleted from the seed cluster in namespace &lt;code>garden&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Check that the seed cluster is registered and &lt;code>READY&lt;/code> in the garden cluster.&lt;/p>
-&lt;p>Check that the seed cluster &lt;code>sweet-seed&lt;/code> exists and all conditions indicate that it’s available.
-If so, the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md#heartbeats">Gardenlet is sending regular heartbeats&lt;/a> and the &lt;a href="https://gardener.cloud/docs/gardener/usage/seed_bootstrapping">seed bootstrapping&lt;/a> was successful.&lt;/p>
-&lt;p>Check that the conditions on the &lt;code>Seed&lt;/code> resource look similar to the following:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ kubectl get seed sweet-seed -o json &lt;span class="p">|&lt;/span> jq .status.conditions
-&lt;span class="o">[&lt;/span>
-&lt;span class="o">{&lt;/span>
-&lt;span class="s2">&amp;#34;lastTransitionTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:17:29Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;lastUpdateTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:17:29Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;message&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;Gardenlet is posting ready status.&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;reason&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;GardenletReady&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;status&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;True&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;type&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;GardenletReady&amp;#34;&lt;/span>
-&lt;span class="o">}&lt;/span>,
-&lt;span class="o">{&lt;/span>
-&lt;span class="s2">&amp;#34;lastTransitionTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:17:49Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;lastUpdateTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:53:17Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;message&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;Seed cluster has been bootstrapped successfully.&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;reason&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;BootstrappingSucceeded&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;status&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;True&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;type&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;Bootstrapped&amp;#34;&lt;/span>
-&lt;span class="o">}&lt;/span>,
-&lt;span class="o">{&lt;/span>
-&lt;span class="s2">&amp;#34;lastTransitionTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:17:49Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;lastUpdateTime&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;2020-07-17T09:53:17Z&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;message&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;Backup Buckets are available.&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;reason&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;BackupBucketsAvailable&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;status&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;True&amp;#34;&lt;/span>,
-&lt;span class="s2">&amp;#34;type&amp;#34;&lt;/span>: &lt;span class="s2">&amp;#34;BackupBucketsReady&amp;#34;&lt;/span>
-&lt;span class="o">}&lt;/span>
-&lt;span class="o">]&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h2 id="related-links">Related Links&lt;/h2>
-&lt;p>&lt;a href="https://github.com/gardener/gardener/issues/1724">Issue #1724: Harden Gardenlet RBAC privileges&lt;/a>.&lt;/p>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/concepts/backup-restore">Backup and Restore&lt;/a>.&lt;/p></description></item><item><title>Docs: Dns</title><link>https://gardener.cloud/docs/gardener/extensions/dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/dns/</guid><description>
-&lt;h1 id="contract-dnsprovider-and-dnsentry-resources">Contract: &lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources&lt;/h1>
-&lt;p>Every shoot cluster requires external DNS records that are publicly resolvable.
-The management of these DNS records requires provider-specific knowledge which is to be developed outside of the Gardener&amp;rsquo;s core repository.&lt;/p>
-&lt;h2 id="what-does-gardener-create-dns-records-for">What does Gardener create DNS records for?&lt;/h2>
-&lt;h3 id="internal-domain-name">Internal domain name&lt;/h3>
-&lt;p>Every shoot cluster&amp;rsquo;s kube-apiserver running in the seed is exposed via a load balancer that has a public endpoint (IP or hostname).
-This endpoint is used by end-users and also by system components (that are running in another network, e.g., the kubelet or kube-proxy) to talk to the cluster.
-In order to be robust against changes of this endpoint (e.g., caused due to re-creation of the load balancer or move of the control plane to another seed cluster) Gardener creates a so-called &lt;em>internal domain name&lt;/em> for every shoot cluster.
-The &lt;em>internal domain name&lt;/em> is a publicly resolvable DNS record that points to the load balancer of the kube-apiserver.
-Gardener uses this domain name in the kubeconfigs of all system components (instead of writing the load balancer endpoint directly into it.
-This way Gardener does not need to recreate all the kubeconfigs if the endpoint changes - it just needs to update the DNS record.&lt;/p>
-&lt;h3 id="external-domain-name">External domain name&lt;/h3>
-&lt;p>The internal domain name is not configurable by end-users directly but dictated by the Gardener administrator.
-However, end-users usually prefer to have another DNS name, maybe even using their own domain sometimes to access their Kubernetes clusters.
-Gardener supports that by creating another DNS record, named &lt;em>external domain name&lt;/em>, that actually points to the &lt;em>internal domain name&lt;/em>.
-The kubeconfig handed out to end-users does contain this &lt;em>external domain name&lt;/em>, i.e., users can access their clusters with the DNS name they like to.&lt;/p>
-&lt;p>As not every end-user has an own domain it is possible for Gardener administrators to configure so-called &lt;em>default domains&lt;/em>.
-If configured, shoots that do not specify a domain explicitly get an &lt;em>external domain name&lt;/em> based on a default domain (unless explicitly stated that this shoot should not get an external domain name (&lt;code>.spec.dns.provider=unmanaged&lt;/code>).&lt;/p>
-&lt;h3 id="domain-name-for-ingress-deprecated">Domain name for ingress (deprecated)&lt;/h3>
-&lt;p>Gardener allows to deploy a &lt;code>nginx-ingress-controller&lt;/code> into a shoot cluster (deprecated).
-This controller is exposed via a public load balancer (again, either IP or hostname).
-Gardener creates a wildcard DNS record pointing to this load balancer.
-&lt;code>Ingress&lt;/code> resources can later use this wildcard DNS record to expose underlying applications.&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-dns-provider">What needs to be implemented to support a new DNS provider?&lt;/h2>
-&lt;p>As part of the shoot flow Gardener will create two special resources in the seed cluster that need to be reconciled by an extension controller.
-The first resource (&lt;code>DNSProvider&lt;/code>) is a declaration of a DNS provider (e.g., &lt;code>aws-route53&lt;/code>, &lt;code>google-clouddns&lt;/code>, &amp;hellip;) with a reference to a &lt;code>Secret&lt;/code> object that contains the provider-specific credentials in order to talk to the provider&amp;rsquo;s API.
-It also allows to specify two lists of domains that shall be allowed or disallowed to be used for DNS entries:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws-credentials&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># aws-route53 specific credentials here&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DNSProvider&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-aws-account&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws-route53&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws-credentials&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">domains&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">include&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">dev.my-fancy-domain.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">exclude&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">staging.my-fancy-domain.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">prod.my-fancy-domain.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When reconciling this resource the DNS controller has to read information about available DNS zones to figure out which domains can actually be supported by the provided credentials.
-Based on the constraints given in the &lt;code>DNSProvider&lt;/code> resources &lt;code>.spec.domains.{include|exclude}&lt;/code> fields it shall later only allow certain DNS entries.
-Gardener waits until the &lt;code>status&lt;/code> indicates that the registration went well:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DNSProvider&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">...&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">status&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">state&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Ready&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">message&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">everything ok&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Other possible states are &lt;code>Pending&lt;/code>, &lt;code>Error&lt;/code>, and &lt;code>Invalid&lt;/code>.
-The DNS controller may provide an explanation of the &lt;code>.status.state&lt;/code> in the &lt;code>.status.message&lt;/code> field.&lt;/p>
-&lt;p>Now Gardener may create &lt;code>DNSEntry&lt;/code> objects that represent the ask to create an actual external DNS record:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DNSEntry&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dnsName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apiserver.cluster1.dev.my-fancy-domain.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ttl&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">600&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">targets&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="m">8.8.8.8&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It has to be automatically determined whether the to-be-created DNS record is of type &lt;code>A&lt;/code> or &lt;code>CNAME&lt;/code>.
-The spec shall also allow the creation of &lt;code>TXT&lt;/code> records, e.g.:&lt;/p>
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nn">---&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">DNSEntry&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">dns&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dnsName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">data.apiserver.cluster1.dev.my-fancy-domain.com&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ttl&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">120&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">text&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">|&lt;/span>&lt;span class="sd">
-&lt;/span>&lt;span class="sd"> &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">content for the DNS TXT record&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>status&lt;/code> section of this resource looks similar like the &lt;code>DNSProvider&lt;/code>&amp;rsquo;s.
-Gardener is (as of today) only evaluating the &lt;code>.status.state&lt;/code> and &lt;code>.status.message&lt;/code> fields.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/external-dns-management/tree/master/pkg/apis/dns/v1alpha1">&lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> API (Golang specification)&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/external-dns-management">external-dns-management project in Gardener&amp;rsquo;s GitHub organization&lt;/a>&lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;p>&lt;a href="http://github.com/gardener/garden-setup">garden-setup&lt;/a>&lt;/p></description></item></channel></rss>

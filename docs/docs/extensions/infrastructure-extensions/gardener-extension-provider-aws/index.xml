@@ -1,0 +1,509 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Provider AWS</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/</link><description>Recent content in Provider AWS on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Local Setup</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/local-setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/local-setup/</guid><description>
+&lt;h3 id="admission-aws">admission-aws&lt;/h3>
+&lt;p>&lt;code>admission-aws&lt;/code> is an admission webhook server which is responsible for the validation of the cloud provider (AWS in this case) specific fields and resources. The Gardener API server is cloud provider agnostic and it wouldn&amp;rsquo;t be able to perform similar validation.&lt;/p>
+&lt;p>Follow the steps below to run the admission webhook server locally.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Start the Gardener API server.&lt;/p>
+&lt;p>For details, check the Gardener &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup">local setup&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Start the webhook server&lt;/p>
+&lt;p>Make sure that the &lt;code>KUBECONFIG&lt;/code> environment variable is pointing to the local garden cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make start-admission
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Setup the &lt;code>ValidatingWebhookConfiguration&lt;/code>.&lt;/p>
+&lt;p>&lt;code>hack/dev-setup-admission-aws.sh&lt;/code> will configure the webhook Service which will allow the kube-apiserver of your local cluster to reach the webhook server. It will also apply the &lt;code>ValidatingWebhookConfiguration&lt;/code> manifest.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./hack/dev-setup-admission-aws.sh
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>You are now ready to experiment with the &lt;code>admission-aws&lt;/code> webhook server locally.&lt;/p></description></item><item><title>Docs: Usage As End User</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-end-user/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-end-user/</guid><description>
+&lt;h1 id="using-the-aws-provider-extension-with-gardener-as-end-user">Using the AWS provider extension with Gardener as end-user&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">&lt;code>core.gardener.cloud/v1beta1.Shoot&lt;/code> resource&lt;/a> declares a few fields that are meant to contain provider-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for AWS and provide an example &lt;code>Shoot&lt;/code> manifest with minimal configuration that you can use to create an AWS cluster (modulo the landscape-specific information like cloud profile names, secret binding names, etc.).&lt;/p>
+&lt;h2 id="provider-secret-data">Provider Secret Data&lt;/h2>
+&lt;p>Every shoot cluster references a &lt;code>SecretBinding&lt;/code> which itself references a &lt;code>Secret&lt;/code>, and this &lt;code>Secret&lt;/code> contains the provider credentials of your AWS account.
+This &lt;code>Secret&lt;/code> must look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core-aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">accessKeyID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(access-key-id)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretAccessKey&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(secret-access-key)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;a href="https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys">AWS documentation&lt;/a> explains the necessary steps to enable programmatic access, i.e. create &lt;strong>access key ID&lt;/strong> and &lt;strong>access key&lt;/strong>, for the user of your choice.&lt;/p>
+&lt;p>⚠️ For security reasons, we recommend creating a &lt;strong>dedicated user with programmatic access only&lt;/strong>. Please avoid re-using a IAM user which has access to the AWS console (human user).&lt;/p>
+&lt;p>⚠️ Depending on your AWS API usage it can be problematic to reuse the same AWS Account for different Shoot clusters in the same region due to rate limits. Please consider spreading your Shoots over multiple AWS Accounts if you are hitting those limits.&lt;/p>
+&lt;h3 id="permissions">Permissions&lt;/h3>
+&lt;p>Please make sure that the provided credentials have the correct privileges. You can use the following AWS IAM policy document and attach it to the IAM user backed by the credentials you provided (please check the &lt;a href="http://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage.html">official AWS documentation&lt;/a> as well):&lt;/p>
+&lt;details>
+&lt;summary>Click to expand the AWS IAM policy document!&lt;/summary>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json">&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Version&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;2012-10-17&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Statement&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;autoscaling:*&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;ec2:*&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;elasticloadbalancing:*&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;iam:GetInstanceProfile&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:GetPolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:GetPolicyVersion&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:GetRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:GetRolePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:ListPolicyVersions&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:ListRolePolicies&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:ListAttachedRolePolicies&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:ListInstanceProfilesForRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:CreateInstanceProfile&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:CreatePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:CreatePolicyVersion&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:CreateRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:CreateServiceLinkedRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:AddRoleToInstanceProfile&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:AttachRolePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DetachRolePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:RemoveRoleFromInstanceProfile&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DeletePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DeletePolicyVersion&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DeleteRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DeleteRolePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:DeleteInstanceProfile&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:PutRolePolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:PassRole&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;iam:UpdateAssumeRolePolicy&amp;#34;&lt;/span>
+&lt;span class="p">],&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/details>
+&lt;h2 id="infrastructureconfig">&lt;code>InfrastructureConfig&lt;/code>&lt;/h2>
+&lt;p>The infrastructure configuration mainly describes how the network layout looks like in order to create the shoot worker nodes in a later step, thus, prepares everything relevant to create VMs, load balancers, volumes, etc.&lt;/p>
+&lt;p>An example &lt;code>InfrastructureConfig&lt;/code> for the AWS extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">enableECRAccess&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vpc&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># specify either &amp;#39;id&amp;#39; or &amp;#39;cidr&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># id: vpc-123456&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cidr&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># gatewayEndpoints:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># - s3&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-west-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.112.0&lt;/span>&lt;span class="l">/22&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">public&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.96.0&lt;/span>&lt;span class="l">/22&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/19&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># elasticIPAllocationID: eipalloc-123456&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">ignoreTags&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">keys&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># individual ignored tag keys&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">SomeCustomKey&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">AnotherCustomKey&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">keyPrefixes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># ignored tag key prefixes&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">user.specific/prefix/&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>enableECRAccess&lt;/code> flag specifies whether the AWS IAM role policy attached to all worker nodes of the cluster shall contain permissions to access the Elastic Container Registry of the respective AWS account.
+If the flag is not provided it is defaulted to &lt;code>true&lt;/code>.
+Please note that if the &lt;code>iamInstanceProfile&lt;/code> is set for a worker pool in the &lt;code>WorkerConfig&lt;/code> (see below) then &lt;code>enableECRAccess&lt;/code> does not have any effect.
+It only applies for those worker pools whose &lt;code>iamInstanceProfile&lt;/code> is not set.&lt;/p>
+&lt;details>
+&lt;summary>Click to expand the default AWS IAM policy document used for the instance profiles!&lt;/summary>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json">&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Version&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;2012-10-17&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Statement&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;ec2:DescribeInstances&amp;#34;&lt;/span>
+&lt;span class="p">],&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="err">//&lt;/span> &lt;span class="err">Only&lt;/span> &lt;span class="err">if&lt;/span> &lt;span class="err">`.enableECRAccess`&lt;/span> &lt;span class="err">is&lt;/span> &lt;span class="err">`&lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="err">`.&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:GetAuthorizationToken&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:BatchCheckLayerAvailability&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:GetDownloadUrlForLayer&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:GetRepositoryPolicy&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:DescribeRepositories&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:ListImages&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s2">&amp;#34;ecr:BatchGetImage&amp;#34;&lt;/span>
+&lt;span class="p">],&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/details>
+&lt;p>The &lt;code>networks.vpc&lt;/code> section describes whether you want to create the shoot cluster in an already existing VPC or whether to create a new one:&lt;/p>
+&lt;ul>
+&lt;li>If &lt;code>networks.vpc.id&lt;/code> is given then you have to specify the VPC ID of the existing VPC that was created by other means (manually, other tooling, &amp;hellip;).
+Please make sure that the VPC has attached an internet gateway - the AWS controller won&amp;rsquo;t create one automatically for existing VPCs. To make sure the nodes are able to join and operate in your cluster properly, please make sure that your VPC has enabled &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-dns.html">DNS Support&lt;/a>, explicitly the attributes &lt;code>enableDnsHostnames&lt;/code> and &lt;code>enableDnsSupport&lt;/code> must be set to &lt;code>true&lt;/code>.&lt;/li>
+&lt;li>If &lt;code>networks.vpc.cidr&lt;/code> is given then you have to specify the VPC CIDR of a new VPC that will be created during shoot creation.
+You can freely choose a private CIDR range.&lt;/li>
+&lt;li>Either &lt;code>networks.vpc.id&lt;/code> or &lt;code>networks.vpc.cidr&lt;/code> must be present, but not both at the same time.&lt;/li>
+&lt;li>&lt;code>networks.vpc.gatewayEndpoints&lt;/code> is optional. If specified then each item is used as service name in a corresponding Gateway VPC Endpoint.&lt;/li>
+&lt;/ul>
+&lt;p>The &lt;code>networks.zones&lt;/code> section contains configuration for resources you want to create or use in availability zones.
+For every zone, the AWS extension creates three subnets:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>internal&lt;/code> subnet is used for &lt;a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-internal-load-balancers.html">internal AWS load balancers&lt;/a>.&lt;/li>
+&lt;li>The &lt;code>public&lt;/code> subnet is used for &lt;a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-internet-facing-load-balancers.html">public AWS load balancers&lt;/a>.&lt;/li>
+&lt;li>The &lt;code>workers&lt;/code> subnet is used for all shoot worker nodes, i.e., VMs which later run your applications.&lt;/li>
+&lt;/ul>
+&lt;p>For every subnet, you have to specify a CIDR range contained in the VPC CIDR specified above, or the VPC CIDR of your already existing VPC.
+You can freely choose these CIDRs and it is your responsibility to properly design the network layout to suit your needs.&lt;/p>
+&lt;p>Also, the AWS extension creates a dedicated NAT gateway for each zone.
+By default, it also creates a corresponding Elastic IP that it attaches to this NAT gateway and which is used for egress traffic.
+The &lt;code>elasticIPAllocationID&lt;/code> field allows you to specify the ID of an existing Elastic IP allocation in case you want to bring your own.
+If provided, no new Elastic IP will be created and, instead, the Elastic IP specified by you will be used.&lt;/p>
+&lt;p>⚠️ If you change this field for an already existing infrastructure then it will disrupt egress traffic while AWS applies this change.
+The reason is that the NAT gateway must be recreated with the new Elastic IP association.
+Also, please note that the existing Elastic IP will be permanently deleted if it was earlier created by the AWS extension.&lt;/p>
+&lt;p>You can configure &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpce-gateway.html">Gateway VPC Endpoints&lt;/a> by adding items in the optional list &lt;code>networks.vpc.gatewayEndpoints&lt;/code>. Each item in the list is used as a service name and a corresponding endpoint is created for it. All created endpoints point to the service within the cluster&amp;rsquo;s region. For example, consider this (partial) shoot config:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vpc&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gatewayEndpoints&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">s3&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The service name of the S3 Gateway VPC Endpoint in this example is &lt;code>com.amazonaws.eu-central-1.s3&lt;/code>.&lt;/p>
+&lt;p>If you want to use multiple availability zones then add a second, third, &amp;hellip; entry to the &lt;code>networks.zones[]&lt;/code> list and properly specify the AZ name in &lt;code>networks.zones[].name&lt;/code>.&lt;/p>
+&lt;p>Apart from the VPC and the subnets the AWS extension will also create DHCP options and an internet gateway (only if a new VPC is created), routing tables, security groups, elastic IPs, NAT gateways, EC2 key pairs, IAM roles, and IAM instance profiles.&lt;/p>
+&lt;p>The &lt;code>ignoreTags&lt;/code> section allows to configure which resource tags on AWS resources managed by Gardener should be ignored during
+infrastructure reconciliation. By default, all tags that are added outside of Gardener&amp;rsquo;s
+reconciliation will be removed during the next reconciliation. This field allows users and automation to add
+custom tags on AWS resources created and managed by Gardener without loosing them on the next reconciliation.
+Tags can ignored either by specifying exact key values (&lt;code>ignoreTags.keys&lt;/code>) or key prefixes (&lt;code>ignoreTags.keyPrefixes&lt;/code>).
+In both cases it is forbidden to ignore the &lt;code>Name&lt;/code> tag or any tag starting with &lt;code>kubernetes.io&lt;/code> or &lt;code>gardener.cloud&lt;/code>.&lt;br>
+Please note though, that the tags are only ignored on resources created on behalf of the &lt;code>Infrastructure&lt;/code> CR (i.e. VPC,
+subnets, security groups, keypair, etc.), while tags on machines, volumes, etc. are not in the scope of this controller.&lt;/p>
+&lt;h2 id="controlplaneconfig">&lt;code>ControlPlaneConfig&lt;/code>&lt;/h2>
+&lt;p>The control plane configuration mainly contains values for the AWS-specific control plane components.
+Today, the only component deployed by the AWS extension is the &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>
+&lt;p>An example &lt;code>ControlPlaneConfig&lt;/code> for the AWS extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">cloudControllerManager&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">featureGates&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">CustomResourceValidation&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">storage&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">managedDefaultClass&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>cloudControllerManager.featureGates&lt;/code> contains a map of explicitly enabled or disabled feature gates.
+For production usage it&amp;rsquo;s not recommend to use this field at all as you can enable alpha features or disable beta/stable features, potentially impacting the cluster stability.
+If you don&amp;rsquo;t want to configure anything for the &lt;code>cloudControllerManager&lt;/code> simply omit the key in the YAML specification.&lt;/p>
+&lt;p>The &lt;code>storage.managedDefaultClass&lt;/code> controls if the &lt;code>default&lt;/code> storage / volume snapshot classes are marked as default by Gardener. Set it to &lt;code>false&lt;/code> to &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/">mark another storage / volume snapshot class as default&lt;/a> without Gardener overwriting this change. If unset, this field defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;h2 id="workerconfig">&lt;code>WorkerConfig&lt;/code>&lt;/h2>
+&lt;p>The AWS extension supports encryption for volumes plus support for additional data volumes per machine.
+For each data volume, you have to specify a name.
+By default (if not stated otherwise), all the disks (root &amp;amp; data volumes) are encrypted.
+Please make sure that your &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSEncryption.html">instance-type supports encryption&lt;/a>.
+If your instance-type doesn&amp;rsquo;t support encryption, you will have to disable encryption (which is enabled by default) by setting &lt;code>volume.encrpyted&lt;/code> to &lt;code>false&lt;/code> (refer below shown YAML snippet).&lt;/p>
+&lt;p>The following YAML is a snippet of a &lt;code>Shoot&lt;/code> resource:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cpu-worker&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gp2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">20Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">encrypted&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">dataVolumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kubelet-dir&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gp2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">25Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">encrypted&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Note: The AWS extension does not support EBS volume (root &amp;amp; data volumes) encryption with &lt;a href="https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#customer-cmk">customer managed CMK&lt;/a>. Support for &lt;a href="https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#customer-cmk">customer managed CMK&lt;/a> is out of scope for now. Only &lt;a href="https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#aws-managed-cmk">AWS managed CMK&lt;/a> is supported.&lt;/p>
+&lt;/blockquote>
+&lt;p>Additionally, it is possible to provide further AWS-specific values for configuring the worker pools.
+It can be provided in &lt;code>.spec.provider.workers[].providerConfig&lt;/code> and is evaluated by the AWS worker controller when it reconciles the shoot machines.&lt;/p>
+&lt;p>An example &lt;code>WorkerConfig&lt;/code> for the AWS extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">WorkerConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">iops&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">dataVolumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kubelet-dir&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">iops&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">12345&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">snapshotID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">snap-1234&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">iamInstanceProfile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># (specify either ARN or name)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-profile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="c"># arn: my-instance-profile-arn&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.volume.iops&lt;/code> is the number of I/O operations per second (IOPS) that the volume supports.
+For &lt;code>io1&lt;/code> volume type, this represents the number of IOPS that are provisioned for the volume.
+For &lt;code>gp2&lt;/code> volume type, this represents the baseline performance of the volume and the rate at which the volume accumulates I/O credits for bursting. For more information about General Purpose SSD baseline performance, I/O credits, and bursting, see Amazon EBS Volume Types (&lt;a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html">http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html&lt;/a>) in the Amazon Elastic Compute Cloud User Guide.&lt;br>
+Constraint: Range is 100-20000 IOPS for &lt;code>io1&lt;/code> volumes and 100-10000 IOPS for &lt;code>gp2&lt;/code> volumes.&lt;/p>
+&lt;p>The &lt;code>.dataVolumes&lt;/code> can optionally contain configurations for the data volumes stated in the &lt;code>Shoot&lt;/code> specification in the &lt;code>.spec.provider.workers[].dataVolumes&lt;/code> list.
+The &lt;code>.name&lt;/code> must match to the name of the data volume in the shoot.
+Apart from the &lt;code>.iops&lt;/code> (which, again, is only valid for &lt;code>io1&lt;/code> or &lt;code>gp2&lt;/code> volumes), it is also possible to provide a snapshot ID.
+It allows to &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-restoring-volume.html">restore the data volume from an existing snapshot&lt;/a>.&lt;/p>
+&lt;p>The &lt;code>iamInstanceProfile&lt;/code> section allows to specify the IAM instance profile name xor ARN that should be used for this worker pool.
+If not specified, a dedicated IAM instance profile created by the infrastructure controller is used (see above).&lt;/p>
+&lt;h2 id="example-shoot-manifest-one-availability-zone">Example &lt;code>Shoot&lt;/code> manifest (one availability zone)&lt;/h2>
+&lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for one availability zone:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">johndoe-aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cloudProfileName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretBindingName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core-aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vpc&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cidr&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.112.0&lt;/span>&lt;span class="l">/22&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">public&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.96.0&lt;/span>&lt;span class="l">/22&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/19&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controlPlaneConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">worker-xoluy&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machine&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">m5.large&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gp2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># The following provider config is only valid if the volume type is `io1`.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># providerConfig:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># kind: WorkerConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># volume:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># iops: 10000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">eu-central-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networking&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.16.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maintenance&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">autoUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetesVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImageVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">addons&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes-dashboard&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nginx-ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="example-shoot-manifest-three-availability-zones">Example &lt;code>Shoot&lt;/code> manifest (three availability zones)&lt;/h2>
+&lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for three availability zones:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">johndoe-aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cloudProfileName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretBindingName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core-aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networks&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">vpc&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cidr&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">public&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.96.0&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.112.0&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.64&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">public&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.96.64&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.112.64&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1c&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.128&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">public&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.96.128&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">internal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.112.128&lt;/span>&lt;span class="l">/26&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controlPlaneConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">worker-xoluy&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machine&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">m5.large&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">3&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">9&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gp2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">eu-central-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">eu-central-1b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">eu-central-1c&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networking&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nodes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">10.250.0.0&lt;/span>&lt;span class="l">/16&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.16.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maintenance&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">autoUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetesVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImageVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">addons&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes-dashboard&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nginx-ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="csi-volume-provisioners">CSI volume provisioners&lt;/h2>
+&lt;p>Every AWS shoot cluster that has at least Kubernetes v1.18 will be deployed with the AWS EBS CSI driver.
+It is compatible with the legacy in-tree volume provisioner that was deprecated by the Kubernetes community and will be removed in future versions of Kubernetes.
+End-users might want to update their custom &lt;code>StorageClass&lt;/code>es to the new &lt;code>ebs.csi.aws.com&lt;/code> provisioner.
+Shoot clusters with Kubernetes v1.17 or less will use the in-tree &lt;code>kubernetes.io/aws-ebs&lt;/code> volume provisioner in the kube-controller-manager and the kubelet.&lt;/p>
+&lt;h3 id="node-specific-volume-limits">Node-specific Volume Limits&lt;/h3>
+&lt;p>The Kubernetes scheduler allows configurable limit for the number of volumes that can be attached to a node. See &lt;a href="https://k8s.io/docs/concepts/storage/storage-limits/#custom-limits">https://k8s.io/docs/concepts/storage/storage-limits/#custom-limits&lt;/a>.&lt;/p>
+&lt;p>CSI drivers usually have a different procedure for configuring this custom limit. By default, the EBS CSI driver parses the machine type name and then decides the volume limit. However, this is only a rough approximation and not good enough in most cases. Specifying the volume attach limit via command line flag (&lt;code>--volume-attach-limit&lt;/code>) is currently the alternative until a more sophisticated solution presents itself (dynamically discovering the maximum number of attachable volume per EC2 machine type, see also &lt;a href="https://github.com/kubernetes-sigs/aws-ebs-csi-driver/issues/347)">https://github.com/kubernetes-sigs/aws-ebs-csi-driver/issues/347)&lt;/a>. The AWS extension allows the &lt;code>--volume-attach-limit&lt;/code> flag of the EBS CSI driver to be configurable via &lt;code>aws.provider.extensions.gardener.cloud/volume-attach-limit&lt;/code> annotation on the &lt;code>Shoot&lt;/code> resource. If the annotation is added to an existing &lt;code>Shoot&lt;/code>, then reconciliation needs to be triggered manually (see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_operations.md#immediate-reconciliation">Immediate reconciliation&lt;/a>), as in general adding annotation to resource is not a change that leads to &lt;code>.metadata.generation&lt;/code> increase in general.&lt;/p></description></item><item><title>Docs: Usage As Operator</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-operator/</guid><description>
+&lt;h1 id="using-the-aws-provider-extension-with-gardener-as-operator">Using the AWS provider extension with Gardener as operator&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">&lt;code>core.gardener.cloud/v1beta1.CloudProfile&lt;/code> resource&lt;/a> declares a &lt;code>providerConfig&lt;/code> field that is meant to contain provider-specific configuration.
+Similarly, the &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">&lt;code>core.gardener.cloud/v1beta1.Seed&lt;/code> resource&lt;/a> is structured.
+Additionally, it allows to configure settings for the backups of the main etcds' data of shoot clusters control planes running in this seed cluster.&lt;/p>
+&lt;p>This document explains what is necessary to configure for this provider extension.&lt;/p>
+&lt;h2 id="cloudprofile-resource">&lt;code>CloudProfile&lt;/code> resource&lt;/h2>
+&lt;p>In this section we are describing how the configuration for &lt;code>CloudProfile&lt;/code>s looks like for AWS and provide an example &lt;code>CloudProfile&lt;/code> manifest with minimal configuration that you can use to allow creating AWS shoot clusters.&lt;/p>
+&lt;h3 id="cloudprofileconfig">&lt;code>CloudProfileConfig&lt;/code>&lt;/h3>
+&lt;p>The cloud profile configuration contains information about the real machine image IDs in the AWS environment (AMIs).
+You have to map every version that you specify in &lt;code>.spec.machineImages[].versions&lt;/code> here such that the AWS extension knows the AMI for every version you want to offer.&lt;/p>
+&lt;p>An example &lt;code>CloudProfileConfig&lt;/code> for the AWS extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfileConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2135.6.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">regions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ami&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ami-034fd8c3f4026eb39&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="example-cloudprofile-manifest">Example &lt;code>CloudProfile&lt;/code> manifest&lt;/h3>
+&lt;p>Please find below an example &lt;code>CloudProfile&lt;/code> manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.16.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.16.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">expirationDate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;2020-04-05T01:02:03Z&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2135.6.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineTypes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">m5.large&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;2&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;0&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">8Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volumeTypes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">gp2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">standard&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">io1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">premium&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">regions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1c&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfileConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">coreos&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2135.6.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">regions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">ami&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ami-034fd8c3f4026eb39&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="seed-resource">&lt;code>Seed&lt;/code> resource&lt;/h2>
+&lt;p>This provider extension does not support any provider configuration for the &lt;code>Seed&lt;/code>&amp;rsquo;s &lt;code>.spec.provider.providerConfig&lt;/code> field.
+However, it supports to manage backup infrastructure, i.e., you can specify configuration for the &lt;code>.spec.backup&lt;/code> field.&lt;/p>
+&lt;h3 id="backup-configuration">Backup configuration&lt;/h3>
+&lt;p>Please find below an example &lt;code>Seed&lt;/code> manifest (partly) that configures backups.
+As you can see, the location/region where the backups will be stored can be different to the region where the seed cluster is running.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">backup-credentials&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">accessKeyID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(access-key-id)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretAccessKey&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(secret-access-key)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nn">---&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-seed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-west-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">backup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">aws&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">eu-central-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">backup-credentials&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please look up &lt;a href="https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys">https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys&lt;/a> as well.&lt;/p>
+&lt;h4 id="permissions-for-aws-iam-user">Permissions for AWS IAM user&lt;/h4>
+&lt;p>Please make sure that the provided credentials have the correct privileges. You can use the following AWS IAM policy document and attach it to the IAM user backed by the credentials you provided (please check the &lt;a href="http://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage.html">official AWS documentation&lt;/a> as well):&lt;/p>
+&lt;details>
+&lt;summary>Click to expand the AWS IAM policy document!&lt;/summary>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json">&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Version&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;2012-10-17&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Statement&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;Effect&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Allow&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Action&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;s3:*&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;Resource&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/details></description></item></channel></rss>

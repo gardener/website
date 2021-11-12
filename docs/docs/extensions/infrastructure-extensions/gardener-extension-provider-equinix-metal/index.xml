@@ -1,0 +1,170 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Provider Equinix Metal</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/</link><description>Recent content in Provider Equinix Metal on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Usage As End User</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/docs/usage-as-end-user/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/docs/usage-as-end-user/</guid><description>
+&lt;h1 id="using-the-equinix-metal-provider-extension-with-gardener-as-end-user">Using the Equinix Metal provider extension with Gardener as end-user&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">&lt;code>core.gardener.cloud/v1beta1.Shoot&lt;/code> resource&lt;/a> declares a few fields that are meant to contain provider-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for Equinix Metal and provide an example &lt;code>Shoot&lt;/code> manifest with minimal configuration that you can use to create an Equinix Metal cluster (modulo the landscape-specific information like cloud profile names, secret binding names, etc.).&lt;/p>
+&lt;h2 id="provider-secret-data">Provider secret data&lt;/h2>
+&lt;p>Every shoot cluster references a &lt;code>SecretBinding&lt;/code> which itself references a &lt;code>Secret&lt;/code>, and this &lt;code>Secret&lt;/code> contains the provider credentials of your Equinix Metal project.
+This &lt;code>Secret&lt;/code> must look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiToken&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(api-token)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">projectID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(project-id)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please look up &lt;a href="https://metal.equinix.com/developers/api/">https://metal.equinix.com/developers/api/&lt;/a> as well.&lt;/p>
+&lt;p>With &lt;code>Secret&lt;/code> created, create a &lt;code>SecretBinding&lt;/code> resource referencing it. It may look like this:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">SecretBinding&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">secretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">quotas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="infrastructureconfig">&lt;code>InfrastructureConfig&lt;/code>&lt;/h2>
+&lt;p>Currently, there is no infrastructure configuration possible for the Equinix Metal environment.&lt;/p>
+&lt;p>An example &lt;code>InfrastructureConfig&lt;/code> for the Equinix Metal extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Equinix Metal extension will only create a key pair.&lt;/p>
+&lt;h2 id="controlplaneconfig">&lt;code>ControlPlaneConfig&lt;/code>&lt;/h2>
+&lt;p>The control plane configuration mainly contains values for the Equinix Metal-specific control plane components.
+Today, the Equinix Metal extension deploys the &lt;code>cloud-controller-manager&lt;/code> and the CSI controllers, however, it doesn&amp;rsquo;t offer any configuration options at the moment.&lt;/p>
+&lt;p>An example &lt;code>ControlPlaneConfig&lt;/code> for the Equinix Metal extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="workerconfig">&lt;code>WorkerConfig&lt;/code>&lt;/h2>
+&lt;p>The Equinix Metal extension supports specifying IDs for reserved devices that should be used for the machines of a specific worker pool.&lt;/p>
+&lt;p>An example &lt;code>WorkerConfig&lt;/code> for the Equinix Metal extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">WorkerConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">reservationIDs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="l">my-reserved-device-1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="l">my-reserved-device-2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">reservedDevicesOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.reservationIDs[]&lt;/code> list contains the list of IDs of the reserved devices.
+The &lt;code>.reservedDevicesOnly&lt;/code> field indicates whether only reserved devices from the provided list of reservation IDs should be used when new machines are created.
+It always will attempt to create a device from one of the reservation IDs.
+If none is available, the behaviour depends on the setting:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>true&lt;/code>: return an error&lt;/li>
+&lt;li>&lt;code>false&lt;/code>: request a regular on-demand device&lt;/li>
+&lt;/ul>
+&lt;p>The default value is &lt;code>false&lt;/code>.&lt;/p>
+&lt;h2 id="example-shoot-manifest">Example &lt;code>Shoot&lt;/code> manifest&lt;/h2>
+&lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-shoot&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden-dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cloudProfileName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinix-metal&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">region&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ny&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Corresponds to a metro&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">secretBindingName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">infrastructureConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">InfrastructureConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">controlPlaneConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ControlPlaneConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">worker-pool1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">storage_1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Optional list of facilities, all of which MUST be in the metro; if not provided, then random facilities within the metro will be chosen for each machine.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">ewr1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">ny5&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">reserved-pool&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machine&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">t1.small&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">minimum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maximum&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">WorkerConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">reservationIDs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">reserved-device1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="l">reserved-device2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">reservedDevicesOnly&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">volume&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">size&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">50Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">storage_1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">networking&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">calico&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.20.2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">maintenance&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">autoUpdate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetesVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImageVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">addons&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes-dashboard&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">nginx-ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠️ Note that if you specify multiple facilities in the &lt;code>.spec.provider.workers[].zones[]&lt;/code> list then new machines are randomly created in one of the provided facilities.
+Particularly, it is not ensured that all facilities are used or that all machines are equally or unequally distributed.&lt;/p></description></item><item><title>Docs: Usage As Operator</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/docs/usage-as-operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-equinix-metal/docs/usage-as-operator/</guid><description>
+&lt;h1 id="using-the-equinix-metal-provider-extension-with-gardener-as-operator">Using the Equinix Metal provider extension with Gardener as operator&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">&lt;code>core.gardener.cloud/v1alpha1.CloudProfile&lt;/code> resource&lt;/a> declares a &lt;code>providerConfig&lt;/code> field that is meant to contain provider-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for Equinix Metal and provide an example &lt;code>CloudProfile&lt;/code> manifest with minimal configuration that you can use to allow creating Equinix Metal shoot clusters.&lt;/p>
+&lt;h2 id="example-cloudprofile-manifest">Example &lt;code>CloudProfile&lt;/code> manifest&lt;/h2>
+&lt;p>Please find below an example &lt;code>CloudProfile&lt;/code> manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">core.gardener.cloud/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfile&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinix-metal&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.20.2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.19.7&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.18.15&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c">#expirationDate: &amp;#34;2020-04-05T01:02:03Z&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">flatcar&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">0.0.0&lt;/span>-&lt;span class="l">stable&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineTypes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">t1.small&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;4&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">gpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;0&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">8Gi&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">usable&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">regions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># List of offered metros&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ny&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">zones&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># List of offered facilities within the respective metro&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ewr1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ny5&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ny7&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">providerConfig&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfileConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">flatcar&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">0.0.0&lt;/span>-&lt;span class="l">stable&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">flatcar_stable&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="cloudprofileconfig">&lt;code>CloudProfileConfig&lt;/code>&lt;/h2>
+&lt;p>The cloud profile configuration contains information about the real machine image IDs in the Equinix Metal environment (IDs).
+You have to map every version that you specify in &lt;code>.spec.machineImages[].versions&lt;/code> here such that the Equinix Metal extension knows the ID for every version you want to offer.&lt;/p>
+&lt;p>An example &lt;code>CloudProfileConfig&lt;/code> for the Equinix Metal extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">equinixmetal.provider.extensions.gardener.cloud/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">CloudProfileConfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">machineImages&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">flatcar&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">versions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">0.0.0&lt;/span>-&lt;span class="l">stable&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">flatcar_stable&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>NOTE: &lt;code>CloudProfileConfig&lt;/code> is not a Custom Resource, so you cannot create it directly.&lt;/p>
+&lt;/blockquote></description></item></channel></rss>

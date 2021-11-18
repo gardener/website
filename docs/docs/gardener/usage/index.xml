@@ -1726,6 +1726,7 @@ If such changes would be backwards-incompatible then we usually follow one of th
 &lt;p>We consider shoot upgrades to change either the&lt;/p>
 &lt;ul>
 &lt;li>Kubernetes version (&lt;code>.spec.kubernetes.version&lt;/code>)&lt;/li>
+&lt;li>Kubernetes version of the worker pool if specified (&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code>)&lt;/li>
 &lt;li>Machine image version of at least one worker pool (&lt;code>.spec.provider.workers[].machine.image.version&lt;/code>)&lt;/li>
 &lt;/ul>
 &lt;p>Generally, an upgrade is also performed through a reconciliation of the &lt;code>Shoot&lt;/code> resource, i.e., the same concepts like for &lt;a href="#updates">shoot updates&lt;/a> apply.
@@ -1760,6 +1761,7 @@ The complete list of fields that trigger a rolling update:&lt;/p>
 &lt;li>&lt;code>.spec.provider.workers[].volume.size&lt;/code>&lt;/li>
 &lt;li>&lt;code>.spec.provider.workers[].providerConfig&lt;/code>&lt;/li>
 &lt;li>&lt;code>.spec.provider.workers[].cri.name&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code> (except for patch version changes)&lt;/li>
 &lt;/ul>
 &lt;p>Generally, the provider extension controllers might have additional constraints for changes leading to rolling updates, so please consult the respective documentation as well.&lt;/p>
 &lt;h2 id="related-documentation">Related Documentation&lt;/h2>
@@ -2216,4 +2218,34 @@ the secondary owner identifier.&lt;/p></description></item><item><title>Docs: Tr
 &lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener copies the secret during the reconciliation of shoot clusters to the shoot namespace in the seed. Afterwards, &lt;code>Ingress&lt;/code> resources in that namespace for the mentioned components will refer to the wildcard certificate.&lt;/p>
 &lt;h2 id="best-practice">Best practice&lt;/h2>
 &lt;p>While it is possible to create the wildcard certificates manually and deploy them to seed clusters, it is recommended to let certificate management components do this job. Often, a seed cluster is also a shoot cluster at the same time (shooted seed) and might already provide a certificate service extension.
-Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item></channel></rss>
+Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item><item><title>Docs: Worker Pool K8s Versions</title><link>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</guid><description>
+&lt;h1 id="controlling-the-kubernetes-versions-for-specific-worker-pools">Controlling the Kubernetes versions for specific worker pools&lt;/h1>
+&lt;p>Since Gardener &lt;code>v1.36&lt;/code>, worker pools can have different Kubernetes versions specified than the control plane.&lt;/p>
+&lt;p>It must be enabled by setting the featureGate &lt;code>WorkerPoolKubernetesVersion: true&lt;/code> in the gardenlet&amp;rsquo;s component configuration.&lt;/p>
+&lt;p>In earlier Gardener versions all worker pools inherited the Kubernetes version of the control plane. Once the Kubernetes version of the control plane was modified, all worker pools have been updated as well (either by rolling the nodes in case of a minor version change, or in-place for patch version changes).&lt;/p>
+&lt;p>In order to gracefully perform Kubernetes upgrades (triggering a rolling update of the nodes) with workloads sensitive to restarts (e.g., those dealing with lots of data), it might be required to be able to gradually perform the upgrade process.
+In such cases, the Kubernetes version for the worker pools can be pinned (&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code>) while the control plane Kubernetes version (&lt;code>.spec.kubernetes.version&lt;/code>) is updated.
+This results in the nodes being untouched while the control plane is upgraded.
+Now a new worker pool (with the version equal to the control plane version) can be added.
+Administrators can then reschedule their workloads to the new worekr pool according to their upgrade requirements and processes.&lt;/p>
+&lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.20.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">workers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">data1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.19.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">data2&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>If &lt;code>.kubernetes.version&lt;/code> is not specified in a worker pool then the Kubernetes version of the kubelet is inherited from the control plane (&lt;code>.spec.kubernetes.version&lt;/code>), i.e., in above example the &lt;code>data2&lt;/code> pool will use &lt;code>1.20.1&lt;/code>.&lt;/li>
+&lt;li>If &lt;code>.kubernetes.version&lt;/code> is specified in a worker pool then it must meet the following constraints:
+&lt;ul>
+&lt;li>It must be at most two minor versions lower than the control plane version.&lt;/li>
+&lt;li>If it was not specified before then no downgrade is possible (you cannot set it to &lt;code>1.19.1&lt;/code> while &lt;code>.spec.kubernetes.version&lt;/code> is already &lt;code>1.20.1&lt;/code>). The &amp;ldquo;two minor version skew&amp;rdquo; is only possible if the worker pool version is set to control plane version and then the control plane was updated gradually two minor versions.&lt;/li>
+&lt;li>If the version is removed from the worker pool, only one minor version difference is allowed to the control plane (you cannot upgrade a pool from version &lt;code>1.18.0&lt;/code> to &lt;code>1.20.0&lt;/code> in one go).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>Automatic updates of Kubernetes versions (see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md#automatic-version-updates">this document&lt;/a>) also apply to worker pool Kubernetes versions.&lt;/p></description></item></channel></rss>

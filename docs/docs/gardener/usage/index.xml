@@ -1228,6 +1228,22 @@ These dependant pods are detected via a pre-configured label selector.&lt;/p>
 &lt;h1 id="settings-for-seeds">Settings for &lt;code>Seed&lt;/code>s&lt;/h1>
 &lt;p>The &lt;code>Seed&lt;/code> resource offers a few settings that are used to control the behaviour of certain Gardener components.
 This document provides an overview over the available settings:&lt;/p>
+&lt;h2 id="dependency-watchdog">Dependency Watchdog&lt;/h2>
+&lt;p>Gardenlet can deploy two instances of the &lt;a href="https://github.com/gardener/dependency-watchdog">dependency-watchdog&lt;/a> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
+One instance only activates the &lt;code>endpoint&lt;/code> controller while the second instance only activates the &lt;code>probe&lt;/code> controller.&lt;/p>
+&lt;h3 id="endpoint-controller">Endpoint Controller&lt;/h3>
+&lt;p>The &lt;code>endpoint&lt;/code> controller helps to alleviate the delay where control plane components remain unavailable by finding the respective pods in CrashLoopBackoff status and restarting them once their dependants become ready and available again.
+For example, if &lt;code>etcd&lt;/code> goes down then also &lt;code>kube-apiserver&lt;/code> goes down (and into a &lt;code>CrashLoopBackoff&lt;/code> state). If &lt;code>etcd&lt;/code> comes up again then (without the &lt;code>endpoint&lt;/code> controller) it might take some time until &lt;code>kube-apiserver&lt;/code> gets restarted as well.&lt;/p>
+&lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.endpoint.enabled&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;h3 id="probe-controller">Probe Controller&lt;/h3>
+&lt;p>The &lt;code>probe&lt;/code> controller scales down the &lt;code>kube-controller-manager&lt;/code> of shoot clusters in case their respective &lt;code>kube-apiserver&lt;/code> is not reachable via its external ingress.
+This is in order to avoid melt-down situations since the &lt;code>kube-controller-manager&lt;/code> uses in-cluster communication when talking to the &lt;code>kube-apiserver&lt;/code>, i.e., it wouldn&amp;rsquo;t be affected if the external access to the &lt;code>kube-apiserver&lt;/code> is interrupted for whatever reason.
+The &lt;code>kubelet&lt;/code>s on the shoot worker nodes, however, would indeed be affected since they typically run in different networks and use the external ingress when talking to the &lt;code>kube-apiserver&lt;/code>.
+Hence, without scaling down &lt;code>kube-controller-manager&lt;/code>, the nodes might be marked as &lt;code>NotReady&lt;/code> and eventually replaced (since the &lt;code>kubelet&lt;/code>s cannot report their status anymore).
+To prevent such unnecessary turbulences, &lt;code>kube-controller-manager&lt;/code> is being scaled down until the external ingress becomes available again.&lt;/p>
+&lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.probe.enabled&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
 &lt;h2 id="reserve-excess-capacity">Reserve Excess Capacity&lt;/h2>
 &lt;p>If the excess capacity reservation is enabled then the Gardenlet will deploy a special &lt;code>Deployment&lt;/code> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
 This &lt;code>Deployment&lt;/code>&amp;rsquo;s pod template has only one container, the &lt;code>pause&lt;/code> container, which simply runs in an infinite loop.

@@ -117,6 +117,14 @@ Please make sure the Azure application has the following IAM roles.&lt;/p>
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tenantID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(tenant-id)&lt;/span>&lt;span class="w">
 &lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠️ Depending on your API usage it can be problematic to reuse the same Service Principal for different Shoot clusters due to rate limits.
 Please consider spreading your Shoots over Service Principals from different Azure subscriptions if you are hitting those limits.&lt;/p>
+&lt;h3 id="managed-service-principals">Managed Service Principals&lt;/h3>
+&lt;p>The operators of the Gardener Azure extension can provide managed service principals.
+This eliminates the need for users to provide an own service principal for a Shoot.&lt;/p>
+&lt;p>To make use of a managed service principal, the Azure secret of a Shoot cluster must contain only a &lt;code>subscriptionID&lt;/code> and a &lt;code>tenantID&lt;/code> field, but no &lt;code>clientID&lt;/code> and &lt;code>clientSecret&lt;/code>.
+Removing those fields from the secret of an existing Shoot will also let it adopt the managed service principal.&lt;/p>
+&lt;p>Based on the &lt;code>tenantID&lt;/code> field, the Gardener extension will try to assign the managed service principal to the Shoot.
+If no managed service principal can be assigned then the next operation on the Shoot will fail.&lt;/p>
+&lt;p>⚠️ The managed service principal need to be assigned to the users Azure subscription with proper permissions before using it.&lt;/p>
 &lt;h2 id="infrastructureconfig">&lt;code>InfrastructureConfig&lt;/code>&lt;/h2>
 &lt;p>The infrastructure configuration mainly describes how the network layout looks like in order to create the shoot worker nodes in a later step, thus, prepares everything relevant to create VMs, load balancers, volumes, etc.&lt;/p>
 &lt;p>An example &lt;code>InfrastructureConfig&lt;/code> for the Azure extension looks as follows:&lt;/p>
@@ -476,4 +484,30 @@ The example below demonstrates how the secret has to look like.&lt;/p>
 &lt;p>Please make sure the Azure application has the following IAM roles.&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#contributor">Contributor&lt;/a>&lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;/ul>
+&lt;h2 id="miscellaneous">Miscellaneous&lt;/h2>
+&lt;h3 id="gardener-managed-service-principals">Gardener managed Service Principals&lt;/h3>
+&lt;p>The operators of the Gardener Azure extension can provide a list of managed service principals (technical users) that can be used for Azure Shoots.
+This eliminates the need for users to provide own service principals for their clusters.&lt;/p>
+&lt;p>The user would need to grant the managed service principal access to their subscription with proper permissions.&lt;/p>
+&lt;p>As service principals are managed in an Azure Active Directory for each supported Active Directory, an own service principal needs to be provided.&lt;/p>
+&lt;p>In case the user provides an own service principal in the Shoot secret, this one will be used instead of the managed one provided by the operator.&lt;/p>
+&lt;p>Each managed service principal will be maintained in a &lt;code>Secret&lt;/code> like that:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">service-principal-my-tenant&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">extension-provider-azure&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">azure.provider.extensions.gardener.cloud/purpose&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">tenant-service-principal-secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tenantID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(my-tenant)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">clientID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(my-service-princiapl-id)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">clientSecret&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">base64(my-service-princiapl-secret)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Opaque&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The user needs to provide in its Shoot secret a &lt;code>tenantID&lt;/code> and &lt;code>subscriptionID&lt;/code>.&lt;/p>
+&lt;p>The managed service principal will be assigned based on the &lt;code>tenantID&lt;/code>.
+In case there is a managed service principal secret with a matching &lt;code>tenantID&lt;/code>, this one will be used for the Shoot.
+If there is no matching managed service principal secret then the next Shoot operation will fail.&lt;/p>
+&lt;p>One of the benefits of having managed service principals is that the operator controls the lifecycle of the service principal and can rotate its secrets.&lt;/p>
+&lt;p>After the service principal secret has been rotated and the corresponding secret is updated, all Shoot clusters using it need to be reconciled or the last operation to be retried.&lt;/p></description></item></channel></rss>

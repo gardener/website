@@ -3,7 +3,6 @@
 
 ![image](images/overview.png)
 
-
 ### Website (this repository)
 The Repository https://github.com/gardener/website/ contains the generated
 Landing page. All manual changes get lost.

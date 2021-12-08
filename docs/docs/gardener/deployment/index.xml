@@ -713,27 +713,6 @@ If so, the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/con
 &lt;td>&lt;/td>
 &lt;/tr>
 &lt;tr>
-&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
-&lt;td>&lt;code>false&lt;/code>&lt;/td>
-&lt;td>&lt;code>Alpha&lt;/code>&lt;/td>
-&lt;td>&lt;code>1.28&lt;/code>&lt;/td>
-&lt;td>&lt;code>1.31&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
-&lt;td>&lt;code>true&lt;/code>&lt;/td>
-&lt;td>&lt;code>Beta&lt;/code>&lt;/td>
-&lt;td>&lt;code>1.32&lt;/code>&lt;/td>
-&lt;td>&lt;code>1.35&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
-&lt;td>&lt;code>true&lt;/code>&lt;/td>
-&lt;td>&lt;code>GA&lt;/code>&lt;/td>
-&lt;td>&lt;code>1.36&lt;/code>&lt;/td>
-&lt;td>&lt;/td>
-&lt;/tr>
-&lt;tr>
 &lt;td>RotateSSHKeypairOnMaintenance&lt;/td>
 &lt;td>&lt;code>false&lt;/code>&lt;/td>
 &lt;td>&lt;code>Alpha&lt;/code>&lt;/td>
@@ -829,6 +808,34 @@ If so, the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/con
 &lt;td>&lt;/td>
 &lt;td>&lt;code>Removed&lt;/code>&lt;/td>
 &lt;td>&lt;code>1.30&lt;/code>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;td>&lt;code>Alpha&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.28&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.31&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
+&lt;td>&lt;code>true&lt;/code>&lt;/td>
+&lt;td>&lt;code>Beta&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.32&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.35&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
+&lt;td>&lt;code>true&lt;/code>&lt;/td>
+&lt;td>&lt;code>GA&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.36&lt;/code>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>DisallowKubeconfigRotationForShootInDeletion&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;code>Removed&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.38&lt;/code>&lt;/td>
 &lt;td>&lt;/td>
 &lt;/tr>
 &lt;/tbody>
@@ -1109,13 +1116,11 @@ In this case, the consultation of the &lt;code>SeedRestriction&lt;/code> admissi
 &lt;li>&lt;code>DecisionDeny&lt;/code>: The request is denied, further configured authorizers won&amp;rsquo;t be consulted.&lt;/li>
 &lt;li>&lt;code>DecisionNoOpinion&lt;/code>: A decision cannot be made, further configured authorizers will be consulted.&lt;/li>
 &lt;/ul>
-&lt;p>For backwards compatibility, no requests are denied at the moment, so that an ambiguous request is still deferred to a subsequent authorizer like RBAC.&lt;/p>
+&lt;p>For backwards compatibility, no requests are denied at the moment, so that they are still deferred to a subsequent authorizer like RBAC.
+Though, this might change in the future.&lt;/p>
 &lt;p>First, the &lt;code>SeedAuthorizer&lt;/code> extracts the &lt;code>Seed&lt;/code> name from the API request. This requires a proper TLS certificate the &lt;code>gardenlet&lt;/code> uses to contact the API server and is automatically given if &lt;a href="../concepts/gardenlet.md#TLS-Bootstrapping">TLS bootstrapping&lt;/a> is used.
 Concretely, the authorizer checks the certificate for name &lt;code>gardener.cloud:system:seed:&amp;lt;seed-name&amp;gt;&lt;/code> and group &lt;code>gardener.cloud:system:seeds&lt;/code>.
-In cases this information is missing e.g., when a custom Kubeconfig is used, the authorizer cannot make any decision.
-Likewise, if &lt;code>gardenlet&lt;/code> is responsible for more than one &lt;code>Seed&lt;/code>, the name in the mentioned TLS certificate is &lt;code>gardener.cloud:system:seed:&amp;lt;ambiguous&amp;gt;&lt;/code> and a definite decision cannot be made as well.
-The authorizer immediately returns with &lt;code>DecisionNoOpinion&lt;/code> for all ambiguous cases which means that the request is neither allowed nor denied and further configured authorizers (e.g. RBAC) will be contacted.
-Thus, RBAC is still a considerable option to restrict the &lt;code>gardenlet&lt;/code>&amp;rsquo;s access permission if the above explained preconditions are not given.&lt;/p>
+In cases where this information is missing e.g., when a custom Kubeconfig is used, the authorizer cannot make any decision. Thus, RBAC is still a considerable option to restrict the &lt;code>gardenlet&lt;/code>&amp;rsquo;s access permission if the above explained preconditions are not given.&lt;/p>
 &lt;p>With the &lt;code>Seed&lt;/code> name at hand, the authorizer checks for an &lt;strong>existing path&lt;/strong> from the resource that a request is being made for to the &lt;code>Seed&lt;/code> belonging to the &lt;code>gardenlet&lt;/code>. Take a look at the &lt;a href="#implementation-details">Implementation Details&lt;/a> section for more information.&lt;/p>
 &lt;h3 id="implementation-details">Implementation Details&lt;/h3>
 &lt;p>Internally, the &lt;code>SeedAuthorizer&lt;/code> uses a directed, acyclic graph data structure in order to efficiently respond to authorization requests for gardenlets:&lt;/p>

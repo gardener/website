@@ -740,6 +740,13 @@ If so, the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/con
 &lt;td>&lt;code>1.37&lt;/code>&lt;/td>
 &lt;td>&lt;/td>
 &lt;/tr>
+&lt;tr>
+&lt;td>SecretBindingProviderValidation&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;td>&lt;code>Alpha&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.38&lt;/code>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
 &lt;/tbody>
 &lt;/table>
 &lt;h2 id="feature-gates-for-graduated-or-deprecated-features">Feature gates for graduated or deprecated features&lt;/h2>
@@ -893,6 +900,13 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;li>&lt;code>DenyInvalidExtensionResources&lt;/code> causes the &lt;code>seed-admission-controller&lt;/code> to deny invalid extension resources, instead of just logging validation errors.&lt;/li>
 &lt;li>&lt;code>WorkerPoolKubernetesVersion&lt;/code> allows to overwrite the Kubernetes version used for shoot clusters per worker pool (see &lt;a href="https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions">this document&lt;/a>)&lt;/li>
 &lt;li>&lt;code>CopyEtcdBackupsDuringControlPlaneMigration&lt;/code> enables the copy of etcd backups from the object store of the source seed to the object store of the destination seed during control plane migration.&lt;/li>
+&lt;li>&lt;code>SecretBindingProviderValidation&lt;/code> enables validations on Gardener API server that:
+&lt;ul>
+&lt;li>requires the provider type of a SecretBinding to be set (on SecretBinding creation)&lt;/li>
+&lt;li>requires the SecretBinding provider type to match the Shoot provider type (on Shoot creation)&lt;/li>
+&lt;li>enforces immutability on the provider type of a SecretBinding&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Gardenlet Api Access</title><link>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</guid><description>
 &lt;h1 id="scoped-api-access-for-gardenlets">Scoped API Access for Gardenlets&lt;/h1>
 &lt;p>By default, &lt;code>gardenlet&lt;/code>s have administrative access in the garden cluster.
@@ -1309,7 +1323,26 @@ Operators might want to customize the image locations for these transitive image
 &lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The gardenlet will, if supported by the directly deployed component (&lt;code>etcd-druid&lt;/code> in this example), inject the given &lt;code>imageVectorOverwrite&lt;/code> into the &lt;code>Deployment&lt;/code> manifest.
 The respective component is responsible for using the overwritten images instead of its defaults.&lt;/p></description></item><item><title>Docs: Migration V0 To V1</title><link>https://gardener.cloud/docs/gardener/deployment/migration_v0_to_v1/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/migration_v0_to_v1/</guid><description>
 &lt;h1 id="migration-from-gardener-v0-to-v1">Migration from Gardener &lt;code>v0&lt;/code> to &lt;code>v1&lt;/code>&lt;/h1>
-&lt;p>Please refer to the &lt;a href="https://github.com/gardener/gardener/blob/v1.10.1/docs/deployment/migration_v0_to_v1.md">document for older Gardener versions&lt;/a>.&lt;/p></description></item><item><title>Docs: Setup Gardener</title><link>https://gardener.cloud/docs/gardener/deployment/setup_gardener/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/setup_gardener/</guid><description>
+&lt;p>Please refer to the &lt;a href="https://github.com/gardener/gardener/blob/v1.10.1/docs/deployment/migration_v0_to_v1.md">document for older Gardener versions&lt;/a>.&lt;/p></description></item><item><title>Docs: Secret Binding Provider Controller</title><link>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</guid><description>
+&lt;h1 id="secretbinding-provider-controller">SecretBinding Provider Controller&lt;/h1>
+&lt;p>This page describes the process on how to enable the SecretBinding provider controller.&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>With Gardener v1.38.0 the SecretBinding resource does now contain a new optional field &lt;code>.provider.type&lt;/code> (details about the motivation can be found in &lt;a href="https://github.com/gardener/gardener/issues/4888)">https://github.com/gardener/gardener/issues/4888)&lt;/a>. To make the process of setting the new field automated and afterwards to enforce validation on the new field in backwards compatible manner, Gardener features the SecretBinding provider controller and a feature gate - &lt;code>SecretBindingProviderValidation&lt;/code>.&lt;/p>
+&lt;h2 id="process">Process&lt;/h2>
+&lt;p>A Gardener landscape operator can follow the following steps:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Enable the SecretBinding provider controller of Gardener Controller Manager.&lt;/p>
+&lt;p>The SecretBinding provider controller is responsible to populate the &lt;code>.provider.type&lt;/code> field of a SecretBinding based on its current usage by Shoot resources. For example if a Shoot &lt;code>crazy-botany&lt;/code> with &lt;code>.provider.type=aws&lt;/code> is using a SecretBinding &lt;code>my-secret-binding&lt;/code>, then the SecretBinding provider controller will take care to set the &lt;code>.provider.type&lt;/code> field of the SecretBinding to the same provider type (&lt;code>aws&lt;/code>).
+To enable the SecretBinding provider controller, in the ControllerManagerConfiguration set the &lt;code>controller.secretBindingProvider.concurentSyncs&lt;/code> field (e.g set it to &lt;code>5&lt;/code>).
+Although that it is not recommended, the API allows Shoots from different provider types to reference the same SecretBinding (assuming that backing Secret contains data for both of the provider types). To preserve the backwards compatibility for such SecretBindings, the provider controller will maintain the multiple provider types in the field (it will join them with separator &lt;code>,&lt;/code> - for example &lt;code>aws,gcp&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Disable the SecretBinding provider controller and enable &lt;code>SecretBindingProviderValidation&lt;/code> feature gate of Gardener API server.&lt;/p>
+&lt;p>The &lt;code>SecretBindingProviderValidation&lt;/code> feature gate of Gardener API server enables set of validations for the SecretBinding provider field. It forbids creating a Shoot that has a different provider type from the referenced SecretBinding&amp;rsquo;s one. It also enforces immutability on the field.
+After making sure that SecretBinding provider controller is enabled and it populated the &lt;code>.provider.type&lt;/code> field of a majority of the SecretBindings on a Gardener landscape (the SecretBindings that are unused will have their provider type unset), a Gardener landscape operator has to disable the SecretBinding provider controller and to enable the &lt;code>SecretBindingProviderValidation&lt;/code> feature gate of Gardener API server. To disable the SecretBinding provider controller, in the ControllerManagerConfiguration set the &lt;code>controller.secretBindingProvider.concurentSyncs&lt;/code> field to &lt;code>0&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Setup Gardener</title><link>https://gardener.cloud/docs/gardener/deployment/setup_gardener/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/setup_gardener/</guid><description>
 &lt;h1 id="deploying-the-gardener-into-a-kubernetes-cluster">Deploying the Gardener into a Kubernetes cluster&lt;/h1>
 &lt;p>Similar to Kubernetes, Gardener consists out of control plane components (Gardener API server, Gardener controller manager, Gardener scheduler), and an agent component (Gardenlet).
 The control plane is deployed in the so-called garden cluster while the agent is installed into every seed cluster.

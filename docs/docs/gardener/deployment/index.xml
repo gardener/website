@@ -1367,4 +1367,56 @@ No action is necessary, if you deploy the &lt;code>garden&lt;/code> namespace wi
 &lt;p>You have to install extension controllers for these parts.
 Please consult &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview">the documentation regarding extensions&lt;/a> to get more information.&lt;/p>
 &lt;h2 id="deploying-the-gardener-agent-gardenlet">Deploying the Gardener agent (Gardenlet)&lt;/h2>
-&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet">this document&lt;/a> on how to deploy a Gardenlet.&lt;/p></description></item></channel></rss>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet">this document&lt;/a> on how to deploy a Gardenlet.&lt;/p></description></item><item><title>Docs: Version Skew Policy</title><link>https://gardener.cloud/docs/gardener/deployment/version_skew_policy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/version_skew_policy/</guid><description>
+&lt;h1 id="version-skew-policy">Version Skew Policy&lt;/h1>
+&lt;p>This document describes the maximum version skew supported between various Gardener components.&lt;/p>
+&lt;h2 id="supported-gardener-versions">Supported Gardener Versions&lt;/h2>
+&lt;p>Gardener versions are expressed as &lt;code>x.y.z&lt;/code>, where &lt;code>x&lt;/code> is the major version, &lt;code>y&lt;/code> is the minor version, and &lt;code>z&lt;/code> is the patch version, following Semantic Versioning terminology.&lt;/p>
+&lt;p>The Gardener project maintains release branches for the most recent three minor releases.&lt;/p>
+&lt;p>Applicable fixes, including security fixes, may be backported to those three release branches, depending on severity and feasibility.
+Patch releases are cut from those branches at a regular cadence, plus additional urgent releases when required.&lt;/p>
+&lt;p>For more information, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/process.md#releases">this document&lt;/a>.&lt;/p>
+&lt;h3 id="supported-version-skew">Supported Version Skew&lt;/h3>
+&lt;p>Technically, we follow the same &lt;a href="https://kubernetes.io/releases/version-skew-policy/">policy&lt;/a> as the Kubernetes project.
+However, given that our release cadence is much more frequent compared to Kubernetes (every &lt;code>14d&lt;/code> vs. every &lt;code>120d&lt;/code>), in many cases it is possible to skip a version.
+Still, to be on the safe side, it is highly recommended to follow the described policy.&lt;/p>
+&lt;h4 id="gardener-apiserver">gardener-apiserver&lt;/h4>
+&lt;p>In multi-instance setups of Gardener, the newest and oldest &lt;code>gardener-apiserver&lt;/code> instances must be within one minor version.&lt;/p>
+&lt;p>Example:&lt;/p>
+&lt;ul>
+&lt;li>newest &lt;code>gardener-apiserver&lt;/code> is at &lt;strong>1.37&lt;/strong>&lt;/li>
+&lt;li>other &lt;code>gardener-apiserver&lt;/code> instances are supported at &lt;strong>1.37&lt;/strong> and &lt;strong>v1.36&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;h4 id="gardener-controller-manager-gardener-scheduler-gardener-admission-controller-gardenlet">gardener-controller-manager, gardener-scheduler, gardener-admission-controller, gardenlet&lt;/h4>
+&lt;p>&lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>, &lt;code>gardener-admission-controller&lt;/code>, and &lt;code>gardenlet&lt;/code> must not be newer than the &lt;code>gardener-apiserver&lt;/code> instances they communicate with.
+They are expected to match the &lt;code>gardener-apiserver&lt;/code> minor version, but may be up to one minor version older (to allow live upgrades).&lt;/p>
+&lt;p>Example:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>gardener-apiserver&lt;/code> is at &lt;strong>v1.37&lt;/strong>&lt;/li>
+&lt;li>&lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>, &lt;code>gardener-admission-controller&lt;/code>, and &lt;code>gardenlet&lt;/code> are supported at &lt;strong>1.37&lt;/strong> and &lt;strong>v1.36&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;h3 id="supported-component-upgrade-order">Supported Component Upgrade Order&lt;/h3>
+&lt;p>The supported version skew between components has implications on the order in which components must be upgraded.
+This section describes the order in which components must be upgraded to transition an existing Gardener installation from version &lt;strong>1.37&lt;/strong> to version &lt;strong>1.38&lt;/strong>.&lt;/p>
+&lt;h4 id="gardener-apiserver-1">gardener-apiserver&lt;/h4>
+&lt;p>Pre-requisites:&lt;/p>
+&lt;ul>
+&lt;li>In a single-instance setup, the existing &lt;code>gardener-apiserver&lt;/code> instance is &lt;strong>1.37&lt;/strong>&lt;/li>
+&lt;li>In a multi-instance setup, all &lt;code>gardener-apiserver&lt;/code> instances are at &lt;strong>1.37&lt;/strong> or &lt;strong>1.38&lt;/strong> (this ensures maximum skew of 1 minor version between the oldest and newest &lt;code>gardener-apiserver&lt;/code> instance)&lt;/li>
+&lt;li>The &lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>, &lt;code>gardener-admission-controller&lt;/code>, and &lt;code>gardenlet&lt;/code> instances that communicate with this &lt;code>gardener-apiserver&lt;/code> are at version &lt;strong>1.37&lt;/strong> (this ensures they are not newer than the existing API server version and are within 1 minor version of the new API server version)&lt;/li>
+&lt;/ul>
+&lt;p>Action:&lt;/p>
+&lt;ul>
+&lt;li>Upgrade &lt;code>gardener-apiserver&lt;/code> to &lt;strong>1.38&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;h4 id="gardener-controller-manager-gardener-scheduler-gardener-admission-controller-gardenlet-1">gardener-controller-manager, gardener-scheduler, gardener-admission-controller, gardenlet&lt;/h4>
+&lt;p>Pre-requisites:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>gardener-apiserver&lt;/code> instances these components communicate with are at &lt;strong>1.38&lt;/strong> (in multi-instance setups in which these components can communicate with any &lt;code>gardener-apiserver&lt;/code> instance in the cluster, all &lt;code>gardener-apiserver&lt;/code> instances must be upgraded before upgrading these components)&lt;/li>
+&lt;/ul>
+&lt;p>Action:&lt;/p>
+&lt;ul>
+&lt;li>Upgrade &lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>, &lt;code>gardener-admission-controller&lt;/code>, and &lt;code>gardenlet&lt;/code> to &lt;strong>1.38&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;h2 id="supported-kubernetes-versions">Supported Kubernetes Versions&lt;/h2>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/supported_k8s_versions">this document&lt;/a>.&lt;/p></description></item></channel></rss>

@@ -1742,7 +1742,138 @@ This &lt;code>ClusterRole&lt;/code> aggregates other &lt;code>ClusterRole&lt;/co
 &lt;p>Extension that might want to contribute to the core &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code> roles can use the labels &lt;code>rbac.gardener.cloud/aggregate-to-project-member=true&lt;/code> or &lt;code>rbac.gardener.cloud/aggregate-to-project-viewer=true&lt;/code>, respectively.&lt;/p>
 &lt;p>Please note that the names of the extension roles are restricted to 20 characters!&lt;/p>
 &lt;p>Moreover, the project controller will also create a corresponding &lt;code>RoleBinding&lt;/code> with the same name in the project namespace.
-It will automatically assign all members that are assigned to this extension role.&lt;/p></description></item><item><title>Docs: Reconcile Trigger</title><link>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</guid><description>
+It will automatically assign all members that are assigned to this extension role.&lt;/p></description></item><item><title>Docs: Provider Local</title><link>https://gardener.cloud/docs/gardener/extensions/provider-local/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/provider-local/</guid><description>
+&lt;h1 id="local-provider-extension">Local Provider Extension&lt;/h1>
+&lt;p>The &amp;ldquo;local provider&amp;rdquo; extension is used to allow the usage of seed and shoot clusters which run entirely locally without any real infrastructure or cloud provider involved.
+It implements Gardener&amp;rsquo;s extension contract (&lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility">GEP-1&lt;/a>) and thus comprises several controllers and webhooks acting on resources in seed and shoot clusters.&lt;/p>
+&lt;p>The code is maintained in &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/provider-local">&lt;code>pkg/provider-local&lt;/code>&lt;/a>.&lt;/p>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>The motivation for maintaining such extension is the following:&lt;/p>
+&lt;ul>
+&lt;li>🛡 Output Qualification: Run fast and cost-efficient end-to-end tests, locally and in CI systems (increased confidence ⛑ before merging pull requests)&lt;/li>
+&lt;li>⚙️ Development Experience: Develop Gardener entirely on a local machine without any external resources involved (improved costs 💰 and productivity 🚀)&lt;/li>
+&lt;li>🤝 Open Source: Quick and easy setup for a first evaluation of Gardener and a good basis for first contributions&lt;/li>
+&lt;/ul>
+&lt;h2 id="current-limitations">Current Limitations&lt;/h2>
+&lt;p>The following enlists the current limitations of the implementation.
+Please note that all of them are no technical limitations/blockers but simply advanced scenarios that we haven&amp;rsquo;t had invested yet into.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Shoot clusters can only have one node when &lt;code>.spec.networking.type=local&lt;/code>.&lt;/p>
+&lt;p>&lt;em>We use &lt;a href="https://github.com/kubernetes-sigs/kind/blob/main/images/kindnetd/README.md">kindnetd&lt;/a> as CNI plugin in shoot clusters and didn&amp;rsquo;t invest into making it work with multiple worker nodes.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>NetworkPolicy&lt;/code>s are not effective.&lt;/p>
+&lt;p>&lt;em>&lt;code>kindnetd&lt;/code> does not ship any controller for Kubernetes &lt;code>NetworkPolicy&lt;/code>s, hence, they are not effective. Typically, the same applies for the local seed cluster unless a different CNI plugin is pro-actively installed.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Shoot clusters don&amp;rsquo;t support persistent storage.&lt;/p>
+&lt;p>&lt;em>We don&amp;rsquo;t install any CSI plugin into the shoot cluster yet, hence, there is no persistent storage for shoot clusters.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>No support for ETCD backups.&lt;/p>
+&lt;p>&lt;em>We have not yet implemented the &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket">&lt;code>BackupBucket&lt;/code>&lt;/a>/&lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry">&lt;code>BackupEntry&lt;/code>&lt;/a> extension API, hence, there is no support for ETCD backups.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>No owner TXT &lt;code>DNSRecord&lt;/code>s (hence, no &lt;a href="https://gardener.cloud/docs/gardener/proposals/17-shoot-control-plane-migration-bad-case">&amp;ldquo;bad-case&amp;rdquo; control plane migration&lt;/a>).&lt;/p>
+&lt;p>&lt;em>In order to realize DNS (see &lt;a href="#implementation-details">Implementation Details&lt;/a> section below), the &lt;code>/etc/hosts&lt;/code> file is manipulated. This does not work for TXT records. In the future, we could look into using &lt;a href="https://coredns.io/">CoreDNS&lt;/a> instead.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>No load balancers for Shoot clusters.&lt;/p>
+&lt;p>&lt;em>We have not yet developed a &lt;code>cloud-controller-manager&lt;/code> which could reconcile load balancer &lt;code>Service&lt;/code>s in the shoot cluster. Hence, when the gardenlet&amp;rsquo;s &lt;code>ReversedVPN&lt;/code> feature gate is disabled then the &lt;code>kube-system/vpn-shoot&lt;/code> &lt;code>Service&lt;/code> must be manually patched (with &lt;code>{&amp;quot;status&amp;quot;: {&amp;quot;loadBalancer&amp;quot;: {&amp;quot;ingress&amp;quot;: [{&amp;quot;hostname&amp;quot;: &amp;quot;vpn-shoot&amp;quot;}]}}}&lt;/code>) to make the reconciliation work.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Only one shoot cluster possible when gardenlet&amp;rsquo;s &lt;code>APIServerSNI&lt;/code> feature gate is disabled.&lt;/p>
+&lt;p>&lt;em>When &lt;a href="https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni">&lt;code>APIServerSNI&lt;/code>&lt;/a> is disabled then gardenlet uses load balancer &lt;code>Service&lt;/code>s in order to expose the shoot clusters' &lt;code>kube-apiserver&lt;/code>s. Typically, local Kubernetes clusters don&amp;rsquo;t support this. In this case, the local extension uses the host IP to expose the &lt;code>kube-apiserver&lt;/code>, however, this can only be done once.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Dependency-Watchdog cannot be enabled.&lt;/p>
+&lt;p>&lt;em>The &lt;code>dependency-watchdog&lt;/code> needs to be able to resolve the shoot cluster&amp;rsquo;s DNS names. It is not yet able to do so, hence, it cannot be enabled.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>Ingress&lt;/code>es exposed in the seed cluster are not reachable.&lt;/p>
+&lt;p>&lt;em>There is no DNS resolution for the domains used for &lt;code>Ingress&lt;/code>es in the seed cluster yet, hence, they are not reachable. Consequently, the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/deployment/configuring_logging.md#enable-logs-from-the-shoots-node-systemd-services">shoot node logging&lt;/a> feature does not work end-to-end.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
+&lt;p>This section contains information about how the respective controllers and webhooks are implemented and what their purpose is.&lt;/p>
+&lt;h3 id="bootstrapping">Bootstrapping&lt;/h3>
+&lt;p>The Helm chart of the &lt;code>provider-local&lt;/code> extension defined in its &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration">&lt;code>ControllerDeployment&lt;/code>&lt;/a> contains a special deployment for a &lt;a href="https://coredns.io/">CoreDNS&lt;/a> instance in a &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespace in the seed cluster.&lt;/p>
+&lt;p>This CoreDNS instance is responsible for enabling the components running in the shoot clusters to be able to resolve the DNS names when they communicate with their &lt;code>kube-apiserver&lt;/code>s.&lt;/p>
+&lt;p>It contains static configuration to resolve the DNS names based on &lt;code>local.gardener.cloud&lt;/code> to either the &lt;code>istio-ingressgateway.istio-ingress.svc&lt;/code> or the &lt;code>kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc&lt;/code> addresses (depending on whether the &lt;code>--apiserver-sni-enabled&lt;/code> flag is set to &lt;code>true&lt;/code> or &lt;code>false&lt;/code>).&lt;/p>
+&lt;h3 id="controllers">Controllers&lt;/h3>
+&lt;p>There are controllers for all resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group except for &lt;code>BackupBucket&lt;/code> and &lt;code>BackupEntry&lt;/code>s.&lt;/p>
+&lt;h4 id="controlplane">&lt;code>ControlPlane&lt;/code>&lt;/h4>
+&lt;p>This controller is not deploying anything since we haven&amp;rsquo;t invested yet into a &lt;code>cloud-controller-manager&lt;/code> or CSI solution.
+For the latter, we could probably use the &lt;a href="https://github.com/rancher/local-path-provisioner">local-path-provisioner&lt;/a>.&lt;/p>
+&lt;h4 id="dnsrecord">&lt;code>DNSRecord&lt;/code>&lt;/h4>
+&lt;p>This controller manipulates the &lt;code>/etc/hosts&lt;/code> file and adds a new line for each &lt;code>DNSRecord&lt;/code> it observes.
+This enables accessing the shoot clusters from the respective machine, however, it also requires to run the extension with elevated privileges (&lt;code>sudo&lt;/code>).&lt;/p>
+&lt;p>The &lt;code>/etc/hosts&lt;/code> would be extended as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text"># Begin of gardener-extension-provider-local section
+10.84.23.24 api.local.local.external.local.gardener.cloud
+10.84.23.24 api.local.local.internal.local.gardener.cloud
+...
+# End of gardener-extension-provider-local section
+&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="infrastructure">&lt;code>Infrastructure&lt;/code>&lt;/h4>
+&lt;p>This controller generates a &lt;code>NetworkPolicy&lt;/code> which allows the control plane pods (like &lt;code>kube-apiserver&lt;/code>) to communicate with the worker machine pods (see &lt;a href="#worker">&lt;code>Worker&lt;/code> section&lt;/a>)).&lt;/p>
+&lt;p>In addition, it creates a &lt;code>Service&lt;/code> named &lt;code>vpn-shoot&lt;/code> which is only used in case the gardenlet&amp;rsquo;s &lt;code>ReversedVPN&lt;/code> feature gate is disabled.
+This &lt;code>Service&lt;/code> enables the &lt;code>vpn-seed&lt;/code> containers in the &lt;code>kube-apiserver&lt;/code> pods in the seed cluster to communicate with the &lt;code>vpn-shoot&lt;/code> pod running in the shoot cluster.&lt;/p>
+&lt;h4 id="network">&lt;code>Network&lt;/code>&lt;/h4>
+&lt;p>This controller deploys a &lt;code>ManagedResource&lt;/code> which contains the &lt;a href="https://github.com/kubernetes-sigs/kind/blob/main/images/kindnetd/README.md">kindnetd&lt;/a> &lt;code>DaemonSet&lt;/code> which is used as CNI in the shoot clusters.&lt;/p>
+&lt;h4 id="operatingsystemconfig">&lt;code>OperatingSystemConfig&lt;/code>&lt;/h4>
+&lt;p>This controller leverages the standard &lt;a href="https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/operatingsystemconfig/oscommon">&lt;code>oscommon&lt;/code> library&lt;/a> in order to render a simple cloud-init template which can later be executed by the shoot worker nodes.&lt;/p>
+&lt;p>The shoot worker nodes are &lt;code>Pod&lt;/code>s with a container based on the &lt;code>kindest/node&lt;/code> image. This is maintained in &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local/tree/master/node">https://github.com/gardener/machine-controller-manager-provider-local/tree/master/node&lt;/a> and has a special &lt;code>run-userdata&lt;/code> systemd service which executes the cloud-init generated earlier by the &lt;code>OperatingSystemConfig&lt;/code> controller.&lt;/p>
+&lt;h4 id="worker">&lt;code>Worker&lt;/code>&lt;/h4>
+&lt;p>This controller leverages the standard &lt;a href="https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker/genericactuator">generic &lt;code>Worker&lt;/code> actuator&lt;/a> in order to deploy the &lt;a href="https://github.com/gardener/machine-controller-manager">&lt;code>machine-controller-manager&lt;/code>&lt;/a> as well as the &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local">&lt;code>machine-controller-manager-provider-local&lt;/code>&lt;/a>.&lt;/p>
+&lt;p>Additionally, it generates the &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local/blob/master/kubernetes/machine-class.yaml">&lt;code>MachineClass&lt;/code>es&lt;/a> and the &lt;code>MachineDeployment&lt;/code>s based on the specification of the &lt;code>Worker&lt;/code> resources.&lt;/p>
+&lt;h4 id="dnsprovider">&lt;code>DNSProvider&lt;/code>&lt;/h4>
+&lt;p>Due to legacy reasons, the gardenlet still creates &lt;code>DNSProvider&lt;/code> resources part of the &lt;a href="https://github.com/gardener/external-dns-management/">&lt;code>dns.gardener.cloud/v1alpha1&lt;/code> API group&lt;/a>.
+Since those are only needed in conjunction with the &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">&lt;code>shoot-dns-service&lt;/code> extension&lt;/a> and have no relevance for the local provider, it just sets their &lt;code>status.state=Ready&lt;/code> to please the expectations.
+In the future, this controller can be dropped when the gardenlet no longer creates such &lt;code>DNSProvider&lt;/code>s.&lt;/p>
+&lt;h4 id="service">&lt;code>Service&lt;/code>&lt;/h4>
+&lt;p>This controller reconciles the &lt;code>istio-ingress/istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> in the seed cluster if the &lt;code>--apiserver-sni-enabled&lt;/code> flag is set to &lt;code>true&lt;/code> (default).
+Otherwise, it reconciles the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in the shoot namespaces in the seed cluster.&lt;/p>
+&lt;p>All such &lt;code>Service&lt;/code>s are of type &lt;code>LoadBalancer&lt;/code>.
+Since the local Kubernetes clusters used as seed typically don&amp;rsquo;t support such services, this controller sets the &lt;code>.status.ingress.loadBalancer.ip[0]&lt;/code> to the IP of the host.&lt;/p>
+&lt;h4 id="node">&lt;code>Node&lt;/code>&lt;/h4>
+&lt;p>This controller reconciles the &lt;code>Node&lt;/code>s of &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> clusters.
+Typically, the &lt;code>.status.{capacity,allocatable}&lt;/code> values are determined by the resources configured for the Docker daemon (see for example &lt;a href="https://docs.docker.com/desktop/mac/#resources">this&lt;/a> for Mac).
+Since many of the &lt;code>Pod&lt;/code>s deployed by Gardener have quite high &lt;code>.spec.resources.{requests,limits}&lt;/code>, the kind &lt;code>Node&lt;/code>s easily get filled up and only a few &lt;code>Pod&lt;/code>s can be scheduled (even if they barely consume any of their reserved resources).
+In order to improve the user experience, the controller submits an empty patch which triggers the &amp;ldquo;Node webhook&amp;rdquo; (see below section) in case the &lt;code>.status.{capacity,allocatable}&lt;/code> values are not high enough.
+The webhook will increase the capacity of the &lt;code>Node&lt;/code>s to allow all &lt;code>Pod&lt;/code>s to be scheduled.&lt;/p>
+&lt;h4 id="health-checks">Health Checks&lt;/h4>
+&lt;p>The health check controller leverages the &lt;a href="https://gardener.cloud/docs/gardener/extensions/healthcheck-library">health check library&lt;/a> in order to&lt;/p>
+&lt;ul>
+&lt;li>check the health of the &lt;code>ManagedResource/extension-controlplane-shoot-webhooks&lt;/code> and populate the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>ControlPlane&lt;/code> resource.&lt;/li>
+&lt;li>check the health of the &lt;code>ManagedResource/extension-networking-local&lt;/code> and populate the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>Network&lt;/code> resource.&lt;/li>
+&lt;li>check the health of the &lt;code>ManagedResource/extension-worker-mcm-shoot&lt;/code> and populate the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>Worker&lt;/code> resource.&lt;/li>
+&lt;li>check the health of the &lt;code>Deployment/machine-controller-manager&lt;/code> and populate the &lt;code>ControlPlaneHealthy&lt;/code> condition in the &lt;code>Worker&lt;/code> resource.&lt;/li>
+&lt;li>check the health of the &lt;code>Node&lt;/code>s and populate the &lt;code>EveryNodeReady&lt;/code> condition in the &lt;code>Worker&lt;/code> resource.&lt;/li>
+&lt;/ul>
+&lt;h3 id="webhooks">Webhooks&lt;/h3>
+&lt;h4 id="control-plane">Control Plane&lt;/h4>
+&lt;p>This webhook reacts on the &lt;code>OperatingSystemConfig&lt;/code> containing the configuration of the kubelet and sets the &lt;code>failSwapOn&lt;/code> to &lt;code>false&lt;/code> (independent of what is configured in the &lt;code>Shoot&lt;/code> spec) (&lt;a href="https://github.com/kubernetes-sigs/kind/blob/b6bc112522651d98c81823df56b7afa511459a3b/site/content/docs/design/node-image.md#design">ref&lt;/a>).&lt;/p>
+&lt;h4 id="control-plane-exposure">Control Plane Exposure&lt;/h4>
+&lt;p>This webhook reacts on the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in shoot namespaces in the seed in case the gardenlet&amp;rsquo;s &lt;code>APIServerSNI&lt;/code> feature gate is disabled.
+It sets the &lt;code>nodePort&lt;/code> to &lt;code>30443&lt;/code> to enable communication from the host (this requires a port mapping to work when creating the local cluster).&lt;/p>
+&lt;h4 id="machine-pod">Machine Pod&lt;/h4>
+&lt;p>This webhook reacts on &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
+It sets the &lt;code>.spec.dnsPolicy=None&lt;/code> and &lt;code>.spec.dnsConfig.nameServers&lt;/code> to the cluster IP of the &lt;code>coredns&lt;/code> &lt;code>Service&lt;/code> created in the &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespaces (see the &lt;a href="#bootstrapping">Bootstrapping section&lt;/a> for more details).&lt;/p>
+&lt;h4 id="node-1">Node&lt;/h4>
+&lt;p>This webhook reacts on &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> &lt;code>Node&lt;/code>s and sets the &lt;code>.status.{allocatable,capacity}.cpu=&amp;quot;100&amp;quot;&lt;/code> and &lt;code>.status.{allocatable,capacity}.memory=&amp;quot;100Gi&amp;quot;&lt;/code> fields.
+See also the above section about the &amp;ldquo;Node controller&amp;rdquo; for more information.&lt;/p>
+&lt;h4 id="shoot">Shoot&lt;/h4>
+&lt;p>This webhook reacts on the &lt;code>ConfigMap&lt;/code> used by the &lt;code>kube-proxy&lt;/code> and sets the &lt;code>maxPerCore&lt;/code> field to &lt;code>0&lt;/code> since other values don&amp;rsquo;t work well in conjunction with the &lt;code>kindest/node&lt;/code> image which is used as base for the shoot worker machine pods (&lt;a href="https://github.com/kubernetes-sigs/kind/blob/fa7d86470f4c0e924fc4c2e767ec8491c45f4304/pkg/cluster/internal/kubeadm/config.go#L283-L285">ref&lt;/a>).&lt;/p>
+&lt;h2 id="future-work">Future Work&lt;/h2>
+&lt;p>Future work could mostly focus on resolving above listed &lt;a href="#limitations">limitations&lt;/a>, i.e.,&lt;/p>
+&lt;ul>
+&lt;li>Add storage support for shoot clusters.&lt;/li>
+&lt;li>Implement a &lt;code>cloud-controller-manager&lt;/code> and deploy it via the &lt;a href="#controlplane">&lt;code>ControlPlane&lt;/code> controller&lt;/a>.&lt;/li>
+&lt;li>Implement support for &lt;code>BackupBucket&lt;/code> and &lt;code>BackupEntry&lt;/code>s to enable ETCD backups for shoot clusters (based on the support for local disks in &lt;a href="https://github.com/gardener/etcd-backup-restore">&lt;code>etcd-backup-restore&lt;/code>&lt;/a>).&lt;/li>
+&lt;li>Switch from &lt;code>kindnetd&lt;/code> to a different CNI plugin which supports &lt;code>NetworkPolicy&lt;/code>s.&lt;/li>
+&lt;li>Properly implement &lt;code>.spec.machineTypes&lt;/code> in the &lt;code>CloudProfile&lt;/code>s (i.e., configure &lt;code>.spec.resources&lt;/code> properly for the created shoot worker machine pods).&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Reconcile Trigger</title><link>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</guid><description>
 &lt;h1 id="reconcile-trigger">Reconcile trigger&lt;/h1>
 &lt;p>Gardener dictates the time of reconciliation for resources of the API group &lt;code>extensions.gardener.cloud&lt;/code>.
 It does that by annotating the respected resource with &lt;code>gardener.cloud/operation=reconcile&lt;/code>.

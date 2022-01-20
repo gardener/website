@@ -934,6 +934,23 @@ Thus, the end result might look different depending on the value and its &lt;cod
 &lt;/code>&lt;/pre>&lt;/div>&lt;p>Earlier, we often used &lt;code>kutil.ObjectName()&lt;/code> for logging object keys, which encodes them into a flat string like &lt;code>foo/bar&lt;/code>. However, this flat string cannot be processed so easily by logging stacks (or &lt;code>jq&lt;/code>) like a structured log. Hence, the use of &lt;code>kutil.ObjectName()&lt;/code> for logging object keys is discouraged. Existing usages should be refactored to use &lt;code>client.ObjectKeyFromObject()&lt;/code> instead.&lt;/p>
 &lt;/li>
 &lt;li>
+&lt;p>There are cases where you don&amp;rsquo;t have the full object key or the object itself at hand, e.g., if an object references another object (in the same namespace) by name (think &lt;code>secretRef&lt;/code> or similar).
+In such a cases, either construct the full object key including the implied namespace or log the object name under a key ending in &lt;code>Name&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go">&lt;span class="kd">var&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="c1">// object to reconcile
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">shoot&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">gardencorev1beta1&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Shoot&lt;/span>
+&lt;span class="c1">// retrieved via logf.FromContext, preconfigured by controller with namespace and name of reconciliation request
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">log&lt;/span> &lt;span class="nx">logr&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Logger&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// option a: full object key, manually constructed
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Info&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Shoot uses SecretBinding&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;secretBinding&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ObjectKey&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">Namespace&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="nx">shoot&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Namespace&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">Name&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="nx">shoot&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Spec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SecretBindingName&lt;/span>&lt;span class="p">})&lt;/span>
+&lt;span class="c1">// option b: only name under respective *Name log key
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Info&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Shoot uses SecretBinding&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;secretBindingName&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">shoot&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Spec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SecretBindingName&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>Both options result in well-structured logs, that are easy to interpret and process:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text">{&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;ts&amp;#34;:&amp;#34;2022-01-18T18:00:56.672+0100&amp;#34;,&amp;#34;msg&amp;#34;:&amp;#34;Shoot uses SecretBinding&amp;#34;,&amp;#34;name&amp;#34;:&amp;#34;my-shoot&amp;#34;,&amp;#34;namespace&amp;#34;:&amp;#34;garden-project&amp;#34;,&amp;#34;secretBinding&amp;#34;:{&amp;#34;namespace&amp;#34;:&amp;#34;garden-project&amp;#34;,&amp;#34;name&amp;#34;:&amp;#34;aws&amp;#34;}}
+{&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;ts&amp;#34;:&amp;#34;2022-01-18T18:00:56.673+0100&amp;#34;,&amp;#34;msg&amp;#34;:&amp;#34;Shoot uses SecretBinding&amp;#34;,&amp;#34;name&amp;#34;:&amp;#34;my-shoot&amp;#34;,&amp;#34;namespace&amp;#34;:&amp;#34;garden-project&amp;#34;,&amp;#34;secretBindingName&amp;#34;:&amp;#34;aws&amp;#34;}
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
 &lt;p>When handling generic &lt;code>client.Object&lt;/code> values (e.g. in helper funcs), use &lt;code>object&lt;/code> as key.&lt;/p>
 &lt;/li>
 &lt;li>
@@ -943,6 +960,14 @@ Don&amp;rsquo;t use &lt;code>metav1.Time&lt;/code> values, as they will be encod
 &lt;li>
 &lt;p>Same applies to durations. Use &lt;code>time.Duration&lt;/code> values instead of &lt;code>*metav1.Duration&lt;/code>. Durations can be handled specially by zap just like timestamps.&lt;/p>
 &lt;/li>
+&lt;li>
+&lt;p>Event recorders not only create &lt;code>Event&lt;/code> objects but also log them.
+However, both Gardener&amp;rsquo;s manually instantiated event recorders and the ones that controller-runtime provides log to &lt;code>debug&lt;/code> level and use generic formats, that are not very easy to interpret or process (no structured logs).
+Hence, don&amp;rsquo;t use event recorders as replacements for well-structured logs.
+If a controller records an event for a completed action or important information, it should probably log it as well, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go">&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Info&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Creating ManagedSeed&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;replica&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">GetObjectKey&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="nx">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">recorder&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Eventf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">managedSeedSet&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">corev1&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">EventTypeNormal&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">EventCreatingManagedSeed&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;Creating ManagedSeed %s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">GetFullName&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
 &lt;/ul>
 &lt;h2 id="logging-in-test-code">Logging in Test Code&lt;/h2>
 &lt;ul>

@@ -23447,20 +23447,57 @@ Custom fields do not show up on the &lt;code>ALL_PROJECTS&lt;/code> page.&lt;/p>
 &lt;/span>&lt;span class="sd"> &amp;#34;showColumn&amp;#34;: false
 &lt;/span>&lt;span class="sd"> }
 &lt;/span>&lt;span class="sd"> }&lt;/span>&lt;span class="w">
-&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Deploy Gardenlet</title><link>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/</guid><description>
-&lt;h1 id="deploying-gardenlets">Deploying Gardenlets&lt;/h1>
-&lt;p>Gardenlets act as decentral &amp;ldquo;agents&amp;rdquo; to manage shoot clusters of a seed cluster.&lt;/p>
-&lt;p>To support scaleability in an automated way, gardenlets are deployed automatically. However, you can still deploy gardenlets manually to be more flexible, for example, when shoot clusters that need to be managed by Gardener are behind a firewall. The gardenlet only requires network connectivity from the gardenlet to the Garden cluster (not the other way round), so it can be used to register Kubernetes clusters with no public endpoint.&lt;/p>
-&lt;h2 id="procedure">Procedure&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>First, an initial gardenlet needs to be deployed:&lt;/p>
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Dependencies</title><link>https://gardener.cloud/docs/gardener/development/dependencies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/dependencies/</guid><description>
+&lt;h1 id="dependency-management">Dependency Management&lt;/h1>
+&lt;p>We are using &lt;a href="https://github.com/golang/go/wiki/Modules">go modules&lt;/a> for depedency management.
+In order to add a new package dependency to the project, you can perform &lt;code>go get &amp;lt;PACKAGE&amp;gt;@&amp;lt;VERSION&amp;gt;&lt;/code> or edit the &lt;code>go.mod&lt;/code> file and append the package along with the version you want to use.&lt;/p>
+&lt;h2 id="updating-dependencies">Updating Dependencies&lt;/h2>
+&lt;p>The &lt;code>Makefile&lt;/code> contains a rule called &lt;code>revendor&lt;/code> which performs &lt;code>go mod tidy&lt;/code> and &lt;code>go mod vendor&lt;/code>.
+&lt;code>go mod tidy&lt;/code> makes sure go.mod matches the source code in the module. It adds any missing modules necessary to build the current module&amp;rsquo;s packages and dependencies, and it removes unused modules that don&amp;rsquo;t provide any relevant packages.
+&lt;code>go mod vendor&lt;/code> resets the main module&amp;rsquo;s vendor directory to include all packages needed to build and test all the main module&amp;rsquo;s packages. It does not include test code for vendored packages.&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">make revendor
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>The dependencies are installed into the &lt;code>vendor&lt;/code> folder which &lt;strong>should be added&lt;/strong> to the VCS.&lt;/p>
+&lt;p>:warning: Make sure that you test the code after you have updated the dependencies!&lt;/p>
+&lt;h2 id="exported-packages">Exported Packages&lt;/h2>
+&lt;p>This repository contains several packages that could be considered &amp;ldquo;exported packages&amp;rdquo;, in a sense that they are supposed to be reused in other Go projects.
+For example:&lt;/p>
 &lt;ul>
-&lt;li>Deploy it manually if you have special requirements. More information: &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually">Deploy a Gardenlet Manually&lt;/a>&lt;/li>
-&lt;li>Let the Gardener installer deploy it automatically otherwise. More information: &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically">Automatic Deployment of Gardenlets&lt;/a>&lt;/li>
+&lt;li>Gardener&amp;rsquo;s API packages: &lt;code>pkg/apis&lt;/code>&lt;/li>
+&lt;li>Library for building Gardener extensions: &lt;code>extensions&lt;/code>&lt;/li>
+&lt;li>Gardener&amp;rsquo;s Test Framework: &lt;code>test/framework&lt;/code>&lt;/li>
 &lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>To add additional seed clusters, it is recommended to use regular shoot clusters. You can do this by creating a &lt;code>ManagedSeed&lt;/code> resource with a &lt;code>gardenlet&lt;/code> section as described in &lt;a href="https://gardener.cloud/docs/gardener/usage/managed_seed">Register Shoot as Seed&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;/ol></description></item></channel></rss>
+&lt;p>There are a few more folders in this repository (non-Go sources) that are reused across projects in the gardener organization:&lt;/p>
+&lt;ul>
+&lt;li>GitHub templates: &lt;code>.github&lt;/code>&lt;/li>
+&lt;li>Concourse / cc-utils related helpers: &lt;code>hack/.ci&lt;/code>&lt;/li>
+&lt;li>Development, build and testing helpers: &lt;code>hack&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>These packages feature a dummy &lt;code>doc.go&lt;/code> file to allow other Go projects to pull them in as go mod dependencies.&lt;/p>
+&lt;p>These packages are explicitly &lt;em>not&lt;/em> supposed to be used in other projects (consider them as &amp;ldquo;non-exported&amp;rdquo;):&lt;/p>
+&lt;ul>
+&lt;li>API validation packages: &lt;code>pkg/apis/*/*/validation&lt;/code>&lt;/li>
+&lt;li>Operation package (main Gardener business logic regarding &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> clusters): &lt;code>pkg/operation&lt;/code>&lt;/li>
+&lt;li>Third party code: &lt;code>third_party&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Currently, we don&amp;rsquo;t have a mechanism yet for selectively syncing out these exported packages into dedicated repositories like kube&amp;rsquo;s &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/staging">staging mechanism&lt;/a> (&lt;a href="https://github.com/kubernetes/publishing-bot">publishing-bot&lt;/a>).&lt;/p>
+&lt;h2 id="import-restrictions">Import Restrictions&lt;/h2>
+&lt;p>We want to make sure, that other projects can depend on this repository&amp;rsquo;s &amp;ldquo;exported&amp;rdquo; packages without pulling in the entire repository (including &amp;ldquo;non-exported&amp;rdquo; packages) or a high number of other unwanted dependencies.
+Hence, we have to be careful when adding new imports or references between our packages.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ General rule of thumb: the mentioned &amp;ldquo;exported&amp;rdquo; packages should be as self-contained as possible and depend on as few other packages in the repository and other projects as possible.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to support that rule and automatically check compliance with that goal, we leverage &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">import-boss&lt;/a>.
+The tool checks all imports of the given packages (including transitive imports) against rules defined in &lt;code>.import-restrictions&lt;/code> files in each directory.
+An import is allowed if it matches at least one allowed prefix and does not match any forbidden prefixes.
+Note: &lt;code>''&lt;/code> (the empty string) is a prefix of everything.
+For more details, see: &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss&lt;/a>&lt;/p>
+&lt;p>&lt;code>import-boss&lt;/code> is executed on every pull request and blocks the PR if it doesn&amp;rsquo;t comply with the defined import restrictions.
+You can also run it locally using &lt;code>make check&lt;/code>.&lt;/p>
+&lt;p>Import restrictions should be changed in the following situations:&lt;/p>
+&lt;ul>
+&lt;li>We spot a new pattern of imports across our packages that was not restricted before but makes it more difficult for other projects to depend on our &amp;ldquo;exported&amp;rdquo; packages.
+In that case, the imports should be further restricted to disallow such problematic imports, and the code/package structure should be reworked to comply with the newly given restrictions.&lt;/li>
+&lt;li>We want to share code between packages, but existing import restrictions prevent us from doing so.
+In that case, please consider what additional dependencies it will pull in, when loosening existing restrictions.
+Also consider possible alternatives, like code restructurings or extracting shared code into dedicated packages for minimal impact on dependent projects.&lt;/li>
+&lt;/ul></description></item></channel></rss>

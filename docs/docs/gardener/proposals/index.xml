@@ -4215,7 +4215,245 @@ remote 192.168.47.34 1194 udp
 &lt;li>
 &lt;p>There is an option in OpenVPN to specify a tcp proxy as part of the endpoint configuration.&lt;/p>
 &lt;/li>
-&lt;/ol></description></item><item><title>Docs: Utilize API Server Network Proxy to Invert Seed-to-Shoot Connectivity</title><link>https://gardener.cloud/docs/gardener/proposals/11-apiserver-network-proxy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/11-apiserver-network-proxy/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Shoot CA Rotation</title><link>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</guid><description>
+&lt;h1 id="gep-18-automated-shoot-ca-rotation">GEP-18: Automated Shoot CA Rotation&lt;/h1>
+&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#motivation">Motivation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#proposal">Proposal&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#alternatives">Alternatives&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#open-questions">Open Questions&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="summary">Summary&lt;/h2>
+&lt;p>This proposal outlines an on-demand, multi-step approach to rotate all certificate authorities (CA) used in a Shoot cluster. This process includes creating new CAs, invalidating the old ones and recreating all certificates signed by the CAs.&lt;/p>
+&lt;p>We propose to bundle the rotation of &lt;em>all&lt;/em> CAs in the Shoot together as one triggerable action. This includes the recreation and invalidation of the following CAs and all certificates signed by them:&lt;/p>
+&lt;ul>
+&lt;li>Cluster CA (currently used for signing &lt;code>kube-apiserver&lt;/code> serving certificates and client certificates)&lt;/li>
+&lt;li>&lt;code>kubelet&lt;/code> CA (used for signing client certificates for talking to &lt;code>kubelet&lt;/code> API, e.g. &lt;code>kube-apiserver-kubelet&lt;/code>)&lt;/li>
+&lt;li>&lt;code>etcd&lt;/code> CA (used for signing &lt;code>etcd&lt;/code> serving certificates and client certificates)&lt;/li>
+&lt;li>front-proxy CA (used for signing client certificates that &lt;code>kube-aggregator&lt;/code> (part of &lt;code>kube-apiserver&lt;/code>) uses to talk to extension API servers, filled into &lt;code>extension-apiserver-authentication&lt;/code> ConfigMap and read by extension API servers to verify incoming &lt;code>kube-aggregator&lt;/code> requests)&lt;/li>
+&lt;li>&lt;code>metrics-server&lt;/code> CA (used for signing serving certificates, filled into APIService &lt;code>caBundle&lt;/code> field and read by &lt;code>kube-aggregator&lt;/code> to verify the presented serving certificate)&lt;/li>
+&lt;li>&lt;code>ReversedVPN&lt;/code> CA (used for signing &lt;code>vpn-seed-server&lt;/code> serving certificate and &lt;code>vpn-shoot&lt;/code> client certificate)&lt;/li>
+&lt;/ul>
+&lt;p>Out of scope for now:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kubelet&lt;/code> serving CA is self-generated (valid for &lt;code>1y&lt;/code>) and self-signed by &lt;code>kubelet&lt;/code> on startup
+&lt;ul>
+&lt;li>&lt;code>kube-apiserver&lt;/code> does not seem to verify the presented serving certificate&lt;/li>
+&lt;li>&lt;code>kubelet&lt;/code> can be configured to request serving certificate via CSR that can be verified by &lt;code>kube-apiserver&lt;/code>, though, we consider this as a separate improvement outside of this GEP&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Legacy VPN solution uses the cluster CA for both serving and client certificates. As the solution is soon to be dropped in favor of the new &lt;code>ReversedVPN&lt;/code> solution, we don&amp;rsquo;t intend to introduce a dedicated CA for this component. If &lt;code>ReversedVPN&lt;/code> is disabled and the CA rotation is triggered, we make sure to propagate the cluster CA to the relevant places in the legacy VPN solution.&lt;/li>
+&lt;/ul>
+&lt;p>Naturally, not all certificates used for communication with the &lt;code>kube-apiserver&lt;/code> are under control of Gardener. An example for a Gardener-controlled certificate is the kubelet client certificate used to communicate with the api server. An example for credentials not controlled by gardener are kubeconfigs or client certificates requested via &lt;code>CertificateSigningRequest&lt;/code>s by the shoot owner.&lt;/p>
+&lt;p>We propose to use a two step approach to rotate CAs. The start of each phase is triggered by the shoot owner.
+In summary the &lt;strong>first phase&lt;/strong> is used to create new CAs (for example the new api server and client CA). Then we make sure that all servers and clients under Gardener&amp;rsquo;s control trust &lt;em>both&lt;/em> old and new CA. Next we renew all client certificates that are under Gardener&amp;rsquo;s control so they are now signed by the new CAs. This includes a node rollout in order to propagate the certificates to kubelets and restart all pods. Afterwards the user needs to change their client credentials to trust both old and new cluster CA.
+In the &lt;strong>second phase&lt;/strong>, we remove all trust to the old CA for servers and clients under Gardener&amp;rsquo;s control. This does not include a node rollout but all still running pods using &lt;code>ServiceAccount&lt;/code>s will continue to trust the old CA until they restart. Also, the user needs to retrieve the new CA bundle to no longer trust the old CA.&lt;/p>
+&lt;p>A detailed overview of all steps required for each phase is given in the &lt;a href="#proposal">proposal&lt;/a> section of this GEP.&lt;/p>
+&lt;p>&lt;em>Introducing a new client CA&lt;/em>&lt;/p>
+&lt;p>Currently, client certificates and the kube-apiserver certificate are signed by the same CA. We propose to create a separate client CA when triggering the rotation. The client CA is used to sign certificates of clients talking to the API Server.&lt;/p>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>There are a few reasons for rotating shoot cluster CAs:&lt;/p>
+&lt;ul>
+&lt;li>If we have to invalidate client certificates for the kube-apiserver or any other component we are forced to rotate the CA. The only way to invalidate them is to stop trusting all client certificates that are signed by the respective CA as kubernetes does not support revoking certificates.&lt;/li>
+&lt;li>If the CA itself got leaked.&lt;/li>
+&lt;li>If the CA is about to expire.&lt;/li>
+&lt;li>If a company policy requires to rotate a CA after a certain point in time.&lt;/li>
+&lt;/ul>
+&lt;p>In each of those cases we currently need to basically manually recreate and replace all CAs and certificates. The process of rotating by hand is cumbersome and could lead to errors due to the many steps needing to be performed in the right order. By automating the process we want to create a way to securely and easily rotate shoot CAs.&lt;/p>
+&lt;h3 id="goals">Goals&lt;/h3>
+&lt;ul>
+&lt;li>Offer an automated and safe solution to rotate all CAs in a shoot cluster.&lt;/li>
+&lt;li>Offer a process that is easily understandable for developers and users.&lt;/li>
+&lt;li>Rotate the different CAs in the shoot with a similar process to reduce complexity.&lt;/li>
+&lt;li>Add visibility for Shoot owners when the last CA rotation happened&lt;/li>
+&lt;/ul>
+&lt;h3 id="non-goals">Non-Goals&lt;/h3>
+&lt;ul>
+&lt;li>Offer an automated solution for rotating other static credentials (like static token).
+&lt;ul>
+&lt;li>Later on, a similar two-phase approach could be implemented for the kubeconfig rotation. However, this is out of scope for this enhancement.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Creating a process that runs fully automated without shoot owner interaction. As the shoot owner controls some secrets that would probably not even be possible.&lt;/li>
+&lt;li>Forcing the shoot owner to rotate after a certain time period. Our goal rather is to issue long-running certificates and let the user decide depending on their requirements to rotate as needed.&lt;/li>
+&lt;li>Configurable default CA lifetime&lt;/li>
+&lt;/ul>
+&lt;h2 id="proposal">Proposal&lt;/h2>
+&lt;p>We will add a new feature gate &lt;code>CARotation&lt;/code> for &lt;code>gardener-apiserver&lt;/code> and &lt;code>gardenlet&lt;/code> which allows to enable or disable the possibility to trigger the rotation.&lt;/p>
+&lt;h3 id="triggering-the-ca-rotation">Triggering the CA Rotation&lt;/h3>
+&lt;ul>
+&lt;li>Triggered via &lt;code>gardener.cloud/operation&lt;/code> annotation in symmetry with other operations like reconciliation, kubeconfig rotation, etc.
+&lt;ul>
+&lt;li>annotation increases the generation&lt;/li>
+&lt;li>value for triggering first phase: &lt;code>start-ca-rotation&lt;/code>&lt;/li>
+&lt;li>value for triggering the second phase: &lt;code>complete-ca-rotation&lt;/code>&lt;/li>
+&lt;li>&lt;code>gardener-apiserver&lt;/code> performs the needful validation: user can&amp;rsquo;t trigger another rotation if one is already in progress, user can&amp;rsquo;t trigger &lt;code>complete-ca-rotation&lt;/code> if first phase has not been compeleted, etc.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>The annotation triggers a usual shoot reconciliation (just like a kubeconfig or SSH key rotation)&lt;/li>
+&lt;li>gardenlet begins the CA rotation sequence by setting the new status section &lt;code>.status.credentials.caRotation&lt;/code> (probably in &lt;code>updateShootStatusOperationStart&lt;/code>) and removes the annotation afterwards
+&lt;ul>
+&lt;li>shoot reconciliation needs to be idemptotent to CA rotation phase, i.e. if a usual reconciliation or maintenance operation is triggered in between, no new CAs are generated or similar things that would interfere with the CA rotation sequence&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="changing-the-shoot-status">Changing the Shoot Status&lt;/h3>
+&lt;p>A new section in the Shoot status is added when the first rotation is triggered:&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">status&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">rotation&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">certificateAuthorities&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">phase&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Prepare&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Prepare|Finalize|Completed&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">lastCompletion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="ld">2022-02-07T14:23:44Z&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># kubeconfig:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># phase:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># lastCompletion:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Later on, this section could be augmented with other information like the names of the credentials secrets (e.g. &lt;a href="https://github.com/gardener/gardener/issues/1749">gardener/gardener#1749&lt;/a>)&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">status&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">credentials&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kubeconfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Secret&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">shoot-foo.kubeconfig&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="rotation-sequence-for-cluster-and-client-ca">Rotation Sequence for Cluster and Client CA&lt;/h3>
+&lt;p>The proposal section includes a detailed description of all steps involved for rotating from a given &lt;code>CA0&lt;/code> to the target &lt;code>CA1&lt;/code>.&lt;/p>
+&lt;p>&lt;code>t0&lt;/code>: Today&amp;rsquo;s situation&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kube-apiserver&lt;/code> uses SERVER CERT signed by &lt;code>CA0&lt;/code> and trusts CLIENT CERTS signed by &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;code>kube-controller-manager&lt;/code> issues new CLIENT CERTS signed by &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>kubeconfig trusts only &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;code>ServiceAccount&lt;/code> secrets trust only &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>kubelet uses CLIENT CERT signed by &lt;code>CA0&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>t1&lt;/code>: Shoot owner triggers first step of CA rotation process (&amp;ndash;&amp;gt; phase one is started):&lt;/p>
+&lt;ul>
+&lt;li>Generate &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Generate &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>kube-apiserver&lt;/code>, &lt;code>kube-scheduler&lt;/code>, etc. to trust CLIENT CERTS signed by both &lt;code>CA0&lt;/code> and &lt;code>CLIENT_CA1&lt;/code> (&lt;code>--client-ca-file&lt;/code> flag)&lt;/li>
+&lt;li>Update &lt;code>kube-controller-manager&lt;/code> to issue new CLIENT CERTS now with &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>Update kubeconfig so that its CA bundle contains both &lt;code>CA0&lt;/code> and&lt;code>CA1&lt;/code> (if kubeconfig still contains a legacy CLIENT CERT then rotate the kubeconfig)&lt;/li>
+&lt;li>Update &lt;code>kube-controller-manager&lt;/code> to populate both &lt;code>CA0&lt;/code> and &lt;code>CA1&lt;/code> in &lt;code>ServiceAccount&lt;/code> secrets.&lt;/li>
+&lt;li>Restart control plane components so that their CA bundle contains both &lt;code>CA0&lt;/code> and &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Renew CLIENT CERTS (sign them with &lt;code>CLIENT_CA1&lt;/code>) for the following control plane components: Prometheus, DWD, legacy VPN), if not dropped already in the context of &lt;a href="https://github.com/gardener/gardener/issues/4661">gardener/gardener#4661&lt;/a>&lt;/li>
+&lt;li>Trigger node rollout
+&lt;ul>
+&lt;li>This issues new CLIENT CERTS for all kubelets signed by &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>This restarts all &lt;code>Pod&lt;/code>s and propagates &lt;code>CA0&lt;/code> and &lt;code>CA1&lt;/code> into their mounted &lt;code>ServiceAccount&lt;/code> secrets (note CAs can not be reloaded by go client, therefore we need a restart of pods.)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;em>Ask user to exchange all their client credentials (kubeconfig, CLIENT CERTS issued by &lt;code>CertificateSigningRequest&lt;/code>s) to trust both CA0 and CA1&lt;/em>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>t2&lt;/code>: Shoot owner triggers second step of CA rotation process (&amp;ndash;&amp;gt; phase two is started):&lt;/p>
+&lt;p>Prerequisite: All Gardener-controlled actions listed in t1 were executed successfully (for example node rollout). The shoot owner has guaranteed that they exchanged their client credentials and triggered step 2 via an annotation.&lt;/p>
+&lt;ul>
+&lt;li>Renew SERVER CERTS (sign them with &lt;code>CA1&lt;/code>) for &lt;code>kube-apiserver&lt;/code>, etc.&lt;/li>
+&lt;li>Update &lt;code>kube-apiserver&lt;/code>, &lt;code>kube-scheduler&lt;/code>, etc. to trust only CLIENT CERTS signed by &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>Update kubeconfig so that its CA bundle contains only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>kube-controller-manager&lt;/code> to only contain CA1. &lt;code>ServiceAccount&lt;/code> secrets created after this point will get secrets that include only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Restart control plane components so that their CA bundle contains only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Restart kubelets so that the CA bundle in their kubeconfigs contain only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Delete &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;em>Ask user to optionally restart their &lt;code>Pod&lt;/code>s since they still contain &lt;code>CA0&lt;/code> in memory in order to eliminate trust to the old cluster CA.&lt;/em>&lt;/li>
+&lt;li>&lt;em>Ask user to exchange all their client credentials (download kubeconfig containing only &lt;code>CA1&lt;/code>; when using CLIENT CERTS trust only &lt;code>CA1&lt;/code>)&lt;/em>&lt;/li>
+&lt;/ul>
+&lt;h3 id="rotation-sequence-of-other-cas">Rotation Sequence of Other CAs&lt;/h3>
+&lt;p>Apart from the kube-apiserver CA (and the client CA) we also use 5 other CAs as mentioned above in the gardener codebase. We propose to rotate those CAs together with the kube-apiserver CA following the same trigger.&lt;/p>
+&lt;p>:information_source: Note for the front-proxy CA: users need to make sure, extension API servers have reloaded the &lt;code>extension-apiserver-authentication&lt;/code> ConfigMap, before triggering the second phase.&lt;/p>
+&lt;p>You can find gardener managed CAs listed &lt;a href="https://github.com/gardener/gardener/blob/04d2b3f459d198e8db0ab57180ca2fea18e84da9/pkg/operation/botanist/wanted_secrets.go#L48">here&lt;/a>.&lt;/p>
+&lt;p>Regarding the rotation steps we want to follow a similar approach to the one we defined for the kube-apiserver CA. Exemplary, we are going to show the timeline for ETCD_CA but the logic should be similiar for all the above listed CAs.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>t0&lt;/code>
+&lt;ul>
+&lt;li>etcd trusts client certificates signed by &lt;code>ETCD_CA0&lt;/code> and uses a server certificate signed by &lt;code>ETCD_CA0&lt;/code>&lt;/li>
+&lt;li>&lt;code>kube-apiserver&lt;/code> and &lt;code>backup-restore&lt;/code> use a client certificate signed by &lt;code>ETCD_CA0&lt;/code> and trust &lt;code>ETCD_CA0&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>t1&lt;/code>:
+&lt;ul>
+&lt;li>Generate &lt;code>ETCD_CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>etcd&lt;/code> to trust CLIENT CERTS signed by both &lt;code>ETCD_CA0&lt;/code> and &lt;code>ETCD_CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>kube-apiserver&lt;/code> and &lt;code>backup-restore&lt;/code>:
+&lt;ul>
+&lt;li>Adapt CA bundle to trust both &lt;code>ETCD_CA0&lt;/code> and &lt;code>ETCD_CA1&lt;/code>&lt;/li>
+&lt;li>Renew CLIENT CERTS (sign them with &lt;code>ETCD_CA1&lt;/code>)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>t2&lt;/code>:
+&lt;ul>
+&lt;li>Update &lt;code>etcd&lt;/code>:
+&lt;ul>
+&lt;li>Trust only CLIENT CERTS signed by &lt;code>ETCD_CA1&lt;/code>&lt;/li>
+&lt;li>Renew SERVER CERT (sign it with &lt;code>ETCD_CA1&lt;/code>)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Update &lt;code>kube-apiserver&lt;/code> and &lt;code>backup-restore&lt;/code> so that their CA bundle contains only &lt;code>ETCD_CA1&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>:information_source: This means we are requiring two restarts of etcd in total.&lt;/p>
+&lt;h2 id="alternatives">Alternatives&lt;/h2>
+&lt;p>This section presents a different approach to rotate the CAs which is to &lt;em>temporarily create a second set of api-servers utilizing the new CA&lt;/em> . After presenting the approach advantages and disadvantages of both approaches are listed.&lt;/p>
+&lt;p>&lt;code>t0&lt;/code>: Today&amp;rsquo;s situation&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kube-apiserver&lt;/code> uses SERVER CERT signed by &lt;code>CA0&lt;/code> and trusts CLIENT CERTS signed by &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;code>kube-controller-manager&lt;/code> issues new CLIENT CERTS with &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>kubeconfig contains only &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;code>ServiceAccount&lt;/code> secrets contain only &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>kubelet uses CLIENT CERT signed by &lt;code>CA0&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>t1&lt;/code>: User triggers first step of CA rotation process (&amp;ndash;&amp;gt; phase one):&lt;/p>
+&lt;ul>
+&lt;li>Generate &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Generate &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>Create new &lt;code>DNSRecord&lt;/code>, &lt;code>Service&lt;/code>, Istio configuration, etc. for second &lt;code>kube-apiserver&lt;/code> deployment&lt;/li>
+&lt;li>Deploy second &lt;code>kube-apiserver&lt;/code> deployment trusting only CLIENT CERTS signed by &lt;code>CLIENT_CA1&lt;/code> and using SERVER CERT signed by &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>kube-scheduler&lt;/code>, etc. to trust only CLIENT CERTS signed by &lt;code>CLIENT_CA1&lt;/code> (&lt;code>--client-ca-file&lt;/code> flag)&lt;/li>
+&lt;li>Update &lt;code>kube-controller-manager&lt;/code> to issue new CLIENT CERTS with &lt;code>CLIENT_CA1&lt;/code>&lt;/li>
+&lt;li>Update kubeconfig so that it points to the new &lt;code>DNSRecord&lt;/code> and its CA bundle contains only &lt;code>CA1&lt;/code> (if kubeconfig still contains a legacy CLIENT CERT then rotate the kubeconfig)&lt;/li>
+&lt;li>Update &lt;code>ServiceAccount&lt;/code> secrets so that their CA bundle contains both &lt;code>CA0&lt;/code> and &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Restart control plane components so that they point to the second &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> and so that their CA bundle contains only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Renew CLIENT CERTS (sign them with &lt;code>CLIENT_CA1&lt;/code>) for control plane components (Prometheus, DWD, legacy VPN) and point them to the second &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code>&lt;/li>
+&lt;li>Adapt &lt;code>apiserver-proxy-pod-mutator&lt;/code> to point &lt;code>KUBERNETES_SERVICE_HOST&lt;/code> env variable to second &lt;code>kube-apiserver&lt;/code>&lt;/li>
+&lt;li>Trigger node rollout
+&lt;ul>
+&lt;li>This issues new CLIENT CERTS for all kubelets signed by &lt;code>CLIENT_CA1&lt;/code> and points them to the second &lt;code>DNSRecord&lt;/code>&lt;/li>
+&lt;li>This restarts all &lt;code>Pod&lt;/code>s and propagates &lt;code>CA0&lt;/code> and &lt;code>CA1&lt;/code> into their mounted &lt;code>ServiceAccount&lt;/code> secrets&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;em>Ask user to exchange all their client credentials (kubeconfig, CLIENT CERTS issued by &lt;code>CertificateSigningRequest&lt;/code>s)&lt;/em>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>t2&lt;/code>: User triggers second step of CA rotation process (&amp;ndash;&amp;gt; phase two):&lt;/p>
+&lt;ul>
+&lt;li>Update &lt;code>ServiceAccount&lt;/code> secrets so that their CA bundle contains only &lt;code>CA1&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>apiserver-proxy&lt;/code> to talk to second &lt;code>kube-apiserver&lt;/code>&lt;/li>
+&lt;li>Drop first &lt;code>DNSRecord&lt;/code>, &lt;code>Service&lt;/code>, Istio configuration and first &lt;code>kube-apiserver&lt;/code> deployment&lt;/li>
+&lt;li>Drop &lt;code>CA0&lt;/code>&lt;/li>
+&lt;li>&lt;em>Ask user to optionally restart their &lt;code>Pod&lt;/code>s since they still contain &lt;code>CA0&lt;/code> in memory.&lt;/em>&lt;/li>
+&lt;/ul>
+&lt;h4 id="advantagesdisadvantages-approach-two-api-servers">Advantages/Disadvantages approach two api servers&lt;/h4>
+&lt;ul>
+&lt;li>(+) User needs to adapt client credentials only once&lt;/li>
+&lt;li>(/) Unstable API server domain&lt;/li>
+&lt;li>(-) Probably more implementation effort&lt;/li>
+&lt;li>(-) More complex&lt;/li>
+&lt;li>(-) CA rotation process does not work similar for all CAs in our system&lt;/li>
+&lt;/ul>
+&lt;h4 id="advantagesdisadvantages-of-currently-preferred-approach-see-proposal">Advantages/Disadvantages of currently preferred approach (see proposal)&lt;/h4>
+&lt;ul>
+&lt;li>(+) Implementation effort seems &amp;ldquo;straight-forward&amp;rdquo;&lt;/li>
+&lt;li>(+) CA rotation process works similar for all CAs in our system&lt;/li>
+&lt;li>(/) Stable API server domain&lt;/li>
+&lt;li>(-) User needs to adapt client credentials twice&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Utilize API Server Network Proxy to Invert Seed-to-Shoot Connectivity</title><link>https://gardener.cloud/docs/gardener/proposals/11-apiserver-network-proxy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/11-apiserver-network-proxy/</guid><description>
 &lt;h1 id="utilize-api-server-network-proxy-to-invert-seed-to-shoot-connectivity">Utilize API Server Network Proxy to Invert Seed-to-Shoot Connectivity&lt;/h1>
 &lt;ul>
 &lt;li>&lt;a href="#utilize-api-server-network-proxy-to-invert-seed-to-shoot-connectivity">Utilize API Server Network Proxy to Invert Seed-to-Shoot Connectivity&lt;/a>

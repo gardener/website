@@ -1,4 +1,76 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Provider Azure</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/</link><description>Recent content in Provider Azure on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Local Setup</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/local-setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/local-setup/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Provider Azure</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/</link><description>Recent content in Provider Azure on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Deployment</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/deployment/</guid><description>
+&lt;h1 id="deployment-of-the-azure-provider-extension">Deployment of the Azure provider extension&lt;/h1>
+&lt;p>&lt;strong>Disclaimer:&lt;/strong> This document is NOT a step by step installation guide for the Azure provider extension and only contains some configuration specifics regarding the installation of different components via the helm charts residing in the Azure provider extension &lt;a href="https://github.com/gardener/gardener-extension-provider-azure">repository&lt;/a>.&lt;/p>
+&lt;h2 id="gardener-extension-admission-azure">gardener-extension-admission-azure&lt;/h2>
+&lt;h3 id="authentication-against-the-garden-cluster">Authentication against the Garden cluster&lt;/h3>
+&lt;p>There are several authentication possibilities depending on whether or not &lt;a href="https://github.com/gardener/garden-setup#concept-the-virtual-cluster">the concept of &lt;em>Virtual Garden&lt;/em>&lt;/a> is used.&lt;/p>
+&lt;h4 id="virtual-garden-is-not-used-ie-the-runtime-garden-cluster-is-also-the-target-garden-cluster">&lt;em>Virtual Garden&lt;/em> is not used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is also the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;p>&lt;strong>Automounted Service Account Token&lt;/strong>
+The easiest way to deploy the &lt;code>gardener-extension-admission-azure&lt;/code> component will be to not provide &lt;code>kubeconfig&lt;/code> at all. This way in-cluster configuration and an automounted service account token will be used. The drawback of this approach is that the automounted token will not be automatically rotated.&lt;/p>
+&lt;p>&lt;strong>Service Account Token Volume Projection&lt;/strong>
+Another solution will be to use &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">Service Account Token Volume Projection&lt;/a> combined with a &lt;code>kubeconfig&lt;/code> referencing a token file (see example below).&lt;/p>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">clusters&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">certificate-authority-data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CA-DATA&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">https://default.kubernetes.svc.cluster.local&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">contexts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">current-context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">users&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tokenFile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/var/run/secrets/projected/serviceaccount/token&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will allow for automatic rotation of the service account token by the &lt;code>kubelet&lt;/code>. The configuration can be achieved by setting both &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.kubeconfig&lt;/code> in the respective chart&amp;rsquo;s &lt;code>values.yaml&lt;/code> file.&lt;/p>
+&lt;h4 id="virtual-garden-is-used-ie-the-runtime-garden-cluster-is-different-from-the-target-garden-cluster">&lt;em>Virtual Garden&lt;/em> is used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is different from the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;p>&lt;strong>Service Account&lt;/strong>
+The easiest way to setup the authentication will be to create a service account and the respective roles will be bound to this service account in the &lt;code>target&lt;/code> cluster. Then use the generated service account token and craft a &lt;code>kubeconfig&lt;/code> which will be used by the workload in the &lt;code>runtime&lt;/code> cluster. This approach does not provide a solution for the rotation of the service account token. However, this setup can be achieved by setting &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Get the service account token and craft the &lt;code>kubeconfig&lt;/code>.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>Client Certificate&lt;/strong>
+Another solution will be to bind the roles in the &lt;code>target&lt;/code> cluster to a &lt;code>User&lt;/code> subject instead of a service account and use a client certificate for authentication. This approach does not provide a solution for the client certificate rotation. However, this setup can be achieved by setting both &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>, then following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Generate a client certificate for the &lt;code>target&lt;/code> cluster for the respective user.&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Craft a &lt;code>kubeconfig&lt;/code> using the already generated client certificate.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>Projected Service Account Token&lt;/strong>
+This approach requires an already deployed and configured &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">oidc-webhook-authenticator&lt;/a> for the &lt;code>target&lt;/code> cluster. Also the &lt;code>runtime&lt;/code> cluster should be registered as a trusted identity provider in the &lt;code>target&lt;/code> cluster. Then projected service accounts tokens from the &lt;code>runtime&lt;/code> cluster can be used to authenticate against the &lt;code>target&lt;/code> cluster. The needed steps are as follows:&lt;/p>
+&lt;ol>
+&lt;li>Deploy &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">OWA&lt;/a> and establish the needed trust.&lt;/li>
+&lt;li>Set &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>. &lt;strong>Note:&lt;/strong> username value will depend on the trust configuration, e.g., &lt;code>&amp;lt;prefix&amp;gt;:system:serviceaccount:&amp;lt;namespace&amp;gt;:&amp;lt;serviceaccount&amp;gt;&lt;/code>&lt;/li>
+&lt;li>Set &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.serviceAccountTokenVolumeProjection.audience&lt;/code>. &lt;strong>Note:&lt;/strong> audience value will depend on the trust configuration, e.g., &lt;code>&amp;lt;cliend-id-from-trust-config&amp;gt;&lt;/code>.&lt;/li>
+&lt;li>Craft a kubeconfig (see example below).&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Config&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">clusters&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">certificate-authority-data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">&amp;lt;CA-DATA&amp;gt;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">https://virtual-garden.api&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">contexts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">cluster&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">current-context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="nt">users&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">virtual-garden&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">user&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nt">tokenFile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">/var/run/secrets/projected/serviceaccount/token&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Local Setup</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/local-setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-azure/docs/local-setup/</guid><description>
 &lt;h3 id="admission-azure">admission-azure&lt;/h3>
 &lt;p>&lt;code>admission-azure&lt;/code> is an admission webhook server which is responsible for the validation of the cloud provider (Azure in this case) specific fields and resources. The Gardener API server is cloud provider agnostic and it wouldn&amp;rsquo;t be able to perform similar validation.&lt;/p>
 &lt;p>Follow the steps below to run the admission webhook server locally.&lt;/p>
@@ -525,6 +597,9 @@ The following YAML is a snippet of a &lt;code>Shoot&lt;/code> resource:&lt;/p>
 Both are compatible with the legacy in-tree volume provisioners that were deprecated by the Kubernetes community and will be removed in future versions of Kubernetes.
 End-users might want to update their custom &lt;code>StorageClass&lt;/code>es to the new &lt;code>disk.csi.azure.com&lt;/code> or &lt;code>file.csi.azure.com&lt;/code> provisioner, respectively.
 Shoot clusters with Kubernetes v1.20 or less will use the in-tree &lt;code>kubernetes.io/azure-disk&lt;/code> and &lt;code>kubernetes.io/azure-file&lt;/code> volume provisioners in the kube-controller-manager and the kubelet.&lt;/p>
+&lt;h2 id="kubernetes-versions-per-worker-pool">Kubernetes Versions per Worker Pool&lt;/h2>
+&lt;p>This extension supports &lt;code>gardener/gardener&lt;/code>&amp;rsquo;s &lt;code>WorkerPoolKubernetesVersion&lt;/code> feature gate, i.e., having &lt;a href="https://github.com/gardener/gardener/blob/8a9c88866ec5fce59b5acf57d4227eeeb73669d7/example/90-shoot.yaml#L69-L70">worker pools with overridden Kubernetes versions&lt;/a> since &lt;code>gardener-extension-provider-azure@v1.25&lt;/code>.
+Note that this feature is only usable for &lt;code>Shoot&lt;/code>s whose &lt;code>.spec.kubernetes.version&lt;/code> is greater or equal than the CSI migration version (&lt;code>1.21&lt;/code>).&lt;/p>
 &lt;h2 id="miscellaneous">Miscellaneous&lt;/h2>
 &lt;h3 id="azure-accelerated-networking">Azure Accelerated Networking&lt;/h3>
 &lt;p>All worker machines of the cluster will be automatically configured to use &lt;a href="https://docs.microsoft.com/en-us/azure/virtual-network/create-vm-accelerated-networking-cli">Azure Accelerated Networking&lt;/a> if the prerequisites are fulfilled.

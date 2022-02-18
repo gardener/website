@@ -249,6 +249,12 @@ A &lt;code>runtime.Scheme&lt;/code> is basically a registry for Golang API types
 &lt;li>Therefore, if you need to use the same in-memory object in multiple goroutines concurrently (e.g., shared state), remember to leverage proper synchronization techniques like channels, mutexes, &lt;code>atomic.Value&lt;/code> and/or copy the object prior to use. The average controller however, will not need to share in-memory API objects between goroutines, and it&amp;rsquo;s typically an indicator that the controller&amp;rsquo;s design should be improved.&lt;/li>
 &lt;/ul>
 &lt;/li>
+&lt;li>The client decoder erases the object&amp;rsquo;s &lt;code>TypeMeta&lt;/code> (&lt;code>apiVersion&lt;/code> and &lt;code>kind&lt;/code> fields) after retrieval from the API server, see &lt;a href="https://github.com/kubernetes/kubernetes/issues/80609">kubernetes/kubernetes#80609&lt;/a>, &lt;a href="https://github.com/kubernetes-sigs/controller-runtime/issues/1517">kubernetes-sigs/controller-runtime#1517&lt;/a>.
+Unstructured and metadata-only requests objects are an exception to this because the contained &lt;code>TypeMeta&lt;/code> is the only way to identify the object&amp;rsquo;s type.
+Because of this behavior, &lt;code>obj.GetObjectKind().GroupVersionKind()&lt;/code> is likely to return an empty &lt;code>GroupVersionKind&lt;/code>.
+I.e., you must not rely on &lt;code>TypeMeta&lt;/code> being set or &lt;code>GetObjectKind()&lt;/code> to return something usable.&lt;br>
+If you need to identify an object&amp;rsquo;s &lt;code>GroupVersionKind&lt;/code>, use a scheme and its &lt;code>ObjectKinds&lt;/code> function instead (or the helper function &lt;code>apiutil.GVKForObject&lt;/code>).
+This is not specific to controller-runtime clients and applies to client-go clients as well.&lt;/li>
 &lt;/ul>
 &lt;p>[1] Other lower level, config or internal API types (e.g., such as &lt;a href="https://github.com/kubernetes/api/blob/release-1.21/admission/v1/types.go#L29">&lt;code>AdmissionReview&lt;/code>&lt;/a>) don&amp;rsquo;t implement &lt;code>client.Object&lt;/code>. However, you also can&amp;rsquo;t interact with such objects via the Kubernetes API and thus also not via a client, so this can be disregarded at this point.&lt;/p>
 &lt;h3 id="metadata-only-clients">Metadata-Only Clients&lt;/h3>
@@ -1358,7 +1364,129 @@ New scrape jobs can be added in the section &lt;code>scrape_configs&lt;/code>. D
 &lt;td>&lt;a href="https://gardener.cloud/docs/gardener/extensions/overview">Extension controller&lt;/a>&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table></description></item><item><title>Docs: Process</title><link>https://gardener.cloud/docs/gardener/development/process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/process/</guid><description>
+&lt;/table></description></item><item><title>Docs: New Kubernetes Version</title><link>https://gardener.cloud/docs/gardener/development/new-kubernetes-version/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/new-kubernetes-version/</guid><description>
+&lt;h1 id="adding-support-for-a-new-kubernetes-version">Adding Support For A New Kubernetes Version&lt;/h1>
+&lt;p>This document describes the steps needed to perform in order to confidently add support for a new Kubernetes &lt;strong>minor&lt;/strong> version.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ Typically, once a minor Kubernetes version &lt;code>vX.Y&lt;/code> is supported by Gardener then all patch versions &lt;code>vX.Y.Z&lt;/code> are also automatically supported without any required action.
+This is because patch versions do not introduce any new feature or API changes, so there is nothing that needs to be adapted in &lt;code>gardener/gardener&lt;/code> code.&lt;/p>
+&lt;/blockquote>
+&lt;p>The Kubernetes community release a new minor version roughly every 4 months.
+Please refer to the &lt;a href="https://kubernetes.io/releases/release/">official documentation&lt;/a> about their release cycles for any additional information.&lt;/p>
+&lt;p>Shortly before a new release, an &amp;ldquo;umbrella&amp;rdquo; issue should be opened which is used to collect the required adaptations and to track the work items.
+For example, &lt;a href="https://github.com/gardener/gardener/issues/5102">#5102&lt;/a> can be used as a template for the issue description.&lt;br>
+As you can see, the task of supporting a new Kubernetes version also includes the provider extensions maintained in the &lt;code>gardener&lt;/code> GitHub organization and is not restricted to &lt;code>gardener/gardener&lt;/code> only.&lt;/p>
+&lt;p>Generally, the work items can be split into two groups:
+The first group contains Kubernetes release-independent tasks, the second group contains tasks specific to the changes in the given Kubernetes release.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ Upgrading the &lt;code>k8s.io/*&lt;/code> and &lt;code>sigs.k8s.io/controller-runtime&lt;/code> Golang dependencies is typically tracked and worked on separately (see e.g. &lt;a href="https://github.com/gardener/gardener/issues/4772">#4772&lt;/a> or &lt;a href="https://github.com/gardener/gardener/issues/5282">#5282&lt;/a>).&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="deriving-release-specific-tasks">Deriving Release-Specific Tasks&lt;/h2>
+&lt;p>Most new minor Kubernetes releases incorporate API changes, deprecations or new features.
+The community announces them via their &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/">change logs&lt;/a>.
+In order to derive the release-specific tasks, the respective change log for the new version &lt;code>vX.Y&lt;/code> has to be read and understood (for example, &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.24.md">this document&lt;/a> for &lt;code>v1.24&lt;/code>).&lt;/p>
+&lt;p>As already mentioned, typical changes to watch out for are:&lt;/p>
+&lt;ul>
+&lt;li>API version promotions or deprecations&lt;/li>
+&lt;li>Feature gate promotions or deprecations&lt;/li>
+&lt;li>CLI flag changes for Kubernetes components&lt;/li>
+&lt;li>New default values in resources&lt;/li>
+&lt;li>New available fields in resources&lt;/li>
+&lt;li>New features potentially relevant for the Gardener system&lt;/li>
+&lt;li>Changes of labels or annotations Gardener relies on&lt;/li>
+&lt;li>&amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>Obviously, this requires a certain experience and understanding of the Gardener project so that all &amp;ldquo;relevant changes&amp;rdquo; can be identified.
+While reading the change log, add the tasks (along with the respective PR in &lt;code>kubernetes/kubernetes&lt;/code> to the umbrella issue).&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ Some of the changes might be specific to certain cloud providers. Pay attention to those as well and add related tasks to the issue.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="list-of-release-independent-tasks">List Of Release-Independent Tasks&lt;/h2>
+&lt;p>The following paragraphs describe recurring tasks that need to be performed for each new release.&lt;/p>
+&lt;h3 id="releasing-a-new-hyperkube-image">Releasing A New &lt;code>hyperkube&lt;/code> Image&lt;/h3>
+&lt;p>The &lt;a href="https://github.com/gardener/hyperkube">&lt;code>gardener/hyperkube&lt;/code>&lt;/a> repository is used to release container images consisting of the &lt;code>kubectl&lt;/code> and &lt;code>kubelet&lt;/code> binaries.&lt;/p>
+&lt;p>Run the &lt;a href="https://github.com/gardener/hyperkube/blob/master/.ci/check-and-release">&lt;code>.ci/check-and-release&lt;/code>&lt;/a> script to automatically build the image (make sure Docker is running!), push the images to the GCR (make sure &lt;code>gcloud&lt;/code> is configured properly!) and publish the release on GitHub (make sure &lt;code>git&lt;/code> is configured properly!).&lt;/p>
+&lt;h3 id="adapting-gardener">Adapting Gardener&lt;/h3>
+&lt;ul>
+&lt;li>Allow instantiation of a Kubernetes client for the new minor version and update the &lt;code>README.md&lt;/code>:
+&lt;ul>
+&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/5255/commits/63bdae022f1cb1c9cbd1cd49b557545dca2ec32a">this&lt;/a> example commit.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Maintain the Kubernetes feature gates used for validation of &lt;code>Shoot&lt;/code> resources:
+&lt;ul>
+&lt;li>The feature gates are maintained in &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/utils/validation/features/featuregates.go">this&lt;/a> file.&lt;/li>
+&lt;li>To maintain this list for new Kubernetes versions, run &lt;code>hack/compare-k8s-feature-gates.sh &amp;lt;old-version&amp;gt; &amp;lt;new-version&amp;gt;&lt;/code> (e.g. &lt;code>hack/compare-k8s-feature-gates.sh v1.22 v1.23&lt;/code>).&lt;/li>
+&lt;li>It will present 2 lists of feature gates: those added and those removed in &lt;code>&amp;lt;new-version&amp;gt;&lt;/code> compared to &lt;code>&amp;lt;old-version&amp;gt;&lt;/code>.&lt;/li>
+&lt;li>Add all added feature gates to the map with &lt;code>&amp;lt;new-version&amp;gt;&lt;/code> as &lt;code>AddedInVersion&lt;/code> and no &lt;code>RemovedInVersion&lt;/code>.&lt;/li>
+&lt;li>For any removed feature gates, add &lt;code>&amp;lt;new-version&amp;gt;&lt;/code> as RemovedInVersion to the already existing feature gate in the map.&lt;/li>
+&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/5255/commits/97923b0604300ff805def8eae981ed388d5e4a83">this&lt;/a> example commit.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Maintain the &lt;code>ServiceAccount&lt;/code> names for the controllers part of &lt;code>kube-controller-manager&lt;/code>:
+&lt;ul>
+&lt;li>The names are maintained in &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/operation/botanist/component/shootsystem/shootsystem.go">this&lt;/a> file.&lt;/li>
+&lt;li>To maintain this list for new Kubernetes versions, run &lt;code>hack/compare-k8s-controllers.sh &amp;lt;old-version&amp;gt; &amp;lt;new-version&amp;gt;&lt;/code> (e.g. &lt;code>hack/compare-k8s-controllers.sh 1.22 1.23&lt;/code>).&lt;/li>
+&lt;li>It will present 2 lists of controllers: those added and those removed in &lt;code>&amp;lt;new-version&amp;gt;&lt;/code> compared to &lt;code>&amp;lt;old-version&amp;gt;&lt;/code>.&lt;/li>
+&lt;li>Double check whether such &lt;code>ServiceAccount&lt;/code> indeed appears in the &lt;code>kube-system&lt;/code> namespace when creating a cluster with &lt;code>&amp;lt;new-version&amp;gt;&lt;/code>. Note that it sometimes might be hidden behind a default-off feature gate. You can create a local cluster with the new version using the &lt;a href="https://gardener.cloud/docs/gardener/development/getting_started_locally">local provider&lt;/a>.&lt;/li>
+&lt;li>If it appears, add all added controllers to the list based on the Kubernetes version (&lt;a href="https://github.com/gardener/gardener/blob/5f87b18b951e104c2c25a7145548c8a2d08adefc/pkg/operation/botanist/component/shootsystem/shootsystem.go#L170-L174">example&lt;/a>).&lt;/li>
+&lt;li>For any removed controllers, add them only to the Kubernetes version if it is low enough.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Bump the used Kubernetes version for local &lt;code>Shoot&lt;/code> and local e2e test.
+&lt;ul>
+&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/5255/commits/5707c4c7a4fd265b176387178b755cabeea89ffe">this&lt;/a> example commit.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h4 id="filing-the-pull-request">Filing The Pull Request&lt;/h4>
+&lt;p>Work on all the tasks you have collected and validate them using the &lt;a href="https://gardener.cloud/docs/gardener/development/getting_started_locally">local provider&lt;/a>.
+Execute the e2e tests and if everything looks good, then go ahead and file the PR (&lt;a href="https://github.com/gardener/gardener/pull/5255">example PR&lt;/a>).
+Generally, it is great if you add the PRs also to the umbrella issue so that they can be tracked more easily.&lt;/p>
+&lt;h3 id="adapting-provider-extensions">Adapting Provider Extensions&lt;/h3>
+&lt;p>After the PR in &lt;code>gardener/gardener&lt;/code> for the support of the new version has been merged, you can go ahead and work on the provider extensions.&lt;/p>
+&lt;blockquote>
+&lt;p>Actually, you can already start even if the PR is not yet merged and use the branch of your fork.&lt;/p>
+&lt;/blockquote>
+&lt;ul>
+&lt;li>Revendor the &lt;code>github.com/gardener/gardener&lt;/code> dependency in the extension and update the &lt;code>README.md&lt;/code>.&lt;/li>
+&lt;li>Work on release-specific tasks related to this provider.&lt;/li>
+&lt;/ul>
+&lt;h4 id="maintaining-the-cloud-controller-manager-images">Maintaining The &lt;code>cloud-controller-manager&lt;/code> Images&lt;/h4>
+&lt;p>Some of the cloud providers are not yet using upstream &lt;code>cloud-controller-manager&lt;/code> images.
+Instead, we build and maintain them ourselves:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/cloud-provider-aws">https://github.com/gardener/cloud-provider-aws&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/cloud-provider-azure">https://github.com/gardener/cloud-provider-azure&lt;/a> (since &lt;code>v1.23&lt;/code>, we use the upstream image)&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/cloud-provider-gcp">https://github.com/gardener/cloud-provider-gcp&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>Until we switch to upstream images, you need to revendor the Kubernetes dependencies and release a new image.
+The required steps are as follows:&lt;/p>
+&lt;ul>
+&lt;li>Checkout the &lt;code>legacy-cloud-provider&lt;/code> branch of the respective repository&lt;/li>
+&lt;li>Bump the versions in the &lt;code>Dockerfile&lt;/code> (&lt;a href="https://github.com/gardener/cloud-provider-gcp/commit/b7eb3f56b252aaf29adc78406672574b1bc17495">example commit&lt;/a>).&lt;/li>
+&lt;li>Update the &lt;code>VERSION&lt;/code> to &lt;code>vX.Y.Z-dev&lt;/code> where &lt;code>Z&lt;/code> is the latest available Kubernetes patch version for the &lt;code>vX.Y&lt;/code> minor version.&lt;/li>
+&lt;li>Update the &lt;code>k8s.io/*&lt;/code> dependencies in the &lt;code>go.mod&lt;/code> file to &lt;code>vX.Y.Z&lt;/code> and run &lt;code>go mod vendor&lt;/code> and &lt;code>go mod tidy&lt;/code> (&lt;a href="https://github.com/gardener/cloud-provider-gcp/commit/d41cc9f035bcc4893b40d90a4f617c4d436c5d62">example commit&lt;/a>).&lt;/li>
+&lt;li>Checkout a new &lt;code>release-vX.Y&lt;/code> branch and release it (&lt;a href="https://github.com/gardener/cloud-provider-gcp/commits/release-v1.23">example&lt;/a>)&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>As you are already on it, it is great if you also bump the &lt;code>k8s.io/*&lt;/code> dependencies for the last three minor releases as well.
+In this case, you need to checkout the &lt;code>release-vX.{Y-{1,2,3}}&lt;/code> branches and only perform the last three steps (&lt;a href="https://github.com/gardener/cloud-provider-gcp/commits/release-v1.20">example branch&lt;/a>, &lt;a href="https://github.com/gardener/cloud-provider-gcp/commit/372aa43fbacdeb76b3da9f6fad6cfd924d916227">example commit&lt;/a>).&lt;/p>
+&lt;/blockquote>
+&lt;p>Now you need to update the new releases in the &lt;code>charts/images.yaml&lt;/code> of the respective provider extension so that they are used (see this &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/pull/480/commits/76256de933d5a508aba26a8f589dd1a39026142e">example commit&lt;/a> for reference).&lt;/p>
+&lt;h4 id="filing-the-pull-request-1">Filing The Pull Request&lt;/h4>
+&lt;p>Again, work on all the tasks you have collected.
+This time, you cannot use the local provider for validation but should create real clusters on the various infrastructures.
+Typically, the following validations should be performed:&lt;/p>
+&lt;ul>
+&lt;li>Create new clusters with versions &amp;lt; &lt;code>vX.Y&lt;/code>&lt;/li>
+&lt;li>Create new clusters with version = &lt;code>vX.Y&lt;/code>&lt;/li>
+&lt;li>Upgrade old clusters from version &lt;code>vX.{Y-1}&lt;/code> to version &lt;code>vX.Y&lt;/code>&lt;/li>
+&lt;li>Delete clusters with versions &amp;lt; &lt;code>vX.Y&lt;/code>&lt;/li>
+&lt;li>Delete clusters with version = &lt;code>vX.Y&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>If everything looks good, then go ahead and file the PR (&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/pull/480">example PR&lt;/a>).
+Generally, it is again great if you add the PRs also to the umbrella issue so that they can be tracked more easily.&lt;/p></description></item><item><title>Docs: Process</title><link>https://gardener.cloud/docs/gardener/development/process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/process/</guid><description>
 &lt;h1 id="releases-features-hotfixes">Releases, Features, Hotfixes&lt;/h1>
 &lt;p>This document describes how to contribute features or hotfixes, and how new Gardener releases are usually scheduled, validated, etc.&lt;/p>
 &lt;ul>

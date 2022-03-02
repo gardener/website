@@ -3709,7 +3709,10 @@ title: &lt;span style="color:#00f">No&lt;/span> personal data is stored in any K
 description: |&lt;span style="color:#a31515">
 &lt;/span>&lt;span style="color:#a31515"> &lt;/span> If you can&amp;#39;t comply, only third-level/dev support at usual 8x5 working hours in EEA will be available to you for all node-related components such as Docker and Kubelet, the operating system, and everything else that would require direct inspection of your nodes through a privileged pod or SSH
 inverted: &lt;span style="color:#00f">true&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
+&lt;h1 id="extension-admission">Extension Admission&lt;/h1>
+&lt;p>The extensions are expected to validate their respective resources for their extension specific configurations, when the resources are newly created or updated. For example, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#infrastructure-provider">provider extensions&lt;/a> would validate &lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.provider.controlPlaneConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource and &lt;code>spec.providerConfig&lt;/code> in the &lt;code>CloudProfile&lt;/code> resource, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#network-plugin">networking extensions&lt;/a> would validate &lt;code>spec.networking.providerConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource. As best practice, the validation should be performed only if there is a change in the &lt;code>spec&lt;/code> of the resource. Please find an exemplary implementation &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/admission/validator">here&lt;/a>.&lt;/p>
+&lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for provider extension type &lt;code>aws&lt;/code>, looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, and &lt;code>Shoot&lt;/code>s. Please see &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/apis/core/v1beta1/constants/types_constants.go">this&lt;/a> for the full list of extension labels.&lt;/p></description></item><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
 &lt;h1 id="gardener-admission-controller">Gardener Admission Controller&lt;/h1>
 &lt;p>While the Gardener API server works with &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins">admission plugins&lt;/a> to validate and mutate resources belonging to Gardener related API groups, e.g. &lt;code>core.gardener.cloud&lt;/code>, the same is needed for resources belonging to non-Gardener API groups as well, e.g. &lt;code>Secret&lt;/code>s in the &lt;code>core&lt;/code> API group.
 Therefore, the Gardener Admission Controller runs a http(s) server with the following handlers which serve as validating/mutating endpoints for &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a>.
@@ -11029,6 +11032,9 @@ It mutates &lt;code>Shoot&lt;/code> resources which has an &lt;code>ExposureClas
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>Seed&lt;/code>s, and &lt;code>Shoot&lt;/code>s.
 For all the various extension types in the specifications of these objects, it validates whether there exists a &lt;code>ControllerRegistration&lt;/code> in the system that is primarily responsible for the stated extension type(s).
 This prevents misconfigurations that would otherwise allow users to create such resources with extension types that don&amp;rsquo;t exist in the cluster, effectively leading to failing reconciliation loops.&lt;/p>
+&lt;h2 id="extensionlabels">&lt;code>ExtensionLabels&lt;/code>&lt;/h2>
+&lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
+&lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>BackupBucket&lt;/code>s, &lt;code>BackupEntry&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s and &lt;code>Shoot&lt;/code>s. For all the various extension types in the specifications of these objects, it adds a corresponding label in the resource. This would allow extension admission webhooks to filter out the resources they are responsible for and ignore all others. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for provider extension type &lt;code>aws&lt;/code>, looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>.&lt;/p>
 &lt;h2 id="plantvalidator">&lt;code>PlantValidator&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>Plant&lt;/code>s.
@@ -23630,131 +23636,4 @@ simply applying a configuration can break DNS).&lt;/p>
 This should bring the cluster DNS back to functioning state.&lt;/p>
 &lt;h2 id="references">References&lt;/h2>
 &lt;p>[1] &lt;a href="https://github.com/coredns/coredns/tree/master/plugin/import">Import plugin&lt;/a>
-[2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item><item><title>Docs: Custom Fields</title><link>https://gardener.cloud/docs/dashboard/usage/custom-fields/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/dashboard/usage/custom-fields/</guid><description>
-&lt;h1 id="custom-shoot-fields">Custom Shoot Fields&lt;/h1>
-&lt;p>The Dashboard supports custom shoot fields, that can be defined per project by specifying &lt;code>metadata.annotations[&amp;quot;dashboard.gardener.cloud/shootCustomFields&amp;quot;]&lt;/code>.
-The fields can be configured to be displayed on the cluster list and cluster details page.
-Custom fields do not show up on the &lt;code>ALL_PROJECTS&lt;/code> page.&lt;/p>
-&lt;img src="https://gardener.cloud/__resources/custom-fields-1_791812.png">
-&lt;img src="https://gardener.cloud/__resources/custom-fields-2_ed16ee.png">
-&lt;img src="https://gardener.cloud/__resources/custom-fields-3_f57b82.png">
-&lt;img src="https://gardener.cloud/__resources/custom-fields-4_e9dfc0.png">
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Property&lt;/th>
-&lt;th>Type&lt;/th>
-&lt;th>Default&lt;/th>
-&lt;th>Required&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>name&lt;/td>
-&lt;td>String&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>✔️&lt;/td>
-&lt;td>Name of the custom field&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>path&lt;/td>
-&lt;td>String&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>✔️&lt;/td>
-&lt;td>Path in shoot resource, of which the value must be of primitive type (no object / array). Use &lt;a href="https://lodash.com/docs/4.17.15#get">lodash get&lt;/a> path syntax, e.g. &lt;code>metadata.labels[&amp;quot;shoot.gardener.cloud/status&amp;quot;]&lt;/code> or &lt;code>spec.networking.type&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>icon&lt;/td>
-&lt;td>String&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>MDI icon for field on the cluster details page. See &lt;a href="https://materialdesignicons.com/">https://materialdesignicons.com/&lt;/a> for available icons. Must be in the format: &lt;code>mdi-&amp;lt;icon-name&amp;gt;&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>tooltip&lt;/td>
-&lt;td>String&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Tooltip for the custom field that appears when hovering with the mouse over the value&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>defaultValue&lt;/td>
-&lt;td>String/Number&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Default value, in case there is no value for the given &lt;code>path&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>showColumn&lt;/td>
-&lt;td>Bool&lt;/td>
-&lt;td>true&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Field shall appear as column in the cluster list&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>columnSelectedByDefault&lt;/td>
-&lt;td>Bool&lt;/td>
-&lt;td>true&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Indicates if field shall be selected by default on the cluster list (not hidden by default)&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>weight&lt;/td>
-&lt;td>Number&lt;/td>
-&lt;td>0&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Defines the order of the column. The standard columns start with weight 100 and continue in 100 increments (200, 300, ..)&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>sortable&lt;/td>
-&lt;td>Bool&lt;/td>
-&lt;td>true&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Indicates if column is sortable on the cluster list.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>searchable&lt;/td>
-&lt;td>Bool&lt;/td>
-&lt;td>true&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Field shall appear in a dedicated card (&lt;code>Custom Fields&lt;/code>) on the cluster details page&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>showDetails&lt;/td>
-&lt;td>Bool&lt;/td>
-&lt;td>true&lt;/td>
-&lt;td>&lt;/td>
-&lt;td>Indicates if field shall appear in a dedicated card (&lt;code>Custom Fields&lt;/code>) on the cluster details page&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;p>As there is currently no way to configure the custom shoot fields for a project in the gardener dashboard, you have to use &lt;code>kubectl&lt;/code> to update the &lt;code>project&lt;/code> resource. See &lt;a href="https://github.com/gardener/dashboard/blob/master/docs/usage/project-operations.md#download-kubeconfig-for-a-user">https://github.com/gardener/dashboard/blob/master/docs/usage/project-operations.md#download-kubeconfig-for-a-user&lt;/a> on how to get a &lt;code>kubeconfig&lt;/code> for the &lt;code>garden&lt;/code> cluster in order to edit the &lt;code>project&lt;/code>.&lt;/p>
-&lt;p>The following is an example project yaml:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: core.gardener.cloud/v1beta1
-kind: Project
-metadata:
-annotations:
-dashboard.gardener.cloud/shootCustomFields: |&lt;span style="color:#a31515">
-&lt;/span>&lt;span style="color:#a31515"> {
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;shootStatus&amp;#34;: {
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;name&amp;#34;: &amp;#34;Shoot Status&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;path&amp;#34;: &amp;#34;metadata.labels[\&amp;#34;shoot.gardener.cloud/status\&amp;#34;]&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;icon&amp;#34;: &amp;#34;mdi-heart-pulse&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;tooltip&amp;#34;: &amp;#34;Indicates the health status of the cluster&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;defaultValue&amp;#34;: &amp;#34;unknown&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;showColumn&amp;#34;: true,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;columnSelectedByDefault&amp;#34;: true,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;weight&amp;#34;: 950,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;searchable&amp;#34;: true,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;sortable&amp;#34;: true,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;showDetails&amp;#34;: true
-&lt;/span>&lt;span style="color:#a31515"> },
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;networking&amp;#34;: {
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;name&amp;#34;: &amp;#34;Networking Type&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;path&amp;#34;: &amp;#34;spec.networking.type&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;icon&amp;#34;: &amp;#34;mdi-table-network&amp;#34;,
-&lt;/span>&lt;span style="color:#a31515"> &amp;#34;showColumn&amp;#34;: false
-&lt;/span>&lt;span style="color:#a31515"> }
-&lt;/span>&lt;span style="color:#a31515"> }&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>
+[2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item></channel></rss>

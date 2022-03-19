@@ -1848,10 +1848,13 @@ Refer &lt;a href="https://github.com/github/hub/issues/2655#issuecomment-7358360
 &lt;/li>
 &lt;/ul></description></item><item><title>Docs: Secrets Management</title><link>https://gardener.cloud/docs/gardener/development/secrets_management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/secrets_management/</guid><description>
 &lt;h1 id="secrets-management-for-seed-and-shoot-cluster">Secrets Management for Seed and Shoot Cluster&lt;/h1>
+&lt;blockquote>
 &lt;p>🚧️ Please note that the work in the new secrets management is ongoing and hence not yet completed.
 Accordingly, expect adaptations to this document and implementation details.&lt;/p>
+&lt;/blockquote>
 &lt;p>The gardenlet needs to create quite some amount of credentials (certificates, private keys, passwords, etc.) for seed and shoot clusters in order to ensure secure deployments.
 Such credentials typically should be rotated regularly, and they potentially need to be persisted such that they don&amp;rsquo;t get lost in case of a control plane migration or a lost seed cluster.&lt;/p>
+&lt;h2 id="secretsmanager-introduction">SecretsManager Introduction&lt;/h2>
 &lt;p>These requirements can be covered by using the &lt;code>SecretsManager&lt;/code> package maintained in &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/pkg/utils/secrets/manager">&lt;code>pkg/utils/secrets/manager&lt;/code>&lt;/a>.
 It is built on top of the &lt;code>ConfigInterface&lt;/code> and &lt;code>DataInterface&lt;/code> interfaces part of &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/pkg/utils/secrets">&lt;code>pkg/utils/secrets&lt;/code>&lt;/a> and provides the following functions:&lt;/p>
 &lt;ul>
@@ -1868,7 +1871,7 @@ Available &lt;code>GenerateOption&lt;/code>s:&lt;/p>
 &lt;/ul>
 &lt;/li>
 &lt;li>
-&lt;p>&lt;code>Get(string, ...GetOption) (*corev1.Secret, error)&lt;/code>&lt;/p>
+&lt;p>&lt;code>Get(string, ...GetOption) (*corev1.Secret, bool)&lt;/code>&lt;/p>
 &lt;p>This method retrieves the current secret for the given name.
 In case the secret in question is a certificate authority secret then it retrieves the bundle secret by default.
 It is important that this method only knows about secrets for which there were prior &lt;code>Generate&lt;/code> calls.&lt;br>
@@ -1905,11 +1908,24 @@ secretsmanager.Rotate(secretsmanager.InPlace),
 }
 &lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, the caller does not need to care about the rotation or the persistence of this secret - all of these concerns are handled by the secrets manager.&lt;/p>
 &lt;p>In case a CA certificate is needed by some component then it can be retrieved as follows:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-go" data-lang="go">caSecret, err := k.secretsManager.Get(&lt;span style="color:#a31515">&amp;#34;my-ca&amp;#34;&lt;/span>)
+&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-go" data-lang="go">caSecret, found := k.secretsManager.Get(&lt;span style="color:#a31515">&amp;#34;my-ca&amp;#34;&lt;/span>)
 &lt;span style="color:#00f">if&lt;/span> err != &lt;span style="color:#00f">nil&lt;/span> {
-&lt;span style="color:#00f">return&lt;/span> err
+&lt;span style="color:#00f">return&lt;/span> fmt.Errorf(&lt;span style="color:#a31515">&amp;#34;secret my-ca not found&amp;#34;&lt;/span>)
 }
 &lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, this returns the bundle secret for the CA &lt;code>my-ca&lt;/code> which might potentially contain both the current and the old CA (in case of rotation/regeneration).&lt;/p>
+&lt;h2 id="reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/h2>
+&lt;p>While the &lt;code>SecretsManager&lt;/code> is primarily used by gardenlet, it can be reused by other components (e.g. extensions) as well for managing secrets that are specific to the component or extension. For example, provider extensions might use their own &lt;code>SecretsManager&lt;/code> instance for managing the serving certificate of &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>
+&lt;p>External components that want to reuse the &lt;code>SecretsManager&lt;/code> should consider the following aspects:&lt;/p>
+&lt;ul>
+&lt;li>On initialization of a &lt;code>SecretsManager&lt;/code>, pass an &lt;code>identity&lt;/code> specific to the component, for example the extension name (gardenlet uses &lt;code>gardenlet&lt;/code> as the &lt;code>SecretsManager&lt;/code>&amp;rsquo;s identity).
+The given identity is added as a value for the &lt;code>manager-identity&lt;/code> label on managed &lt;code>Secret&lt;/code>s.
+This label is used by the &lt;code>Cleanup&lt;/code> function to select only those &lt;code>Secret&lt;/code>s that are actually managed by the particular &lt;code>SecretManager&lt;/code> instance. This is done to prevent removing still needed &lt;code>Secret&lt;/code>s that are managed by other instances.&lt;/li>
+&lt;li>Generate dedicated CAs for signing certificates instead of depending on CAs managed by gardenlet.&lt;/li>
+&lt;li>Names of &lt;code>Secret&lt;/code>s managed by external &lt;code>SecretsManager&lt;/code> instances must not conflict with &lt;code>Secret&lt;/code> names from other instances (e.g. gardenlet).&lt;/li>
+&lt;li>For CAs that should be rotated in lock-step with the Shoot CAs managed by gardenlet, components need to pass information about the last rotation initiation time and the current rotation phase to the &lt;code>SecretsManager&lt;/code> upon initialization.
+The relevant information can be retrieved from the &lt;code>Cluster&lt;/code> resource under &lt;code>.spec.shoot.status.credentials.rotation.certificateAuthorities&lt;/code>.&lt;/li>
+&lt;li>Independent of the specific identity, secrets marked with the &lt;code>Persist&lt;/code> option are automatically saved in the &lt;code>ShootState&lt;/code> resource by gardenlet and are also restored by gardenlet on Control Plane Migration to the new Seed.&lt;/li>
+&lt;/ul>
 &lt;h2 id="implementation-details">Implementation Details&lt;/h2>
 &lt;p>The source of truth for the secrets manager is the list of &lt;code>Secret&lt;/code>s in the Kubernetes cluster it acts upon (typically, the seed cluster).
 The persisted secrets in the &lt;code>ShootState&lt;/code> are only used if and only if the shoot is in the &lt;code>Restore&lt;/code> phase - in this case all secrets are just synced to the seed cluster so that they can be picked up by the secrets manager.&lt;/p>

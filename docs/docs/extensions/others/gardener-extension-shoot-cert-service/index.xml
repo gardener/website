@@ -23,20 +23,20 @@ If you try my instructions and fail, then read the alternative title of this tut
 &lt;p>From the Access widget (leave the default settings) download your personalized &lt;code>kubeconfig&lt;/code> into &lt;code>~/.kube/kubeconfig-garden-myproject&lt;/code>. Follow the instructions to setup &lt;code>kubelogin&lt;/code>:&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/access_5deea7.png" alt="access">&lt;/p>
 &lt;p>For convinience, let us set an alias command with&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">alias kgarden=&lt;span style="color:#a31515">&amp;#34;kubectl --kubeconfig ~/.kube/kubeconfig-garden-myproject.yaml&amp;#34;&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kgarden&lt;/code> now gives you all botanical powers and connects you directly with your Gardener.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>alias kgarden=&lt;span style="color:#a31515">&amp;#34;kubectl --kubeconfig ~/.kube/kubeconfig-garden-myproject.yaml&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kgarden&lt;/code> now gives you all botanical powers and connects you directly with your Gardener.&lt;/p>
 &lt;p>You should now be able to run &lt;code>kgarden get shoots&lt;/code>, automatically get an oidc token, and list already running clusters/shoots.&lt;/p>
 &lt;h2 id="prepare-your-custom-domain">Prepare your Custom Domain&lt;/h2>
 &lt;p>I am going to use &lt;a href="https://www.cloudflare.com/">Cloud Flare&lt;/a> as programmatic DNS of my custom domain &lt;code>mydomain.io&lt;/code>. Please follow detailed instructions from Cloud Flare on how to delegate your domain (the free account does not support delegating subdomains). Alternatively, AWS Route53 (and most others) support &lt;a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingNewSubdomain.html">delegating subdomains&lt;/a>.&lt;/p>
 &lt;p>I needed to follow these &lt;a href="https://github.com/gardener/external-dns-management/blob/master/docs/cloudflare/README.md">instructions&lt;/a> and created the following secret:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: v1
-kind: Secret
-metadata:
-name: cloudflare-mydomain-io
-type: Opaque
-data:
-CLOUDFLARE_API_TOKEN: useYOURownDAMITzNDU2Nzg5MDEyMzQ1Njc4OQ==
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Apply this secret into your project with &lt;code>kgarden create -f cloudflare-mydomain-io.yaml&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloudflare-mydomain-io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CLOUDFLARE_API_TOKEN: useYOURownDAMITzNDU2Nzg5MDEyMzQ1Njc4OQ==
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Apply this secret into your project with &lt;code>kgarden create -f cloudflare-mydomain-io.yaml&lt;/code>.&lt;/p>
 &lt;p>Our &lt;a href="https://github.com/gardener/external-dns-management/">External DNS Manager&lt;/a> also supports Amazon Route53, Google CloudDNS, AliCloud DNS, Azure DNS, or OpenStack Designate. Check it out.&lt;/p>
 &lt;h2 id="prepare-gardener-extensions">Prepare Gardener Extensions&lt;/h2>
 &lt;p>I now need to prepare the Gardener extensions &lt;code>shoot-dns-service&lt;/code> and &lt;code>shoot-cert-service&lt;/code> and set the parameters accordingly.&lt;/p>
@@ -44,29 +44,29 @@ CLOUDFLARE_API_TOKEN: useYOURownDAMITzNDU2Nzg5MDEyMzQ1Njc4OQ==
 Please note, that the availability of Gardener Extensions depends on how your administrator has configured the Gardener landscape. Please contact your Gardener administrator in case you experience any issues during activation.
 &lt;/div>
 &lt;p>The following snipplet allows Gardener to manage my entire custom domain, whereas with the &lt;code>include:&lt;/code> attribute I restrict all dynamic entries under the subdomain &lt;code>gsicdc.mydomain.io&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml"> dns:
-providers:
-- domains:
-include:
-- gsicdc.mydomain.io
-primary: &lt;span style="color:#00f">false&lt;/span>
-secretName: cloudflare-mydomain-io
-type: cloudflare-dns
-extensions:
-- type: shoot-dns-service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The next snipplet allows Gardener to manage certificates automatically from &lt;em>&lt;a href="https://letsencrypt.org/">Let&amp;rsquo;s Encrypt&lt;/a>&lt;/em> on &lt;code>mydomain.io&lt;/code> for me:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml"> extensions:
-- type: shoot-cert-service
-providerConfig:
-apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
-issuers:
-- email: me@mail.com
-name: mydomain
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-- email: me@mail.com
-name: mydomain-staging
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> dns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - domains:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - gsicdc.mydomain.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> primary: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: cloudflare-mydomain-io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: cloudflare-dns
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The next snipplet allows Gardener to manage certificates automatically from &lt;em>&lt;a href="https://letsencrypt.org/">Let&amp;rsquo;s Encrypt&lt;/a>&lt;/em> on &lt;code>mydomain.io&lt;/code> for me:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: me@mail.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mydomain
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: me@mail.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mydomain-staging
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;div class="alert alert-info" role="alert">
 Adjust the snipplets with your parameters (don't forget your email). And please use the mydomain-staging issuer while you are testing and learning. Otherwise, Let's Encrypt will rate limit your frequent requests and you can wait a week until you can continue.
 &lt;/div>
@@ -79,99 +79,101 @@ Adjust the snipplets with your parameters (don't forget your email). And please 
 &lt;/ul>
 &lt;h2 id="create-the-gardener-shoot-cluster">Create the Gardener Shoot Cluster&lt;/h2>
 &lt;p>Remember I chose to create the Shoot on GCP, so below is the simplest declarative shoot or cluster order document. Notice that I am referring to the infrastructure credentials with &lt;code>shoot-operator-gcp&lt;/code> and I combined the above snipplets into the yaml file:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: core.gardener.cloud/v1beta1
-kind: Shoot
-metadata:
-name: gsicdc
-spec:
-dns:
-providers:
-- domains:
-include:
-- gsicdc.mydomain.io
-primary: &lt;span style="color:#00f">false&lt;/span>
-secretName: cloudflare-mydomain-io
-type: cloudflare-dns
-extensions:
-- type: shoot-dns-service
-- type: shoot-cert-service
-providerConfig:
-apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
-issuers:
-- email: me@mail.com
-name: mydomain
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-- email: me@mail.com
-name: mydomain-staging
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-cloudProfileName: gcp
-kubernetes:
-allowPrivilegedContainers: &lt;span style="color:#00f">true&lt;/span>
-version: 1.18.2
-maintenance:
-autoUpdate:
-kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>
-machineImageVersion: &lt;span style="color:#00f">true&lt;/span>
-networking:
-nodes: 10.250.0.0/16
-pods: 100.96.0.0/11
-services: 100.64.0.0/13
-type: calico
-provider:
-controlPlaneConfig:
-apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
-kind: ControlPlaneConfig
-zone: europe-west1-d
-infrastructureConfig:
-apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
-kind: InfrastructureConfig
-networks:
-workers: 10.250.0.0/16
-type: gcp
-workers:
-- machine:
-image:
-name: gardenlinux
-version: 11.29.2
-type: n1-standard-2
-maxSurge: 1
-maxUnavailable: 0
-maximum: 2
-minimum: 1
-name: my-workerpool
-volume:
-size: 50Gi
-type: pd-standard
-zones:
-- europe-west1-d
-purpose: testing
-region: europe-west1
-secretBindingName: shoot-operator-gcp
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create your cluster and wait for it to be ready (about 5 to 7min).&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ kgarden create -f gsicdc.yaml
-shoot.core.gardener.cloud/gsicdc created
-$ kgarden get shoot gsicdc --watch
-NAME CLOUDPROFILE VERSION SEED DOMAIN HIBERNATION OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
-gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Processing 38 Progressing Progressing Unknown Unknown 83s
-...
-gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Succeeded 100 True True True False 6m7s
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Get access to your freshly baked cluster and set your &lt;code>KUBECONFIG&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ kgarden get secrets gsicdc.kubeconfig -o jsonpath={.data.kubeconfig} | base64 -d &amp;gt;kubeconfig-gsicdc.yaml
-$ export KUBECONFIG=&lt;span style="color:#00f">$(&lt;/span>pwd&lt;span style="color:#00f">)&lt;/span>/kubeconfig-gsicdc.yaml
-$ kubectl get all
-NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
-service/kubernetes ClusterIP 100.64.0.1 &amp;lt;none&amp;gt; 443/TCP 89m
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="install-istio">Install Istio&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gsicdc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - domains:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - gsicdc.mydomain.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> primary: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: cloudflare-mydomain-io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: cloudflare-dns
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: me@mail.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mydomain
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: me@mail.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mydomain-staging
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-staging-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudProfileName: gcp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> allowPrivilegedContainers: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.18.2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoUpdate:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImageVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.250.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 100.96.0.0/11
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: 100.64.0.0/13
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: calico
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controlPlaneConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ControlPlaneConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zone: europe-west1-d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> infrastructureConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers: 10.250.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gcp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - machine:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardenlinux
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 11.29.2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: n1-standard-2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxSurge: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxUnavailable: 0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maximum: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minimum: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-workerpool
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 50Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: pd-standard
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-west1-d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: testing
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-west1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretBindingName: shoot-operator-gcp
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Create your cluster and wait for it to be ready (about 5 to 7min).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kgarden create -f gsicdc.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot.core.gardener.cloud/gsicdc created
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kgarden get shoot gsicdc --watch
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE VERSION SEED DOMAIN HIBERNATION OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Processing 38 Progressing Progressing Unknown Unknown 83s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gsicdc gcp 1.18.2 gcp gsicdc.myproject.shoot.devgarden.cloud Awake Succeeded 100 True True True False 6m7s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Get access to your freshly baked cluster and set your &lt;code>KUBECONFIG&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kgarden get secrets gsicdc.kubeconfig -o jsonpath={.data.kubeconfig} | base64 -d &amp;gt;kubeconfig-gsicdc.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ export KUBECONFIG=&lt;span style="color:#00f">$(&lt;/span>pwd&lt;span style="color:#00f">)&lt;/span>/kubeconfig-gsicdc.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get all
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service/kubernetes ClusterIP 100.64.0.1 &amp;lt;none&amp;gt; 443/TCP 89m
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="install-istio">Install Istio&lt;/h2>
 &lt;p>Please follow the Istio installation &lt;a href="https://istio.io/docs/setup/getting-started/">instructions&lt;/a> and download &lt;code>istioctl&lt;/code>. If you are on a Mac, I recommend&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ brew install istioctl
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>I want to install Istio with a default profile and SDS enabled. Furthermore I pass the following annotations to the service object &lt;code>istio-ingressgateway&lt;/code> in the &lt;code>istio-system&lt;/code> namespace.&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml"> annotations:
-cert.gardener.cloud/issuer: mydomain-staging
-cert.gardener.cloud/secretname: wildcard-tls
-dns.gardener.cloud/class: garden
-dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>
-dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;120&amp;#34;&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>With these annotations three things now happen automagically:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ brew install istioctl
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>I want to install Istio with a default profile and SDS enabled. Furthermore I pass the following annotations to the service object &lt;code>istio-ingressgateway&lt;/code> in the &lt;code>istio-system&lt;/code> namespace.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/issuer: mydomain-staging
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/secretname: wildcard-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;120&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>With these annotations three things now happen automagically:&lt;/p>
 &lt;ol>
 &lt;li>The &lt;a href="https://github.com/gardener/external-dns-management/blob/master/README.md">External DNS Manager&lt;/a>, provided to you as a service (&lt;code>dns.gardener.cloud/class: garden&lt;/code>), picks up the request and creates the wildcard DNS entry &lt;code>*.gsicdc.mydomain.io&lt;/code> with a time to live of 120sec at your DNS provider. My provider Cloud Flare is very very quick (as opposed to some other services). You should be able to verify the entry with &lt;code>dig lovemygardener.gsicdc.mydomain.io&lt;/code> within seconds.&lt;/li>
 &lt;li>The &lt;a href="https://github.com/gardener/cert-management/blob/master/README.md">Certificate Management&lt;/a> picks up the request as well and initates a DNS01 protocol exchange with Let&amp;rsquo;s Encrypt; using the staging environment referred to with the issuer behind &lt;code>mydomain-staging&lt;/code>.&lt;/li>
@@ -181,181 +183,191 @@ dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;120&amp;#34;&lt;
 Notice, that the namespace for the certificate secret is often the cause of many troubeshooting sessions: the secret must reside in the same namespace of the gateway.
 &lt;/div>
 &lt;p>Here is the istio-install script:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ export domainname=&lt;span style="color:#a31515">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>
-$ export issuer=&lt;span style="color:#a31515">&amp;#34;mydomain-staging&amp;#34;&lt;/span>
-$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | istioctl install -y -f -
-&lt;/span>&lt;span style="color:#a31515">apiVersion: install.istio.io/v1alpha1
-&lt;/span>&lt;span style="color:#a31515">kind: IstioOperator
-&lt;/span>&lt;span style="color:#a31515">spec:
-&lt;/span>&lt;span style="color:#a31515"> profile: default
-&lt;/span>&lt;span style="color:#a31515"> components:
-&lt;/span>&lt;span style="color:#a31515"> ingressGateways:
-&lt;/span>&lt;span style="color:#a31515"> - name: istio-ingressgateway
-&lt;/span>&lt;span style="color:#a31515"> enabled: true
-&lt;/span>&lt;span style="color:#a31515"> k8s:
-&lt;/span>&lt;span style="color:#a31515"> serviceAnnotations:
-&lt;/span>&lt;span style="color:#a31515"> cert.gardener.cloud/issuer: &amp;#34;${issuer}&amp;#34;
-&lt;/span>&lt;span style="color:#a31515"> cert.gardener.cloud/secretname: wildcard-tls
-&lt;/span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
-&lt;/span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;${domainname}&amp;#34;
-&lt;/span>&lt;span style="color:#a31515"> dns.gardener.cloud/ttl: &amp;#34;120&amp;#34;
-&lt;/span>&lt;span style="color:#a31515">EOF&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Verify that setup is working and that DNS and certificates have been created/delivered:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ kubectl -n istio-system describe service istio-ingressgateway
-&amp;lt;snip&amp;gt;
-Events:
-Type Reason Age From Message
----- ------ ---- ---- -------
-Normal EnsuringLoadBalancer 58s service-controller Ensuring load balancer
-Normal reconcile 58s cert-controller-manager created certificate object istio-system/istio-ingressgateway-service-pwqdm
-Normal cert-annotation 58s cert-controller-manager wildcard-tls: cert request is pending
-Normal cert-annotation 54s cert-controller-manager wildcard-tls: certificate pending: certificate requested, preparing/waiting &lt;span style="color:#00f">for&lt;/span> successful DNS01 challenge
-Normal cert-annotation 28s cert-controller-manager wildcard-tls: certificate ready
-Normal EnsuredLoadBalancer 26s service-controller Ensured load balancer
-Normal reconcile 26s dns-controller-manager created dns entry object shoot--core--gsicdc/istio-ingressgateway-service-p9qqb
-Normal dns-annotation 26s dns-controller-manager *.gsicdc.mydomain.io: dns entry is pending
-Normal dns-annotation 21s (x3 over 21s) dns-controller-manager *.gsicdc.mydomain.io: dns entry active
-$ dig lovemygardener.gsicdc.mydomain.io
-; &amp;lt;&amp;lt;&amp;gt;&amp;gt; DiG 9.10.6 &amp;lt;&amp;lt;&amp;gt;&amp;gt; lovemygardener.gsicdc.mydomain.io
-&amp;lt;snip&amp;gt;
-;; ANSWER SECTION:
-lovemygardener.gsicdc.mydomain.io. 120 IN A 35.195.120.62
-&amp;lt;snip&amp;gt;
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>There you have it, the wildcard-tls certificate is ready and the *.gsicdc.mydomain.io dns entry is active. Traffic will be going your way.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ export domainname=&lt;span style="color:#a31515">&amp;#34;*.gsicdc.mydomain.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ export issuer=&lt;span style="color:#a31515">&amp;#34;mydomain-staging&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | istioctl install -y -f -
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: install.istio.io/v1alpha1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: IstioOperator
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> profile: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> components:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ingressGateways:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: istio-ingressgateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> enabled: true
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> k8s:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> serviceAnnotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cert.gardener.cloud/issuer: &amp;#34;${issuer}&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cert.gardener.cloud/secretname: wildcard-tls
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;${domainname}&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/ttl: &amp;#34;120&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Verify that setup is working and that DNS and certificates have been created/delivered:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl -n istio-system describe service istio-ingressgateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;snip&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Events:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Type Reason Age From Message
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ---- ------ ---- ---- -------
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal EnsuringLoadBalancer 58s service-controller Ensuring load balancer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal reconcile 58s cert-controller-manager created certificate object istio-system/istio-ingressgateway-service-pwqdm
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal cert-annotation 58s cert-controller-manager wildcard-tls: cert request is pending
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal cert-annotation 54s cert-controller-manager wildcard-tls: certificate pending: certificate requested, preparing/waiting &lt;span style="color:#00f">for&lt;/span> successful DNS01 challenge
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal cert-annotation 28s cert-controller-manager wildcard-tls: certificate ready
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal EnsuredLoadBalancer 26s service-controller Ensured load balancer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal reconcile 26s dns-controller-manager created dns entry object shoot--core--gsicdc/istio-ingressgateway-service-p9qqb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal dns-annotation 26s dns-controller-manager *.gsicdc.mydomain.io: dns entry is pending
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Normal dns-annotation 21s (x3 over 21s) dns-controller-manager *.gsicdc.mydomain.io: dns entry active
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ dig lovemygardener.gsicdc.mydomain.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>; &amp;lt;&amp;lt;&amp;gt;&amp;gt; DiG 9.10.6 &amp;lt;&amp;lt;&amp;gt;&amp;gt; lovemygardener.gsicdc.mydomain.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;snip&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>;; ANSWER SECTION:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>lovemygardener.gsicdc.mydomain.io. 120 IN A 35.195.120.62
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;snip&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>There you have it, the wildcard-tls certificate is ready and the *.gsicdc.mydomain.io dns entry is active. Traffic will be going your way.&lt;/p>
 &lt;h2 id="handy-tools-to-install">Handy tools to install&lt;/h2>
 &lt;p>Another set of fine tools to use are &lt;a href="https://get-kapp.io/">kapp&lt;/a> (formerly known as k14s), &lt;a href="https://k9scli.io/">k9s&lt;/a> and &lt;a href="https://httpie.org/">HTTPie&lt;/a>. While we are at it, let&amp;rsquo;s install them all. If you are on a Mac, I recommend:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">brew tap vmware-tanzu/carvel
-brew install ytt kbld kapp kwt imgpkg vendir
-brew install derailed/k9s/k9s
-brew install httpie
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="ingress-to-your-service">Ingress to your service&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew tap vmware-tanzu/carvel
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>brew install ytt kbld kapp kwt imgpkg vendir
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>brew install derailed/k9s/k9s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>brew install httpie
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="ingress-to-your-service">Ingress to your service&lt;/h2>
 &lt;div class="alert alert-info" role="alert">
 Networking is a central part of Kubernetes, but it can be challenging to understand exactly how it is expected to work. You should learn about Kubernetes networking, and first try to debug problems yourself. With a solid managed cluster from Gardener, it is always PEBCAK!
 &lt;/div>
 &lt;p>Kubernetes Ingress is a subject that is evolving to much broader standard. Please watch &lt;a href="https://www.youtube.com/watch?v=cduG0FrjdJA">Evolving the Kubernetes Ingress APIs to GA and Beyond&lt;/a> for a good introduction. In this example, I did not want to use the Kubernetes &lt;code>Ingress&lt;/code> compatibility option of Istio. Instead, I used &lt;code>VirtualService&lt;/code> and &lt;code>Gateway&lt;/code> from the Istio&amp;rsquo;s API group &lt;code>networking.istio.io/v1beta1&lt;/code> directly, and enabled istio-injection generically for the namespace.&lt;/p>
 &lt;p>I use &lt;a href="https://httpbin.org/">httpbin&lt;/a> as service that I want to expose to the internet, or where my ingress should be routed to (depends on your point of view, I guess).&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: v1
-kind: Namespace
-metadata:
-name: production
-labels:
-istio-injection: enabled
----
-apiVersion: v1
-kind: Service
-metadata:
-name: httpbin
-namespace: production
-labels:
-app: httpbin
-spec:
-ports:
-- name: http
-port: 8000
-targetPort: 80
-selector:
-app: httpbin
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-name: httpbin
-namespace: production
-spec:
-replicas: 1
-selector:
-matchLabels:
-app: httpbin
-template:
-metadata:
-labels:
-app: httpbin
-spec:
-containers:
-- image: docker.io/kennethreitz/httpbin
-imagePullPolicy: IfNotPresent
-name: httpbin
-ports:
-- containerPort: 80
----
-apiVersion: networking.istio.io/v1beta1
-kind: Gateway
-metadata:
-name: httpbin-gw
-namespace: production
-spec:
-selector:
-istio: ingressgateway &lt;span style="color:#008000">#! use istio default ingress gateway&lt;/span>
-servers:
-- port:
-number: 80
-name: http
-protocol: HTTP
-tls:
-httpsRedirect: &lt;span style="color:#00f">true&lt;/span>
-hosts:
-- &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
-- port:
-number: 443
-name: https
-protocol: HTTPS
-tls:
-mode: SIMPLE
-credentialName: wildcard-tls
-hosts:
-- &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
----
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-name: httpbin-vs
-namespace: production
-spec:
-hosts:
-- &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
-gateways:
-- httpbin-gw
-http:
-- match:
-- uri:
-regex: /.*
-route:
-- destination:
-port:
-number: 8000
-host: httpbin
----
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let us now deploy the whole package of Kubernetes primitives using &lt;code>kapp&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ kapp deploy -a httpbin -f httpbin-kapp.yaml
-Target cluster &lt;span style="color:#a31515">&amp;#39;https://api.gsicdc.myproject.shoot.devgarden.cloud&amp;#39;&lt;/span> (nodes: shoot--myproject--gsicdc-my-workerpool-z1-6586c8f6cb-x24kh)
-Changes
-Namespace Name Kind Conds. Age Op Wait to Rs Ri
-(cluster) production Namespace - - create reconcile - -
-production httpbin Deployment - - create reconcile - -
-^ httpbin Service - - create reconcile - -
-^ httpbin-gw Gateway - - create reconcile - -
-^ httpbin-vs VirtualService - - create reconcile - -
-Op: 5 create, 0 delete, 0 update, 0 noop
-Wait to: 5 reconcile, 0 delete, 0 noop
-Continue? [yN]: y
-5:36:31PM: ---- applying 1 changes [0/5 &lt;span style="color:#00f">done&lt;/span>] ----
-&amp;lt;snip&amp;gt;
-5:37:00PM: ok: reconcile deployment/httpbin (apps/v1) namespace: production
-5:37:00PM: ---- applying complete [5/5 &lt;span style="color:#00f">done&lt;/span>] ----
-5:37:00PM: ---- waiting complete [5/5 &lt;span style="color:#00f">done&lt;/span>] ----
-Succeeded
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let&amp;rsquo;s finaly test the service (Of course you can use the browser as well):&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ http httpbin.gsicdc.mydomain.io
-HTTP/1.1 301 Moved Permanently
-content-length: 0
-date: Wed, 13 May 2020 21:29:13 GMT
-location: https://httpbin.gsicdc.mydomain.io/
-server: istio-envoy
-$ curl -k https://httpbin.gsicdc.mydomain.io/ip
-{
-&lt;span style="color:#a31515">&amp;#34;origin&amp;#34;&lt;/span>: &lt;span style="color:#a31515">&amp;#34;10.250.0.2&amp;#34;&lt;/span>
-}
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Quod erat demonstrandum.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio-injection: enabled
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 8000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - image: docker.io/kennethreitz/httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imagePullPolicy: IfNotPresent
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerPort: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: httpbin-gw
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway &lt;span style="color:#008000">#! use istio default ingress gateway&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: HTTP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> httpsRedirect: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: https
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: HTTPS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mode: SIMPLE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> credentialName: wildcard-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VirtualService
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: httpbin-vs
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;httpbin.gsicdc.mydomain.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gateways:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - httpbin-gw
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - uri:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: /.*
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - destination:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> host: httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let us now deploy the whole package of Kubernetes primitives using &lt;code>kapp&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kapp deploy -a httpbin -f httpbin-kapp.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Target cluster &lt;span style="color:#a31515">&amp;#39;https://api.gsicdc.myproject.shoot.devgarden.cloud&amp;#39;&lt;/span> (nodes: shoot--myproject--gsicdc-my-workerpool-z1-6586c8f6cb-x24kh)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Changes
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Namespace Name Kind Conds. Age Op Wait to Rs Ri
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>(cluster) production Namespace - - create reconcile - -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>production httpbin Deployment - - create reconcile - -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>^ httpbin Service - - create reconcile - -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>^ httpbin-gw Gateway - - create reconcile - -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>^ httpbin-vs VirtualService - - create reconcile - -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Op: 5 create, 0 delete, 0 update, 0 noop
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Wait to: 5 reconcile, 0 delete, 0 noop
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Continue? [yN]: y
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5:36:31PM: ---- applying 1 changes [0/5 &lt;span style="color:#00f">done&lt;/span>] ----
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;snip&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5:37:00PM: ok: reconcile deployment/httpbin (apps/v1) namespace: production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5:37:00PM: ---- applying complete [5/5 &lt;span style="color:#00f">done&lt;/span>] ----
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5:37:00PM: ---- waiting complete [5/5 &lt;span style="color:#00f">done&lt;/span>] ----
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Succeeded
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Let&amp;rsquo;s finaly test the service (Of course you can use the browser as well):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ http httpbin.gsicdc.mydomain.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>HTTP/1.1 301 Moved Permanently
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>content-length: 0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>date: Wed, 13 May 2020 21:29:13 GMT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>location: https://httpbin.gsicdc.mydomain.io/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>server: istio-envoy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ curl -k https://httpbin.gsicdc.mydomain.io/ip
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#34;origin&amp;#34;&lt;/span>: &lt;span style="color:#a31515">&amp;#34;10.250.0.2&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Quod erat demonstrandum.
 The proof of exchanging the issuer is now left to the reader.&lt;/p>
 &lt;div class="alert alert-primary" role="alert">
 &lt;h4 class="alert-heading">Tip&lt;/h4>
@@ -365,25 +377,28 @@ Remember that the certificate is actually not valid because it is issued from th
 &lt;img src="https://gardener.cloud/__resources/k9s_5b92ae.png" alt="k9s">&lt;/p>
 &lt;h2 id="cleanup">Cleanup&lt;/h2>
 &lt;p>Remove the cloud native application:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ kapp ls
-Apps in namespace &lt;span style="color:#a31515">&amp;#39;default&amp;#39;&lt;/span>
-Name Namespaces Lcs Lca
-httpbin (cluster),production true 17m
-$ kapp delete -a httpbin
-...
-Continue? [yN]: y
-...
-11:47:47PM: ---- waiting complete [8/8 &lt;span style="color:#00f">done&lt;/span>] ----
-Succeeded
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Remove Istio:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ istioctl x uninstall --purge
-clusterrole.rbac.authorization.k8s.io &lt;span style="color:#a31515">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
-clusterrolebinding.rbac.authorization.k8s.io &lt;span style="color:#a31515">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Delete your Shoot:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">kgarden annotate shoot gsicdc confirmation.gardener.cloud/deletion=true --overwrite
-kgarden delete shoot gsicdc --wait=false
-&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Request Cert</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</guid><description>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kapp ls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Apps in namespace &lt;span style="color:#a31515">&amp;#39;default&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Name Namespaces Lcs Lca
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>httpbin (cluster),production true 17m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kapp delete -a httpbin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Continue? [yN]: y
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>11:47:47PM: ---- waiting complete [8/8 &lt;span style="color:#00f">done&lt;/span>] ----
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Succeeded
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Remove Istio:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ istioctl x uninstall --purge
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusterrole.rbac.authorization.k8s.io &lt;span style="color:#a31515">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusterrolebinding.rbac.authorization.k8s.io &lt;span style="color:#a31515">&amp;#34;prometheus-istio-system&amp;#34;&lt;/span> deleted
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Delete your Shoot:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kgarden annotate shoot gsicdc confirmation.gardener.cloud/deletion=true --overwrite
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kgarden delete shoot gsicdc --wait=false
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Request Cert</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</guid><description>
 &lt;h1 id="request-x509-certificates">Request X.509 Certificates&lt;/h1>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>Dealing with applications on Kubernetes which offer service endpoints (e.g. HTTP) may also require you to enable a
@@ -404,24 +419,24 @@ It &lt;strong>does not&lt;/strong> equip or manage DNS records for cluster asset
 &lt;h3 id="character-restrictions">Character Restrictions&lt;/h3>
 &lt;p>Due to the ACME protocol specification, at least one domain of the domains you request a certificate for must not exceed a character limit of 64 (CN - Common Name).&lt;/p>
 &lt;p>For example, the following request is invalid:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Certificate
-metadata:
-name: cert-invalid
-namespace: default
-spec:
-commonName: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>But it is valid to request a certificate for this domain if you have at least one domain which does not exceed the mentioned limit:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Certificate
-metadata:
-name: cert-example
-namespace: default
-spec:
-commonName: short.ingress.shoot.project.default-domain.gardener.cloud
-dnsNames:
-- morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="certificate-resources">Certificate Resources&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-invalid
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>But it is valid to request a certificate for this domain if you have at least one domain which does not exceed the mentioned limit:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsNames:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="certificate-resources">Certificate Resources&lt;/h2>
 &lt;p>Every X.509 certificate is represented by a Kubernetes custom resource &lt;code>certificate.cert.gardener.cloud&lt;/code> in your cluster. A &lt;code>Certificate&lt;/code> resource may be used to initiate a new certificate request as well as to manage its lifecycle. Gardener&amp;rsquo;s certificate service regularly checks the expiration timestamp of Certificates, triggers a renewal process if necessary and replaces the existing X.509 certificate with a new one.&lt;/p>
 &lt;blockquote>
 &lt;p>Your application should be able to reload replaced certificates in a timely manner to avoid service disruptions.&lt;/p>
@@ -429,19 +444,19 @@ dnsNames:
 &lt;p>Certificates can either be requested by creating &lt;code>Certificate&lt;/code> resources in the Kubernetes cluster or by configuring &lt;code>Ingress&lt;/code> or &lt;code>Service&lt;/code> (type &lt;code>LoadBalancer&lt;/code>) resources. If the latter is used, a &lt;code>Certificate&lt;/code> resource will automatically be created by Gardener&amp;rsquo;s certificate service.&lt;/p>
 &lt;p>If you&amp;rsquo;re interested in the current progress of your request, you&amp;rsquo;re advised to consult the &lt;code>Certificate&lt;/code>&amp;rsquo;s &lt;code>status&lt;/code> subresource. You&amp;rsquo;ll also find error descriptions in the &lt;code>status&lt;/code> in case the issuance failed.&lt;/p>
 &lt;p>Certificate status example:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Certificate
-...
-status:
-commonName: short.ingress.shoot.project.default-domain.gardener.cloud
-expirationDate: &lt;span style="color:#a31515">&amp;#34;2020-02-27T15:39:10Z&amp;#34;&lt;/span>
-issuerRef:
-name: garden
-namespace: shoot--foo--bar
-lastPendingTimestamp: &lt;span style="color:#a31515">&amp;#34;2019-11-29T16:38:40Z&amp;#34;&lt;/span>
-observedGeneration: 11
-state: Ready
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="custom-domains">Custom Domains&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;2020-02-27T15:39:10Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuerRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastPendingTimestamp: &lt;span style="color:#a31515">&amp;#34;2019-11-29T16:38:40Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 11
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Ready
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="custom-domains">Custom Domains&lt;/h2>
 &lt;p>If you want to request certificates for domains other then any subdomain of &lt;code>shoot.spec.dns.domain&lt;/code>, the following configuration is required:&lt;/p>
 &lt;h3 id="dns-provider">DNS provider&lt;/h3>
 &lt;p>In order to issue certificates for a custom domain you need to specify a DNS provider which is permitted to create DNS records for subdomains of your requested domain in the certificate. For example, if you request a certificate for &lt;code>host.example.com&lt;/code> your DNS provider must be capable of managing subdomains of &lt;code>host.example.com&lt;/code>.&lt;/p>
@@ -450,55 +465,55 @@ state: Ready
 the shoot cluster.&lt;/p>
 &lt;h4 id="provider-in-the-shoot-manifest">Provider in the shoot manifest&lt;/h4>
 &lt;p>Example for a provider in the shoot manifest:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">kind: Shoot
-...
-spec:
-dns:
-providers:
-- type: aws-route53 &lt;span style="color:#008000"># consult the DNS provisioning controllers group (dnscontrollers) in https://github.com/gardener/external-dns-management#using-the-dns-controller-manager for possible values&lt;/span>
-secretName: provider-example-com &lt;span style="color:#008000"># contains credentials for service account, see any 20-secret-&amp;lt;provider&amp;gt;-credentials.yaml in https://github.com/gardener/external-dns-management/tree/master/examples&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret referenced by &lt;code>secretName&lt;/code> can also be conveniently created via the Gardener dashboard.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: aws-route53 &lt;span style="color:#008000"># consult the DNS provisioning controllers group (dnscontrollers) in https://github.com/gardener/external-dns-management#using-the-dns-controller-manager for possible values&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: provider-example-com &lt;span style="color:#008000"># contains credentials for service account, see any 20-secret-&amp;lt;provider&amp;gt;-credentials.yaml in https://github.com/gardener/external-dns-management/tree/master/examples&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret referenced by &lt;code>secretName&lt;/code> can also be conveniently created via the Gardener dashboard.&lt;/p>
 &lt;h4 id="provider-resouce-in-the-shoot-cluster">Provider resouce in the shoot cluster&lt;/h4>
 &lt;p>&lt;em>Prerequiste&lt;/em>: The &lt;code>DNSProvider&lt;/code> replication feature has to be enabled.
 It is either enabled globally in the &lt;code>ControllerDeployment&lt;/code> or in the shoot manifest
 with:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">...
-spec:
-extensions:
-- type: shoot-dns-service
-providerConfig:
-apiVersion: service.dns.extensions.gardener.cloud/v1alpha1
-kind: DNSConfig
-dnsProviderReplication:
-enabled: &lt;span style="color:#00f">true&lt;/span>
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Example for specifying a &lt;code>DNSProvider&lt;/code> resource and its &lt;code>Secret&lt;/code> in any namespace of the shoot cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: dns.gardener.cloud/v1alpha1
-kind: DNSProvider
-metadata:
-annotations:
-dns.gardener.cloud/class: garden
-name: my-own-domain
-namespace: my-namespace
-spec:
-type: aws-route53
-secretRef:
-name: my-own-domain-credentials
-domains:
-include:
-- my.own.domain.com
----
-apiVersion: v1
-kind: Secret
-metadata:
-name: my-own-domain-credentials
-namespace: my-namespace
-type: Opaque
-data:
-&lt;span style="color:#008000"># replace &amp;#39;...&amp;#39; with values encoded as base64&lt;/span>
-AWS_ACCESS_KEY_ID: ...
-AWS_SECRET_ACCESS_KEY: ...
-&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="issuer">Issuer&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.dns.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: DNSConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsProviderReplication:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Example for specifying a &lt;code>DNSProvider&lt;/code> resource and its &lt;code>Secret&lt;/code> in any namespace of the shoot cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSProvider
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-domain
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws-route53
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-domain-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domains:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - my.own.domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-domain-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># replace &amp;#39;...&amp;#39; with values encoded as base64&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> AWS_ACCESS_KEY_ID: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> AWS_SECRET_ACCESS_KEY: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="issuer">Issuer&lt;/h3>
 &lt;p>Another prerequisite to request certificates for custom domains is a dedicated issuer.&lt;/p>
 &lt;p>Note: This is only needed if the default issuer provided by Gardener is restricted to shoot related domains or you are using
 domain names not visible to public DNS servers. You may therefore try first without defining an own issuer.&lt;/p>
@@ -506,29 +521,31 @@ domain names not visible to public DNS servers. You may therefore try first with
 &lt;p>If the &lt;code>shootIssuers&lt;/code> feature is enabled, it can alternatively be defined in the shoot cluster.&lt;/p>
 &lt;h4 id="issuer-in-the-shoot-manifest">Issuer in the shoot manifest&lt;/h4>
 &lt;p>Example for an issuer in the shoot manifest:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">kind: Shoot
-...
-spec:
-extensions:
-- type: shoot-cert-service
-providerConfig:
-apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
-kind: CertConfig
-issuers:
-- email: your-email@example.com
-name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-privateKeySecretName: my-privatekey &lt;span style="color:#008000"># referenced resource, the private key must be stored in the secret at `data.privateKey`&lt;/span>
-&lt;span style="color:#008000">#shootIssuers:&lt;/span>
-&lt;span style="color:#008000"># enabled: true # if true, allows to specify issuers in the shoot cluster&lt;/span>
-&lt;span style="color:#008000">#precheckNameservers: &amp;#34;10.0.0.53,10.123.56.53,8.8.8.8&amp;#34; # optional comma separated list of DNS server IP addresses if public DNS servers are not sufficient for prechecking DNS challenges&lt;/span>
-resources:
-- name: my-privatekey
-resourceRef:
-apiVersion: v1
-kind: Secret
-name: custom-issuer-privatekey &lt;span style="color:#008000"># name of secret in Gardener project&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you are using an ACME provider for private domains, you may need to change the nameservers used for
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: your-email@example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKeySecretName: my-privatekey &lt;span style="color:#008000"># referenced resource, the private key must be stored in the secret at `data.privateKey`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#shootIssuers:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># enabled: true # if true, allows to specify issuers in the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#precheckNameservers: &amp;#34;10.0.0.53,10.123.56.53,8.8.8.8&amp;#34; # optional comma separated list of DNS server IP addresses if public DNS servers are not sufficient for prechecking DNS challenges&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my-privatekey
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer-privatekey &lt;span style="color:#008000"># name of secret in Gardener project&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you are using an ACME provider for private domains, you may need to change the nameservers used for
 checking the availability of the DNS challenge&amp;rsquo;s TXT record before the certificate is requested from the ACME provider.
 By default, only public DNS servers may be used for this purpose.
 At least one of the &lt;code>precheckNameservers&lt;/code> must be able to resolve the private domain names.&lt;/p>
@@ -536,60 +553,60 @@ At least one of the &lt;code>precheckNameservers&lt;/code> must be able to resol
 &lt;p>&lt;em>Prerequiste&lt;/em>: The &lt;code>shootIssuers&lt;/code> feature has to be enabled.
 It is either enabled globally in the &lt;code>ControllerDeployment&lt;/code> or in the shoot manifest
 with:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">kind: Shoot
-...
-spec:
-extensions:
-- type: shoot-cert-service
-providerConfig:
-apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
-kind: CertConfig
-shootIssuers:
-enabled: &lt;span style="color:#00f">true&lt;/span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot cluster&lt;/span>
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Example for specifying an &lt;code>Issuer&lt;/code> resource and its &lt;code>Secret&lt;/code> directly in any
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootIssuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Example for specifying an &lt;code>Issuer&lt;/code> resource and its &lt;code>Secret&lt;/code> directly in any
 namespace of the shoot cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Issuer
-metadata:
-name: my-own-issuer
-namespace: my-namespace
-spec:
-acme:
-domains:
-include:
-- my.own.domain.com
-email: some.user@my.own.domain.com
-privateKeySecretRef:
-name: my-own-issuer-secret
-namespace: my-namespace
-server: https://acme-v02.api.letsencrypt.org/directory
----
-apiVersion: v1
-kind: Secret
-metadata:
-name: my-own-issuer-secret
-namespace: my-namespace
-type: Opaque
-data:
-privateKey: ... &lt;span style="color:#008000"># replace &amp;#39;...&amp;#39; with valus encoded as base64&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="examples">Examples&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Issuer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> acme:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domains:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - my.own.domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> email: some.user@my.own.domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKeySecretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://acme-v02.api.letsencrypt.org/directory
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKey: ... &lt;span style="color:#008000"># replace &amp;#39;...&amp;#39; with valus encoded as base64&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="examples">Examples&lt;/h2>
 &lt;h3 id="request-a-certificate-via-certificate">Request a certificate via Certificate&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Certificate
-metadata:
-name: cert-example
-namespace: default
-spec:
-commonName: short.ingress.shoot.project.default-domain.gardener.cloud
-dnsNames:
-- morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-secretRef:
-name: cert-example
-namespace: default
-&lt;span style="color:#008000"># issuerRef:&lt;/span>
-&lt;span style="color:#008000"># name: custom-issuer&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsNames:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># issuerRef:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># name: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
 &lt;thead>
 &lt;tr>
 &lt;th style="text-align:left">Path&lt;/th>
@@ -616,19 +633,19 @@ namespace: default
 &lt;/tbody>
 &lt;/table>
 &lt;h3 id="request-a-wildcard-certificate-via-certificate">Request a wildcard certificate via Certificate&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: cert.gardener.cloud/v1alpha1
-kind: Certificate
-metadata:
-name: cert-wildcard
-namespace: default
-spec:
-commonName: &lt;span style="color:#a31515">&amp;#39;*.ingress.shoot.project.default-domain.gardener.cloud&amp;#39;&lt;/span>
-secretRef:
-name: cert-wildcard
-namespace: default
-&lt;span style="color:#008000"># issuerRef:&lt;/span>
-&lt;span style="color:#008000"># name: custom-issuer&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-wildcard
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: &lt;span style="color:#a31515">&amp;#39;*.ingress.shoot.project.default-domain.gardener.cloud&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-wildcard
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># issuerRef:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># name: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
 &lt;thead>
 &lt;tr>
 &lt;th style="text-align:left">Path&lt;/th>
@@ -651,29 +668,29 @@ namespace: default
 &lt;/tbody>
 &lt;/table>
 &lt;h3 id="request-a-certificate-via-ingress">Request a certificate via Ingress&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-name: vuejs-ingress
-annotations:
-cert.gardener.cloud/purpose: managed
-&lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
-spec:
-tls:
-&lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
-- hosts:
-- short.ingress.shoot.project.default-domain.gardener.cloud
-- morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-&lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
-secretName: testsecret-tls
-rules:
-- host: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-http:
-paths:
-- backend:
-serviceName: vuejs-svc
-servicePort: 8080
-&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: vuejs-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: testsecret-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceName: vuejs-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servicePort: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
 &lt;thead>
 &lt;tr>
 &lt;th style="text-align:left">Path&lt;/th>
@@ -696,28 +713,28 @@ servicePort: 8080
 &lt;/tbody>
 &lt;/table>
 &lt;h3 id="request-a-wildcard-certificate-via-ingress">Request a wildcard certificate via Ingress&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-name: vuejs-ingress
-annotations:
-cert.gardener.cloud/purpose: managed
-&lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
-spec:
-tls:
-&lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
-- hosts:
-- &lt;span style="color:#a31515">&amp;#34;*.ingress.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
-&lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
-secretName: testsecret-tls
-rules:
-- host: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
-http:
-paths:
-- backend:
-serviceName: vuejs-svc
-servicePort: 8080
-&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: vuejs-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;*.ingress.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: testsecret-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceName: vuejs-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servicePort: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
 &lt;p>Domains must not overlap when requesting a wildcard certificate. For example, requests for &lt;code>*.example.com&lt;/code> must not contain &lt;code>foo.example.com&lt;/code> at the same time.&lt;/p>
 &lt;/blockquote>
 &lt;table>
@@ -743,24 +760,24 @@ servicePort: 8080
 &lt;/tbody>
 &lt;/table>
 &lt;h3 id="request-a-certificate-via-service">Request a certificate via Service&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: v1
-kind: Service
-metadata:
-annotations:
-cert.gardener.cloud/secretname: test-service-secret
-&lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
-dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;service.shoot.project.default-domain.gardener.cloud, morethan64characters.svc.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
-dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
-name: test-service
-namespace: default
-spec:
-ports:
-- name: http
-port: 80
-protocol: TCP
-targetPort: 8080
-type: LoadBalancer
-&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/secretname: test-service-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;service.shoot.project.default-domain.gardener.cloud, morethan64characters.svc.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
 &lt;thead>
 &lt;tr>
 &lt;th style="text-align:left">Path&lt;/th>
@@ -783,24 +800,24 @@ type: LoadBalancer
 &lt;/tbody>
 &lt;/table>
 &lt;h3 id="request-a-wildcard-certificate-via-service">Request a wildcard certificate via Service&lt;/h3>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: v1
-kind: Service
-metadata:
-annotations:
-cert.gardener.cloud/secretname: test-service-secret
-&lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
-dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;*.service.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
-dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
-name: test-service
-namespace: default
-spec:
-ports:
-- name: http
-port: 80
-protocol: TCP
-targetPort: 8080
-type: LoadBalancer
-&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/secretname: test-service-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;*.service.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
 &lt;p>Domains must not overlap when requesting a wildcard certificate. For example, requests for &lt;code>*.example.com&lt;/code> must not contain &lt;code>foo.example.com&lt;/code> at the same time.&lt;/p>
 &lt;/blockquote>
 &lt;table>
@@ -830,20 +847,20 @@ type: LoadBalancer
 registration of the shoot-cert-service.&lt;/p>
 &lt;p>The default quota only applies if there is no explicit quota defined for the issuer itself with the field
 &lt;code>requestsPerDayQuota&lt;/code>, e.g.:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">kind: Shoot
-...
-spec:
-extensions:
-- type: shoot-cert-service
-providerConfig:
-apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
-kind: CertConfig
-issuers:
-- email: your-email@example.com
-name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
-server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
-requestsPerDayQuota: 10
-&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Setup</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/installation/setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/installation/setup/</guid><description>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: your-email@example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requestsPerDayQuota: 10
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Setup</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/installation/setup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/installation/setup/</guid><description>
 &lt;h1 id="gardener-certificate-management">Gardener Certificate Management&lt;/h1>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>Gardener comes with an extension that enables shoot owners to request X.509 compliant certificates for shoot domains.&lt;/p>
@@ -861,48 +878,52 @@ requestsPerDayQuota: 10
 &lt;blockquote>
 &lt;p>Please keep the Let&amp;rsquo;s Encrypt &lt;a href="https://letsencrypt.org/docs/rate-limits/">Rate Limits&lt;/a> in mind when using this shared account model. Depending on the amount of shoots and domains it is recommended to use an account with increased rate limits.&lt;/p>
 &lt;/blockquote>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: core.gardener.cloud/v1beta1
-kind: ControllerRegistration
-...
-values:
-certificateConfig:
-defaultIssuer:
-acme:
-email: foo@example.com
-privateKey: |-&lt;span style="color:#a31515">
-&lt;/span>&lt;span style="color:#a31515"> -----BEGIN RSA PRIVATE KEY-----
-&lt;/span>&lt;span style="color:#a31515"> ...
-&lt;/span>&lt;span style="color:#a31515"> -----END RSA PRIVATE KEY-----
-&lt;/span>&lt;span style="color:#a31515"> server: https://acme-v02.api.letsencrypt.org/directory&lt;/span>
-name: default-issuer
-&lt;span style="color:#008000"># restricted: true # restrict default issuer to any sub-domain of shoot.spec.dns.domain&lt;/span>
-&lt;span style="color:#008000"># defaultRequestsPerDayQuota: 50&lt;/span>
-&lt;span style="color:#008000"># precheckNameservers: 8.8.8.8,8.8.4.4&lt;/span>
-&lt;span style="color:#008000"># caCertificates: | # optional custom CA certificates when using private ACME provider&lt;/span>
-&lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
-&lt;span style="color:#008000"># ...&lt;/span>
-&lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
-&lt;span style="color:#008000">#&lt;/span>
-&lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
-&lt;span style="color:#008000"># ...&lt;/span>
-&lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
-shootIssuers:
-enabled: &lt;span style="color:#00f">false&lt;/span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot clusters&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="enablement">Enablement&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerRegistration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificateConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> defaultIssuer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> acme:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> email: foo@example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKey: |-&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----BEGIN RSA PRIVATE KEY-----
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----END RSA PRIVATE KEY-----
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> server: https://acme-v02.api.letsencrypt.org/directory&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: default-issuer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># restricted: true # restrict default issuer to any sub-domain of shoot.spec.dns.domain&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># defaultRequestsPerDayQuota: 50&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># precheckNameservers: 8.8.8.8,8.8.4.4&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># caCertificates: | # optional custom CA certificates when using private ACME provider&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootIssuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot clusters&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="enablement">Enablement&lt;/h4>
 &lt;p>If the &lt;code>Shoot-Cert-Service&lt;/code> should be enabled for every shoot cluster in your Gardener managed environment, you need to globally enable it in the &lt;code>ControllerRegistration&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">apiVersion: core.gardener.cloud/v1beta1
-kind: ControllerRegistration
-...
-resources:
-- globallyEnabled: &lt;span style="color:#00f">true&lt;/span>
-kind: Extension
-type: shoot-cert-service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you&amp;rsquo;re given the option to only enable the service for certain shoots:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">kind: Shoot
-apiVersion: core.gardener.cloud/v1beta1
-...
-spec:
-extensions:
-- type: shoot-cert-service
-...
-&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerRegistration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - globallyEnabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Extension
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you&amp;rsquo;re given the option to only enable the service for certain shoots:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

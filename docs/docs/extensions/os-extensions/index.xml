@@ -6,33 +6,33 @@
 &lt;p>Recently, most of the vendor specific logic has been developed &lt;a href="https://github.com/gardener/gardener">in-tree&lt;/a>. However, the project has grown to a size where it is very hard to extend, maintain, and test. With &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">GEP-1&lt;/a> we have proposed how the architecture can be changed in a way to support external controllers that contain their very own vendor specifics. This way, we can keep Gardener core clean and independent.&lt;/p>
 &lt;p>This controller operates on the &lt;code>OperatingSystemConfig&lt;/code> resource in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group. It supports &lt;a href="https://coreos.com/os/docs/latest/">CoreOS Container Linux&lt;/a> and &lt;a href="https://www.flatcar-linux.org/">Flatcar Container Linux&lt;/a> (&amp;ldquo;a friendly fork of CoreOS Container Linux&amp;rdquo;).&lt;/p>
 &lt;p>The controller manages those objects that are requesting &lt;a href="https://coreos.com/os/docs/latest/">CoreOS Container Linux&lt;/a> configuration (&lt;code>.spec.type=coreos&lt;/code>) or &lt;a href="https://www.flatcar-linux.org/">Flatcar Container Linux&lt;/a> configuration (&lt;code>.spec.type=flatcar&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">---
-apiVersion: extensions.gardener.cloud/v1alpha1
-kind: OperatingSystemConfig
-metadata:
-name: pool-01-original
-namespace: default
-spec:
-type: coreos
-units:
-...
-files:
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-coreos/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> files:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-coreos/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
 &lt;p>After reconciliation the resulting data will be stored in a secret within the same namespace (as the config itself might contain confidential data). The name of the secret will be written into the resource&amp;rsquo;s &lt;code>.status&lt;/code> field:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">...
-status:
-...
-cloudConfig:
-secretRef:
-name: osc-result-pool-01-original
-namespace: default
-command: /usr/bin/coreos-cloudinit -from-file=&amp;lt;path&amp;gt;
-units:
-- docker-monitor.service
-- kubelet-monitor.service
-- kubelet.service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: /usr/bin/coreos-cloudinit -from-file=&amp;lt;path&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - docker-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet.service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
 &lt;p>An example for a &lt;code>ControllerRegistration&lt;/code> resource that can be used to register this controller to Gardener can be found &lt;a href="https://github.com/gardener/gardener-extension-os-coreos/blob/master/example/controller-registration.yaml">here&lt;/a>.&lt;/p>
 &lt;p>Please find more information regarding the extensibility concepts and a detailed proposal &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">here&lt;/a>.&lt;/p>
 &lt;hr>
@@ -55,33 +55,33 @@ units:
 &lt;p>&lt;a href="https://concourse.ci.gardener.cloud/teams/gardener/pipelines/gardener-extension-os-gardenlinux-master/jobs/master-head-update-job">&lt;img src="https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/gardener-extension-os-gardenlinux-master/jobs/master-head-update-job/badge" alt="CI Build status">&lt;/a>
 &lt;a href="https://goreportcard.com/report/github.com/gardener/gardener-extension-os-gardenlinux">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardener-extension-os-gardenlinux" alt="Go Report Card">&lt;/a>&lt;/p>
 &lt;p>This controller operates on the &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/#cloud-config-user-data-for-bootstrapping-machines">&lt;code>OperatingSystemConfig&lt;/code>&lt;/a> resource in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group. It manages those objects that are requesting &lt;a href="https://gardenlinux.io/">Garden Linux OS&lt;/a> configuration (&lt;code>.spec.type=gardenlinux&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">---
-apiVersion: extensions.gardener.cloud/v1alpha1
-kind: OperatingSystemConfig
-metadata:
-name: pool-01-original
-namespace: default
-spec:
-type: gardenlinux
-units:
-...
-files:
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-gardenlinux/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gardenlinux
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> files:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-gardenlinux/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
 &lt;p>After reconciliation the resulting data will be stored in a secret within the same namespace (as the config itself might contain confidential data). The name of the secret will be written into the resource&amp;rsquo;s &lt;code>.status&lt;/code> field:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">...
-status:
-...
-cloudConfig:
-secretRef:
-name: osc-result-pool-01-original
-namespace: default
-command: /usr/bin/env bash &amp;lt;path&amp;gt;
-units:
-- docker-monitor.service
-- kubelet-monitor.service
-- kubelet.service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: /usr/bin/env bash &amp;lt;path&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - docker-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet.service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
 &lt;p>An example for a &lt;code>ControllerRegistration&lt;/code> resource that can be used to register this controller to Gardener can be found &lt;a href="https://github.com/gardener/gardener-extension-os-gardenlinux/blob/master/example/controller-registration.yaml">here&lt;/a>.&lt;/p>
 &lt;p>This controller is based on revision &lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu-alicloud/commit/b5ba8164ed4c52872b1d4bd5ee3eaa4ed58da966">b5ba8164&lt;/a> of &lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu-alicloud">gardener-extension-os-ubuntu-alicloud&lt;/a>. Its implementation is using the &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/pkg/controller/operatingsystemconfig/oscommon/README.md">&lt;code>oscommon&lt;/code>&lt;/a> library for operating system configuration controllers.&lt;/p>
 &lt;p>Please find more information regarding the extensibility concepts and a detailed proposal &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">here&lt;/a>.&lt;/p>
@@ -105,34 +105,34 @@ Static code checks and tests can be executed by running &lt;code>make verify&lt;
 &lt;p>&lt;a href="https://concourse.ci.gardener.cloud/teams/gardener/pipelines/gardener-extension-os-suse-chost-master/jobs/master-head-update-job">&lt;img src="https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/gardener-extension-os-suse-chost-master/jobs/master-head-update-job/badge" alt="CI Build status">&lt;/a>
 &lt;a href="https://goreportcard.com/report/github.com/gardener/gardener-extension-os-suse-chost">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardener-extension-os-suse-chost" alt="Go Report Card">&lt;/a>&lt;/p>
 &lt;p>This controller operates on the &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/#cloud-config-user-data-for-bootstrapping-machines">&lt;code>OperatingSystemConfig&lt;/code>&lt;/a> resource in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group. It manages those objects that are requesting SUSE Container Host configuration, i.e. &lt;code>suse-chost&lt;/code> type:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">---
-apiVersion: extensions.gardener.cloud/v1alpha1
-kind: OperatingSystemConfig
-metadata:
-name: pool-01-original
-namespace: default
-spec:
-type: suse-chost
-units:
-...
-files:
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-suse-chost/blob/master/example/40-operatingsystemconfig-chost.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: suse-chost
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> files:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-suse-chost/blob/master/example/40-operatingsystemconfig-chost.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
 &lt;p>It is also capable of supporting the &lt;a href="https://www.scalemp.com/products/vsmp-memoryone/">vSMP MemoryOne&lt;/a> operating system with the &lt;code>memoryone-chost&lt;/code> type. Please find more information &lt;a href="https://gardener.cloud/docs/extensions/os-extensions/gardener-extension-os-suse-chost/docs/usage-as-end-user/#support-for-vsmp-memoryone">here&lt;/a>.&lt;/p>
 &lt;p>After reconciliation the resulting data will be stored in a secret within the same namespace (as the config itself might contain confidential data). The name of the secret will be written into the resource&amp;rsquo;s &lt;code>.status&lt;/code> field:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">...
-status:
-...
-cloudConfig:
-secretRef:
-name: osc-result-pool-01-original
-namespace: default
-command: /usr/bin/env bash &amp;lt;path&amp;gt;
-units:
-- docker-monitor.service
-- kubelet-monitor.service
-- kubelet.service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: /usr/bin/env bash &amp;lt;path&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - docker-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet.service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
 &lt;p>An example for a &lt;code>ControllerRegistration&lt;/code> resource that can be used to register this controller to Gardener can be found &lt;a href="https://github.com/gardener/gardener-extension-os-suse-chost/blob/master/example/controller-registration.yaml">here&lt;/a>.&lt;/p>
 &lt;p>This controller is implemented using the &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/pkg/controller/operatingsystemconfig/oscommon/README.md">&lt;code>oscommon&lt;/code>&lt;/a> library for operating system configuration controllers.&lt;/p>
 &lt;p>Please find more information regarding the extensibility concepts and a detailed proposal &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">here&lt;/a>.&lt;/p>
@@ -156,33 +156,33 @@ Static code checks and tests can be executed by running &lt;code>make verify&lt;
 &lt;p>&lt;a href="https://concourse.ci.gardener.cloud/teams/gardener/pipelines/gardener-extension-os-ubuntu-master/jobs/master-head-update-job">&lt;img src="https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/gardener-extension-os-ubuntu-master/jobs/master-head-update-job/badge" alt="CI Build status">&lt;/a>
 &lt;a href="https://goreportcard.com/report/github.com/gardener/gardener-extension-os-ubuntu">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardener-extension-os-ubuntu" alt="Go Report Card">&lt;/a>&lt;/p>
 &lt;p>This controller operates on the &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/#cloud-config-user-data-for-bootstrapping-machines">&lt;code>OperatingSystemConfig&lt;/code>&lt;/a> resource in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group. It manages those objects that are requesting &lt;a href="https://www.ubuntu.com/">Ubuntu OS&lt;/a> configuration (&lt;code>.spec.type=ubuntu&lt;/code>). An experimental support for Ubuntu Pro is added (&lt;code>.spec.type=ubuntu-pro&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">---
-apiVersion: extensions.gardener.cloud/v1alpha1
-kind: OperatingSystemConfig
-metadata:
-name: pool-01-original
-namespace: default
-spec:
-type: ubuntu
-units:
-...
-files:
-...
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: ubuntu
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> files:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please find &lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu/blob/master/example/40-operatingsystemconfig.yaml">a concrete example&lt;/a> in the &lt;code>example&lt;/code> folder.&lt;/p>
 &lt;p>After reconciliation the resulting data will be stored in a secret within the same namespace (as the config itself might contain confidential data). The name of the secret will be written into the resource&amp;rsquo;s &lt;code>.status&lt;/code> field:&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">...
-status:
-...
-cloudConfig:
-secretRef:
-name: osc-result-pool-01-original
-namespace: default
-command: /usr/bin/env bash &amp;lt;path&amp;gt;
-units:
-- docker-monitor.service
-- kubelet-monitor.service
-- kubelet.service
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: /usr/bin/env bash &amp;lt;path&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - docker-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kubelet.service
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The secret has one data key &lt;code>cloud_config&lt;/code> that stores the generation.&lt;/p>
 &lt;p>An example for a &lt;code>ControllerRegistration&lt;/code> resource that can be used to register this controller to Gardener can be found &lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu/blob/master/example/controller-registration.yaml">here&lt;/a>.&lt;/p>
 &lt;p>This controller is implemented using the &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/pkg/controller/operatingsystemconfig/oscommon/README.md">&lt;code>oscommon&lt;/code>&lt;/a> library for operating system configuration controllers.&lt;/p>
 &lt;p>Please find more information regarding the extensibility concepts and a detailed proposal &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">here&lt;/a>.&lt;/p>

@@ -19,87 +19,88 @@
 &lt;p>The existing method of deploying etcd and backup-sidecar as a StatefulSet alleviates the pain of ensuring the pods are live and ready after node crashes. However, deploying etcd as a Statefulset introduces a plethora of challenges. The etcd controller should be smart enough to handle etcd statefulsets taking into account limitations imposed by statefulsets. The controller shall update the status regarding how to target the K8s objects it has created. This field in the status can be leveraged by &lt;code>HVPA&lt;/code> to scale etcd resources eventually.&lt;/p>
 &lt;h2 id="crd-specification">CRD specification&lt;/h2>
 &lt;p>The etcd CRD should contain the information required to create the etcd and backup-restore sidecar in a pod/statefulset.&lt;/p>
-&lt;div class="highlight">&lt;pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">---
-apiVersion: druid.gardener.cloud/v1alpha1
-kind: Etcd
-metadata:
-finalizers:
-- druid.gardener.cloud/etcd
-name: test
-namespace: demo
-spec:
-annotations:
-app: etcd-statefulset
-garden.sapcloud.io/role: controlplane
-networking.gardener.cloud/to-dns: allowed
-networking.gardener.cloud/to-private-networks: allowed
-networking.gardener.cloud/to-public-networks: allowed
-role: test
-backup:
-deltaSnapshotMemoryLimit: 1Gi
-deltaSnapshotPeriod: 300s
-fullSnapshotSchedule: 0 &lt;span style="color:#00f">*/24&lt;/span> * * *
-garbageCollectionPeriod: 43200s
-garbageCollectionPolicy: Exponential
-imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-imageVersion: v0.12.0
-port: 8080
-resources:
-limits:
-cpu: 500m
-memory: 2Gi
-requests:
-cpu: 23m
-memory: 128Mi
-snapstoreTempDir: /var/etcd/data/temp
-etcd:
-Quota: 8Gi
-clientPort: 2379
-defragmentationSchedule: 0 &lt;span style="color:#00f">*/24&lt;/span> * * *
-enableTLS: &lt;span style="color:#00f">false&lt;/span>
-imageRepository: eu.gcr.io/gardener-project/gardener/etcd
-imageVersion: v3.4.13-bootstrap
-initialClusterState: new
-initialClusterToken: new
-metrics: basic
-pullPolicy: IfNotPresent
-resources:
-limits:
-cpu: 2500m
-memory: 4Gi
-requests:
-cpu: 500m
-memory: 1000Mi
-serverPort: 2380
-storageCapacity: 80Gi
-storageClass: gardener.cloud-fast
-sharedConfig:
-autoCompactionMode: periodic
-autoCompactionRetention: 30m
-labels:
-app: etcd-statefulset
-garden.sapcloud.io/role: controlplane
-networking.gardener.cloud/to-dns: allowed
-networking.gardener.cloud/to-private-networks: allowed
-networking.gardener.cloud/to-public-networks: allowed
-role: test
-pvcRetentionPolicy: DeleteAll
-replicas: 1
-storageCapacity: 80Gi
-storageClass: gardener.cloud-fast
-store:
-storageContainer: test
-storageProvider: S3
-storePrefix: etcd-test
-storeSecret: etcd-backup
-tlsClientSecret: etcd-client-tls
-tlsServerSecret: etcd-server-tls
-status:
-etcd:
-apiVersion: apps/v1
-kind: StatefulSet
-name: etcd-test
-&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-agenda">Implementation Agenda&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: druid.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> finalizers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - druid.gardener.cloud/etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: demo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: etcd-statefulset
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden.sapcloud.io/role: controlplane
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-dns: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-private-networks: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-public-networks: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backup:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deltaSnapshotMemoryLimit: 1Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deltaSnapshotPeriod: 300s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fullSnapshotSchedule: 0 &lt;span style="color:#00f">*/24&lt;/span> * * *
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollectionPeriod: 43200s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollectionPolicy: Exponential
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imageVersion: v0.12.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 500m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 2Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 23m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 128Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapstoreTempDir: /var/etcd/data/temp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> etcd:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Quota: 8Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clientPort: 2379
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> defragmentationSchedule: 0 &lt;span style="color:#00f">*/24&lt;/span> * * *
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enableTLS: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imageRepository: eu.gcr.io/gardener-project/gardener/etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imageVersion: v3.4.13-bootstrap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initialClusterState: new
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initialClusterToken: new
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metrics: basic
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pullPolicy: IfNotPresent
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 2500m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 4Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 500m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 1000Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serverPort: 2380
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageCapacity: 80Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClass: gardener.cloud-fast
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sharedConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoCompactionMode: periodic
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoCompactionRetention: 30m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: etcd-statefulset
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden.sapcloud.io/role: controlplane
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-dns: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-private-networks: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/to-public-networks: allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pvcRetentionPolicy: DeleteAll
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageCapacity: 80Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClass: gardener.cloud-fast
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> store:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageContainer: test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageProvider: S3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storePrefix: etcd-test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storeSecret: etcd-backup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsClientSecret: etcd-client-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsServerSecret: etcd-server-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> etcd:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: StatefulSet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: etcd-test
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-agenda">Implementation Agenda&lt;/h2>
 &lt;p>As first step implement defragmentation during maintenance windows. Subsequently, we will add zero-downtime upgrades and defragmentation.&lt;/p>
 &lt;h2 id="workflow">Workflow&lt;/h2>
 &lt;h3 id="deployment-workflow">Deployment workflow&lt;/h3>
@@ -109,7 +110,7 @@ name: etcd-test
 &lt;h1 id="machine-controller-manager">machine-controller-manager&lt;/h1>
 &lt;p>&lt;a href="https://concourse.ci.gardener.cloud/teams/gardener/pipelines/machine-controller-manager-master/jobs/master-head-update-job">&lt;img src="https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/machine-controller-manager-master/jobs/master-head-update-job/badge" alt="CI Build status">&lt;/a>
 &lt;a href="https://goreportcard.com/report/github.com/gardener/machine-controller-manager">&lt;img src="https://goreportcard.com/badge/github.com/gardener/machine-controller-manager" alt="Go Report Card">&lt;/a>&lt;/p>
-&lt;p>⚠️ We are in the progress of migrating and deprecating all the in-tree providers to OOT. Please avoid making any new feature enhancements to the intree providers. Kindly make it on the &lt;a href="https://github.com/gardener/?q=machine-controller-manager-provider&amp;amp;type=&amp;amp;language=">OOT providers available here&lt;/a>. More details on adding &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/docs/development/cp_support_new.md">new OOT providers can be found here&lt;/a>.&lt;/p>
+&lt;p>⚠️ We are in the progress of migrating and deprecating all the in-tree providers to OOT. Please avoid making any new feature enhancements to the intree providers. Kindly make it on the &lt;a href="https://github.com/gardener/?q=machine-controller-manager-provider&amp;amp;type=&amp;amp;language=">OOT providers available here&lt;/a>. More details on adding &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/">new OOT providers can be found here&lt;/a>.&lt;/p>
 &lt;h1 id="overview">Overview&lt;/h1>
 &lt;p>Machine Controller Manager aka MCM is a group of cooperative controllers that manage the lifecycle of the worker machines. It is inspired by the design of Kube Controller Manager in which various sub controllers manage their respective Kubernetes Clients. MCM gives you the following benefits:&lt;/p>
 &lt;ul>
@@ -134,7 +135,7 @@ name: etcd-test
 &lt;/ul>
 &lt;p>It can easily be extended to support other cloud providers as well.&lt;/p>
 &lt;p>Example of managing machine:&lt;/p>
-&lt;pre>&lt;code>kubectl create/get/delete machine vm1
+&lt;pre tabindex="0">&lt;code>kubectl create/get/delete machine vm1
 &lt;/code>&lt;/pre>&lt;h2 id="key-terminologies">Key terminologies&lt;/h2>
 &lt;p>Nodes/Machines/VMs are different terminologies used to represent similar things. We use these terms in the following way&lt;/p>
 &lt;ol>
@@ -188,7 +189,7 @@ name: etcd-test
 &lt;/tr>
 &lt;/tbody>
 &lt;/table>
-&lt;p>See &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/docs/docs/apis.md">here&lt;/a> for CRD API Documentation&lt;/p>
+&lt;p>See &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/">here&lt;/a> for CRD API Documentation&lt;/p>
 &lt;h2 id="components-of-machine-controller-manager">Components of Machine Controller Manager&lt;/h2>
 &lt;table>
 &lt;thead>
@@ -226,7 +227,7 @@ unfreezes the MCM automatically once situation is resolved to normal. A &lt;code
 &lt;/table>
 &lt;p>Along with the above Custom Controllers and Resources, MCM requires the &lt;code>MachineClass&lt;/code> to use K8s &lt;code>Secret&lt;/code> that stores cloudconfig (initialization scripts used to create VMs) and cloud specific credentials. All these controllers work in an co-operative manner. They form a parent-child relationship with &lt;code>MachineDeployment&lt;/code> Controller being the grandparent, &lt;code>MachineSet&lt;/code> Controller being the parent, and &lt;code>Machine&lt;/code> Controller being the child.&lt;/p>
 &lt;h2 id="development">Development&lt;/h2>
-&lt;p>To start using or developing the Machine Controller Manager, see the documentation in the &lt;code>/docs&lt;/code> repository, please &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/docs/README.md">find the index here&lt;/a>.&lt;/p>
+&lt;p>To start using or developing the Machine Controller Manager, see the documentation in the &lt;code>/docs&lt;/code> repository, please &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/">find the index here&lt;/a>.&lt;/p>
 &lt;h2 id="faq">FAQ&lt;/h2>
 &lt;p>An FAQ is available &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/faq/">here&lt;/a>&lt;/p>
 &lt;h2 id="cluster-api-implementation">Cluster-api Implementation&lt;/h2>

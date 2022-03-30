@@ -1866,7 +1866,7 @@ Refer &lt;a href="https://github.com/github/hub/issues/2655#issuecomment-7358360
 Accordingly, expect adaptations to this document and implementation details.&lt;/p>
 &lt;/blockquote>
 &lt;p>The gardenlet needs to create quite some amount of credentials (certificates, private keys, passwords, etc.) for seed and shoot clusters in order to ensure secure deployments.
-Such credentials typically should be rotated regularly, and they potentially need to be persisted such that they don&amp;rsquo;t get lost in case of a control plane migration or a lost seed cluster.&lt;/p>
+Such credentials typically should be renewed automatically when their validity expires, rotated regularly, and they potentially need to be persisted such that they don&amp;rsquo;t get lost in case of a control plane migration or a lost seed cluster.&lt;/p>
 &lt;h2 id="secretsmanager-introduction">SecretsManager Introduction&lt;/h2>
 &lt;p>These requirements can be covered by using the &lt;code>SecretsManager&lt;/code> package maintained in &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/pkg/utils/secrets/manager">&lt;code>pkg/utils/secrets/manager&lt;/code>&lt;/a>.
 It is built on top of the &lt;code>ConfigInterface&lt;/code> and &lt;code>DataInterface&lt;/code> interfaces part of &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/pkg/utils/secrets">&lt;code>pkg/utils/secrets&lt;/code>&lt;/a> and provides the following functions:&lt;/p>
@@ -1881,6 +1881,7 @@ Available &lt;code>GenerateOption&lt;/code>s:&lt;/p>
 &lt;li>&lt;code>Persist()&lt;/code>: This marks the secret such that it gets persisted in the &lt;code>ShootState&lt;/code> resource in the garden cluster. Consequently, it should only be used for secrets related to a shoot cluster.&lt;/li>
 &lt;li>&lt;code>Rotate(rotationStrategy)&lt;/code>: This specifies the strategy in case this secret is to be rotated or regenerated (either &lt;code>InPlace&lt;/code> which immediately forgets about the old secret, or &lt;code>KeepOld&lt;/code> which keeps the old secret in the system).&lt;/li>
 &lt;li>&lt;code>IgnoreOldSecrets()&lt;/code>: This specifies whether old secrets should be considered and loaded (which is done by default). It should be used when old secrets are no longer important and can be &amp;ldquo;forgotten&amp;rdquo; (e.g. in &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">&amp;ldquo;phase 2&amp;rdquo; (&lt;code>t2&lt;/code>) of the CA certificate rotation&lt;/a>).&lt;/li>
+&lt;li>&lt;code>Validity(time.Duration)&lt;/code>: This specifies how long the secret should be valid. For certificate secret configurations, the manager will automatically deduce this information from the generated certificate.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>
@@ -1919,10 +1920,11 @@ Consequently, only call &lt;code>Cleanup&lt;/code> after you have executed &lt;c
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> err != &lt;span style="color:#00f">nil&lt;/span> {
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> err
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, the caller does not need to care about the rotation or the persistence of this secret - all of these concerns are handled by the secrets manager.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, the caller does not need to care about the renewal, rotation or the persistence of this secret - all of these concerns are handled by the secrets manager.
+Automatic renewal of secrets happens when their validity approaches 80% or less than &lt;code>10d&lt;/code> are left until expiration.&lt;/p>
 &lt;p>In case a CA certificate is needed by some component then it can be retrieved as follows:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>caSecret, found := k.secretsManager.Get(&lt;span style="color:#a31515">&amp;#34;my-ca&amp;#34;&lt;/span>)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> err != &lt;span style="color:#00f">nil&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> !found {
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> fmt.Errorf(&lt;span style="color:#a31515">&amp;#34;secret my-ca not found&amp;#34;&lt;/span>)
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, this returns the bundle secret for the CA &lt;code>my-ca&lt;/code> which might potentially contain both the current and the old CA (in case of rotation/regeneration).&lt;/p>

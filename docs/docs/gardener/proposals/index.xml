@@ -2239,383 +2239,7 @@ state: |
 &lt;li>The gardenlet in the &lt;strong>Destination Seed&lt;/strong> fetches the state of extension resources from the &lt;code>ShootState&lt;/code> resource in the garden cluster.&lt;/li>
 &lt;li>Normal reconciliation flow is resumed in the &lt;strong>Destination Seed&lt;/strong>. Extension resources are annotated with &lt;code>gardener.cloud/operation=restore&lt;/code> to instruct the extension controllers to reconstruct their state.&lt;/li>
 &lt;li>The Shoot&amp;rsquo;s namespace in &lt;strong>Source Seed&lt;/strong> is deleted.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: 08 Shoot Apiserver Via Sni</title><link>https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/</guid><description>
-&lt;h1 id="sni-passthrough-proxy-for-kube-apiservers">SNI Passthrough proxy for kube-apiservers&lt;/h1>
-&lt;p>This GEP tackles the problem that today a single &lt;code>LoadBalancer&lt;/code> is needed for every single Shoot cluster&amp;rsquo;s control plane.&lt;/p>
-&lt;h2 id="background">Background&lt;/h2>
-&lt;p>When the control plane of a Shoot cluster is provisioned, a dedicated LoadBalancer is created for it. It keeps the entire flow quite easy - the apiserver Pods are running and they are accessible via that LoadBalancer. It&amp;rsquo;s hostnames / IP addresses are used for DNS records like &lt;code>api.&amp;lt;external-domain&amp;gt;&lt;/code> and &lt;code>api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;&lt;/code>. While this solution is simple it comes with several issues.&lt;/p>
-&lt;h2 id="motivation">Motivation&lt;/h2>
-&lt;p>There are several problems with the current setup.&lt;/p>
-&lt;ul>
-&lt;li>IaaS provider costs. For example &lt;code>ClassicLoadBalancer&lt;/code> on AWS costs at minimum 17 USD / month.&lt;/li>
-&lt;li>Quotas can limit the amount of LoadBalancers you can get per account / project, limiting the number of clusters you can host under a single account.&lt;/li>
-&lt;li>Lack of support for better loadbalancing &lt;a href="https://www.envoyproxy.io/docs/envoy/v1.10.0/intro/arch_overview/load_balancing/load_balancers#supported-load-balancers">algorithms than round-robin&lt;/a>.&lt;/li>
-&lt;li>Slow cluster provisioning time - depending on the provider a LoadBalancer provisioning could take quite a while.&lt;/li>
-&lt;li>Lower downtime when workload is shuffled in the clusters as the LoadBalancer is Kubernetes-aware.&lt;/li>
-&lt;/ul>
-&lt;h2 id="goals">Goals&lt;/h2>
-&lt;ul>
-&lt;li>Only one LoadBalancer is used for all Shoot cluster API servers running in a Seed cluster.&lt;/li>
-&lt;li>Out-of-cluster (end-user / robot) communication to the API server is still possible.&lt;/li>
-&lt;li>In-cluster communication via the kubernetes master service (IPv4/v6 ClusterIP and the &lt;code>kubernetes.default.svc.cluster.local&lt;/code>) is possible.&lt;/li>
-&lt;li>Client TLS authentication works without intermediate TLS termination (TLS is terminated by &lt;code>kube-apiserver&lt;/code>).&lt;/li>
-&lt;li>Solution should be cloud-agnostic.&lt;/li>
-&lt;/ul>
-&lt;h2 id="proposal">Proposal&lt;/h2>
-&lt;h3 id="seed-cluster">Seed cluster&lt;/h3>
-&lt;p>To solve the problem of having multiple &lt;code>kube-apiservers&lt;/code> behind a single LoadBalancer, an intermediate proxy must be placed between the Cloud-Provider&amp;rsquo;s LoadBalancer and &lt;code>kube-apiservers&lt;/code>. This proxy is going to choose the Shoot API Server with the help of Server Name Indication. From &lt;a href="https://en.wikipedia.org/wiki/Server_Name_Indication">wikipedia&lt;/a>:&lt;/p>
-&lt;blockquote>
-&lt;p>Server Name Indication (SNI) is an extension to the Transport Layer Security (TLS) computer networking protocol by which a client indicates which hostname it is attempting to connect to at the start of the handshaking process. This allows a server to present multiple certificates on the same IP address and TCP port number and hence allows multiple secure (HTTPS) websites (or any other service over TLS) to be served by the same IP address without requiring all those sites to use the same certificate. It is the conceptual equivalent to HTTP/1.1 name-based virtual hosting, but for HTTPS.&lt;/p>
-&lt;/blockquote>
-&lt;p>A rough diagram of the flow of data:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+-------------------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Network LB | (accessible from clients)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-------------+-------+---------+ +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +-------------+-------------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster A |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------v----+--+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-+--------v----------+ | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Proxy | +-------------+----------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster B |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +----+ +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------+----+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-------------------+--------------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Cluster C |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +------------------+
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Sequentially:&lt;/p>
-&lt;ol>
-&lt;li>client requests &lt;code>Shoot Cluster A&lt;/code> and sets the &lt;code>Server Name&lt;/code> in the TLS handshake to &lt;code>api.shoot-a.foo.bar&lt;/code>.&lt;/li>
-&lt;li>this packet goes through the Network LB and it&amp;rsquo;s forwarded to the Proxy server. (this loadbalancer should be a simple Layer-4 TCP proxy)&lt;/li>
-&lt;li>the proxy server reads the packet and see that client requests &lt;code>api.shoot-a.foo.bar&lt;/code>.&lt;/li>
-&lt;li>based on its configuration, it maps &lt;code>api.shoot-a.foo.bar&lt;/code> to &lt;code>Shoot API Server Cluster A&lt;/code>.&lt;/li>
-&lt;li>it acts as TCP proxy and simply send the data &lt;code>Shoot API Server Cluster A&lt;/code>.&lt;/li>
-&lt;/ol>
-&lt;p>There are multiple OSS proxies for this case:&lt;/p>
-&lt;ul>
-&lt;li>nginx&lt;/li>
-&lt;li>HAProxy&lt;/li>
-&lt;li>Envoy&lt;/li>
-&lt;li>traefik&lt;/li>
-&lt;li>&lt;a href="https://github.com/linkerd/linkerd2-proxy">linkerd2-proxy&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;p>To ease integration it should:&lt;/p>
-&lt;ul>
-&lt;li>be configurable via Kubernetes resources&lt;/li>
-&lt;li>not require restarting when configuration changes&lt;/li>
-&lt;li>be fast and with little overhead&lt;/li>
-&lt;/ul>
-&lt;p>All things considered, &lt;a href="http://envoyproxy.io/">Envoy proxy&lt;/a> is the most fitting solution as it provides all the features Gardener would like (no process reload being the most important one + battle tested in production by various companies).&lt;/p>
-&lt;p>While building a custom control plane for Envoy is &lt;a href="https://github.com/envoyproxy/go-control-plane">quite simple&lt;/a>, an already established solution might be the better path forward. &lt;a href="https://istio.io/docs/concepts/traffic-management/#pilot-and-envoy">Istio&amp;rsquo;s Pilot&lt;/a> is one of the most feature-complete Envoy control plane solutions as it offers a way to configure edge ingress traffic for Envoy via &lt;a href="https://istio.io/docs/reference/config/networking/v1alpha3/gateway/">Gateway&lt;/a> and &lt;a href="https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/">VirtualService&lt;/a>.&lt;/p>
-&lt;p>The resources which needs to be created per Shoot clusters are the following:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: kube-apiserver-gateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;shoot-namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tls
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TLS
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mode: PASSTHROUGH
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>and correct &lt;code>VirtualService&lt;/code> pointing to the correct API server:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VirtualService
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: kube-apiserver
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;shoot-namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gateways:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-apiserver-gateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - match:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sniHosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - destination:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> host: kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 443
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The resources above configures Envoy to forward the raw TLS data (without termination) to the Shoot &lt;code>kube-apiserver&lt;/code>.&lt;/p>
-&lt;p>Updated diagram:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+-------------------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Network LB | (accessible from clients)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-------------+-------+---------+ +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +-------------+-------------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster A |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------v----+--+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-+--------v----------+ | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Envoy Proxy | +-------------+----------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | (ingress Gateway) | | | Cluster B |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +----+ +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-----+----------+----+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +-------------------+--------------&amp;gt;+ |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | get | Cluster C |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | configuration | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> v Configure
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +--+--------------+ +---------------------+ via Istio
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Custom Resources
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Pilot +--------&amp;gt;+ Seed API Server +&amp;lt;------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-----------------+ +---------------------+
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this case the &lt;code>internal&lt;/code> and &lt;code>external&lt;/code> &lt;code>DNSEntries&lt;/code> should be changed to the Network LoadBalancer&amp;rsquo;s IP.&lt;/p>
-&lt;h3 id="in-cluster-communication-to-the-apiserver">In-cluster communication to the apiserver&lt;/h3>
-&lt;p>In Kubernetes the API server is discoverable via the master service (&lt;code>kubernetes&lt;/code> in &lt;code>default&lt;/code> namespace). Today, this service can only be of type &lt;code>ClusterIP&lt;/code> - making in-cluster communication to the API server impossible due to:&lt;/p>
-&lt;ul>
-&lt;li>the client doesn&amp;rsquo;t set the &lt;code>Server Name&lt;/code> in the TLS handshake, if it attempts to talk to an IP address. In this case, the TLS handshake reaches the Envoy IngressGateway proxy, but it&amp;rsquo;s rejected by it.&lt;/li>
-&lt;li>Kubernetes services can be of type &lt;code>ExternalName&lt;/code>, but the master service is not supported by &lt;a href="https://github.com/gardener/gardener/issues/1135#issuecomment-505317932">kubelet&lt;/a>.
-&lt;ul>
-&lt;li>even if this is fixed in future Kubernetes versions, this problem still exists for older versions where this functionality is not available.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;p>Another issue occurs when the client tries to talk to the apiserver via the in-cluster DNS. For all Shoot API servers &lt;code>kubernetes.default.svc.cluster.local&lt;/code> is the same and when a client tries to connect to that API server using that server name. This makes distinction between different in-cluster Shoot clients impossible by the Envoy IngressGateway.&lt;/p>
-&lt;p>To mitigate this problem an additional proxy must be deployed on every single Node. It does not terminate TLS and sends the traffic to the correct Shoot API Server. This is achieved by:&lt;/p>
-&lt;ul>
-&lt;li>the apiserver master service reconciler is started and pointing to the &lt;code>kube-apiserver&lt;/code>&amp;rsquo;s Cluster IP in the Seed cluster (e.g. &lt;code>--advertise-address=10.1.2.3&lt;/code>).&lt;/li>
-&lt;li>the proxy runs in the host network of the &lt;code>Node&lt;/code>.&lt;/li>
-&lt;li>the proxy has a sidecar container which:
-&lt;ul>
-&lt;li>creates a dummy network interface and assigns the &lt;code>10.1.2.3&lt;/code> to it.&lt;/li>
-&lt;li>removes connection tracking (conntrack) if iptables/nftables is enabled as the IP address is local to the &lt;code>Node&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>the proxy listens on the &lt;code>10.1.2.3&lt;/code> and using the &lt;a href="http://www.haproxy.org/download/2.0/doc/proxy-protocol.txt">PROXY protocol&lt;/a> it sends the data stream to the Envoy ingress gateway (EIGW).&lt;/li>
-&lt;li>EIGW listens for PROXY protocol on a dedicated &lt;code>8443&lt;/code> port. EIGW reads the destination IP + port from the PROXY protocol and forwards traffic to the correct upstream apiserver.&lt;/li>
-&lt;/ul>
-&lt;p>The sidecar is a standalone component. It&amp;rsquo;s possible to transparently change the proxy implementation without any modifications to the sidecar. The simplified flow looks like:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+------------------+ +----------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot API Server | TCP | Envoy IGW |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| +&amp;lt;-------------------+ PROXY listener |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Cluster A | | :8443 |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+------------------+ +-+--------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ^
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-----------------------------------------------------------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Single Node in
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | the Shoot cluster
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | PROXY Protocol
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +---------------------+ +----------+----------+
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Pod talking to | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | the kubernetes | | Proxy |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | service +------&amp;gt;+ No TLS termination |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +---------------------+ +---------------------+
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Multiple OSS solutions can be used:&lt;/p>
-&lt;ul>
-&lt;li>haproxy&lt;/li>
-&lt;li>nginx&lt;/li>
-&lt;/ul>
-&lt;p>To add a PROXY lister with Istio several resources must be created - a dedicated &lt;code>Gateway&lt;/code>, dummy &lt;code>VirtualService&lt;/code> and &lt;code>EnvoyFilter&lt;/code> which adds listener filter (&lt;code>envoy.listener.proxy_protocol&lt;/code>) on &lt;code>8443&lt;/code> port:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: blackhole
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tcp
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VirtualService
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: blackhole
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - blackhole.local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gateways:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - blackhole
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tcp:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - match:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - destination:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> host: localhost
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 9999 &lt;span style="color:#008000"># any dummy port will work&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EnvoyFilter
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: proxy-protocol
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workloadSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configPatches:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - applyTo: LISTENER
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context: ANY
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portNumber: 8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: 0.0.0.0_8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> patch:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operation: MERGE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener_filters:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: envoy.filters.listener.proxy_protocol
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For each individual &lt;code>Shoot&lt;/code> cluster, a dedicated &lt;a href="https://www.envoyproxy.io/docs/envoy/v1.13.0/api-v2/api/v2/listener/listener_components.proto#listener-filterchainmatch">FilterChainMatch&lt;/a> is added. It ensures that only Shoot API servers can receive traffic from this listener:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EnvoyFilter
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;shoot-namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workloadSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configPatches:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - applyTo: FILTER_CHAIN
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context: ANY
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portNumber: 8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: 0.0.0.0_8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> patch:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operation: ADD
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filters:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: envoy.filters.network.tcp_proxy
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> typed_config:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;@type&amp;#34;: type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stat_prefix: outbound|443||kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: outbound|443||kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filter_chain_match:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> destination_port: 443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prefix_ranges:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - address_prefix: 10.1.2.3 &lt;span style="color:#008000"># kube-apiserver&amp;#39;s cluster-ip&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prefix_len: 32
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>Note: this additional &lt;code>EnvoyFilter&lt;/code> can be removed when Istio supports full &lt;a href="https://istio.io/docs/reference/config/networking/virtual-service/#L4MatchAttributes">L4 matching&lt;/a>.&lt;/p>
-&lt;/blockquote>
-&lt;p>A nginx proxy client in the Shoot cluster on every node could have the following configuration:&lt;/p>
-&lt;pre tabindex="0">&lt;code class="language-conf" data-lang="conf">error_log /dev/stdout;
-stream {
-server {
-listen 10.1.2.3:443;
-proxy_pass api.&amp;lt;external-domain&amp;gt;:8443;
-proxy_protocol on;
-proxy_protocol_timeout 5s;
-resolver_timeout 5s;
-proxy_connect_timeout 5s;
-}
-}
-events { }
-&lt;/code>&lt;/pre>&lt;h3 id="in-cluster-communication-to-the-apiserver-when-exernalname-is-supported">In-cluster communication to the apiserver when ExernalName is supported&lt;/h3>
-&lt;p>Even if in future versions of Kubernetes, the master service of type &lt;code>ExternalName&lt;/code> is supported, we still have the problem that in-cluster workload can talk to the server via DNS. For this to work we still need the above mentioned proxy (this time listening on another IP address &lt;code>10.0.0.2&lt;/code>). An additional change to CoreDNS would be needed:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>default.svc.cluster.local.:8053 {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> file kubernetes.default.svc.cluster.local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>.:8053 {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> errors
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> health
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes cluster.local in-addr.arpa ip6.arpa {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods insecure
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> upstream
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fallthrough in-addr.arpa ip6.arpa
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus :9153
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> forward . /etc/resolv.conf
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cache 30
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loop
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reload
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadbalance
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The content of the &lt;code>kubernetes.default.svc.cluster.local&lt;/code> is going to be:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>$ORIGIN default.svc.cluster.local.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>@ 30 IN SOA local. local. (
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2017042745 ; serial
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; refresh (2 hours)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; retry (1 hour)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; expire (2 weeks)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 30 ; minimum (1 hour)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 30 IN NS local.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubernetes IN A 10.0.0.2
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>So when a client requests &lt;code>kubernetes.default.svc.cluster.local&lt;/code>, it&amp;rsquo;ll be send to the proxy listening on that IP address.&lt;/p>
-&lt;h2 id="future-work">Future work&lt;/h2>
-&lt;p>While out of scope of this GEP, several things can be improved:&lt;/p>
-&lt;ul>
-&lt;li>Make the sidecar work with eBPF and environments where iptables/nftables are not enabled.&lt;/li>
-&lt;/ul>
-&lt;h2 id="references">References&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/issues/1135">https://github.com/gardener/gardener/issues/1135&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: 09 Test Framework</title><link>https://gardener.cloud/docs/gardener/proposals/09-test-framework/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/09-test-framework/</guid><description>
+&lt;/ol></description></item><item><title>Docs: 09 Test Framework</title><link>https://gardener.cloud/docs/gardener/proposals/09-test-framework/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/09-test-framework/</guid><description>
 &lt;h1 id="gardener-integration-test-framework">Gardener integration test framework&lt;/h1>
 &lt;h2 id="motivation">Motivation&lt;/h2>
 &lt;p>As we want to improve our code coverage in the next months we will need a simple and easy to use test framework.
@@ -4220,7 +3844,383 @@ remote 192.168.47.34 1194 udp
 &lt;li>
 &lt;p>There is an option in OpenVPN to specify a tcp proxy as part of the endpoint configuration.&lt;/p>
 &lt;/li>
-&lt;/ol></description></item><item><title>Docs: Shoot CA Rotation</title><link>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Shoot Apiserver Via SNI</title><link>https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/</guid><description>
+&lt;h1 id="sni-passthrough-proxy-for-kube-apiservers">SNI Passthrough proxy for kube-apiservers&lt;/h1>
+&lt;p>This GEP tackles the problem that today a single &lt;code>LoadBalancer&lt;/code> is needed for every single Shoot cluster&amp;rsquo;s control plane.&lt;/p>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>When the control plane of a Shoot cluster is provisioned, a dedicated LoadBalancer is created for it. It keeps the entire flow quite easy - the apiserver Pods are running and they are accessible via that LoadBalancer. It&amp;rsquo;s hostnames / IP addresses are used for DNS records like &lt;code>api.&amp;lt;external-domain&amp;gt;&lt;/code> and &lt;code>api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;&lt;/code>. While this solution is simple it comes with several issues.&lt;/p>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>There are several problems with the current setup.&lt;/p>
+&lt;ul>
+&lt;li>IaaS provider costs. For example &lt;code>ClassicLoadBalancer&lt;/code> on AWS costs at minimum 17 USD / month.&lt;/li>
+&lt;li>Quotas can limit the amount of LoadBalancers you can get per account / project, limiting the number of clusters you can host under a single account.&lt;/li>
+&lt;li>Lack of support for better loadbalancing &lt;a href="https://www.envoyproxy.io/docs/envoy/v1.10.0/intro/arch_overview/load_balancing/load_balancers#supported-load-balancers">algorithms than round-robin&lt;/a>.&lt;/li>
+&lt;li>Slow cluster provisioning time - depending on the provider a LoadBalancer provisioning could take quite a while.&lt;/li>
+&lt;li>Lower downtime when workload is shuffled in the clusters as the LoadBalancer is Kubernetes-aware.&lt;/li>
+&lt;/ul>
+&lt;h2 id="goals">Goals&lt;/h2>
+&lt;ul>
+&lt;li>Only one LoadBalancer is used for all Shoot cluster API servers running in a Seed cluster.&lt;/li>
+&lt;li>Out-of-cluster (end-user / robot) communication to the API server is still possible.&lt;/li>
+&lt;li>In-cluster communication via the kubernetes master service (IPv4/v6 ClusterIP and the &lt;code>kubernetes.default.svc.cluster.local&lt;/code>) is possible.&lt;/li>
+&lt;li>Client TLS authentication works without intermediate TLS termination (TLS is terminated by &lt;code>kube-apiserver&lt;/code>).&lt;/li>
+&lt;li>Solution should be cloud-agnostic.&lt;/li>
+&lt;/ul>
+&lt;h2 id="proposal">Proposal&lt;/h2>
+&lt;h3 id="seed-cluster">Seed cluster&lt;/h3>
+&lt;p>To solve the problem of having multiple &lt;code>kube-apiservers&lt;/code> behind a single LoadBalancer, an intermediate proxy must be placed between the Cloud-Provider&amp;rsquo;s LoadBalancer and &lt;code>kube-apiservers&lt;/code>. This proxy is going to choose the Shoot API Server with the help of Server Name Indication. From &lt;a href="https://en.wikipedia.org/wiki/Server_Name_Indication">wikipedia&lt;/a>:&lt;/p>
+&lt;blockquote>
+&lt;p>Server Name Indication (SNI) is an extension to the Transport Layer Security (TLS) computer networking protocol by which a client indicates which hostname it is attempting to connect to at the start of the handshaking process. This allows a server to present multiple certificates on the same IP address and TCP port number and hence allows multiple secure (HTTPS) websites (or any other service over TLS) to be served by the same IP address without requiring all those sites to use the same certificate. It is the conceptual equivalent to HTTP/1.1 name-based virtual hosting, but for HTTPS.&lt;/p>
+&lt;/blockquote>
+&lt;p>A rough diagram of the flow of data:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+-------------------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Network LB | (accessible from clients)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-------------+-------+---------+ +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +-------------+-------------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster A |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------v----+--+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-+--------v----------+ | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Proxy | +-------------+----------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster B |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +----+ +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------+----+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-------------------+--------------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Cluster C |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +------------------+
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Sequentially:&lt;/p>
+&lt;ol>
+&lt;li>client requests &lt;code>Shoot Cluster A&lt;/code> and sets the &lt;code>Server Name&lt;/code> in the TLS handshake to &lt;code>api.shoot-a.foo.bar&lt;/code>.&lt;/li>
+&lt;li>this packet goes through the Network LB and it&amp;rsquo;s forwarded to the Proxy server. (this loadbalancer should be a simple Layer-4 TCP proxy)&lt;/li>
+&lt;li>the proxy server reads the packet and see that client requests &lt;code>api.shoot-a.foo.bar&lt;/code>.&lt;/li>
+&lt;li>based on its configuration, it maps &lt;code>api.shoot-a.foo.bar&lt;/code> to &lt;code>Shoot API Server Cluster A&lt;/code>.&lt;/li>
+&lt;li>it acts as TCP proxy and simply send the data &lt;code>Shoot API Server Cluster A&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;p>There are multiple OSS proxies for this case:&lt;/p>
+&lt;ul>
+&lt;li>nginx&lt;/li>
+&lt;li>HAProxy&lt;/li>
+&lt;li>Envoy&lt;/li>
+&lt;li>traefik&lt;/li>
+&lt;li>&lt;a href="https://github.com/linkerd/linkerd2-proxy">linkerd2-proxy&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>To ease integration it should:&lt;/p>
+&lt;ul>
+&lt;li>be configurable via Kubernetes resources&lt;/li>
+&lt;li>not require restarting when configuration changes&lt;/li>
+&lt;li>be fast and with little overhead&lt;/li>
+&lt;/ul>
+&lt;p>All things considered, &lt;a href="http://envoyproxy.io/">Envoy proxy&lt;/a> is the most fitting solution as it provides all the features Gardener would like (no process reload being the most important one + battle tested in production by various companies).&lt;/p>
+&lt;p>While building a custom control plane for Envoy is &lt;a href="https://github.com/envoyproxy/go-control-plane">quite simple&lt;/a>, an already established solution might be the better path forward. &lt;a href="https://istio.io/docs/concepts/traffic-management/#pilot-and-envoy">Istio&amp;rsquo;s Pilot&lt;/a> is one of the most feature-complete Envoy control plane solutions as it offers a way to configure edge ingress traffic for Envoy via &lt;a href="https://istio.io/docs/reference/config/networking/v1alpha3/gateway/">Gateway&lt;/a> and &lt;a href="https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/">VirtualService&lt;/a>.&lt;/p>
+&lt;p>The resources which needs to be created per Shoot clusters are the following:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: kube-apiserver-gateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;shoot-namespace&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TLS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mode: PASSTHROUGH
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>and correct &lt;code>VirtualService&lt;/code> pointing to the correct API server:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VirtualService
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: kube-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;shoot-namespace&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gateways:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-apiserver-gateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sniHosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;external-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - destination:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> host: kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 443
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The resources above configures Envoy to forward the raw TLS data (without termination) to the Shoot &lt;code>kube-apiserver&lt;/code>.&lt;/p>
+&lt;p>Updated diagram:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+-------------------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Network LB | (accessible from clients)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-------------+-------+---------+ +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +-------------+-------------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Cluster A |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +----------------v----+--+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-+--------v----------+ | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Envoy Proxy | +-------------+----------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | (ingress Gateway) | | | Cluster B |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +----+ +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-----+----------+----+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | proxy + lb | Shoot API Server |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +-------------------+--------------&amp;gt;+ |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | get | Cluster C |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | configuration | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | +------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> v Configure
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +--+--------------+ +---------------------+ via Istio
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | | Custom Resources
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Pilot +--------&amp;gt;+ Seed API Server +&amp;lt;------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +-----------------+ +---------------------+
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this case the &lt;code>internal&lt;/code> and &lt;code>external&lt;/code> &lt;code>DNSEntries&lt;/code> should be changed to the Network LoadBalancer&amp;rsquo;s IP.&lt;/p>
+&lt;h3 id="in-cluster-communication-to-the-apiserver">In-cluster communication to the apiserver&lt;/h3>
+&lt;p>In Kubernetes the API server is discoverable via the master service (&lt;code>kubernetes&lt;/code> in &lt;code>default&lt;/code> namespace). Today, this service can only be of type &lt;code>ClusterIP&lt;/code> - making in-cluster communication to the API server impossible due to:&lt;/p>
+&lt;ul>
+&lt;li>the client doesn&amp;rsquo;t set the &lt;code>Server Name&lt;/code> in the TLS handshake, if it attempts to talk to an IP address. In this case, the TLS handshake reaches the Envoy IngressGateway proxy, but it&amp;rsquo;s rejected by it.&lt;/li>
+&lt;li>Kubernetes services can be of type &lt;code>ExternalName&lt;/code>, but the master service is not supported by &lt;a href="https://github.com/gardener/gardener/issues/1135#issuecomment-505317932">kubelet&lt;/a>.
+&lt;ul>
+&lt;li>even if this is fixed in future Kubernetes versions, this problem still exists for older versions where this functionality is not available.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>Another issue occurs when the client tries to talk to the apiserver via the in-cluster DNS. For all Shoot API servers &lt;code>kubernetes.default.svc.cluster.local&lt;/code> is the same and when a client tries to connect to that API server using that server name. This makes distinction between different in-cluster Shoot clients impossible by the Envoy IngressGateway.&lt;/p>
+&lt;p>To mitigate this problem an additional proxy must be deployed on every single Node. It does not terminate TLS and sends the traffic to the correct Shoot API Server. This is achieved by:&lt;/p>
+&lt;ul>
+&lt;li>the apiserver master service reconciler is started and pointing to the &lt;code>kube-apiserver&lt;/code>&amp;rsquo;s Cluster IP in the Seed cluster (e.g. &lt;code>--advertise-address=10.1.2.3&lt;/code>).&lt;/li>
+&lt;li>the proxy runs in the host network of the &lt;code>Node&lt;/code>.&lt;/li>
+&lt;li>the proxy has a sidecar container which:
+&lt;ul>
+&lt;li>creates a dummy network interface and assigns the &lt;code>10.1.2.3&lt;/code> to it.&lt;/li>
+&lt;li>removes connection tracking (conntrack) if iptables/nftables is enabled as the IP address is local to the &lt;code>Node&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>the proxy listens on the &lt;code>10.1.2.3&lt;/code> and using the &lt;a href="http://www.haproxy.org/download/2.0/doc/proxy-protocol.txt">PROXY protocol&lt;/a> it sends the data stream to the Envoy ingress gateway (EIGW).&lt;/li>
+&lt;li>EIGW listens for PROXY protocol on a dedicated &lt;code>8443&lt;/code> port. EIGW reads the destination IP + port from the PROXY protocol and forwards traffic to the correct upstream apiserver.&lt;/li>
+&lt;/ul>
+&lt;p>The sidecar is a standalone component. It&amp;rsquo;s possible to transparently change the proxy implementation without any modifications to the sidecar. The simplified flow looks like:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>+------------------+ +----------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot API Server | TCP | Envoy IGW |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| +&amp;lt;-------------------+ PROXY listener |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Cluster A | | :8443 |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+------------------+ +-+--------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ^
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+-----------------------------------------------------------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Single Node in
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | the Shoot cluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | PROXY Protocol
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +---------------------+ +----------+----------+
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | Pod talking to | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | the kubernetes | | Proxy |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | service +------&amp;gt;+ No TLS termination |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> | | | |
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> +---------------------+ +---------------------+
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Multiple OSS solutions can be used:&lt;/p>
+&lt;ul>
+&lt;li>haproxy&lt;/li>
+&lt;li>nginx&lt;/li>
+&lt;/ul>
+&lt;p>To add a PROXY lister with Istio several resources must be created - a dedicated &lt;code>Gateway&lt;/code>, dummy &lt;code>VirtualService&lt;/code> and &lt;code>EnvoyFilter&lt;/code> which adds listener filter (&lt;code>envoy.listener.proxy_protocol&lt;/code>) on &lt;code>8443&lt;/code> port:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: blackhole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> servers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tcp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VirtualService
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: blackhole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - blackhole.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gateways:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - blackhole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tcp:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - destination:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> host: localhost
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 9999 &lt;span style="color:#008000"># any dummy port will work&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EnvoyFilter
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: proxy-protocol
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workloadSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configPatches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - applyTo: LISTENER
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context: ANY
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portNumber: 8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: 0.0.0.0_8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> patch:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operation: MERGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener_filters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: envoy.filters.listener.proxy_protocol
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For each individual &lt;code>Shoot&lt;/code> cluster, a dedicated &lt;a href="https://www.envoyproxy.io/docs/envoy/v1.13.0/api-v2/api/v2/listener/listener_components.proto#listener-filterchainmatch">FilterChainMatch&lt;/a> is added. It ensures that only Shoot API servers can receive traffic from this listener:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EnvoyFilter
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;shoot-namespace&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: istio-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workloadSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio: ingressgateway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configPatches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - applyTo: FILTER_CHAIN
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context: ANY
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> listener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portNumber: 8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: 0.0.0.0_8443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> patch:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operation: ADD
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: envoy.filters.network.tcp_proxy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> typed_config:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;@type&amp;#34;: type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stat_prefix: outbound|443||kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: outbound|443||kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filter_chain_match:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> destination_port: 443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prefix_ranges:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - address_prefix: 10.1.2.3 &lt;span style="color:#008000"># kube-apiserver&amp;#39;s cluster-ip&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prefix_len: 32
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Note: this additional &lt;code>EnvoyFilter&lt;/code> can be removed when Istio supports full &lt;a href="https://istio.io/docs/reference/config/networking/virtual-service/#L4MatchAttributes">L4 matching&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;p>A nginx proxy client in the Shoot cluster on every node could have the following configuration:&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-conf" data-lang="conf">error_log /dev/stdout;
+stream {
+server {
+listen 10.1.2.3:443;
+proxy_pass api.&amp;lt;external-domain&amp;gt;:8443;
+proxy_protocol on;
+proxy_protocol_timeout 5s;
+resolver_timeout 5s;
+proxy_connect_timeout 5s;
+}
+}
+events { }
+&lt;/code>&lt;/pre>&lt;h3 id="in-cluster-communication-to-the-apiserver-when-exernalname-is-supported">In-cluster communication to the apiserver when ExernalName is supported&lt;/h3>
+&lt;p>Even if in future versions of Kubernetes, the master service of type &lt;code>ExternalName&lt;/code> is supported, we still have the problem that in-cluster workload can talk to the server via DNS. For this to work we still need the above mentioned proxy (this time listening on another IP address &lt;code>10.0.0.2&lt;/code>). An additional change to CoreDNS would be needed:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>default.svc.cluster.local.:8053 {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> file kubernetes.default.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>.:8053 {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> errors
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> health
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes cluster.local in-addr.arpa ip6.arpa {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods insecure
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> upstream
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fallthrough in-addr.arpa ip6.arpa
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus :9153
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> forward . /etc/resolv.conf
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cache 30
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loop
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reload
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadbalance
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The content of the &lt;code>kubernetes.default.svc.cluster.local&lt;/code> is going to be:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>$ORIGIN default.svc.cluster.local.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>@ 30 IN SOA local. local. (
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2017042745 ; serial
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; refresh (2 hours)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; retry (1 hour)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 1209600 ; expire (2 weeks)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 30 ; minimum (1 hour)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 30 IN NS local.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubernetes IN A 10.0.0.2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>So when a client requests &lt;code>kubernetes.default.svc.cluster.local&lt;/code>, it&amp;rsquo;ll be send to the proxy listening on that IP address.&lt;/p>
+&lt;h2 id="future-work">Future work&lt;/h2>
+&lt;p>While out of scope of this GEP, several things can be improved:&lt;/p>
+&lt;ul>
+&lt;li>Make the sidecar work with eBPF and environments where iptables/nftables are not enabled.&lt;/li>
+&lt;/ul>
+&lt;h2 id="references">References&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/issues/1135">https://github.com/gardener/gardener/issues/1135&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Shoot CA Rotation</title><link>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/</guid><description>
 &lt;h1 id="gep-18-automated-shoot-ca-rotation">GEP-18: Automated Shoot CA Rotation&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>

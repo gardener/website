@@ -1811,12 +1811,8 @@ It implements Gardener&amp;rsquo;s extension contract (&lt;a href="https://garde
 Please note that all of them are no technical limitations/blockers but simply advanced scenarios that we haven&amp;rsquo;t had invested yet into.&lt;/p>
 &lt;ol>
 &lt;li>
-&lt;p>Shoot clusters can only have one node when &lt;code>.spec.networking.type=local&lt;/code>.&lt;/p>
-&lt;p>&lt;em>We use &lt;a href="https://github.com/kubernetes-sigs/kind/blob/main/images/kindnetd/README.md">kindnetd&lt;/a> as CNI plugin in shoot clusters and didn&amp;rsquo;t invest into making it work with multiple worker nodes.&lt;/em>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;code>NetworkPolicy&lt;/code>s are not effective.&lt;/p>
-&lt;p>&lt;em>&lt;code>kindnetd&lt;/code> does not ship any controller for Kubernetes &lt;code>NetworkPolicy&lt;/code>s, hence, they are not effective. Typically, the same applies for the local seed cluster unless a different CNI plugin is pro-actively installed.&lt;/em>&lt;/p>
+&lt;p>Shoot clusters can only have multiple nodes, but inter-pod communication for pods on different nodes does not work.&lt;/p>
+&lt;p>&lt;em>We are using the &lt;a href="https://github.com/gardener/gardener-extension-networking-calico/">&lt;code>networking-calico&lt;/code>&lt;/a> extension for the CNI plugin in shoot clusters, however, it doesn&amp;rsquo;t seem to be configured correctly yet to support this scenario.&lt;/em>&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Shoot clusters don&amp;rsquo;t support persistent storage.&lt;/p>
@@ -1872,7 +1868,9 @@ This enables accessing the shoot clusters from the respective machine, however, 
 &lt;p>In addition, it creates a &lt;code>Service&lt;/code> named &lt;code>vpn-shoot&lt;/code> which is only used in case the gardenlet&amp;rsquo;s &lt;code>ReversedVPN&lt;/code> feature gate is disabled.
 This &lt;code>Service&lt;/code> enables the &lt;code>vpn-seed&lt;/code> containers in the &lt;code>kube-apiserver&lt;/code> pods in the seed cluster to communicate with the &lt;code>vpn-shoot&lt;/code> pod running in the shoot cluster.&lt;/p>
 &lt;h4 id="network">&lt;code>Network&lt;/code>&lt;/h4>
-&lt;p>This controller deploys a &lt;code>ManagedResource&lt;/code> which contains the &lt;a href="https://github.com/kubernetes-sigs/kind/blob/main/images/kindnetd/README.md">kindnetd&lt;/a> &lt;code>DaemonSet&lt;/code> which is used as CNI in the shoot clusters.&lt;/p>
+&lt;p>This controller is not implemented anymore. In the initial version of &lt;code>provider-local&lt;/code>, there was a &lt;code>Network&lt;/code> controller deploying &lt;a href="https://github.com/kubernetes-sigs/kind/blob/main/images/kindnetd/README.md">kindnetd&lt;/a> (see &lt;a href="https://github.com/gardener/gardener/tree/v1.44.1/pkg/provider-local/controller/network)">https://github.com/gardener/gardener/tree/v1.44.1/pkg/provider-local/controller/network)&lt;/a>.
+However, we decided to drop it because this setup prevented us from using &lt;code>NetworkPolicy&lt;/code>s (kindnetd does not ship a &lt;code>NetworkPolicy&lt;/code> controller).
+In addition, we had issues with shoot clusters having more than one node (hence, we couldn&amp;rsquo;t support rolling updates, see &lt;a href="https://github.com/gardener/gardener/pull/5666/commits/491b3cd16e40e5c20ef02367fda93a34ff9465eb)">https://github.com/gardener/gardener/pull/5666/commits/491b3cd16e40e5c20ef02367fda93a34ff9465eb)&lt;/a>.&lt;/p>
 &lt;h4 id="operatingsystemconfig">&lt;code>OperatingSystemConfig&lt;/code>&lt;/h4>
 &lt;p>This controller leverages the standard &lt;a href="https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/operatingsystemconfig/oscommon">&lt;code>oscommon&lt;/code> library&lt;/a> in order to render a simple cloud-init template which can later be executed by the shoot worker nodes.&lt;/p>
 &lt;p>The shoot worker nodes are &lt;code>Pod&lt;/code>s with a container based on the &lt;code>kindest/node&lt;/code> image. This is maintained in &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local/tree/master/node">https://github.com/gardener/machine-controller-manager-provider-local/tree/master/node&lt;/a> and has a special &lt;code>run-userdata&lt;/code> systemd service which executes the cloud-init generated earlier by the &lt;code>OperatingSystemConfig&lt;/code> controller.&lt;/p>
@@ -1923,7 +1921,6 @@ See also the above section about the &amp;ldquo;Node controller&amp;rdquo; for m
 &lt;li>Add storage support for shoot clusters.&lt;/li>
 &lt;li>Implement a &lt;code>cloud-controller-manager&lt;/code> and deploy it via the &lt;a href="#controlplane">&lt;code>ControlPlane&lt;/code> controller&lt;/a>.&lt;/li>
 &lt;li>Implement support for &lt;code>BackupBucket&lt;/code> and &lt;code>BackupEntry&lt;/code>s to enable ETCD backups for shoot clusters (based on the support for local disks in &lt;a href="https://github.com/gardener/etcd-backup-restore">&lt;code>etcd-backup-restore&lt;/code>&lt;/a>).&lt;/li>
-&lt;li>Switch from &lt;code>kindnetd&lt;/code> to a different CNI plugin which supports &lt;code>NetworkPolicy&lt;/code>s.&lt;/li>
 &lt;li>Properly implement &lt;code>.spec.machineTypes&lt;/code> in the &lt;code>CloudProfile&lt;/code>s (i.e., configure &lt;code>.spec.resources&lt;/code> properly for the created shoot worker machine pods).&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Reconcile Trigger</title><link>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/reconcile-trigger/</guid><description>
 &lt;h1 id="reconcile-trigger">Reconcile trigger&lt;/h1>

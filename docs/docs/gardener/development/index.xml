@@ -1875,7 +1875,11 @@ It is built on top of the &lt;code>ConfigInterface&lt;/code> and &lt;code>DataIn
 If the configuration describes a certificate authority secret then this method automatically generates a bundle secret containing the current and potentially the old certificate.&lt;br>
 Available &lt;code>GenerateOption&lt;/code>s:&lt;/p>
 &lt;ul>
-&lt;li>&lt;code>SignedByCA(string)&lt;/code>: This is only valid for certificate secrets and automatically retrieves the correct certificate authority in order to sign the provided server or client certificate.&lt;/li>
+&lt;li>&lt;code>SignedByCA(string, ...SignedByCAOption)&lt;/code>: This is only valid for certificate secrets and automatically retrieves the correct certificate authority in order to sign the provided server or client certificate.
+&lt;ul>
+&lt;li>There is only one &lt;code>SignedByCAOption&lt;/code>: &lt;code>UseCurrentCA&lt;/code>. This option will sign server certificates with the new/current CA in case of a CA rotation. For more information, please refer to the &lt;a href="#certificate-signing">&amp;ldquo;Certificate Signing&amp;rdquo;&lt;/a> section below).&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;li>&lt;code>Persist()&lt;/code>: This marks the secret such that it gets persisted in the &lt;code>ShootState&lt;/code> resource in the garden cluster. Consequently, it should only be used for secrets related to a shoot cluster.&lt;/li>
 &lt;li>&lt;code>Rotate(rotationStrategy)&lt;/code>: This specifies the strategy in case this secret is to be rotated or regenerated (either &lt;code>InPlace&lt;/code> which immediately forgets about the old secret, or &lt;code>KeepOld&lt;/code> which keeps the old secret in the system).&lt;/li>
 &lt;li>&lt;code>IgnoreOldSecrets()&lt;/code>: This specifies whether old secrets should be considered and loaded (which is done by default). It should be used when old secrets are no longer important and can be &amp;ldquo;forgotten&amp;rdquo; (e.g. in &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">&amp;ldquo;phase 2&amp;rdquo; (&lt;code>t2&lt;/code>) of the CA certificate rotation&lt;/a>).&lt;/li>
@@ -1926,6 +1930,30 @@ Automatic renewal of secrets happens when their validity approaches 80% or less 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> fmt.Errorf(&lt;span style="color:#a31515">&amp;#34;secret my-ca not found&amp;#34;&lt;/span>)
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, this returns the bundle secret for the CA &lt;code>my-ca&lt;/code> which might potentially contain both the current and the old CA (in case of rotation/regeneration).&lt;/p>
+&lt;h3 id="certificate-signing">Certificate Signing&lt;/h3>
+&lt;p>By default, client certificates are always signed by the current CA while server certificate are signed by the old CA (if it exists).
+This is to ensure a smooth exchange of certificate during a CA rotation (typically has two phases, ref &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">GEP-18&lt;/a>):&lt;/p>
+&lt;ul>
+&lt;li>Client certificates:
+&lt;ul>
+&lt;li>In phase 1, clients get new certificates as soon as possible to ensure that all clients have been adapted before phase 2.&lt;/li>
+&lt;li>In phase 2, the respective server drops accepting certificates signed by the old CA.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Server certificates:
+&lt;ul>
+&lt;li>In phase 1, servers still use their old/existing certificates to allow clients to update their CA bundle used for verification of the servers&amp;rsquo; certificates.&lt;/li>
+&lt;li>In phase 2, the old CA is dropped, hence servers need to get a certificate signed by the new/current CA. At this point in time, clients have already adapted their CA bundles.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>In case you control all clients and update them at the same time as the server, it is possible to make the secrets manager generate even server certificates with the new/current CA.
+This can help preventing certificate mismatches when the CA bundle is already exchanged while the server still serves with a certificate signed by a CA no longer part of the bundle.&lt;/p>
+&lt;p>Let&amp;rsquo;s consider the two following examples:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>gardenlet&lt;/code> deploys a webhook server (&lt;code>gardener-resource-manager&lt;/code>) and a corresponding &lt;code>MutatingWebhookConfiguration&lt;/code> at the same time. In this case, the server certificate should be generated with the new/current CA to avoid above mentioned certificate mismatches during a CA rotation.&lt;/li>
+&lt;li>&lt;code>gardenlet&lt;/code> deploys a server (&lt;code>etcd&lt;/code>) in one step, and a client (&lt;code>kube-apiserver&lt;/code>) in a subsequent step. In this case, the default behaviour should apply (server certificate should be signed by old/existing CA).&lt;/li>
+&lt;/ol>
 &lt;h2 id="reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/h2>
 &lt;p>While the &lt;code>SecretsManager&lt;/code> is primarily used by gardenlet, it can be reused by other components (e.g. extensions) as well for managing secrets that are specific to the component or extension. For example, provider extensions might use their own &lt;code>SecretsManager&lt;/code> instance for managing the serving certificate of &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>
 &lt;p>External components that want to reuse the &lt;code>SecretsManager&lt;/code> should consider the following aspects:&lt;/p>

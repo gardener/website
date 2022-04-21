@@ -10971,7 +10971,78 @@ The proposal, as outlined below, suggests to implement the necessary changes in 
 &lt;/ul>
 &lt;h3 id="limitations">Limitations&lt;/h3>
 &lt;p>Each operating system has its own default user (e.g. &lt;code>core&lt;/code>, &lt;code>admin&lt;/code>, &lt;code>ec2-user&lt;/code> etc). These users get their SSH keys during VM creation (however there is a different handling on Google Cloud Platform as stated below). These keys currently do not get rotated respectively are not removed from the &lt;code>authorized_keys&lt;/code> file. This means that the initial &lt;code>ssh&lt;/code> key will still be valid for the default operating system user.&lt;/p>
-&lt;p>On Google Cloud Platform, the VMs do not have any static users (i.e. no &lt;code>gardener&lt;/code> user) and there is an agent on the nodes that syncs the users with their SSH keypairs from the GCP IAM service.&lt;/p></description></item><item><title>Docs: Changing the APIs</title><link>https://gardener.cloud/docs/gardener/development/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/changing-the-api/</guid><description>
+&lt;p>On Google Cloud Platform, the VMs do not have any static users (i.e. no &lt;code>gardener&lt;/code> user) and there is an agent on the nodes that syncs the users with their SSH keypairs from the GCP IAM service.&lt;/p></description></item><item><title>Docs: Ca Rotation</title><link>https://gardener.cloud/docs/gardener/extensions/ca-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/ca-rotation/</guid><description>
+&lt;h1 id="ca-rotation-in-extensions">CA Rotation in Extensions&lt;/h1>
+&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/">GEP-18&lt;/a> proposes adding support for automated rotation of Shoot cluster certificate authorities (CAs).
+This document outlines all requirements that Gardener extensions need to fulfill in order to support the CA rotation feature.&lt;/p>
+&lt;h2 id="requirements-for-shoot-cluster-ca-rotation">Requirements for Shoot Cluster CA Rotation&lt;/h2>
+&lt;ul>
+&lt;li>Extensions must not rely on static CA &lt;code>Secret&lt;/code> names managed by gardenlet, because their names are changing during CA rotation.&lt;/li>
+&lt;li>Extensions cannot issue or use client certificates for authenticating against shoot API servers. Instead, they should use short-lived auto-rotated &lt;code>ServiceAccount&lt;/code> tokens via gardener-resource-manager&amp;rsquo;s &lt;code>TokenRequestor&lt;/code>. Also see &lt;a href="https://gardener.cloud/docs/gardener/extensions/conventions/">Conventions&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor">&lt;code>TokenRequestor&lt;/code>&lt;/a> documents.&lt;/li>
+&lt;li>Extensions need to generate dedicated CAs for signing server certificates (e.g. &lt;code>cloud-controller-manager&lt;/code>). There should be one CA per controller and purpose in order to bind the lifecycle to the reconciliation cycle of the respective object for which it is created.&lt;/li>
+&lt;li>CAs managed by extensions should be rotated in lock-step with the shoot cluster CA.
+When the user triggers a rotation, gardenlet writes phase and initiation time to &lt;code>Shoot.status.credentials.rotation.certificateAuthorities.{phase,lastInitiationTime}&lt;/code>. See &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">GEP-18&lt;/a> for a detailed description on what needs to happen in each phase.
+Extensions can retrieve this information from &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster.shoot.status&lt;/code>&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;h2 id="utilities-for-secrets-management">Utilities for Secrets Management&lt;/h2>
+&lt;p>In order to fulfill the requirements listed above, extension controllers can reuse the &lt;a href="https://gardener.cloud/docs/gardener/development/secrets_management/">&lt;code>SecretsManager&lt;/code>&lt;/a> that gardenlet uses to manage all shoot cluster CAs, certificates, and other secrets as well.
+It implements the core logic for managing secrets that need to be rotated, auto-renewed etc.&lt;/p>
+&lt;p>Additionally, there are utilities for reusing &lt;code>SecretsManager&lt;/code> in extension controllers.
+They already implement above requirements based on the &lt;code>Cluster&lt;/code> resource and allow focusing on the extension controllers&amp;rsquo; business logic.&lt;/p>
+&lt;p>For example, a simple &lt;code>SecretsManager&lt;/code> usage in an extension controller could look like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">const&lt;/span> (
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// identity for SecretsManager instance in ControlPlane controller
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> identity = &lt;span style="color:#a31515">&amp;#34;provider-foo-controlplane&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// secret config name of the dedicated CA
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> caControlPlaneName = &lt;span style="color:#a31515">&amp;#34;ca-provider-foo-controlplane&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">func&lt;/span> Reconcile() {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">var&lt;/span> (
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster *extensionscontroller.Cluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> client client.Client
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// define wanted secrets with options
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> secretConfigs = []extensionssecretsmanager.SecretConfigWithOptions{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// dedicated CA for ControlPlane controller
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Config: &amp;amp;secretutils.CertificateSecretConfig{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name: caControlPlaneName,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CommonName: &lt;span style="color:#a31515">&amp;#34;ca-provider-foo-controlplane&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CertType: secretutils.CACert,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// persist CA so that it gets restored on control plane migration
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Options: []secretsmanager.GenerateOption{secretsmanager.Persist()},
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// server cert for control plane component
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Config: &amp;amp;secretutils.CertificateSecretConfig{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name: &lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CommonName: &lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> DNSNames: kutil.DNSNamesForService(&lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>, namespace),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CertType: secretutils.ServerCert,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// sign with our dedicated CA
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Options: []secretsmanager.GenerateOption{secretsmanager.SignedByCA(caControlPlaneName)},
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// initialize SecretsManager based on Cluster object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> sm, err := extensionssecretsmanager.SecretsManagerForCluster(ctx, logger.WithName(&lt;span style="color:#a31515">&amp;#34;secretsmanager&amp;#34;&lt;/span>), clock.RealClock{}, client, cluster, identity, secretConfigs)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// generate all wanted secrets (first CAs, then the rest)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> secrets, err := extensionssecretsmanager.GenerateAllSecrets(ctx, sm, secretConfigs)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// cleanup any secrets that are not needed any more (e.g. after rotation)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> err = sm.Cleanup(ctx)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please pay attention to the following points:&lt;/p>
+&lt;ul>
+&lt;li>There should be one &lt;code>SecretsManager&lt;/code> identity per controller (and purpose if applicable) in order to prevent conflicts between different instances.
+E.g., there should be different identities for &lt;code>Infrastructrue&lt;/code>, &lt;code>Worker&lt;/code> controller etc. and the &lt;code>ControlPlane&lt;/code> controller should use dedicated &lt;code>SecretsManager&lt;/code> identities per purpose (e.g. &lt;code>provider-foo-controlplane&lt;/code> and &lt;code>provider-foo-controlplane-exposure&lt;/code>).&lt;/li>
+&lt;li>All other points in &lt;a href="https://gardener.cloud/docs/gardener/development/secrets_management/#reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Changing the APIs</title><link>https://gardener.cloud/docs/gardener/development/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/changing-the-api/</guid><description>
 &lt;h1 id="extending-the-api">Extending the API&lt;/h1>
 &lt;p>This document describes the steps that need to be performed when changing the API.
 It provides guidance for API changes to both (Gardener system in general or component configurations).&lt;/p>
@@ -11933,19 +12004,29 @@ They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions
 &lt;h2 id="how-to-create-resources-in-the-shoot-cluster">How to create resources in the shoot cluster?&lt;/h2>
 &lt;p>Some extensions might not only create resources in the seed cluster itself but also in the shoot cluster. Usually, every extension comes with a &lt;code>ServiceAccount&lt;/code> and the required RBAC permissions when it gets installed to the seed.
 However, there are no credentials for the shoot for every extension.&lt;/p>
-&lt;p>Gardener creates a kubeconfig for itself that it uses to interact with the shoot cluster.
-This kubeconfig is stored as a &lt;code>Secret&lt;/code> with name &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/core/v1beta1/constants/types_constants.go">&lt;code>gardener&lt;/code>&lt;/a> in the shoot namespace.
-Extension controllers may use this kubeconfig to interact with the shoot cluster if desired (it has full administrator privileges and no further RBAC rules are required).
-Instead, they could also create their own kubeconfig for every shoot (which, of course, is better for auditing reasons, but not yet enforced at this point in time).&lt;/p>
+&lt;p>Extensions are supposed to use &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#ManagedResource-controller">&lt;code>ManagedResources&lt;/code>&lt;/a> to manage resources in shoot clusters.
+gardenlet deploys gardener-resource-manager instances into all shoot control planes, that will reconcile &lt;code>ManagedResources&lt;/code> without a specified class (&lt;code>spec.class=null&lt;/code>) in shoot clusters.&lt;/p>
 &lt;p>If you need to deploy a non-DaemonSet resource you need to ensure that it only runs on nodes that are allowed to host system components and extensions.
 To do that you need to configure a &lt;code>nodeSelector&lt;/code> as following:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>nodeSelector:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/system-components: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="how-to-create-certificates-for-the-shoot-cluster">How to create certificates for the shoot cluster?&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="how-to-create-kubeconfigs-for-the-shoot-cluster">How to create kubeconfigs for the shoot cluster?&lt;/h2>
+&lt;p>Historically, Gardener extensions used to generate kubeconfigs with client certificates for components they deploy into the shoot control plane.
+For this, they reused the shoot cluster CA secret (&lt;code>ca&lt;/code>) to issue new client certificates.
+With &lt;a href="https://github.com/gardener/gardener/issues/4661">gardener/gardener#4661&lt;/a> we moved away from using client certificates in favor of short-lived, auto-rotated &lt;code>ServiceAccount&lt;/code> tokens. These tokens are managed by gardener-resource-manager&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor">&lt;code>TokenRequestor&lt;/code>&lt;/a>.
+Extensions are supposed to reuse this mechanism for requesting tokens and a &lt;code>generic-token-kubeconfig&lt;/code> for authenticating against shoot clusters.&lt;/p>
+&lt;p>With &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/">GEP-18&lt;/a> (Shoot cluster CA rotation), a dedicated CA will be used for signing client certificates (&lt;a href="https://github.com/gardener/gardener/pull/5779">gardener/gardener#5779&lt;/a>) which will be rotated when triggered by the shoot owner.
+With this, extensions cannot reuse the &lt;code>ca&lt;/code> secret anymore to issue client certificates.
+Hence, extensions must switch to short-lived &lt;code>ServiceAccount&lt;/code> tokens in order to support the CA rotation feature.&lt;/p>
+&lt;p>The &lt;code>generic-token-kubeconfig&lt;/code> secret contains the CA bundle for establishing trust to shoot API servers. However, as the secret is immutable its name changes with the rotation of the cluster CA.
+Extensions need to look up the &lt;code>generic-token-kubeconfig.secret.gardener.cloud/name&lt;/code> annotation on the respective &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code>&lt;/a> object in order to determine which secret contains the current CA bundle.
+The helper function &lt;code>extensionscontroller.GenericTokenKubeconfigSecretNameFromCluster&lt;/code> can be used for this task.&lt;/p>
+&lt;p>You can take a look at &lt;a href="https://gardener.cloud/docs/gardener/extensions/ca-rotation/">CA Rotation in Extensions&lt;/a> for more details on the CA rotation feature in regard to extensions.&lt;/p>
+&lt;h2 id="how-to-create-certificates-for-the-shoot-cluster">How to create certificates for the shoot cluster?&lt;/h2>
 &lt;p>Gardener creates several certificate authorities (CA) that are used to create server certificates for various components.
 For example, the shoot&amp;rsquo;s etcd has its own CA, the kube-aggregator has its own CA as well, and both are different to the actual cluster&amp;rsquo;s CA.&lt;/p>
-&lt;p>Extensions should do the same and generate dedicated CAs for their components (e.g. for signing a server certificate for cloud-controller-manager). They should not depend on the CA secrets managed by gardenlet.
-You can take a look at the &lt;a href="https://gardener.cloud/docs/gardener/development/secrets_management/">Secrets Management document&lt;/a> for more details on how this can be achieved.&lt;/p></description></item><item><title>Docs: Core</title><link>https://gardener.cloud/docs/gardener/api-reference/core/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/api-reference/core/</guid><description>
+&lt;p>With &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/">GEP-18&lt;/a> (Shoot cluster CA rotation), extensions are required to do the same and generate dedicated CAs for their components (e.g. for signing a server certificate for cloud-controller-manager). They must not depend on the CA secrets managed by gardenlet.&lt;/p>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/extensions/ca-rotation/">CA Rotation in Extensions&lt;/a> for the exact requirements, that extensions need to fulfill in order to support the CA rotation feature.&lt;/p></description></item><item><title>Docs: Core</title><link>https://gardener.cloud/docs/gardener/api-reference/core/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/api-reference/core/</guid><description>
 &lt;p>Packages:&lt;/p>
 &lt;ul>
 &lt;li>
@@ -22888,57 +22969,4 @@ Custom fields do not show up on the &lt;code>ALL_PROJECTS&lt;/code> page.&lt;/p>
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;showColumn&amp;#34;: false
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Dependencies</title><link>https://gardener.cloud/docs/gardener/development/dependencies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/dependencies/</guid><description>
-&lt;h1 id="dependency-management">Dependency Management&lt;/h1>
-&lt;p>We are using &lt;a href="https://github.com/golang/go/wiki/Modules">go modules&lt;/a> for depedency management.
-In order to add a new package dependency to the project, you can perform &lt;code>go get &amp;lt;PACKAGE&amp;gt;@&amp;lt;VERSION&amp;gt;&lt;/code> or edit the &lt;code>go.mod&lt;/code> file and append the package along with the version you want to use.&lt;/p>
-&lt;h2 id="updating-dependencies">Updating Dependencies&lt;/h2>
-&lt;p>The &lt;code>Makefile&lt;/code> contains a rule called &lt;code>revendor&lt;/code> which performs &lt;code>go mod tidy&lt;/code> and &lt;code>go mod vendor&lt;/code>.
-&lt;code>go mod tidy&lt;/code> makes sure go.mod matches the source code in the module. It adds any missing modules necessary to build the current module&amp;rsquo;s packages and dependencies, and it removes unused modules that don&amp;rsquo;t provide any relevant packages.
-&lt;code>go mod vendor&lt;/code> resets the main module&amp;rsquo;s vendor directory to include all packages needed to build and test all the main module&amp;rsquo;s packages. It does not include test code for vendored packages.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The dependencies are installed into the &lt;code>vendor&lt;/code> folder which &lt;strong>should be added&lt;/strong> to the VCS.&lt;/p>
-&lt;p>⚠️ Make sure that you test the code after you have updated the dependencies!&lt;/p>
-&lt;h2 id="exported-packages">Exported Packages&lt;/h2>
-&lt;p>This repository contains several packages that could be considered &amp;ldquo;exported packages&amp;rdquo;, in a sense that they are supposed to be reused in other Go projects.
-For example:&lt;/p>
-&lt;ul>
-&lt;li>Gardener&amp;rsquo;s API packages: &lt;code>pkg/apis&lt;/code>&lt;/li>
-&lt;li>Library for building Gardener extensions: &lt;code>extensions&lt;/code>&lt;/li>
-&lt;li>Gardener&amp;rsquo;s Test Framework: &lt;code>test/framework&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>There are a few more folders in this repository (non-Go sources) that are reused across projects in the gardener organization:&lt;/p>
-&lt;ul>
-&lt;li>GitHub templates: &lt;code>.github&lt;/code>&lt;/li>
-&lt;li>Concourse / cc-utils related helpers: &lt;code>hack/.ci&lt;/code>&lt;/li>
-&lt;li>Development, build and testing helpers: &lt;code>hack&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>These packages feature a dummy &lt;code>doc.go&lt;/code> file to allow other Go projects to pull them in as go mod dependencies.&lt;/p>
-&lt;p>These packages are explicitly &lt;em>not&lt;/em> supposed to be used in other projects (consider them as &amp;ldquo;non-exported&amp;rdquo;):&lt;/p>
-&lt;ul>
-&lt;li>API validation packages: &lt;code>pkg/apis/*/*/validation&lt;/code>&lt;/li>
-&lt;li>Operation package (main Gardener business logic regarding &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> clusters): &lt;code>pkg/operation&lt;/code>&lt;/li>
-&lt;li>Third party code: &lt;code>third_party&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>Currently, we don&amp;rsquo;t have a mechanism yet for selectively syncing out these exported packages into dedicated repositories like kube&amp;rsquo;s &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/staging">staging mechanism&lt;/a> (&lt;a href="https://github.com/kubernetes/publishing-bot">publishing-bot&lt;/a>).&lt;/p>
-&lt;h2 id="import-restrictions">Import Restrictions&lt;/h2>
-&lt;p>We want to make sure, that other projects can depend on this repository&amp;rsquo;s &amp;ldquo;exported&amp;rdquo; packages without pulling in the entire repository (including &amp;ldquo;non-exported&amp;rdquo; packages) or a high number of other unwanted dependencies.
-Hence, we have to be careful when adding new imports or references between our packages.&lt;/p>
-&lt;blockquote>
-&lt;p>ℹ️ General rule of thumb: the mentioned &amp;ldquo;exported&amp;rdquo; packages should be as self-contained as possible and depend on as few other packages in the repository and other projects as possible.&lt;/p>
-&lt;/blockquote>
-&lt;p>In order to support that rule and automatically check compliance with that goal, we leverage &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">import-boss&lt;/a>.
-The tool checks all imports of the given packages (including transitive imports) against rules defined in &lt;code>.import-restrictions&lt;/code> files in each directory.
-An import is allowed if it matches at least one allowed prefix and does not match any forbidden prefixes.
-Note: &lt;code>''&lt;/code> (the empty string) is a prefix of everything.
-For more details, see: &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss&lt;/a>&lt;/p>
-&lt;p>&lt;code>import-boss&lt;/code> is executed on every pull request and blocks the PR if it doesn&amp;rsquo;t comply with the defined import restrictions.
-You can also run it locally using &lt;code>make check&lt;/code>.&lt;/p>
-&lt;p>Import restrictions should be changed in the following situations:&lt;/p>
-&lt;ul>
-&lt;li>We spot a new pattern of imports across our packages that was not restricted before but makes it more difficult for other projects to depend on our &amp;ldquo;exported&amp;rdquo; packages.
-In that case, the imports should be further restricted to disallow such problematic imports, and the code/package structure should be reworked to comply with the newly given restrictions.&lt;/li>
-&lt;li>We want to share code between packages, but existing import restrictions prevent us from doing so.
-In that case, please consider what additional dependencies it will pull in, when loosening existing restrictions.
-Also consider possible alternatives, like code restructurings or extracting shared code into dedicated packages for minimal impact on dependent projects.&lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

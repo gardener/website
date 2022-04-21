@@ -1344,729 +1344,7 @@ needs of the infrastructure.&lt;/p>
 &lt;p>The network resource need to be created early-on during cluster provisioning. Once created, the Network operator residing in every seed will create all the necessary networking resources and apply them to the shoot cluster.&lt;/p>
 &lt;p>The status of the Network resource should reflect the health of the networking components as well as additional tests if required.&lt;/p>
 &lt;h2 id="references">References&lt;/h2>
-&lt;p>[1] &lt;a href="https://docs.projectcalico.org/v3.0/reference/public-cloud/azure">Azure support for Calico Networking&lt;/a>&lt;/p></description></item><item><title>Docs: 04 New Core Gardener Cloud Apis</title><link>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</guid><description>
-&lt;h1 id="new-coregardenercloudv1beta1-apis-required-to-extract-cloud-specificos-specific-knowledge-out-of-gardener-core">New &lt;code>core.gardener.cloud/v1beta1&lt;/code> APIs required to extract cloud-specific/OS-specific knowledge out of Gardener core&lt;/h1>
-&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#motivation">Motivation&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#proposal">Proposal&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#cloudprofile-resource">&lt;code>CloudProfile&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#seed-resource">&lt;code>Seed&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#project-resource">&lt;code>Project&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#secretbinding-resource">&lt;code>SecretBinding&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#quota-resource">&lt;code>Quota&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#backupbucket-resource">&lt;code>BackupBucket&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#backupentry-resource">&lt;code>BackupEntry&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#shoot-resource">&lt;code>Shoot&lt;/code> resource&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#plant-resource">&lt;code>Plant&lt;/code> resource&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h2 id="summary">Summary&lt;/h2>
-&lt;p>In &lt;a href="https://gardener.cloud/docs/gardener/proposals/01-extensibility/">GEP-1&lt;/a> we have proposed how to (re-)design Gardener to allow providers maintaining their provider-specific knowledge out of the core tree.
-Meanwhile, we have progressed a lot and are about to remove the &lt;a href="https://github.com/gardener/gardener/blob/de75a5bfcbedd16ba341ace0eb58be2a87049dcb/pkg/operation/cloudbotanist/types.go">&lt;code>CloudBotanist&lt;/code> interface&lt;/a> entirely.
-The only missing aspect that will allow providers to really maintain their code out of the core is to design new APIs.&lt;/p>
-&lt;p>This proposal describes how the new &lt;code>Shoot&lt;/code>, &lt;code>Seed&lt;/code> etc. APIs will be re-designed to cope with the changes made with extensibility.
-We already have the new &lt;code>core.gardener.cloud/v1beta1&lt;/code> API group that will be the new default soon.&lt;/p>
-&lt;h2 id="motivation">Motivation&lt;/h2>
-&lt;p>We want to allow providers to individually maintain their specific knowledge without the necessity to touch the Gardener core code.
-In order to achieve the same, we have to provide proper APIs.&lt;/p>
-&lt;h3 id="goals">Goals&lt;/h3>
-&lt;ul>
-&lt;li>Provide proper APIs to allow providers maintaining their code outside of the core codebase.&lt;/li>
-&lt;li>Do not complicate the APIs for end-users such that they can easily create, delete, and maintain shoot clusters.&lt;/li>
-&lt;/ul>
-&lt;h3 id="non-goals">Non-Goals&lt;/h3>
-&lt;ul>
-&lt;li>Let&amp;rsquo;s try to not split everything up into too many different resources. Instead, let&amp;rsquo;s try to keep all relevant information in the same resources when possible/appropriate.&lt;/li>
-&lt;/ul>
-&lt;h2 id="proposal">Proposal&lt;/h2>
-&lt;p>In GEP-1 we already have proposed a first version for new &lt;code>CloudProfile&lt;/code> and &lt;code>Shoot&lt;/code> resources.
-In order to deprecate the existing/old &lt;code>garden.sapcloud.io/v1beta1&lt;/code> API group (and remove it, eventually) we should move all existing resources to the new &lt;code>core.gardener.cloud/v1beta1&lt;/code> API group.&lt;/p>
-&lt;h3 id="cloudprofile-resource">&lt;code>CloudProfile&lt;/code> resource&lt;/h3>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: CloudProfile
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloudprofile1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws,azure,gcp,...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Optional list of labels on `Seed` resources that marks those seeds whose shoots may use this provider profile.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># An empty list means that all seeds of the same provider type are supported.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># This is useful for environments that are of the same type (like openstack) but may have different &amp;#34;instances&amp;#34;/landscapes.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># seedSelector:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># matchLabels:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># foo: bar&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.12.1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.11.0
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.10.6
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.10.5
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: 2020-04-05T01:02:03Z &lt;span style="color:#008000"># optional&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImages:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: coreos
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 2023.5.0
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1967.5.0
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: 2020-04-05T08:00:00Z
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: ubuntu
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 18.04.201906170
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineTypes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: m5.large
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;2&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 8Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># storage: 20Gi # optional (not needed in every environment, may only be specified if no volumeTypes have been specified)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usable: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeTypes: &lt;span style="color:#008000"># optional (not needed in every environment, may only be specified if no machineType has a `storage` field)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: gp2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> class: standard
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: io1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> class: premium
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: europe-central-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones: &lt;span style="color:#008000"># optional (not needed in every environment)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: europe-central-1a
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: europe-central-1b
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: europe-central-1c
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># unavailableMachineTypes: # optional, list of machine types defined above that are not available in this zone&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - m5.large&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># unavailableVolumeTypes: # optional, list of volume types defined above that are not available in this zone&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - io1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># CA bundle that will be installed onto every shoot machine that is using this provider profile.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># caBundle: |&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;some-provider-specific-cloudprofile-config&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># We don&amp;#39;t have concrete examples for every existing provider yet, but these are the proposals:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for Alicloud:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: alicloud.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 2023.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># id: coreos_2023_4_0_64_30G_alibase_20190319.vhd&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for AWS:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 1967.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># regions:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: europe-central-1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ami: ami-0f46c2ed46d8157aa&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for Azure:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: azure.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 1967.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># publisher: CoreOS&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># offer: CoreOS&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># sku: Stable&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># countFaultDomains:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - region: westeurope&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># count: 2&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># countUpdateDomains:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - region: westeurope&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># count: 5&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for GCP:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 2023.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># image: projects/coreos-cloud/global/images/coreos-stable-2023-5-0-v20190312&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for OpenStack:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 2023.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># image: coreos-2023.5.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># keyStoneURL: https://url-to-keystone/v3/&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># dnsServers:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - 10.10.10.10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - 10.10.10.11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># dhcpDomain: foo.bar&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># requestTimeout: 30s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># constraints:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># loadBalancerProviders:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: haproxy&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># floatingPools:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: fip1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># loadBalancerClasses:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: class1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># floatingSubnetID: 04eed401-f85f-4610-8041-c4835c4beea6&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># floatingNetworkID: 23949a30-1cdd-4732-ba47-d03ced950acc&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># subnetID: ac46c204-9d0d-4a4c-a90d-afefe40cfc35&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Example for Packet:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: packet.provider.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: CloudProfileConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># machineImages:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: coreos&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># version: 2079.3.0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># id: d61c3912-8422-4daf-835e-854efa0062e4&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="seed-resource">&lt;code>Seed&lt;/code> resource&lt;/h3>
-&lt;p>Special note: The proposal contains fields that are not yet existing in the current &lt;code>garden.sapcloud.io/v1beta1.Seed&lt;/code> resource, but they should be implemented (open issues that require them are linked).&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfig: base64(kubeconfig-for-seed-cluster)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-provider-specific data keys&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-backupbucket.yaml#L9-L11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-infrastructure.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-backupbucket.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-backupbucket.yaml#L9&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-backupbucket.yaml#L9-L13&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws,azure,gcp,...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-central-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Motivation for DNS section: https://github.com/gardener/gardener/issues/201.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws-route53, google-clouddns, ...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: my-dns-secret &lt;span style="color:#008000"># must be in `garden` namespace&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingressDomain: seed1.dev.example.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume: &lt;span style="color:#008000"># optional (introduced to get rid of `persistentvolume.garden.sapcloud.io/minimumSize` and `persistentvolume.garden.sapcloud.io/provider` annotations)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minimumSize: 20Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: foo
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: etcd-main
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks: &lt;span style="color:#008000"># Seed and Shoot networks must be disjunct&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.240.0.0/16
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 10.241.128.0/17
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: 10.241.0.0/17
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Shoot default networks, see also https://github.com/gardener/gardener/issues/895.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># shootDefaults:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># pods: 100.96.0.0/11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># services: 100.64.0.0/13&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> taints:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: seed.gardener.cloud/protected
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: seed.gardener.cloud/invisible
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> blockCIDRs:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 169.254.169.254/32
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backup: &lt;span style="color:#008000"># See https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws,azure,gcp,...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># region: eu-west-1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2020-07-14T19:16:42Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2020-07-14T19:18:17Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: all checks passed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: Passed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Available
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: 4c9832b3823ee6784064877d3eb10c189fc26e98a1286c0d8a5bc82169ed702c
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-controller-manager-7fhn9ikan73n-7jhka
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.0.0
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 1
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="project-resource">&lt;code>Project&lt;/code> resource&lt;/h3>
-&lt;p>Special note: The &lt;code>members&lt;/code> and &lt;code>viewers&lt;/code> field of the &lt;code>garden.sapcloud.io/v1beta1.Project&lt;/code> resource will be merged together into one &lt;code>members&lt;/code> field.
-Every member will have a role that is either &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code>.
-This will allow us to add new roles without changing the API.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: example
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Example project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> members:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: john.doe@example.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: admin
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: joe.doe@example.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: viewer
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-example
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> owner:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: john.doe@example.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: Example project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> phase: Ready
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="secretbinding-resource">&lt;code>SecretBinding&lt;/code> resource&lt;/h3>
-&lt;p>Special note: No modifications needed compared to the current &lt;code>garden.sapcloud.io/v1beta1.SecretBinding&lt;/code> resource.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: secret1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-provider-specific data keys&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-infrastructure.yaml#L14-L15&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-infrastructure.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-infrastructure.yaml#L14-L17&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-infrastructure.yaml#L14&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-infrastructure.yaml#L15-L18&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-packet/blob/master/example/30-infrastructure.yaml#L14-L15&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># If you use your own domain (not the default domain of your landscape) then you have to add additional keys to this secret.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># The reason is that the DNS management is not part of the Gardener core code base but externalized, hence, it might use other&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># key names than Gardener itself.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># The actual values here depend on the DNS extension that is installed to your landscape.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># For example, check out https://github.com/gardener/external-dns-management and find a lot of example secret manifests here:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/external-dns-management/tree/master/examples&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: SecretBinding
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: secretbinding1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: secret1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># namespace: namespace-other-than-&amp;#39;garden-core&amp;#39; // optional&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>quotas: []
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: quota-1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># # namespace: namespace-other-than-&amp;#39;garden-core&amp;#39; // optional&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="quota-resource">&lt;code>Quota&lt;/code> resource&lt;/h3>
-&lt;p>Special note: No modifications needed compared to the current &lt;code>garden.sapcloud.io/v1beta1.Quota&lt;/code> resource.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Quota
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: trial-quota
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-trial
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scope:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: core.gardener.cloud
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># clusterLifetimeDays: 14&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metrics:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;200&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;20&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 4000Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage.standard: 8000Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage.premium: 2000Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadbalancer: &lt;span style="color:#a31515">&amp;#34;100&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="backupbucket-resource">&lt;code>BackupBucket&lt;/code> resource&lt;/h3>
-&lt;p>Special note: This new resource is cluster-scoped.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># See also: https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-operator-provider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: backup-garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-provider-specific data keys&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-backupbucket.yaml#L9-L11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-backupbucket.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-backupbucket.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-backupbucket.yaml#L9&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-backupbucket.yaml#L9-L13&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: BackupBucket
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;seed-provider-type&amp;gt;-&amp;lt;region&amp;gt;-&amp;lt;seed-uid&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ownerReferences:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws,azure,gcp,...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-central-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed: seed1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-operator-provider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: backup-garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Backup bucket has been successfully reconciled.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:34:27Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> progress: 100
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Succeeded
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Reconcile
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 1
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="backupentry-resource">&lt;code>BackupEntry&lt;/code> resource&lt;/h3>
-&lt;p>Special note: This new resource is cluster-scoped.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># See also: https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-operator-provider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: backup-garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-provider-specific data keys&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-backupbucket.yaml#L9-L11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-backupbucket.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-backupbucket.yaml#L9-L10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-backupbucket.yaml#L9&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-backupbucket.yaml#L9-L13&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: BackupEntry
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot--core--crazy-botany--3ef42
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ownerReferences:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> blockOwnerDeletion: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-botany
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> uid: 19a9538b-5058-11e9-b5a6-5e696cab3bc8
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> bucketName: cloudprofile1-random[:5]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed: seed1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Backup entry has been successfully reconciled.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:34:27Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> progress: 100
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Succeeded
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Reconcile
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 1
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="shoot-resource">&lt;code>Shoot&lt;/code> resource&lt;/h3>
-&lt;p>Special notes:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>kubelet&lt;/code> configuration in the worker pools may override the default &lt;code>.spec.kubernetes.kubelet&lt;/code> configuration (that applies for all worker pools if not overridden).&lt;/li>
-&lt;li>Moved remaining control plane configuration to new &lt;code>.spec.provider.controlplane&lt;/code> section.&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-botany
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretBindingName: secretbinding1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudProfileName: cloudprofile1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-central-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># seedName: seed1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># {aws,azure,gcp,...}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> infrastructureConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;some-provider-specific-infrastructure-config&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-infrastructure.yaml#L56-L64&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-infrastructure.yaml#L43-L53&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-infrastructure.yaml#L63-L71&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-infrastructure.yaml#L53-L57&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-infrastructure.yaml#L56-L64&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-packet/blob/master/example/30-infrastructure.yaml#L48-L49&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controlPlaneConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;some-provider-specific-controlplane-config&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-alicloud/blob/master/example/30-controlplane.yaml#L60-L65&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-controlplane.yaml#L60-L64&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-azure/blob/master/example/30-controlplane.yaml#L61-L66&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-gcp/blob/master/example/30-controlplane.yaml#L59-L64&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-openstack/blob/master/example/30-controlplane.yaml#L64-L70&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># https://github.com/gardener/gardener-extension-provider-packet/blob/master/example/30-controlplane.yaml#L60-L61&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: cpu-worker
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minimum: 3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maximum: 5
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># maxSurge: 1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># maxUnavailable: 0&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machine:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: m5.large
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;some-os-name&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: &amp;lt;some-os-version&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># providerConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-os-specific-configuration&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gp2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 20Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># providerConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># &amp;lt;some-provider-specific-worker-config&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># labels:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># key: value&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># annotations:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># key: value&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># taints: # See also https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - key: foo&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># value: bar&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># effect: NoSchedule&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># caBundle: &amp;lt;some-ca-bundle-to-be-installed-to-all-nodes-in-this-pool&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubernetes:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubelet:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpuCFSQuota: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpuManagerPolicy: none&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># podPidsLimit: 10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># zones: # optional, only relevant if the provider supports availability zones&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - europe-central-1a&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - europe-central-1b&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.15.1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># allowPrivilegedContainers: true # &amp;#39;true&amp;#39; means that all authenticated users can use the &amp;#34;gardener.privileged&amp;#34; PodSecurityPolicy, allowing full unrestricted access to Pod features.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubeAPIServer:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># runtimeConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scheduling.k8s.io/v1alpha1: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># oidcConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># caBundle: |&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># -----BEGIN CERTIFICATE-----&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Li4u&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># -----END CERTIFICATE-----&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># clientID: client-id&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># groupsClaim: groups-claim&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># groupsPrefix: groups-prefix&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># issuerURL: https://identity.example.com&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># usernameClaim: username-claim&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># usernamePrefix: username-prefix&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># signingAlgs: RS256,some-other-algorithm&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#-#-# only usable with Kubernetes &amp;gt;= 1.11&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># requiredClaims:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># key: value&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># admissionPlugins:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - name: PodNodeSelector&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># config: |&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># podNodeSelectorPluginConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># clusterDefaultNodeSelector: &amp;lt;node-selectors-labels&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># namespace1: &amp;lt;node-selectors-labels&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># namespace2: &amp;lt;node-selectors-labels&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># auditConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># auditPolicy:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># configMapRef:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: auditpolicy&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubeControllerManager:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># horizontalPodAutoscaler:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># syncPeriod: 30s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># tolerance: 0.1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#-#-# only usable with Kubernetes &amp;lt; 1.12&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># downscaleDelay: 15m0s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># upscaleDelay: 1m0s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#-#-# only usable with Kubernetes &amp;gt;= 1.12&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># downscaleStabilization: 5m0s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># initialReadinessDelay: 30s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpuInitializationPeriod: 5m0s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubeScheduler:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubeProxy:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># mode: IPVS&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kubelet:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpuCFSQuota: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpuManagerPolicy: none&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># podPidsLimit: 10&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># featureGates:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># SomeKubernetesFeature: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># clusterAutoscaler:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scaleDownUtilizationThreshold: 0.5&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scaleDownUnneededTime: 30m&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scaleDownDelayAfterAdd: 60m&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scaleDownDelayAfterFailure: 10m&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scaleDownDelayAfterDelete: 10s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># scanInterval: 10s&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># When the shoot shall use a cluster domain no domain and no providers need to be provided - Gardener will&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># automatically compute a correct domain.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domain: crazy-botany.core.my-custom-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: aws-route53
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: my-custom-domain-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domains:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - my-custom-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - my-other-custom-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exclude:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - yet-another-custom-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - zone-id-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exclude:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - zone-id-2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: foobar
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># providerConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: foobar.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: FooBarConfiguration&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># foo: bar&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: calico
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 100.96.0.0/11
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: 100.64.0.0/13
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.250.0.0/16
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># providerConfig:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiVersion: calico.extensions.gardener.cloud/v1alpha1&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># kind: NetworkConfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ipam:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># type: host-local&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cidr: usePodCIDR&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># backend: bird&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># typha:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># enabled: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># See also: https://github.com/gardener/gardener/blob/master/docs/proposals/03-networking.md&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeWindow:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> begin: 220000+0100
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: 230000+0100
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoUpdate:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImageVersion: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># hibernation:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># schedules:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - start: &amp;#34;0 20 * * *&amp;#34; # Start hibernation every day at 8PM&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># end: &amp;#34;0 6 * * *&amp;#34; # Stop hibernation every day at 6AM&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># location: &amp;#34;America/Los_Angeles&amp;#34; # Specify a location for the cron to run in&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> addons:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nginx-ingress:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># loadBalancerSourceRanges: []&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes-dashboard:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># authenticationMode: basic # allowed values: basic,token&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: APIServerAvailable
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#39;True&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastTransitionTime: &lt;span style="color:#a31515">&amp;#39;2020-01-30T10:38:15Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:35:21Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: HealthzRequestFailed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: API server /healthz endpoint responded with success status code. [response_time:3ms]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: ControlPlaneHealthy
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#39;True&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastTransitionTime: &lt;span style="color:#a31515">&amp;#39;2020-04-02T05:18:58Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:35:21Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: ControlPlaneRunning
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: All control plane components are healthy.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: EveryNodeReady
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#39;True&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastTransitionTime: &lt;span style="color:#a31515">&amp;#39;2020-04-01T16:27:21Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:35:21Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: EveryNodeReady
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: Every node registered to the cluster is ready.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: SystemComponentsHealthy
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#39;True&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastTransitionTime: &lt;span style="color:#a31515">&amp;#39;2020-04-03T18:26:28Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:35:21Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: SystemComponentsRunning
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: All system components are healthy.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: 4c9832b3823ee6784064877d3eb10c189fc26e98a1286c0d8a5bc82169ed702c
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-controller-manager-7fhn9ikan73n-7jhka
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.0.0
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Shoot cluster state has been successfully reconciled.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#39;2020-04-13T14:34:27Z&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> progress: 100
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Succeeded
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Reconcile
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed: seed1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hibernated: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> technicalID: shoot--core--crazy-botany
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> uid: d8608cfa-2856-11e8-8fdc-0a580af181af
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="plant-resource">&lt;code>Plant&lt;/code> resource&lt;/h3>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-plant-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfig: base64(kubeconfig-for-plant-cluster)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Plant
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-plant
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-core
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-plant-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: Cluster GitHub repository
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: management
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> url: https://github.com/my-org/my-cluster-repo
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: GKE cluster page
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: management
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> url: https://console.cloud.google.com/kubernetes/clusters/details/europe-west1-b/plant?project=my-project&amp;amp;authuser=1&amp;amp;tab=details
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterInfo:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gce
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-west4-c
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: v1.11.10-gke.5
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2020-03-01T11:31:37Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2020-04-14T18:00:29Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: API server /healthz endpoint responded with success status code. [response_time:8ms]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: HealthzRequestFailed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: APIServerAvailable
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2020-04-01T06:26:56Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2020-04-14T18:00:29Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: Every node registered to the cluster is ready.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: EveryNodeReady
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: EveryNodeReady
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: 05 Versioning Policy</title><link>https://gardener.cloud/docs/gardener/proposals/05-versioning-policy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/05-versioning-policy/</guid><description>
+&lt;p>[1] &lt;a href="https://docs.projectcalico.org/v3.0/reference/public-cloud/azure">Azure support for Calico Networking&lt;/a>&lt;/p></description></item><item><title>Docs: 05 Versioning Policy</title><link>https://gardener.cloud/docs/gardener/proposals/05-versioning-policy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/05-versioning-policy/</guid><description>
 &lt;h1 id="gardener-versioning-policy">Gardener Versioning Policy&lt;/h1>
 &lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_versions/">this document&lt;/a> for the documentation of the implementation of this GEP.&lt;/p>
 &lt;h2 id="goal">Goal&lt;/h2>
@@ -3361,7 +2639,151 @@ example &lt;code>values.yaml&lt;/code>:&lt;/li>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: |&lt;span style="color:#a31515">
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> If you can&amp;#39;t comply, only third-level/dev support at usual 8x5 working hours in EEA will be available to you for all node-related components such as Docker and Kubelet, the operating system, and everything else that would require direct inspection of your nodes through a privileged pod or SSH
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> inverted: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Adding Support for a Cloud Provider</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
+&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
+&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
+&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
+&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
+&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
+&lt;ol>
+&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
+&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
+&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to this created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate into the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Now, commit your changes and push them upstream.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
+&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
+&lt;p>⚠️&lt;/p>
+&lt;ul>
+&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
+&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
+&lt;/ul>
+&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
+&lt;ol>
+&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
+&lt;ul>
+&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
+&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
+&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
+&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
+&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Re-generate the vendors to update any new vendors imported.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
+&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
+&lt;/ol>
+&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
+&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
+&lt;ol>
+&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
+&lt;ul>
+&lt;li>Run the machine controller (driver) using the command below.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
+&lt;ul>
+&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
+&lt;ul>
+&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-class&lt;/code>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
+&lt;ol>
+&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
+&lt;li>To release your docker image, run the following.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Adding Support for a Cloud Provider (Legacy)</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
+&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
+&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
+&lt;ol>
+&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
+&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
+&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
+&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
+&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
+&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
+&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
+&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
+&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
+&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
+&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
 &lt;h1 id="extension-admission">Extension Admission&lt;/h1>
 &lt;p>The extensions are expected to validate their respective resources for their extension specific configurations, when the resources are newly created or updated. For example, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#infrastructure-provider">provider extensions&lt;/a> would validate &lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.provider.controlPlaneConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource and &lt;code>spec.providerConfig&lt;/code> in the &lt;code>CloudProfile&lt;/code> resource, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#network-plugin">networking extensions&lt;/a> would validate &lt;code>spec.networking.providerConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource. As best practice, the validation should be performed only if there is a change in the &lt;code>spec&lt;/code> of the resource. Please find an exemplary implementation &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/admission/validator">here&lt;/a>.&lt;/p>
 &lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for provider extension type &lt;code>aws&lt;/code>, looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, &lt;code>SecretBinding&lt;/code>s and &lt;code>Shoot&lt;/code>s. Please see &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/apis/core/v1beta1/constants/types_constants.go">this&lt;/a> for the full list of extension labels.&lt;/p></description></item><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
@@ -3536,7 +2958,7 @@ It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service: nodes
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> equal: [&lt;span style="color:#a31515">&amp;#39;cluster&amp;#39;&lt;/span>]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Below is a graph visualizing the inhibition rules:&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/alertInhibitionGraph_ceaef0.png" alt="inhibitionGraph">&lt;/p></description></item><item><title>Docs: Apis</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</guid><description>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/alertInhibitionGraph_ceaef0.png" alt="inhibitionGraph">&lt;/p></description></item><item><title>Docs: APIs</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</guid><description>
 &lt;h2 id="specification">Specification&lt;/h2>
 &lt;h3 id="providerspec-schema">ProviderSpec Schema&lt;/h3>
 &lt;br>
@@ -11549,7 +10971,7 @@ The proposal, as outlined below, suggests to implement the necessary changes in 
 &lt;/ul>
 &lt;h3 id="limitations">Limitations&lt;/h3>
 &lt;p>Each operating system has its own default user (e.g. &lt;code>core&lt;/code>, &lt;code>admin&lt;/code>, &lt;code>ec2-user&lt;/code> etc). These users get their SSH keys during VM creation (however there is a different handling on Google Cloud Platform as stated below). These keys currently do not get rotated respectively are not removed from the &lt;code>authorized_keys&lt;/code> file. This means that the initial &lt;code>ssh&lt;/code> key will still be valid for the default operating system user.&lt;/p>
-&lt;p>On Google Cloud Platform, the VMs do not have any static users (i.e. no &lt;code>gardener&lt;/code> user) and there is an agent on the nodes that syncs the users with their SSH keypairs from the GCP IAM service.&lt;/p></description></item><item><title>Docs: Changing The Api</title><link>https://gardener.cloud/docs/gardener/development/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/changing-the-api/</guid><description>
+&lt;p>On Google Cloud Platform, the VMs do not have any static users (i.e. no &lt;code>gardener&lt;/code> user) and there is an agent on the nodes that syncs the users with their SSH keypairs from the GCP IAM service.&lt;/p></description></item><item><title>Docs: Changing the APIs</title><link>https://gardener.cloud/docs/gardener/development/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/changing-the-api/</guid><description>
 &lt;h1 id="extending-the-api">Extending the API&lt;/h1>
 &lt;p>This document describes the steps that need to be performed when changing the API.
 It provides guidance for API changes to both (Gardener system in general or component configurations).&lt;/p>
@@ -11633,7 +11055,7 @@ Extension controllers can take whatever information they want out of it that mig
 &lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_cluster.go">&lt;code>Cluster&lt;/code> API (Golang specification)&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Cluster Api</title><link>https://gardener.cloud/docs/gardener/concepts/cluster-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/cluster-api/</guid><description>
+&lt;/ul></description></item><item><title>Docs: Cluster API</title><link>https://gardener.cloud/docs/gardener/concepts/cluster-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/cluster-api/</guid><description>
 &lt;h1 id="relation-between-gardener-api-and-cluster-api-sig-cluster-lifecycle">Relation between Gardener API and Cluster API (SIG Cluster Lifecycle)&lt;/h1>
 &lt;p>In essence, the Cluster API harmonizes how to get to clusters, while Gardener goes one step further and also harmonizes the clusters themselves. The Cluster API delegates the specifics to so-called providers for infrastructures or control planes via specific CR(D)s while Gardener only has one cluster CR(D). Different Cluster API providers, e.g. for AWS, Azure, GCP, etc. give you vastly different Kubernetes clusters. In contrast, Gardener gives you the exact same clusters with the exact same K8s version, operating system, control plane configuration like for API server or kubelet, add-ons like overlay network, HPA/VPA, DNS and certificate controllers, ingress and network policy controllers, control plane monitoring and logging stacks, down to the behavior of update procedures, auto-scaling, self-healing, etc. on all supported infrastructures. These homogeneous clusters are an essential goal for Gardener as its main purpose is to simplify operations for teams that need to develop and ship software on Kubernetes clusters on a plethora of infrastructures (a.k.a. multi-cloud).&lt;/p>
 &lt;p>Incidentally, Gardener influenced the Machine API in the Cluster API with its &lt;a href="https://github.com/gardener/machine-controller-manager">Machine Controller Manager&lt;/a> and was the &lt;a href="https://github.com/kubernetes-sigs/cluster-api/commit/00b1ead264aea6f88585559056c180771cce3815">first to adopt it&lt;/a>, see also &lt;a href="https://www.youtube.com/watch?v=Mtg8jygK3Hs">joint SIG Cluster Lifecycle KubeCon talk&lt;/a> where @hardikdr from our Gardener team in India spoke.&lt;/p>
@@ -23283,151 +22705,7 @@ bool
 &lt;hr/>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
-&lt;/em>&lt;/p></description></item><item><title>Docs: Cp Support New</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
-&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
-&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
-&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
-&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
-&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
-&lt;ol>
-&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
-&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
-&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to this created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate into the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Now, commit your changes and push them upstream.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
-&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
-&lt;p>⚠️&lt;/p>
-&lt;ul>
-&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
-&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
-&lt;/ul>
-&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
-&lt;ol>
-&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
-&lt;ul>
-&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
-&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
-&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
-&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
-&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Re-generate the vendors to update any new vendors imported.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
-&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
-&lt;/ol>
-&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
-&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
-&lt;ol>
-&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
-&lt;ul>
-&lt;li>Run the machine controller (driver) using the command below.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
-&lt;ul>
-&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
-&lt;ul>
-&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-class&lt;/code>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
-&lt;ol>
-&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
-&lt;li>To release your docker image, run the following.&lt;/li>
-&lt;/ol>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
-&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Cp Support Old</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
-&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
-&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
-&lt;ol>
-&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
-&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
-&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
-&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
-&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
-&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
-&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
-&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
-&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
-&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
-&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: CSI Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
+&lt;/em>&lt;/p></description></item><item><title>Docs: CSI Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
 &lt;h1 id="custom-csi-components">(Custom) CSI Components&lt;/h1>
 &lt;p>Some provider extensions for Gardener are using CSI components to manage persistent volumes in the shoot clusters.
 Additionally, most of the provider extensions are deploying controllers for taking volume snapshots (CSI snapshotter).&lt;/p>
@@ -23610,4 +22888,57 @@ Custom fields do not show up on the &lt;code>ALL_PROJECTS&lt;/code> page.&lt;/p>
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;showColumn&amp;#34;: false
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Dependencies</title><link>https://gardener.cloud/docs/gardener/development/dependencies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/dependencies/</guid><description>
+&lt;h1 id="dependency-management">Dependency Management&lt;/h1>
+&lt;p>We are using &lt;a href="https://github.com/golang/go/wiki/Modules">go modules&lt;/a> for depedency management.
+In order to add a new package dependency to the project, you can perform &lt;code>go get &amp;lt;PACKAGE&amp;gt;@&amp;lt;VERSION&amp;gt;&lt;/code> or edit the &lt;code>go.mod&lt;/code> file and append the package along with the version you want to use.&lt;/p>
+&lt;h2 id="updating-dependencies">Updating Dependencies&lt;/h2>
+&lt;p>The &lt;code>Makefile&lt;/code> contains a rule called &lt;code>revendor&lt;/code> which performs &lt;code>go mod tidy&lt;/code> and &lt;code>go mod vendor&lt;/code>.
+&lt;code>go mod tidy&lt;/code> makes sure go.mod matches the source code in the module. It adds any missing modules necessary to build the current module&amp;rsquo;s packages and dependencies, and it removes unused modules that don&amp;rsquo;t provide any relevant packages.
+&lt;code>go mod vendor&lt;/code> resets the main module&amp;rsquo;s vendor directory to include all packages needed to build and test all the main module&amp;rsquo;s packages. It does not include test code for vendored packages.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The dependencies are installed into the &lt;code>vendor&lt;/code> folder which &lt;strong>should be added&lt;/strong> to the VCS.&lt;/p>
+&lt;p>⚠️ Make sure that you test the code after you have updated the dependencies!&lt;/p>
+&lt;h2 id="exported-packages">Exported Packages&lt;/h2>
+&lt;p>This repository contains several packages that could be considered &amp;ldquo;exported packages&amp;rdquo;, in a sense that they are supposed to be reused in other Go projects.
+For example:&lt;/p>
+&lt;ul>
+&lt;li>Gardener&amp;rsquo;s API packages: &lt;code>pkg/apis&lt;/code>&lt;/li>
+&lt;li>Library for building Gardener extensions: &lt;code>extensions&lt;/code>&lt;/li>
+&lt;li>Gardener&amp;rsquo;s Test Framework: &lt;code>test/framework&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>There are a few more folders in this repository (non-Go sources) that are reused across projects in the gardener organization:&lt;/p>
+&lt;ul>
+&lt;li>GitHub templates: &lt;code>.github&lt;/code>&lt;/li>
+&lt;li>Concourse / cc-utils related helpers: &lt;code>hack/.ci&lt;/code>&lt;/li>
+&lt;li>Development, build and testing helpers: &lt;code>hack&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>These packages feature a dummy &lt;code>doc.go&lt;/code> file to allow other Go projects to pull them in as go mod dependencies.&lt;/p>
+&lt;p>These packages are explicitly &lt;em>not&lt;/em> supposed to be used in other projects (consider them as &amp;ldquo;non-exported&amp;rdquo;):&lt;/p>
+&lt;ul>
+&lt;li>API validation packages: &lt;code>pkg/apis/*/*/validation&lt;/code>&lt;/li>
+&lt;li>Operation package (main Gardener business logic regarding &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> clusters): &lt;code>pkg/operation&lt;/code>&lt;/li>
+&lt;li>Third party code: &lt;code>third_party&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Currently, we don&amp;rsquo;t have a mechanism yet for selectively syncing out these exported packages into dedicated repositories like kube&amp;rsquo;s &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/staging">staging mechanism&lt;/a> (&lt;a href="https://github.com/kubernetes/publishing-bot">publishing-bot&lt;/a>).&lt;/p>
+&lt;h2 id="import-restrictions">Import Restrictions&lt;/h2>
+&lt;p>We want to make sure, that other projects can depend on this repository&amp;rsquo;s &amp;ldquo;exported&amp;rdquo; packages without pulling in the entire repository (including &amp;ldquo;non-exported&amp;rdquo; packages) or a high number of other unwanted dependencies.
+Hence, we have to be careful when adding new imports or references between our packages.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ General rule of thumb: the mentioned &amp;ldquo;exported&amp;rdquo; packages should be as self-contained as possible and depend on as few other packages in the repository and other projects as possible.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to support that rule and automatically check compliance with that goal, we leverage &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">import-boss&lt;/a>.
+The tool checks all imports of the given packages (including transitive imports) against rules defined in &lt;code>.import-restrictions&lt;/code> files in each directory.
+An import is allowed if it matches at least one allowed prefix and does not match any forbidden prefixes.
+Note: &lt;code>''&lt;/code> (the empty string) is a prefix of everything.
+For more details, see: &lt;a href="https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss">https://github.com/kubernetes/code-generator/tree/master/cmd/import-boss&lt;/a>&lt;/p>
+&lt;p>&lt;code>import-boss&lt;/code> is executed on every pull request and blocks the PR if it doesn&amp;rsquo;t comply with the defined import restrictions.
+You can also run it locally using &lt;code>make check&lt;/code>.&lt;/p>
+&lt;p>Import restrictions should be changed in the following situations:&lt;/p>
+&lt;ul>
+&lt;li>We spot a new pattern of imports across our packages that was not restricted before but makes it more difficult for other projects to depend on our &amp;ldquo;exported&amp;rdquo; packages.
+In that case, the imports should be further restricted to disallow such problematic imports, and the code/package structure should be reworked to comply with the newly given restrictions.&lt;/li>
+&lt;li>We want to share code between packages, but existing import restrictions prevent us from doing so.
+In that case, please consider what additional dependencies it will pull in, when loosening existing restrictions.
+Also consider possible alternatives, like code restructurings or extracting shared code into dedicated packages for minimal impact on dependent projects.&lt;/li>
+&lt;/ul></description></item></channel></rss>

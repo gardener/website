@@ -1,148 +1,4 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Docs</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/</link><description>Recent content in Docs on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Adding Support for a Cloud Provider</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
-&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
-&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
-&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
-&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
-&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
-&lt;ol>
-&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
-&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
-&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to this created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate into the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Now, commit your changes and push them upstream.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
-&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
-&lt;p>⚠️&lt;/p>
-&lt;ul>
-&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
-&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
-&lt;/ul>
-&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
-&lt;ol>
-&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
-&lt;ul>
-&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
-&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
-&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
-&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
-&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Re-generate the vendors to update any new vendors imported.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
-&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
-&lt;/ol>
-&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
-&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
-&lt;ol>
-&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
-&lt;ul>
-&lt;li>Run the machine controller (driver) using the command below.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
-&lt;ul>
-&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
-&lt;ul>
-&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-class&lt;/code>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
-&lt;ol>
-&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
-&lt;li>To release your docker image, run the following.&lt;/li>
-&lt;/ol>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
-&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Adding Support for a Cloud Provider (Legacy)</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
-&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
-&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
-&lt;ol>
-&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
-&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
-&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
-&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
-&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
-&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
-&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
-&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
-&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
-&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
-&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: APIs</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Docs</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/</link><description>Recent content in Docs on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Apis</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</guid><description>
 &lt;h2 id="specification">Specification&lt;/h2>
 &lt;h3 id="providerspec-schema">ProviderSpec Schema&lt;/h3>
 &lt;br>
@@ -7217,7 +7073,151 @@ at any time during the update is atmost 130% of desired machines.&lt;/p>
 &lt;hr/>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
-&lt;/em>&lt;/p></description></item><item><title>Docs: Excess Reserve Capacity</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/excess_reserve_capacity/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/excess_reserve_capacity/</guid><description>
+&lt;/em>&lt;/p></description></item><item><title>Docs: Cp Support New</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
+&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
+&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
+&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
+&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
+&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
+&lt;ol>
+&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
+&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
+&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to this created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate into the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Now, commit your changes and push them upstream.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
+&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
+&lt;p>⚠️&lt;/p>
+&lt;ul>
+&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
+&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
+&lt;/ul>
+&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
+&lt;ol>
+&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
+&lt;ul>
+&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
+&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
+&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
+&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
+&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Re-generate the vendors to update any new vendors imported.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
+&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
+&lt;/ol>
+&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
+&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
+&lt;ol>
+&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
+&lt;ul>
+&lt;li>Run the machine controller (driver) using the command below.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
+&lt;ul>
+&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
+&lt;ul>
+&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-class&lt;/code>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
+&lt;ol>
+&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
+&lt;li>To release your docker image, run the following.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Cp Support Old</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
+&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
+&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
+&lt;ol>
+&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
+&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
+&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
+&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
+&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
+&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
+&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
+&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
+&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
+&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
+&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Excess Reserve Capacity</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/excess_reserve_capacity/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/excess_reserve_capacity/</guid><description>
 &lt;h1 id="excess-reserve-capacity">Excess Reserve Capacity&lt;/h1>
 &lt;!-- TOC -->
 &lt;ul>
@@ -7358,7 +7358,283 @@ List(machineclass *MachineClassMeta, credentials, machineID string) (map[string]
 &lt;/ul>
 &lt;h3 id="example-implementation">Example implementation:&lt;/h3>
 &lt;p>Refer GRPC based implementation for AWS client:
-&lt;a href="https://github.com/ggaurav10/aws-driver-grpc">https://github.com/ggaurav10/aws-driver-grpc&lt;/a>&lt;/p></description></item><item><title>Docs: Integration Tests</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/integration_tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/integration_tests/</guid><description>
+&lt;a href="https://github.com/ggaurav10/aws-driver-grpc">https://github.com/ggaurav10/aws-driver-grpc&lt;/a>&lt;/p></description></item><item><title>Docs: FAQ</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/faq/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/faq/</guid><description>
+&lt;h1 id="frequently-asked-questions">Frequently Asked Questions&lt;/h1>
+&lt;p>The answers in this FAQ apply to the newest (HEAD) version of Machine Controller Manager. If
+you&amp;rsquo;re using an older version of MCM please refer to corresponding version of
+this document. Few of the answers assume that the MCM being used is in conjuction with &lt;a href="https://github.com/gardener/autoscaler">cluster-autoscaler&lt;/a>:&lt;/p>
+&lt;h1 id="table-of-contents">Table of Contents:&lt;/h1>
+&lt;!--- TOC BEGIN -->
+&lt;ul>
+&lt;li>
+&lt;p>&lt;a href="#basics">Basics&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#what-is-machine-controller-manager">What is Machine Controller Manager?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#Why-is-my-machine-deleted">Why is my machine deleted?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#What-are-the-different-sub-controllers-in-MCM">What are the different sub-controllers in MCM?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#What-is-safety-controller-in-MCM">What is Safety Controller in MCM?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="#how-to">How to?&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#How-to-install-MCM-in-a-kubernetes-cluster">How to install MCM in a Kubernetes cluster?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-to-better-control-the-rollout-process-of-the-worker-nodes">How to better control the rollout process of the worker nodes?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-to-scale-down-machinedeployment-by-selective-deletion-of-machines">How to scale down MachineDeployment by selective deletion of machines?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-to-force-delete-a-machine">How to force delete a machine?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-to-pause-the-ongoing-rolling-update-of-the-machinedeployment">How to pause the ongoing rolling-update of the machinedeployment?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-to-avoid-garbage-collection-of-your-node">How to avoid garbage collection of your node?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="#internals">Internals&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#What-is-the-high-level-design-of-MCM">What is the high level design of MCM?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#What-are-the-different-configuration-options-in-MCM">What are the different configuration options in MCM?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#What-are-the-different-timeoutsconfigurations-in-a-machines-lifecycle">What are the different timeouts/configurations in a machine&amp;rsquo;s lifecycle?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-is-the-drain-of-a-machine-implemented">How is the drain of a machine implemented?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-are-the-stateful-applications-drained-during-machine-deletion">How are the stateful applications drained during machine deletion?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-does-maxEvictRetries-configuration-work-with-drainTimeout-configuration">How does maxEvictRetries configuration work with drainTimeout configuration?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#What-are-the-different-phases-of-a-machine">What are the different phases of a machine?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="#troubleshooting">Troubleshooting&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#My-machine-is-stuck-in-deletion-for-1-hr-why">My machine is stuck in deletion for 1 hr, why?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#My-machine-is-not-joining-the-cluster-why">My machine is not joining the cluster, why?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="#developer">Developer&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#How-should-I-test-my-code-before-submitting-a-PR">How should I test my code before submitting a PR?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#I-need-to-change-the-APIs-what-are-the-recommended-steps">I need to change the APIs, what are the recommended steps?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-can-I-update-the-dependencies-of-MCM">How can I update the dependencies of MCM?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="#in-the-context-of-gardener">In the context of Gardener&lt;/a>&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#How-can-I-configure-MCM-using-Shoot-resource">How can I configure MCM using Shoot resource?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#How-is-my-worker-pool-spread-across-zones">How is my worker-pool spread across zones?&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;!--- TOC END -->
+&lt;h1 id="basics">Basics&lt;/h1>
+&lt;h3 id="what-is-machine-controller-manager">What is Machine Controller Manager?&lt;/h3>
+&lt;p>Machine Controller Manager aka MCM is a bunch of controllers used for the lifecycle management of the worker machines. It reconciles a set of CRDs such as &lt;code>Machine&lt;/code>, &lt;code>MachineSet&lt;/code>, &lt;code>MachineDeployment&lt;/code> which depicts the functionality of &lt;code>Pod&lt;/code>, &lt;code>Replicaset&lt;/code>, &lt;code>Deployment&lt;/code> of the core Kubernetes respectively. Read more about it at &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/docs">README&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>Gardener uses MCM to manage its Kubernetes nodes of the shoot cluster. However, by design, MCM can be used independent of Gardener.&lt;/li>
+&lt;/ul>
+&lt;h3 id="why-is-my-machine-deleted">Why is my machine deleted?&lt;/h3>
+&lt;p>A machine is deleted by MCM generally for 2 reasons-&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Machine is unhealthy for at least &lt;code>MachineHealthTimeout&lt;/code> period. The default &lt;code>MachineHealthTimeout&lt;/code> is 10 minutes.&lt;/p>
+&lt;ul>
+&lt;li>By default, a machine is considered unhealthy if any of the following node conditions - &lt;code>DiskPressure&lt;/code>, &lt;code>KernelDeadlock&lt;/code>, &lt;code>FileSystem&lt;/code>, &lt;code>Readonly&lt;/code> is set to &lt;code>true&lt;/code>, or &lt;code>KubeletReady&lt;/code> is set to &lt;code>false&lt;/code>. However, this is something that is configurable using the following &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/deployment/out-of-tree/deployment.yaml#L30">flag&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Machine is scaled down by the &lt;code>MachineDeployment&lt;/code> resource.&lt;/p>
+&lt;ul>
+&lt;li>This is very usual when an external controller cluster-autoscaler (aka CA) is used with MCM. CA deletes the under-utilized machines by scaling down the &lt;code>MachineDeployment&lt;/code>. Read more about cluster-autoscaler&amp;rsquo;s scale down behavior &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md#how-does-scale-down-work">here&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="what-are-the-different-sub-controllers-in-mcm">What are the different sub-controllers in MCM?&lt;/h3>
+&lt;p>MCM mainly contains the following sub-controllers:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>MachineDeployment Controller&lt;/code>: Responsible for reconciling the &lt;code>MachineDeployment&lt;/code> objects. It manages the lifecycle of the &lt;code>MachineSet&lt;/code> objects.&lt;/li>
+&lt;li>&lt;code>MachineSet Controller&lt;/code>: Responsible for reconciling the &lt;code>MachineSet&lt;/code> objects. It manages the lifecycle of the &lt;code>Machine&lt;/code> objects.&lt;/li>
+&lt;li>&lt;code>Machine Controller&lt;/code>: responsible for reconciling the &lt;code>Machine&lt;/code> objects. It manages the lifecycle of the actual VMs/machines created in cloud/on-prem. This controller has been moved out of tree. Please refer an AWS machine controller for more info - &lt;a href="https://github.com/gardener/machine-controller-manager-provider-gcp">link&lt;/a>.&lt;/li>
+&lt;li>Safety-controller: Responsible for handling the unidentified/unknown behaviors from the cloud providers. Please read more about its functionality &lt;a href="#what-is-safety-controller">below&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;h3 id="what-is-safety-controller-in-mcm">What is Safety Controller in MCM?&lt;/h3>
+&lt;p>&lt;code>Safety Controller&lt;/code> contains following functions:&lt;/p>
+&lt;ul>
+&lt;li>Orphan VM handler:
+&lt;ul>
+&lt;li>It lists all the VMs in the cloud matching the &lt;code>tag&lt;/code> of given cluster name and maps the VMs with the &lt;code>machine&lt;/code> objects using the &lt;code>ProviderID&lt;/code> field. VMs without any backing &lt;code>machine&lt;/code> objects are logged and deleted after confirmation.&lt;/li>
+&lt;li>This handler runs every 30 minutes and is configurable via &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L112">machine-safety-orphan-vms-period&lt;/a> flag.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Freeze mechanism:
+&lt;ul>
+&lt;li>&lt;code>Safety Controller&lt;/code> freezes the &lt;code>MachineDeployment&lt;/code> and &lt;code>MachineSet&lt;/code> controller if the number of &lt;code>machine&lt;/code> objects goes beyond a certain threshold on top of &lt;code>Spec.Replicas&lt;/code>. It can be configured by the flag &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L102-L103">&amp;ndash;safety-up or &amp;ndash;safety-down&lt;/a> and also &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L113">machine-safety-overshooting-period&lt;/a>.&lt;/li>
+&lt;li>&lt;code>Safety Controller&lt;/code> freezes the functionality of the MCM if either of the &lt;code>target-apiserver&lt;/code> or the &lt;code>control-apiserver&lt;/code> is not reachable.&lt;/li>
+&lt;li>&lt;code>Safety Controller&lt;/code> unfreezes the MCM automatically once situation is resolved to normal. A &lt;code>freeze&lt;/code> label is applied on &lt;code>MachineDeployment&lt;/code>/&lt;code>MachineSet&lt;/code> to enforce the freeze condition.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h1 id="how-to">How to?&lt;/h1>
+&lt;h3 id="how-to-install-mcm-in-a-kubernetes-cluster">How to install MCM in a Kubernetes cluster?&lt;/h3>
+&lt;p>MCM can be installed in a cluster with following steps:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Apply all the CRDs from &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/kubernetes/deployment/in-tree">here&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Apply all the deployment, role-related objects from &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/kubernetes/deployment/in-tree">here&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>Control cluster is the one where the &lt;code>machine-*&lt;/code> objects are stored. Target cluster is where all the node objects are registered.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-to-better-control-the-rollout-process-of-the-worker-nodes">How to better control the rollout process of the worker nodes?&lt;/h3>
+&lt;p>MCM allows configuring the rollout of the worker machines using &lt;code>maxSurge&lt;/code> and &lt;code>maxUnavailable&lt;/code> fields. These fields are applicable only during the rollout process and means nothing in general scale up/down scenarios.
+The overall process is very similar to how the &lt;code>Deployment Controller&lt;/code> manages pods during &lt;code>RollingUpdate&lt;/code>.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>maxSurge&lt;/code> refers to the number of additional machines that can be added on top of the &lt;code>Spec.Replicas&lt;/code> of MachineDeployment &lt;em>during rollout process&lt;/em>.&lt;/li>
+&lt;li>&lt;code>maxUnavailable&lt;/code> refers to the number of machines that can be deleted from &lt;code>Spec.Replicas&lt;/code> field of the MachineDeployment &lt;em>during rollout process&lt;/em>.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-to-scale-down-machinedeployment-by-selective-deletion-of-machines">How to scale down MachineDeployment by selective deletion of machines?&lt;/h3>
+&lt;p>During scale down, triggered via &lt;code>MachineDeployment&lt;/code>/&lt;code>MachineSet&lt;/code>, MCM prefers to delete the &lt;code>machine/s&lt;/code> which have the least priority set.
+Each &lt;code>machine&lt;/code> object has an annotation &lt;code>machinepriority.machine.sapcloud.io&lt;/code> set to &lt;code>3&lt;/code> by default. Admin can reduce the priority of the given machines by changing the annotation value to &lt;code>1&lt;/code>. The next scale down by &lt;code>MachineDeployment&lt;/code> shall delete the machines with the least priority first.&lt;/p>
+&lt;h3 id="how-to-force-delete-a-machine">How to force delete a machine?&lt;/h3>
+&lt;p>A machine can be force deleted by adding the label &lt;code>force-deletion: &amp;quot;True&amp;quot;&lt;/code> on the &lt;code>machine&lt;/code> object before executing the actual delete command. During force deletion, MCM skips the drain function and simply triggers the deletion of the machine. This label should be used with caution as it can violate the PDBs for pods running on the machine.&lt;/p>
+&lt;h3 id="how-to-pause-the-ongoing-rolling-update-of-the-machinedeployment">How to pause the ongoing rolling-update of the machinedeployment?&lt;/h3>
+&lt;p>An ongoing rolling-update of the machine-deployment can be paused by using &lt;code>spec.paused&lt;/code> field. See the example below:&lt;/p>
+&lt;pre tabindex="0">&lt;code>apiVersion: machine.sapcloud.io/v1alpha1
+kind: MachineDeployment
+metadata:
+name: test-machine-deployment
+spec:
+paused: true
+&lt;/code>&lt;/pre>&lt;p>It can be unpaused again by removing the &lt;code>Paused&lt;/code> field from the machine-deployment.&lt;/p>
+&lt;h3 id="how-to-avoid-garbage-collection-of-your-node">How to avoid garbage collection of your node?&lt;/h3>
+&lt;p>MCM provides an in-built safety mechanism to garbage collect VMs which have no corresponding machine object. This is done to save costs and is one of the key features of MCM.
+However, sometimes users might like to add nodes directly to the cluster without the help of MCM and would prefer MCM to not garbage collect such VMs.
+To do so they should remove/not-use tags on their VMs containing the following strings:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>kubernetes.io/cluster/&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.io/role/&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes-io-cluster-&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes-io-role-&lt;/code>&lt;/li>
+&lt;/ol>
+&lt;h1 id="internals">Internals&lt;/h1>
+&lt;h3 id="what-is-the-high-level-design-of-mcm">What is the high level design of MCM?&lt;/h3>
+&lt;p>Please refer the following &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/docs/design">document&lt;/a>.&lt;/p>
+&lt;h3 id="what-are-the-different-configuration-options-in-mcm">What are the different configuration options in MCM?&lt;/h3>
+&lt;p>MCM allows configuring many knobs to fine-tune its behavior according to the user&amp;rsquo;s need.
+Please refer to the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go">link&lt;/a> to check the exact configuration options.&lt;/p>
+&lt;h3 id="what-are-the-different-timeoutsconfigurations-in-a-machines-lifecycle">What are the different timeouts/configurations in a machine&amp;rsquo;s lifecycle?&lt;/h3>
+&lt;p>A machine&amp;rsquo;s lifecycle is governed by mainly following timeouts, which can be configured &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/machine_objects/machine-deployment.yaml#L30-L34">here&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>MachineDrainTimeout&lt;/code>: Amount of time after which drain times out and the machine is force deleted. Default ~2 hours.&lt;/li>
+&lt;li>&lt;code>MachineHealthTimeout&lt;/code>: Amount of time after which an unhealthy machine is declared &lt;code>Failed&lt;/code> and the machine is replaced by &lt;code>MachineSet&lt;/code> controller.&lt;/li>
+&lt;li>&lt;code>MachineCreationTimeout&lt;/code>: Amount of time after which a machine creation is declared &lt;code>Failed&lt;/code> and the machine is replaced by the &lt;code>MachineSet&lt;/code> controller.&lt;/li>
+&lt;li>&lt;code>NodeConditions&lt;/code>: List of node conditions which if set to true for &lt;code>MachineHealthTimeout&lt;/code> period, the machine is declared &lt;code>Failed&lt;/code> and replaced by &lt;code>MachineSet&lt;/code> controller.&lt;/li>
+&lt;li>&lt;code>MaxEvictRetries&lt;/code>: An integer number depicting the number of times a failed &lt;em>eviction&lt;/em> should be retried on a pod during drain process. A pod is &lt;em>deleted&lt;/em> after &lt;code>max-retries&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-is-the-drain-of-a-machine-implemented">How is the drain of a machine implemented?&lt;/h3>
+&lt;p>MCM imports the functionality from the upstream Kubernetes-drain library. Although, few parts have been modified to make it work best in the context of MCM. Drain is executed before machine deletion for graceful migration of the applications.
+Drain internally uses the &lt;code>EvictionAPI&lt;/code> to evict the pods and triggers the &lt;code>Deletion&lt;/code> of pods after &lt;code>MachineDrainTimeout&lt;/code>. Please note:&lt;/p>
+&lt;ul>
+&lt;li>Stateless pods are evicted in parallel.&lt;/li>
+&lt;li>Stateful applications (with PVCs) are serially evicted. Please find more info in this &lt;a href="#how-are-the-stateful-applications-drained-during-machine-deletion">answer below&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-are-the-stateful-applications-drained-during-machine-deletion">How are the stateful applications drained during machine deletion?&lt;/h3>
+&lt;p>Drain function serially evicts the stateful-pods. It is observed that serial eviction of stateful pods yields better overall availability of pods as the underlying cloud in most cases detaches and reattaches disks serially anyways.
+It is implemented in the following manner:&lt;/p>
+&lt;ul>
+&lt;li>Drain lists all the pods with attached volumes. It evicts very first stateful-pod and waits for its related entry in Node object&amp;rsquo;s &lt;code>.status.volumesAttached&lt;/code> to be removed by KCM. It does the same for all the stateful-pods.&lt;/li>
+&lt;li>It waits for &lt;code>PvDetachTimeout&lt;/code> (default 2 minutes) for a given pod&amp;rsquo;s PVC to be removed, else moves forward.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-does-maxevictretries-configuration-work-with-draintimeout-configuration">How does &lt;code>maxEvictRetries&lt;/code> configuration work with &lt;code>drainTimeout&lt;/code> configuration?&lt;/h3>
+&lt;p>It is recommended to only set &lt;code>MachineDrainTimeout&lt;/code>. It satisfies the related requirements. &lt;code>MaxEvictRetries&lt;/code> is auto-calculated based on &lt;code>MachineDrainTimeout&lt;/code>, if &lt;code>maxEvictRetries&lt;/code> is not provided. Following will be the overall behavior of both configurations together:&lt;/p>
+&lt;ul>
+&lt;li>If &lt;code>maxEvictRetries&lt;/code> isn&amp;rsquo;t set and only &lt;code>maxDrainTimeout&lt;/code> is set:
+&lt;ul>
+&lt;li>MCM auto calculates the &lt;code>maxEvictRetries&lt;/code> based on the &lt;code>drainTimeout&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If &lt;code>drainTimeout&lt;/code> isn&amp;rsquo;t set and only &lt;code>maxEvictRetries&lt;/code> is set:
+&lt;ul>
+&lt;li>Default &lt;code>drainTimeout&lt;/code> and user provided &lt;code>maxEvictRetries&lt;/code> for each pod is considered.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If both &lt;code>maxEvictRetries&lt;/code> and &lt;code>drainTimoeut&lt;/code> are set:
+&lt;ul>
+&lt;li>Then both will be respected.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If none are set:
+&lt;ul>
+&lt;li>Defaults are respected.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="what-are-the-different-phases-of-a-machine">What are the different phases of a machine?&lt;/h3>
+&lt;p>A phase of a &lt;code>machine&lt;/code> can be identified with &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code>. Following are the possible phases of a &lt;code>machine&lt;/code> object:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Pending&lt;/code>: Machine creation call has succeeded. MCM is waiting for machine to join the cluster.&lt;/li>
+&lt;li>&lt;code>CrashLoopBackOff&lt;/code>: Machine creation call has failed. MCM will retry the operation after a minor delay.&lt;/li>
+&lt;li>&lt;code>Running&lt;/code>: Machine creation call has succeeded. Machine has joined the cluster successfully.&lt;/li>
+&lt;li>&lt;code>Unknown&lt;/code>: Machine health checks are failing, eg &lt;code>kubelet&lt;/code> has stopped posting the status.&lt;/li>
+&lt;li>&lt;code>Failed&lt;/code>: Machine health checks have failed for a prolonged time. Hence it is declared failed. &lt;code>MachineSet&lt;/code> controller will replace such machines immediately.&lt;/li>
+&lt;li>&lt;code>Terminating&lt;/code>: Machine is being terminated. Terminating state is set immediately when the deletion is triggered for the &lt;code>machine&lt;/code> object. It also includes time when it&amp;rsquo;s being drained.&lt;/li>
+&lt;/ul>
+&lt;h1 id="troubleshooting">Troubleshooting&lt;/h1>
+&lt;h3 id="my-machine-is-stuck-in-deletion-for-1-hr-why">My machine is stuck in deletion for 1 hr, why?&lt;/h3>
+&lt;p>In most cases, the &lt;code>Machine.Status.LastOperation&lt;/code> provides information around why a machine can&amp;rsquo;t be deleted.
+Though following could be the reasons but not limited to:&lt;/p>
+&lt;ul>
+&lt;li>Pod/s with misconfigured PDBs block the drain operation. PDBs with &lt;code>maxUnavailable&lt;/code> set to 0, doesn&amp;rsquo;t allow the eviction of the pods. Hence, drain/eviction is retried till &lt;code>MachineDrainTimeout&lt;/code>. Default &lt;code>MachineDrainTimeout&lt;/code> could be as large as ~2hours. Hence, blocking the machine deletion.
+&lt;ul>
+&lt;li>Short term: User can manually delete the pod in the question, &lt;em>with caution&lt;/em>.&lt;/li>
+&lt;li>Long term: Please set more appropriate PDBs which allow disruption of at least one pod.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Expired cloud credentials can block the deletion of the machine from infrastructure.&lt;/li>
+&lt;li>Cloud provider can&amp;rsquo;t delete the machine due to internal errors. Such situations are best debugged by using cloud provider specific CLI or cloud console.&lt;/li>
+&lt;/ul>
+&lt;h3 id="my-machine-is-not-joining-the-cluster-why">My machine is not joining the cluster, why?&lt;/h3>
+&lt;p>In most cases, the &lt;code>Machine.Status.LastOperation&lt;/code> provides information around why a machine can&amp;rsquo;t be created.
+It could possibly be debugged with following steps:&lt;/p>
+&lt;ul>
+&lt;li>Verify if the machine is actually created in the cloud. User can use the &lt;code>Machine.Spec.ProviderId&lt;/code> to query the machine in cloud.&lt;/li>
+&lt;li>A Kubernetes node is generally bootstrapped with the cloud-config. Please verify, if &lt;code>MachineDeployment&lt;/code> is pointing the correct &lt;code>MachineClass&lt;/code>, and &lt;code>MachineClass&lt;/code> is pointing to the correct &lt;code>Secret&lt;/code>. The secret object contains the actual cloud-config in &lt;code>base64&lt;/code> format which will be used to boot the machine.&lt;/li>
+&lt;li>User must also check the logs of the MCM pod to understand any broken logical flow of reconciliation.&lt;/li>
+&lt;/ul>
+&lt;h1 id="developer">Developer&lt;/h1>
+&lt;h3 id="how-should-i-test-my-code-before-submitting-a-pr">How should I test my code before submitting a PR?&lt;/h3>
+&lt;ul>
+&lt;li>Developer can locally setup the MCM using following &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/local_setup/">guide&lt;/a>&lt;/li>
+&lt;li>Developer must also enhance the unit tests related to the incoming changes.&lt;/li>
+&lt;li>Developer can locally run the unit test by executing:&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code>make test-unit
+&lt;/code>&lt;/pre>&lt;h3 id="i-need-to-change-the-apis-what-are-the-recommended-steps">I need to change the APIs, what are the recommended steps?&lt;/h3>
+&lt;p>Developer should add/update the API fields at both of the following places:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/apis/machine/v1alpha1">https://github.com/gardener/machine-controller-manager/tree/master/pkg/apis/machine/v1alpha1&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>Once API changes are done, auto-generate the code using following command:&lt;/p>
+&lt;pre tabindex="0">&lt;code>./hack/generate-code
+&lt;/code>&lt;/pre>&lt;p>Please ignore the API-violation errors for now.&lt;/p>
+&lt;h3 id="how-can-i-update-the-dependencies-of-mcm">How can I update the dependencies of MCM?&lt;/h3>
+&lt;p>MCM uses &lt;code>gomod&lt;/code> for depedency management.
+Developer should add/udpate depedency in the go.mod file. Please run following command to automatically revendor the dependencies.&lt;/p>
+&lt;pre tabindex="0">&lt;code>make revendor
+&lt;/code>&lt;/pre>&lt;h1 id="in-the-context-of-gardener">In the context of Gardener&lt;/h1>
+&lt;h3 id="how-can-i-configure-mcm-using-shoot-resource">How can I configure MCM using Shoot resource?&lt;/h3>
+&lt;p>All of the knobs of MCM can be configured by the &lt;code>workers&lt;/code> &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L29-L126">section&lt;/a> of the shoot resource.&lt;/p>
+&lt;ul>
+&lt;li>Gardener creates a &lt;code>MachineDeployment&lt;/code> per zone for each worker-pool under &lt;code>workers&lt;/code> section.&lt;/li>
+&lt;li>&lt;code>workers.dataVolumes&lt;/code> allows to attach multiple disks to a machine during creation. Refer the &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L29-L126">link&lt;/a>.&lt;/li>
+&lt;li>&lt;code>workers.machineControllerManager&lt;/code> allows configuration of multiple knobs of the &lt;code>MachineDeployment&lt;/code> from the shoot resource.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-is-my-worker-pool-spread-across-zones">How is my worker-pool spread across zones?&lt;/h3>
+&lt;p>Shoot resource allows the worker-pool to spread across multiple zones using the field &lt;code>workers.zones&lt;/code>. Refer &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L115">link&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>Gardener creates one &lt;code>MachineDeployment&lt;/code> per zone. Each &lt;code>MachineDeployment&lt;/code> is initiated with the following replica:&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code>MachineDeployment.Spec.Replicas = (Workers.Minimum)/(Number of availibility zones)
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Integration Tests</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/integration_tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/integration_tests/</guid><description>
 &lt;h1 id="integration-tests">Integration tests&lt;/h1>
 &lt;h2 id="usage">Usage&lt;/h2>
 &lt;h2 id="general-setup--configurations">General setup &amp;amp; configurations&lt;/h2>
@@ -7646,283 +7922,7 @@ List(machineclass *MachineClassMeta, credentials, machineID string) (map[string]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="delete-machine">Delete machine&lt;/h2>
 &lt;p>To delete the VM using the &lt;code>kubernetes/machine_objects/machine.yaml&lt;/code> as shown below&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl delete -f kubernetes/machine_objects/machine.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now the Machine Controller Manager picks up the manifest immediately and starts to delete the existing VM by talking to the cloud provider. The node should be detached from the cluster in a few minutes (~1min for AWS).&lt;/p></description></item><item><title>Docs: Machine Controller Manager FAQ</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/faq/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/faq/</guid><description>
-&lt;h1 id="frequently-asked-questions">Frequently Asked Questions&lt;/h1>
-&lt;p>The answers in this FAQ apply to the newest (HEAD) version of Machine Controller Manager. If
-you&amp;rsquo;re using an older version of MCM please refer to corresponding version of
-this document. Few of the answers assume that the MCM being used is in conjuction with &lt;a href="https://github.com/gardener/autoscaler">cluster-autoscaler&lt;/a>:&lt;/p>
-&lt;h1 id="table-of-contents">Table of Contents:&lt;/h1>
-&lt;!--- TOC BEGIN -->
-&lt;ul>
-&lt;li>
-&lt;p>&lt;a href="#basics">Basics&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#what-is-machine-controller-manager">What is Machine Controller Manager?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#Why-is-my-machine-deleted">Why is my machine deleted?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#What-are-the-different-sub-controllers-in-MCM">What are the different sub-controllers in MCM?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#What-is-safety-controller-in-MCM">What is Safety Controller in MCM?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#how-to">How to?&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#How-to-install-MCM-in-a-kubernetes-cluster">How to install MCM in a Kubernetes cluster?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-to-better-control-the-rollout-process-of-the-worker-nodes">How to better control the rollout process of the worker nodes?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-to-scale-down-machinedeployment-by-selective-deletion-of-machines">How to scale down MachineDeployment by selective deletion of machines?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-to-force-delete-a-machine">How to force delete a machine?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-to-pause-the-ongoing-rolling-update-of-the-machinedeployment">How to pause the ongoing rolling-update of the machinedeployment?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-to-avoid-garbage-collection-of-your-node">How to avoid garbage collection of your node?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#internals">Internals&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#What-is-the-high-level-design-of-MCM">What is the high level design of MCM?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#What-are-the-different-configuration-options-in-MCM">What are the different configuration options in MCM?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#What-are-the-different-timeoutsconfigurations-in-a-machines-lifecycle">What are the different timeouts/configurations in a machine&amp;rsquo;s lifecycle?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-is-the-drain-of-a-machine-implemented">How is the drain of a machine implemented?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-are-the-stateful-applications-drained-during-machine-deletion">How are the stateful applications drained during machine deletion?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-does-maxEvictRetries-configuration-work-with-drainTimeout-configuration">How does maxEvictRetries configuration work with drainTimeout configuration?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#What-are-the-different-phases-of-a-machine">What are the different phases of a machine?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#troubleshooting">Troubleshooting&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#My-machine-is-stuck-in-deletion-for-1-hr-why">My machine is stuck in deletion for 1 hr, why?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#My-machine-is-not-joining-the-cluster-why">My machine is not joining the cluster, why?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#developer">Developer&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#How-should-I-test-my-code-before-submitting-a-PR">How should I test my code before submitting a PR?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#I-need-to-change-the-APIs-what-are-the-recommended-steps">I need to change the APIs, what are the recommended steps?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-can-I-update-the-dependencies-of-MCM">How can I update the dependencies of MCM?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="#in-the-context-of-gardener">In the context of Gardener&lt;/a>&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#How-can-I-configure-MCM-using-Shoot-resource">How can I configure MCM using Shoot resource?&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#How-is-my-worker-pool-spread-across-zones">How is my worker-pool spread across zones?&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;!--- TOC END -->
-&lt;h1 id="basics">Basics&lt;/h1>
-&lt;h3 id="what-is-machine-controller-manager">What is Machine Controller Manager?&lt;/h3>
-&lt;p>Machine Controller Manager aka MCM is a bunch of controllers used for the lifecycle management of the worker machines. It reconciles a set of CRDs such as &lt;code>Machine&lt;/code>, &lt;code>MachineSet&lt;/code>, &lt;code>MachineDeployment&lt;/code> which depicts the functionality of &lt;code>Pod&lt;/code>, &lt;code>Replicaset&lt;/code>, &lt;code>Deployment&lt;/code> of the core Kubernetes respectively. Read more about it at &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/docs">README&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>Gardener uses MCM to manage its Kubernetes nodes of the shoot cluster. However, by design, MCM can be used independent of Gardener.&lt;/li>
-&lt;/ul>
-&lt;h3 id="why-is-my-machine-deleted">Why is my machine deleted?&lt;/h3>
-&lt;p>A machine is deleted by MCM generally for 2 reasons-&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Machine is unhealthy for at least &lt;code>MachineHealthTimeout&lt;/code> period. The default &lt;code>MachineHealthTimeout&lt;/code> is 10 minutes.&lt;/p>
-&lt;ul>
-&lt;li>By default, a machine is considered unhealthy if any of the following node conditions - &lt;code>DiskPressure&lt;/code>, &lt;code>KernelDeadlock&lt;/code>, &lt;code>FileSystem&lt;/code>, &lt;code>Readonly&lt;/code> is set to &lt;code>true&lt;/code>, or &lt;code>KubeletReady&lt;/code> is set to &lt;code>false&lt;/code>. However, this is something that is configurable using the following &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/deployment/out-of-tree/deployment.yaml#L30">flag&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Machine is scaled down by the &lt;code>MachineDeployment&lt;/code> resource.&lt;/p>
-&lt;ul>
-&lt;li>This is very usual when an external controller cluster-autoscaler (aka CA) is used with MCM. CA deletes the under-utilized machines by scaling down the &lt;code>MachineDeployment&lt;/code>. Read more about cluster-autoscaler&amp;rsquo;s scale down behavior &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md#how-does-scale-down-work">here&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="what-are-the-different-sub-controllers-in-mcm">What are the different sub-controllers in MCM?&lt;/h3>
-&lt;p>MCM mainly contains the following sub-controllers:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>MachineDeployment Controller&lt;/code>: Responsible for reconciling the &lt;code>MachineDeployment&lt;/code> objects. It manages the lifecycle of the &lt;code>MachineSet&lt;/code> objects.&lt;/li>
-&lt;li>&lt;code>MachineSet Controller&lt;/code>: Responsible for reconciling the &lt;code>MachineSet&lt;/code> objects. It manages the lifecycle of the &lt;code>Machine&lt;/code> objects.&lt;/li>
-&lt;li>&lt;code>Machine Controller&lt;/code>: responsible for reconciling the &lt;code>Machine&lt;/code> objects. It manages the lifecycle of the actual VMs/machines created in cloud/on-prem. This controller has been moved out of tree. Please refer an AWS machine controller for more info - &lt;a href="https://github.com/gardener/machine-controller-manager-provider-gcp">link&lt;/a>.&lt;/li>
-&lt;li>Safety-controller: Responsible for handling the unidentified/unknown behaviors from the cloud providers. Please read more about its functionality &lt;a href="#what-is-safety-controller">below&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;h3 id="what-is-safety-controller-in-mcm">What is Safety Controller in MCM?&lt;/h3>
-&lt;p>&lt;code>Safety Controller&lt;/code> contains following functions:&lt;/p>
-&lt;ul>
-&lt;li>Orphan VM handler:
-&lt;ul>
-&lt;li>It lists all the VMs in the cloud matching the &lt;code>tag&lt;/code> of given cluster name and maps the VMs with the &lt;code>machine&lt;/code> objects using the &lt;code>ProviderID&lt;/code> field. VMs without any backing &lt;code>machine&lt;/code> objects are logged and deleted after confirmation.&lt;/li>
-&lt;li>This handler runs every 30 minutes and is configurable via &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L112">machine-safety-orphan-vms-period&lt;/a> flag.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Freeze mechanism:
-&lt;ul>
-&lt;li>&lt;code>Safety Controller&lt;/code> freezes the &lt;code>MachineDeployment&lt;/code> and &lt;code>MachineSet&lt;/code> controller if the number of &lt;code>machine&lt;/code> objects goes beyond a certain threshold on top of &lt;code>Spec.Replicas&lt;/code>. It can be configured by the flag &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L102-L103">&amp;ndash;safety-up or &amp;ndash;safety-down&lt;/a> and also &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go#L113">machine-safety-overshooting-period&lt;/a>.&lt;/li>
-&lt;li>&lt;code>Safety Controller&lt;/code> freezes the functionality of the MCM if either of the &lt;code>target-apiserver&lt;/code> or the &lt;code>control-apiserver&lt;/code> is not reachable.&lt;/li>
-&lt;li>&lt;code>Safety Controller&lt;/code> unfreezes the MCM automatically once situation is resolved to normal. A &lt;code>freeze&lt;/code> label is applied on &lt;code>MachineDeployment&lt;/code>/&lt;code>MachineSet&lt;/code> to enforce the freeze condition.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h1 id="how-to">How to?&lt;/h1>
-&lt;h3 id="how-to-install-mcm-in-a-kubernetes-cluster">How to install MCM in a Kubernetes cluster?&lt;/h3>
-&lt;p>MCM can be installed in a cluster with following steps:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Apply all the CRDs from &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/kubernetes/deployment/in-tree">here&lt;/a>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Apply all the deployment, role-related objects from &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/kubernetes/deployment/in-tree">here&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>Control cluster is the one where the &lt;code>machine-*&lt;/code> objects are stored. Target cluster is where all the node objects are registered.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-to-better-control-the-rollout-process-of-the-worker-nodes">How to better control the rollout process of the worker nodes?&lt;/h3>
-&lt;p>MCM allows configuring the rollout of the worker machines using &lt;code>maxSurge&lt;/code> and &lt;code>maxUnavailable&lt;/code> fields. These fields are applicable only during the rollout process and means nothing in general scale up/down scenarios.
-The overall process is very similar to how the &lt;code>Deployment Controller&lt;/code> manages pods during &lt;code>RollingUpdate&lt;/code>.&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>maxSurge&lt;/code> refers to the number of additional machines that can be added on top of the &lt;code>Spec.Replicas&lt;/code> of MachineDeployment &lt;em>during rollout process&lt;/em>.&lt;/li>
-&lt;li>&lt;code>maxUnavailable&lt;/code> refers to the number of machines that can be deleted from &lt;code>Spec.Replicas&lt;/code> field of the MachineDeployment &lt;em>during rollout process&lt;/em>.&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-to-scale-down-machinedeployment-by-selective-deletion-of-machines">How to scale down MachineDeployment by selective deletion of machines?&lt;/h3>
-&lt;p>During scale down, triggered via &lt;code>MachineDeployment&lt;/code>/&lt;code>MachineSet&lt;/code>, MCM prefers to delete the &lt;code>machine/s&lt;/code> which have the least priority set.
-Each &lt;code>machine&lt;/code> object has an annotation &lt;code>machinepriority.machine.sapcloud.io&lt;/code> set to &lt;code>3&lt;/code> by default. Admin can reduce the priority of the given machines by changing the annotation value to &lt;code>1&lt;/code>. The next scale down by &lt;code>MachineDeployment&lt;/code> shall delete the machines with the least priority first.&lt;/p>
-&lt;h3 id="how-to-force-delete-a-machine">How to force delete a machine?&lt;/h3>
-&lt;p>A machine can be force deleted by adding the label &lt;code>force-deletion: &amp;quot;True&amp;quot;&lt;/code> on the &lt;code>machine&lt;/code> object before executing the actual delete command. During force deletion, MCM skips the drain function and simply triggers the deletion of the machine. This label should be used with caution as it can violate the PDBs for pods running on the machine.&lt;/p>
-&lt;h3 id="how-to-pause-the-ongoing-rolling-update-of-the-machinedeployment">How to pause the ongoing rolling-update of the machinedeployment?&lt;/h3>
-&lt;p>An ongoing rolling-update of the machine-deployment can be paused by using &lt;code>spec.paused&lt;/code> field. See the example below:&lt;/p>
-&lt;pre tabindex="0">&lt;code>apiVersion: machine.sapcloud.io/v1alpha1
-kind: MachineDeployment
-metadata:
-name: test-machine-deployment
-spec:
-paused: true
-&lt;/code>&lt;/pre>&lt;p>It can be unpaused again by removing the &lt;code>Paused&lt;/code> field from the machine-deployment.&lt;/p>
-&lt;h3 id="how-to-avoid-garbage-collection-of-your-node">How to avoid garbage collection of your node?&lt;/h3>
-&lt;p>MCM provides an in-built safety mechanism to garbage collect VMs which have no corresponding machine object. This is done to save costs and is one of the key features of MCM.
-However, sometimes users might like to add nodes directly to the cluster without the help of MCM and would prefer MCM to not garbage collect such VMs.
-To do so they should remove/not-use tags on their VMs containing the following strings:&lt;/p>
-&lt;ol>
-&lt;li>&lt;code>kubernetes.io/cluster/&lt;/code>&lt;/li>
-&lt;li>&lt;code>kubernetes.io/role/&lt;/code>&lt;/li>
-&lt;li>&lt;code>kubernetes-io-cluster-&lt;/code>&lt;/li>
-&lt;li>&lt;code>kubernetes-io-role-&lt;/code>&lt;/li>
-&lt;/ol>
-&lt;h1 id="internals">Internals&lt;/h1>
-&lt;h3 id="what-is-the-high-level-design-of-mcm">What is the high level design of MCM?&lt;/h3>
-&lt;p>Please refer the following &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/docs/design">document&lt;/a>.&lt;/p>
-&lt;h3 id="what-are-the-different-configuration-options-in-mcm">What are the different configuration options in MCM?&lt;/h3>
-&lt;p>MCM allows configuring many knobs to fine-tune its behavior according to the user&amp;rsquo;s need.
-Please refer to the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/cmd/machine-controller-manager/app/options/options.go">link&lt;/a> to check the exact configuration options.&lt;/p>
-&lt;h3 id="what-are-the-different-timeoutsconfigurations-in-a-machines-lifecycle">What are the different timeouts/configurations in a machine&amp;rsquo;s lifecycle?&lt;/h3>
-&lt;p>A machine&amp;rsquo;s lifecycle is governed by mainly following timeouts, which can be configured &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/machine_objects/machine-deployment.yaml#L30-L34">here&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>MachineDrainTimeout&lt;/code>: Amount of time after which drain times out and the machine is force deleted. Default ~2 hours.&lt;/li>
-&lt;li>&lt;code>MachineHealthTimeout&lt;/code>: Amount of time after which an unhealthy machine is declared &lt;code>Failed&lt;/code> and the machine is replaced by &lt;code>MachineSet&lt;/code> controller.&lt;/li>
-&lt;li>&lt;code>MachineCreationTimeout&lt;/code>: Amount of time after which a machine creation is declared &lt;code>Failed&lt;/code> and the machine is replaced by the &lt;code>MachineSet&lt;/code> controller.&lt;/li>
-&lt;li>&lt;code>NodeConditions&lt;/code>: List of node conditions which if set to true for &lt;code>MachineHealthTimeout&lt;/code> period, the machine is declared &lt;code>Failed&lt;/code> and replaced by &lt;code>MachineSet&lt;/code> controller.&lt;/li>
-&lt;li>&lt;code>MaxEvictRetries&lt;/code>: An integer number depicting the number of times a failed &lt;em>eviction&lt;/em> should be retried on a pod during drain process. A pod is &lt;em>deleted&lt;/em> after &lt;code>max-retries&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-is-the-drain-of-a-machine-implemented">How is the drain of a machine implemented?&lt;/h3>
-&lt;p>MCM imports the functionality from the upstream Kubernetes-drain library. Although, few parts have been modified to make it work best in the context of MCM. Drain is executed before machine deletion for graceful migration of the applications.
-Drain internally uses the &lt;code>EvictionAPI&lt;/code> to evict the pods and triggers the &lt;code>Deletion&lt;/code> of pods after &lt;code>MachineDrainTimeout&lt;/code>. Please note:&lt;/p>
-&lt;ul>
-&lt;li>Stateless pods are evicted in parallel.&lt;/li>
-&lt;li>Stateful applications (with PVCs) are serially evicted. Please find more info in this &lt;a href="#how-are-the-stateful-applications-drained-during-machine-deletion">answer below&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-are-the-stateful-applications-drained-during-machine-deletion">How are the stateful applications drained during machine deletion?&lt;/h3>
-&lt;p>Drain function serially evicts the stateful-pods. It is observed that serial eviction of stateful pods yields better overall availability of pods as the underlying cloud in most cases detaches and reattaches disks serially anyways.
-It is implemented in the following manner:&lt;/p>
-&lt;ul>
-&lt;li>Drain lists all the pods with attached volumes. It evicts very first stateful-pod and waits for its related entry in Node object&amp;rsquo;s &lt;code>.status.volumesAttached&lt;/code> to be removed by KCM. It does the same for all the stateful-pods.&lt;/li>
-&lt;li>It waits for &lt;code>PvDetachTimeout&lt;/code> (default 2 minutes) for a given pod&amp;rsquo;s PVC to be removed, else moves forward.&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-does-maxevictretries-configuration-work-with-draintimeout-configuration">How does &lt;code>maxEvictRetries&lt;/code> configuration work with &lt;code>drainTimeout&lt;/code> configuration?&lt;/h3>
-&lt;p>It is recommended to only set &lt;code>MachineDrainTimeout&lt;/code>. It satisfies the related requirements. &lt;code>MaxEvictRetries&lt;/code> is auto-calculated based on &lt;code>MachineDrainTimeout&lt;/code>, if &lt;code>maxEvictRetries&lt;/code> is not provided. Following will be the overall behavior of both configurations together:&lt;/p>
-&lt;ul>
-&lt;li>If &lt;code>maxEvictRetries&lt;/code> isn&amp;rsquo;t set and only &lt;code>maxDrainTimeout&lt;/code> is set:
-&lt;ul>
-&lt;li>MCM auto calculates the &lt;code>maxEvictRetries&lt;/code> based on the &lt;code>drainTimeout&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>If &lt;code>drainTimeout&lt;/code> isn&amp;rsquo;t set and only &lt;code>maxEvictRetries&lt;/code> is set:
-&lt;ul>
-&lt;li>Default &lt;code>drainTimeout&lt;/code> and user provided &lt;code>maxEvictRetries&lt;/code> for each pod is considered.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>If both &lt;code>maxEvictRetries&lt;/code> and &lt;code>drainTimoeut&lt;/code> are set:
-&lt;ul>
-&lt;li>Then both will be respected.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>If none are set:
-&lt;ul>
-&lt;li>Defaults are respected.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="what-are-the-different-phases-of-a-machine">What are the different phases of a machine?&lt;/h3>
-&lt;p>A phase of a &lt;code>machine&lt;/code> can be identified with &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code>. Following are the possible phases of a &lt;code>machine&lt;/code> object:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>Pending&lt;/code>: Machine creation call has succeeded. MCM is waiting for machine to join the cluster.&lt;/li>
-&lt;li>&lt;code>CrashLoopBackOff&lt;/code>: Machine creation call has failed. MCM will retry the operation after a minor delay.&lt;/li>
-&lt;li>&lt;code>Running&lt;/code>: Machine creation call has succeeded. Machine has joined the cluster successfully.&lt;/li>
-&lt;li>&lt;code>Unknown&lt;/code>: Machine health checks are failing, eg &lt;code>kubelet&lt;/code> has stopped posting the status.&lt;/li>
-&lt;li>&lt;code>Failed&lt;/code>: Machine health checks have failed for a prolonged time. Hence it is declared failed. &lt;code>MachineSet&lt;/code> controller will replace such machines immediately.&lt;/li>
-&lt;li>&lt;code>Terminating&lt;/code>: Machine is being terminated. Terminating state is set immediately when the deletion is triggered for the &lt;code>machine&lt;/code> object. It also includes time when it&amp;rsquo;s being drained.&lt;/li>
-&lt;/ul>
-&lt;h1 id="troubleshooting">Troubleshooting&lt;/h1>
-&lt;h3 id="my-machine-is-stuck-in-deletion-for-1-hr-why">My machine is stuck in deletion for 1 hr, why?&lt;/h3>
-&lt;p>In most cases, the &lt;code>Machine.Status.LastOperation&lt;/code> provides information around why a machine can&amp;rsquo;t be deleted.
-Though following could be the reasons but not limited to:&lt;/p>
-&lt;ul>
-&lt;li>Pod/s with misconfigured PDBs block the drain operation. PDBs with &lt;code>maxUnavailable&lt;/code> set to 0, doesn&amp;rsquo;t allow the eviction of the pods. Hence, drain/eviction is retried till &lt;code>MachineDrainTimeout&lt;/code>. Default &lt;code>MachineDrainTimeout&lt;/code> could be as large as ~2hours. Hence, blocking the machine deletion.
-&lt;ul>
-&lt;li>Short term: User can manually delete the pod in the question, &lt;em>with caution&lt;/em>.&lt;/li>
-&lt;li>Long term: Please set more appropriate PDBs which allow disruption of at least one pod.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Expired cloud credentials can block the deletion of the machine from infrastructure.&lt;/li>
-&lt;li>Cloud provider can&amp;rsquo;t delete the machine due to internal errors. Such situations are best debugged by using cloud provider specific CLI or cloud console.&lt;/li>
-&lt;/ul>
-&lt;h3 id="my-machine-is-not-joining-the-cluster-why">My machine is not joining the cluster, why?&lt;/h3>
-&lt;p>In most cases, the &lt;code>Machine.Status.LastOperation&lt;/code> provides information around why a machine can&amp;rsquo;t be created.
-It could possibly be debugged with following steps:&lt;/p>
-&lt;ul>
-&lt;li>Verify if the machine is actually created in the cloud. User can use the &lt;code>Machine.Spec.ProviderId&lt;/code> to query the machine in cloud.&lt;/li>
-&lt;li>A Kubernetes node is generally bootstrapped with the cloud-config. Please verify, if &lt;code>MachineDeployment&lt;/code> is pointing the correct &lt;code>MachineClass&lt;/code>, and &lt;code>MachineClass&lt;/code> is pointing to the correct &lt;code>Secret&lt;/code>. The secret object contains the actual cloud-config in &lt;code>base64&lt;/code> format which will be used to boot the machine.&lt;/li>
-&lt;li>User must also check the logs of the MCM pod to understand any broken logical flow of reconciliation.&lt;/li>
-&lt;/ul>
-&lt;h1 id="developer">Developer&lt;/h1>
-&lt;h3 id="how-should-i-test-my-code-before-submitting-a-pr">How should I test my code before submitting a PR?&lt;/h3>
-&lt;ul>
-&lt;li>Developer can locally setup the MCM using following &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/local_setup/">guide&lt;/a>&lt;/li>
-&lt;li>Developer must also enhance the unit tests related to the incoming changes.&lt;/li>
-&lt;li>Developer can locally run the unit test by executing:&lt;/li>
-&lt;/ul>
-&lt;pre tabindex="0">&lt;code>make test-unit
-&lt;/code>&lt;/pre>&lt;h3 id="i-need-to-change-the-apis-what-are-the-recommended-steps">I need to change the APIs, what are the recommended steps?&lt;/h3>
-&lt;p>Developer should add/update the API fields at both of the following places:&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/apis/machine/v1alpha1">https://github.com/gardener/machine-controller-manager/tree/master/pkg/apis/machine/v1alpha1&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;p>Once API changes are done, auto-generate the code using following command:&lt;/p>
-&lt;pre tabindex="0">&lt;code>./hack/generate-code
-&lt;/code>&lt;/pre>&lt;p>Please ignore the API-violation errors for now.&lt;/p>
-&lt;h3 id="how-can-i-update-the-dependencies-of-mcm">How can I update the dependencies of MCM?&lt;/h3>
-&lt;p>MCM uses &lt;code>gomod&lt;/code> for depedency management.
-Developer should add/udpate depedency in the go.mod file. Please run following command to automatically revendor the dependencies.&lt;/p>
-&lt;pre tabindex="0">&lt;code>make revendor
-&lt;/code>&lt;/pre>&lt;h1 id="in-the-context-of-gardener">In the context of Gardener&lt;/h1>
-&lt;h3 id="how-can-i-configure-mcm-using-shoot-resource">How can I configure MCM using Shoot resource?&lt;/h3>
-&lt;p>All of the knobs of MCM can be configured by the &lt;code>workers&lt;/code> &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L29-L126">section&lt;/a> of the shoot resource.&lt;/p>
-&lt;ul>
-&lt;li>Gardener creates a &lt;code>MachineDeployment&lt;/code> per zone for each worker-pool under &lt;code>workers&lt;/code> section.&lt;/li>
-&lt;li>&lt;code>workers.dataVolumes&lt;/code> allows to attach multiple disks to a machine during creation. Refer the &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L29-L126">link&lt;/a>.&lt;/li>
-&lt;li>&lt;code>workers.machineControllerManager&lt;/code> allows configuration of multiple knobs of the &lt;code>MachineDeployment&lt;/code> from the shoot resource.&lt;/li>
-&lt;/ul>
-&lt;h3 id="how-is-my-worker-pool-spread-across-zones">How is my worker-pool spread across zones?&lt;/h3>
-&lt;p>Shoot resource allows the worker-pool to spread across multiple zones using the field &lt;code>workers.zones&lt;/code>. Refer &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L115">link&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>Gardener creates one &lt;code>MachineDeployment&lt;/code> per zone. Each &lt;code>MachineDeployment&lt;/code> is initiated with the following replica:&lt;/li>
-&lt;/ul>
-&lt;pre tabindex="0">&lt;code>MachineDeployment.Spec.Replicas = (Workers.Minimum)/(Number of availibility zones)
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Machine Deployment</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/usage/machine_deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/usage/machine_deployment/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now the Machine Controller Manager picks up the manifest immediately and starts to delete the existing VM by talking to the cloud provider. The node should be detached from the cluster in a few minutes (~1min for AWS).&lt;/p></description></item><item><title>Docs: Machine Deployment</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/usage/machine_deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/usage/machine_deployment/</guid><description>
 &lt;h1 id="maintaining-machine-replicas-using-machines-deployments">Maintaining machine replicas using machines-deployments&lt;/h1>
 &lt;!-- TOC -->
 &lt;ul>

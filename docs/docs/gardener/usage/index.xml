@@ -1902,7 +1902,75 @@ Auto-scaling scale down of the main ETCD is disabled for such clusters.&lt;/li>
 &lt;p>There are also differences with respect to how &lt;code>testing&lt;/code> shoots are scheduled after creation, please consult the &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/">Scheduler documentation&lt;/a>.&lt;/p>
 &lt;h2 id="future-steps">Future Steps&lt;/h2>
 &lt;p>We might introduce more behavioral difference depending on the shoot purpose in the future.
-As of today, there are no plans yet.&lt;/p></description></item><item><title>Docs: Shoot Status</title><link>https://gardener.cloud/docs/gardener/usage/shoot_status/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_status/</guid><description>
+As of today, there are no plans yet.&lt;/p></description></item><item><title>Docs: Shoot Serviceaccounts</title><link>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</guid><description>
+&lt;h1 id="serviceaccount-configurations-for-shoot-clusters">&lt;code>ServiceAccount&lt;/code> Configurations For Shoot Clusters&lt;/h1>
+&lt;p>The &lt;code>Shoot&lt;/code> specification allows to configure some of the settings for the handling of &lt;code>ServiceAccount&lt;/code>s:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceAccountConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuer: foo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> acceptedIssuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - foo1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - foo2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> signingKeySecretName:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-signing-key-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extendTokenExpiration: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxTokenExpiration: 45d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="issuer-and-accepted-issuers">Issuer And Accepted Issuers&lt;/h2>
+&lt;p>The &lt;code>.spec.kubernetes.kubeAPIServer.serviceAccountConfig.{issuer,acceptedIssuers}&lt;/code> field are translated to the &lt;code>--service-account-issuer&lt;/code> flag for the &lt;code>kube-apiserver&lt;/code>.
+The issuer will assert its identifier in the &lt;code>iss&lt;/code> claim of issued tokens.
+According to the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/">upstream specification&lt;/a>, values need to meet the following requirements:&lt;/p>
+&lt;blockquote>
+&lt;p>This value is a string or URI. If this option is not a valid URI per the OpenID Discovery 1.0 spec, the ServiceAccountIssuerDiscovery feature will remain disabled, even if the feature gate is set to true. It is highly recommended that this value comply with the OpenID spec: &lt;a href="https://openid.net/specs/openid-connect-discovery-1_0.html">https://openid.net/specs/openid-connect-discovery-1_0.html&lt;/a>. In practice, this means that service-account-issuer must be an https URL. It is also highly recommended that this URL be capable of serving OpenID discovery documents at {service-account-issuer}/.well-known/openid-configuration.&lt;/p>
+&lt;/blockquote>
+&lt;p>By default, Gardener uses the internal cluster domain as issuer (e.g., &lt;code>https://api.foo.bar.example.com&lt;/code>).
+If you specify the &lt;code>issuer&lt;/code> then this default issuer will always be part of the list of accepted issuers (you don&amp;rsquo;t need to specify it yourself).&lt;/p>
+&lt;p>⚠️ Caution: If you change from the default issuer to a custom &lt;code>issuer&lt;/code> then all previously issued tokens are still valid/accepted.
+However, if you change from a custom &lt;code>issuer&lt;/code> &lt;code>A&lt;/code> to another &lt;code>issuer&lt;/code> &lt;code>B&lt;/code> (custom or default) then you have to add &lt;code>A&lt;/code> to the &lt;code>acceptedIssuers&lt;/code> so that previously issued tokens are not invalidated.
+Otherwise, the control plane components as well as system components and your workload pods might fail.
+You can remove &lt;code>A&lt;/code> from the &lt;code>acceptedIssuers&lt;/code> when all active tokens were issued by &lt;code>B&lt;/code>.
+This can be ensured by using &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">projected token volumes&lt;/a> with a short validity, or by rolling out all pods.
+Additionally, all &lt;a href="https://kubernetes.io/docs/concepts/configuration/secret/#service-account-token-secrets">&lt;code>ServiceAccount&lt;/code> token secrets&lt;/a> should be recreated.
+Apart from this you should wait for at least &lt;code>12h&lt;/code> to make sure the control plane and system components receive a new token from Gardener.&lt;/p>
+&lt;h2 id="signing-key-secret">Signing Key Secret&lt;/h2>
+&lt;p>The &lt;code>.spec.kubernetes.kubeAPIServer.serviceAccountConfig.signingKeySecretName.name&lt;/code> specifies the name of &lt;code>Secret&lt;/code> in the same namespace as the &lt;code>Shoot&lt;/code> in the garden cluster.
+It should look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;namespace&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> signing-key: base64(signing-key-pem)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The provided key will be used for configuring both the &lt;code>--service-account-signing-key-file&lt;/code> and &lt;code>--service-account-key-file&lt;/code> flags of the &lt;code>kube-apiserver&lt;/code>.&lt;/p>
+&lt;p>According to the &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">upstream specification&lt;/a>, they have the following effects:&lt;/p>
+&lt;blockquote>
+&lt;ul>
+&lt;li>&lt;code>--service-account-key-file&lt;/code>: File containing PEM-encoded x509 RSA or ECDSA private or public keys, used to verify ServiceAccount tokens. The specified file can contain multiple keys, and the flag can be specified multiple times with different files. If specified multiple times, tokens signed by any of the specified keys are considered valid by the Kubernetes API server.&lt;/li>
+&lt;li>&lt;code>--service-account-signing-key-file&lt;/code>: Path to the file that contains the current private key of the service account token issuer. The issuer signs issued ID tokens with this private key.&lt;/li>
+&lt;/ul>
+&lt;/blockquote>
+&lt;p>Note that rotation of this key is not yet supported, hence usage is not recommended.
+By default, Gardener will generate a service account signing key for the cluster.&lt;/p>
+&lt;h2 id="token-expirations">Token Expirations&lt;/h2>
+&lt;p>The &lt;code>.spec.kubernetes.kubeAPIServer.serviceAccountConfig.extendTokenExpiration&lt;/code> configures the &lt;code>--service-account-extend-token-expiration&lt;/code> flag of the &lt;code>kube-apiserver&lt;/code>.
+It is enabled by default and has the following specification:&lt;/p>
+&lt;blockquote>
+&lt;p>Turns on projected service account expiration extension during token generation, which helps safe transition from legacy token to bound service account token feature. If this flag is enabled, admission injected tokens would be extended up to 1 year to prevent unexpected failure during transition, ignoring value of service-account-max-token-expiration.&lt;/p>
+&lt;/blockquote>
+&lt;p>The &lt;code>.spec.kubernetes.kubeAPIServer.serviceAccountConfig.maxTokenExpiration&lt;/code> configures the &lt;code>--service-account-max-token-expiration&lt;/code> flag of the &lt;code>kube-apiserver&lt;/code>.
+It has the following specification:&lt;/p>
+&lt;blockquote>
+&lt;p>The maximum validity duration of a token created by the service account token issuer. If an otherwise valid TokenRequest with a validity duration larger than this value is requested, a token will be issued with a validity duration of this value.&lt;/p>
+&lt;/blockquote>
+&lt;p>⚠️ Note that the value for this field must be in the &lt;code>[30d,90d]&lt;/code> range.
+The background for this limitation is that all Gardener components to rely on the &lt;code>TokenRequest&lt;/code> API and the Kubernetes service account token projection feature with short-lived, auto-rotating tokens.
+Any values lower than &lt;code>30d&lt;/code> risk impacting the SLO for shoot clusters, and any values above &lt;code>90d&lt;/code> violate security best practices with respect to maximum validity of credentials before they must be rotated.
+Given that the field just specifies the upper bound, end-users can still use lower values for their individual workload by specifying the &lt;code>.spec.volumes[].projected.sources[].serviceAccountToken.expirationSeconds&lt;/code> in the &lt;code>PodSpec&lt;/code>s.&lt;/p></description></item><item><title>Docs: Shoot Status</title><link>https://gardener.cloud/docs/gardener/usage/shoot_status/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_status/</guid><description>
 &lt;h1 id="shoot-status">Shoot Status&lt;/h1>
 &lt;p>This document provides an overview of the &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#shootstatus">ShootStatus&lt;/a>.&lt;/p>
 &lt;h2 id="conditions">Conditions&lt;/h2>

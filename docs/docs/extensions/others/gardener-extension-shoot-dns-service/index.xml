@@ -77,7 +77,7 @@
 &lt;ul>
 &lt;li>&lt;a href="https://kubernetes.io/docs/concepts/services-networking/ingress/">Ingress&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://kubernetes.io/docs/concepts/services-networking/service/">Service&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/external-dns-management/blob/master/examples/40-entry-dns.yaml">DNSEntry&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/external-dns-management/blob/master/README.md#the-model">DNSEntry&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;p>It is necessary that the Gardener installation your shoot cluster runs in is equipped with a &lt;code>shoot-dns-service&lt;/code> extension. This extension uses the seed&amp;rsquo;s dns management infrastructure to maintain DNS names for shoot clusters. Please ask your Gardener operator if the extension is available in your environment.&lt;/p>
 &lt;h2 id="shoot-feature-gate">Shoot Feature Gate&lt;/h2>
@@ -94,13 +94,40 @@
 &lt;p>To request a DNS name for an Ingress or Service object in the shoot cluster
 it must be annotated with the DNS class &lt;code>garden&lt;/code> and an annotation denoting
 the desired DNS names.&lt;/p>
-&lt;p>For a Service (it must have the type &lt;code>LoadBalancer&lt;/code>) this looks like this:&lt;/p>
+&lt;p>Example for an annotated Ingress resource:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#39;*&amp;#39;&lt;/span> &lt;span style="color:#008000"># collects domains names from .spec.rules[].host&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># If you are delegating the certificate management to Gardener, uncomment the following line&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#cert.gardener.cloud/purpose: managed&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: test.ingress.my-dns-domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 9000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - test.ingress.my-dns-domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: my-cert-secret-name
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For a Service (it must have the type &lt;code>LoadBalancer&lt;/code>) this looks like this:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: my.subdomain.for.shootsomain.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: my.subdomain.for.some.domain.cloud
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-service
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
@@ -120,6 +147,7 @@ domain, this is already handled by the standard wildcard entry for the ingress
 domain. Therefore this name should be excluded from the &lt;em>dnsnames&lt;/em> list in the
 annotation. If only this dns name is configured in the ingress, no explicit
 dns entry is required, and the dns annotations should be omitted at all.&lt;/p>
+&lt;p>More examples can be found &lt;a href="https://github.com/gardener/external-dns-management/blob/master/examples/">here&lt;/a>&lt;/p>
 &lt;h2 id="request-dns-records-via-dnsentry-resources">Request DNS records via DNSEntry resources&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry

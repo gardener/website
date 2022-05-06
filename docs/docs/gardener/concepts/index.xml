@@ -340,7 +340,7 @@ This reconciler is enabled by default and works as following:&lt;/p>
 &lt;li>&lt;code>BackupEntry&lt;/code> resources.&lt;/li>
 &lt;li>&lt;code>Secret&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
 &lt;li>&lt;code>Quota&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
-&lt;li>The time period when the projet was used for the last time (&lt;code>status.lastActivityTimestamp&lt;/code>) is longer than the configured &lt;code>minimumLifetimeDays&lt;/code>&lt;/li>
+&lt;li>The time period when the project was used for the last time (&lt;code>status.lastActivityTimestamp&lt;/code>) is longer than the configured &lt;code>minimumLifetimeDays&lt;/code>&lt;/li>
 &lt;/ol>
 &lt;/li>
 &lt;/ol>
@@ -358,7 +358,7 @@ After some time the &lt;code>.status.staleAutoDeleteTimestamp&lt;/code> will be 
 &lt;/blockquote>
 &lt;h4 id="activity-reconciler">&amp;ldquo;Activity&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>Since the other two reconcilers are unable to actively monitor the relevant objects that are used in a &lt;code>Project&lt;/code> (&lt;code>Shoot&lt;/code>, &lt;code>Plant&lt;/code>, etc.), there could be a situation where the user creates and deletes objects in a short period of time. In that case the &lt;code>Stale Project Reconciler&lt;/code> could not see that there was any activity on that project and it will still mark it as a &lt;code>Stale&lt;/code>, even though it is actively used.&lt;/p>
-&lt;p>The &lt;code>Project Activity Reconciler&lt;/code> is implemented to take care of such cases. An event handler will notify the reconciler for any acitivity (Currently only for &lt;code>Shoots&lt;/code>) and then it will update the &lt;code>status.lastActivityTimestamp&lt;/code>. This update will also trigger the &lt;code>Stale Project Reconciler&lt;/code>.&lt;/p>
+&lt;p>The &lt;code>Project Activity Reconciler&lt;/code> is implemented to take care of such cases. An event handler will notify the reconciler for any acitivity and then it will update the &lt;code>status.lastActivityTimestamp&lt;/code>. This update will also trigger the &lt;code>Stale Project Reconciler&lt;/code>.&lt;/p>
 &lt;h3 id="event-controller">Event Controller&lt;/h3>
 &lt;p>With the Gardener Event Controller you can prolong the lifespan of events related to Shoot clusters.
 This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
@@ -867,7 +867,8 @@ When a user is manually modifying them they will be reconciled back to the desir
 &lt;h4 id="preventing-reconciliations">Preventing Reconciliations&lt;/h4>
 &lt;p>If a ManagedResource is annotated with &lt;code>resources.gardener.cloud/ignore=true&lt;/code> then it will be skipped entirely by the controller (no reconciliations or deletions of managed resources at all).
 However, when the ManagedResource itself is deleted (for example when a shoot is deleted) then the annotation is not respected and all resources will be deleted as usual.
-This feature can be helpful to temporarily patch/change resources managed as part of such ManagedResource.&lt;/p>
+This feature can be helpful to temporarily patch/change resources managed as part of such ManagedResource.
+Condition checks will be skipped for such ManagedResources.&lt;/p>
 &lt;h4 id="modes">Modes&lt;/h4>
 &lt;p>The gardener-resource-manager can manage a resource in different modes. The supported modes are:&lt;/p>
 &lt;ul>
@@ -900,6 +901,10 @@ A ManagedResource has an optional &lt;code>.spec.class&lt;/code> field that allo
 &lt;td>&lt;code>ResourcesHealthy&lt;/code>&lt;/td>
 &lt;td>&lt;code>True&lt;/code> if all resources are present and healthy&lt;/td>
 &lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ResourcesProgressing&lt;/code>&lt;/td>
+&lt;td>&lt;code>False&lt;/code> if all resources have been fully rolled out&lt;/td>
+&lt;/tr>
 &lt;/tbody>
 &lt;/table>
 &lt;p>&lt;code>ResourcesApplied&lt;/code> may be &lt;code>False&lt;/code> when:&lt;/p>
@@ -914,26 +919,31 @@ A ManagedResource has an optional &lt;code>.spec.class&lt;/code> field that allo
 &lt;li>the resource is a Deployment and the Deployment does not have the minimum availability.&lt;/li>
 &lt;li>&amp;hellip;&lt;/li>
 &lt;/ul>
+&lt;p>&lt;code>ResourcesProgressing&lt;/code> may be &lt;code>True&lt;/code> when:&lt;/p>
+&lt;ul>
+&lt;li>a &lt;code>Deployment&lt;/code>, &lt;code>StatefulSet&lt;/code> or &lt;code>DaemonSet&lt;/code> has not been fully rolled out yet, i.e. not all replicas have been updated with the latest changes to &lt;code>spec.template&lt;/code>.&lt;/li>
+&lt;/ul>
 &lt;p>Each Kubernetes resources has different notion for being healthy. For example, a Deployment is considered healthy if the controller observed its current revision and if the number of updated replicas is equal to the number of replicas.&lt;/p>
-&lt;p>The following section describes a healthy ManagedResource:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-json" data-lang="json">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&amp;#34;conditions&amp;#34;&lt;/span>&lt;span style="">:&lt;/span> [
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;type&amp;#34;: &lt;span style="color:#a31515">&amp;#34;ResourcesApplied&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;status&amp;#34;: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;reason&amp;#34;: &lt;span style="color:#a31515">&amp;#34;ApplySucceeded&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;message&amp;#34;: &lt;span style="color:#a31515">&amp;#34;All resources are applied.&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;lastUpdateTime&amp;#34;: &lt;span style="color:#a31515">&amp;#34;2019-09-09T11:31:21Z&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;lastTransitionTime&amp;#34;: &lt;span style="color:#a31515">&amp;#34;2019-09-08T19:53:23Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;type&amp;#34;: &lt;span style="color:#a31515">&amp;#34;ResourcesHealthy&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;status&amp;#34;: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;reason&amp;#34;: &lt;span style="color:#a31515">&amp;#34;ResourcesHealthy&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;message&amp;#34;: &lt;span style="color:#a31515">&amp;#34;All resources are healthy.&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;lastUpdateTime&amp;#34;: &lt;span style="color:#a31515">&amp;#34;2019-09-09T11:31:21Z&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;lastTransitionTime&amp;#34;: &lt;span style="color:#a31515">&amp;#34;2019-09-09T11:31:21Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>]
+&lt;p>The following &lt;code>status.conditions&lt;/code> section describes a healthy ManagedResource:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>conditions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:39Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:39Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: All resources are healthy.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: ResourcesHealthy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: ResourcesHealthy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:36Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:36Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: All resources have been fully rolled out.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: ResourcesRolledOut
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;False&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: ResourcesProgressing
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:18Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2022-05-03T10:55:18Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: All resources are applied.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: ApplySucceeded
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: ResourcesApplied
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="ignoring-updates">Ignoring Updates&lt;/h4>
 &lt;p>In some cases it is not desirable to update or re-apply some of the cluster components (for example, if customization is required or needs to be applied by the end-user).
 For these resources, the annotation &amp;ldquo;resources.gardener.cloud/ignore&amp;rdquo; needs to be set to &amp;ldquo;true&amp;rdquo; or a truthy value (Truthy values are &amp;ldquo;1&amp;rdquo;, &amp;ldquo;t&amp;rdquo;, &amp;ldquo;T&amp;rdquo;, &amp;ldquo;true&amp;rdquo;, &amp;ldquo;TRUE&amp;rdquo;, &amp;ldquo;True&amp;rdquo;) in the corresponding managed resource secrets,

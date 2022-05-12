@@ -1912,7 +1912,12 @@ Available &lt;code>GenerateOption&lt;/code>s:&lt;/p>
 &lt;ul>
 &lt;li>&lt;code>SignedByCA(string, ...SignedByCAOption)&lt;/code>: This is only valid for certificate secrets and automatically retrieves the correct certificate authority in order to sign the provided server or client certificate.
 &lt;ul>
-&lt;li>There is only one &lt;code>SignedByCAOption&lt;/code>: &lt;code>UseCurrentCA&lt;/code>. This option will sign server certificates with the new/current CA in case of a CA rotation. For more information, please refer to the &lt;a href="#certificate-signing">&amp;ldquo;Certificate Signing&amp;rdquo;&lt;/a> section below).&lt;/li>
+&lt;li>There are two &lt;code>SignedByCAOption&lt;/code>s:
+&lt;ul>
+&lt;li>&lt;code>UseCurrentCA&lt;/code>. This option will sign server certificates with the new/current CA in case of a CA rotation. For more information, please refer to the &lt;a href="#certificate-signing">&amp;ldquo;Certificate Signing&amp;rdquo;&lt;/a> section below.&lt;/li>
+&lt;li>&lt;code>UseOldCA&lt;/code>. This option will sign client certificates with the old CA in case of a CA rotation. For more information, please refer to the &lt;a href="#certificate-signing">&amp;ldquo;Certificate Signing&amp;rdquo;&lt;/a> section below.&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>&lt;code>Persist()&lt;/code>: This marks the secret such that it gets persisted in the &lt;code>ShootState&lt;/code> resource in the garden cluster. Consequently, it should only be used for secrets related to a shoot cluster.&lt;/li>
@@ -1982,12 +1987,20 @@ This is to ensure a smooth exchange of certificate during a CA rotation (typical
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
+&lt;h4 id="always-sign-server-certificates-with-current-ca">Always Sign Server Certificates With Current CA&lt;/h4>
 &lt;p>In case you control all clients and update them at the same time as the server, it is possible to make the secrets manager generate even server certificates with the new/current CA.
-This can help preventing certificate mismatches when the CA bundle is already exchanged while the server still serves with a certificate signed by a CA no longer part of the bundle.&lt;/p>
+This can help to prevent certificate mismatches when the CA bundle is already exchanged while the server still serves with a certificate signed by a CA no longer part of the bundle.&lt;/p>
 &lt;p>Let&amp;rsquo;s consider the two following examples:&lt;/p>
 &lt;ol>
 &lt;li>&lt;code>gardenlet&lt;/code> deploys a webhook server (&lt;code>gardener-resource-manager&lt;/code>) and a corresponding &lt;code>MutatingWebhookConfiguration&lt;/code> at the same time. In this case, the server certificate should be generated with the new/current CA to avoid above mentioned certificate mismatches during a CA rotation.&lt;/li>
 &lt;li>&lt;code>gardenlet&lt;/code> deploys a server (&lt;code>etcd&lt;/code>) in one step, and a client (&lt;code>kube-apiserver&lt;/code>) in a subsequent step. In this case, the default behaviour should apply (server certificate should be signed by old/existing CA).&lt;/li>
+&lt;/ol>
+&lt;h4 id="always-sign-client-certificate-with-old-ca">Always Sign Client Certificate With Old CA&lt;/h4>
+&lt;p>In the unusual case where the client is deployed before the server, it might be useful to always use the old CA for signing the client&amp;rsquo;s certificate.
+This can help to prevent certificate mismatches when the client already gets a new certificate while the server still only accepts certificates signed by the old CA.&lt;/p>
+&lt;p>Let&amp;rsquo;s consider the following example:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>gardenlet&lt;/code> deploys the &lt;code>kube-apiserver&lt;/code> before the &lt;code>kubelet&lt;/code>. However, the &lt;code>kube-apiserver&lt;/code> has a client certificate signed by the &lt;code>ca-kubelet&lt;/code> in order to communicate with it (e.g., when retrieving logs or forwarding ports). In this case, the client certificate should be generated with the old CA to avoid above mentioned certificate mismatches during a CA rotation.&lt;/li>
 &lt;/ol>
 &lt;h2 id="reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/h2>
 &lt;p>While the &lt;code>SecretsManager&lt;/code> is primarily used by gardenlet, it can be reused by other components (e.g. extensions) as well for managing secrets that are specific to the component or extension. For example, provider extensions might use their own &lt;code>SecretsManager&lt;/code> instance for managing the serving certificate of &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>

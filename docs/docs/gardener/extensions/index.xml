@@ -1915,10 +1915,6 @@ Please note that all of them are no technical limitations/blockers but simply ad
 &lt;p>Dependency-Watchdog cannot be enabled.&lt;/p>
 &lt;p>&lt;em>The &lt;code>dependency-watchdog&lt;/code> needs to be able to resolve the shoot cluster&amp;rsquo;s DNS names. It is not yet able to do so, hence, it cannot be enabled.&lt;/em>&lt;/p>
 &lt;/li>
-&lt;li>
-&lt;p>&lt;code>Ingress&lt;/code>es exposed in the seed cluster are not reachable.&lt;/p>
-&lt;p>&lt;em>There is no DNS resolution for the domains used for &lt;code>Ingress&lt;/code>es in the seed cluster yet, hence, they are not reachable. Consequently, the &lt;a href="https://gardener.cloud/docs/gardener/deployment/configuring_logging/#enable-logs-from-the-shoots-node-systemd-services">shoot node logging&lt;/a> feature does not work end-to-end.&lt;/em>&lt;/p>
-&lt;/li>
 &lt;/ol>
 &lt;h2 id="implementation-details">Implementation Details&lt;/h2>
 &lt;p>This section contains information about how the respective controllers and webhooks are implemented and what their purpose is.&lt;/p>
@@ -1958,11 +1954,16 @@ In addition, we had issues with shoot clusters having more than one node (hence,
 &lt;p>Due to legacy reasons, the gardenlet still creates &lt;code>DNSProvider&lt;/code> resources part of the &lt;a href="https://github.com/gardener/external-dns-management/">&lt;code>dns.gardener.cloud/v1alpha1&lt;/code> API group&lt;/a>.
 Since those are only needed in conjunction with the &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">&lt;code>shoot-dns-service&lt;/code> extension&lt;/a> and have no relevance for the local provider, it just sets their &lt;code>status.state=Ready&lt;/code> to please the expectations.
 In the future, this controller can be dropped when the gardenlet no longer creates such &lt;code>DNSProvider&lt;/code>s.&lt;/p>
+&lt;h4 id="ingress">&lt;code>Ingress&lt;/code>&lt;/h4>
+&lt;p>Gardenlet creates a wildcard DNS record for the Seed&amp;rsquo;s ingress domain pointing to the &lt;code>nginx-ingress-controller&lt;/code>&amp;rsquo;s LoadBalancer.
+This domain is commonly used by all &lt;code>Ingress&lt;/code> objects created in the Seed for Seed and Shoot components.
+However, provider-local implements the &lt;code>DNSRecord&lt;/code> extension API by writing the DNS record to &lt;code>/etc/hosts&lt;/code>, which doesn&amp;rsquo;t support wildcard entries.
+To make &lt;code>Ingress&lt;/code> domains resolvable on the host, this controller reconciles all &lt;code>Ingresses&lt;/code> and creates &lt;code>DNSRecords&lt;/code> of type &lt;code>local&lt;/code> for each host included in &lt;code>spec.rules&lt;/code>.&lt;/p>
 &lt;h4 id="service">&lt;code>Service&lt;/code>&lt;/h4>
-&lt;p>This controller reconciles the &lt;code>istio-ingress/istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> in the seed cluster if the &lt;code>--apiserver-sni-enabled&lt;/code> flag is set to &lt;code>true&lt;/code> (default).
-Otherwise, it reconciles the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in the shoot namespaces in the seed cluster.&lt;/p>
-&lt;p>All such &lt;code>Service&lt;/code>s are of type &lt;code>LoadBalancer&lt;/code>.
-Since the local Kubernetes clusters used as seed typically don&amp;rsquo;t support such services, this controller sets the &lt;code>.status.ingress.loadBalancer.ip[0]&lt;/code> to the IP of the host.&lt;/p>
+&lt;p>This controller reconciles &lt;code>Services&lt;/code> of type &lt;code>LoadBalancer&lt;/code> in the local &lt;code>Seed&lt;/code> cluster.
+Since the local Kubernetes clusters used as Seed clusters typically don&amp;rsquo;t support such services, this controller sets the &lt;code>.status.ingress.loadBalancer.ip[0]&lt;/code> to the IP of the host.
+It makes important LoadBalancer Services (e.g. &lt;code>istio-ingress/istio-ingressgateway&lt;/code> and &lt;code>garden/nginx-ingress-controller&lt;/code>) available to the host by setting &lt;code>spec.ports[].nodePort&lt;/code> to well-known ports that are mapped to &lt;code>hostPorts&lt;/code> in the kind cluster configuration.&lt;/p>
+&lt;p>If the &lt;code>--apiserver-sni-enabled&lt;/code> flag is set to &lt;code>true&lt;/code> (default), &lt;code>istio-ingress/istio-ingressgateway&lt;/code> is set to be exposed on &lt;code>nodePort&lt;/code> &lt;code>30433&lt;/code> by this controller. Otherwise, the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in the shoot namespaces in the seed cluster needs to be patched to be exposed on &lt;code>30443&lt;/code> by the &lt;a href="#control-plane-exposure">Control Plane Exposure Webhook&lt;/a>.&lt;/p>
 &lt;h4 id="node">&lt;code>Node&lt;/code>&lt;/h4>
 &lt;p>This controller reconciles the &lt;code>Node&lt;/code>s of &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> clusters.
 Typically, the &lt;code>.status.{capacity,allocatable}&lt;/code> values are determined by the resources configured for the Docker daemon (see for example &lt;a href="https://docs.docker.com/desktop/mac/#resources">this&lt;/a> for Mac).

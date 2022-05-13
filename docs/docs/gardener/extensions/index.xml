@@ -1911,10 +1911,6 @@ Please note that all of them are no technical limitations/blockers but simply ad
 &lt;p>Only one shoot cluster possible when gardenlet&amp;rsquo;s &lt;code>APIServerSNI&lt;/code> feature gate is disabled.&lt;/p>
 &lt;p>&lt;em>When &lt;a href="https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/">&lt;code>APIServerSNI&lt;/code>&lt;/a> is disabled then gardenlet uses load balancer &lt;code>Service&lt;/code>s in order to expose the shoot clusters&amp;rsquo; &lt;code>kube-apiserver&lt;/code>s. Typically, local Kubernetes clusters don&amp;rsquo;t support this. In this case, the local extension uses the host IP to expose the &lt;code>kube-apiserver&lt;/code>, however, this can only be done once.&lt;/em>&lt;/p>
 &lt;/li>
-&lt;li>
-&lt;p>Dependency-Watchdog cannot be enabled.&lt;/p>
-&lt;p>&lt;em>The &lt;code>dependency-watchdog&lt;/code> needs to be able to resolve the shoot cluster&amp;rsquo;s DNS names. It is not yet able to do so, hence, it cannot be enabled.&lt;/em>&lt;/p>
-&lt;/li>
 &lt;/ol>
 &lt;h2 id="implementation-details">Implementation Details&lt;/h2>
 &lt;p>This section contains information about how the respective controllers and webhooks are implemented and what their purpose is.&lt;/p>
@@ -1964,12 +1960,6 @@ To make &lt;code>Ingress&lt;/code> domains resolvable on the host, this controll
 Since the local Kubernetes clusters used as Seed clusters typically don&amp;rsquo;t support such services, this controller sets the &lt;code>.status.ingress.loadBalancer.ip[0]&lt;/code> to the IP of the host.
 It makes important LoadBalancer Services (e.g. &lt;code>istio-ingress/istio-ingressgateway&lt;/code> and &lt;code>garden/nginx-ingress-controller&lt;/code>) available to the host by setting &lt;code>spec.ports[].nodePort&lt;/code> to well-known ports that are mapped to &lt;code>hostPorts&lt;/code> in the kind cluster configuration.&lt;/p>
 &lt;p>If the &lt;code>--apiserver-sni-enabled&lt;/code> flag is set to &lt;code>true&lt;/code> (default), &lt;code>istio-ingress/istio-ingressgateway&lt;/code> is set to be exposed on &lt;code>nodePort&lt;/code> &lt;code>30433&lt;/code> by this controller. Otherwise, the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in the shoot namespaces in the seed cluster needs to be patched to be exposed on &lt;code>30443&lt;/code> by the &lt;a href="#control-plane-exposure">Control Plane Exposure Webhook&lt;/a>.&lt;/p>
-&lt;h4 id="node">&lt;code>Node&lt;/code>&lt;/h4>
-&lt;p>This controller reconciles the &lt;code>Node&lt;/code>s of &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> clusters.
-Typically, the &lt;code>.status.{capacity,allocatable}&lt;/code> values are determined by the resources configured for the Docker daemon (see for example &lt;a href="https://docs.docker.com/desktop/mac/#resources">this&lt;/a> for Mac).
-Since many of the &lt;code>Pod&lt;/code>s deployed by Gardener have quite high &lt;code>.spec.resources.{requests,limits}&lt;/code>, the kind &lt;code>Node&lt;/code>s easily get filled up and only a few &lt;code>Pod&lt;/code>s can be scheduled (even if they barely consume any of their reserved resources).
-In order to improve the user experience, the controller submits an empty patch which triggers the &amp;ldquo;Node webhook&amp;rdquo; (see below section) in case the &lt;code>.status.{capacity,allocatable}&lt;/code> values are not high enough.
-The webhook will increase the capacity of the &lt;code>Node&lt;/code>s to allow all &lt;code>Pod&lt;/code>s to be scheduled.&lt;/p>
 &lt;h4 id="etcd-backups">ETCD Backups&lt;/h4>
 &lt;p>This controller reconciles the &lt;code>BackuBucket&lt;/code> and &lt;code>BackupEntry&lt;/code> of the shoot allowing the &lt;code>etcd-backup-restore&lt;/code> to create and copy backups using the &lt;code>local&lt;/code> provider functionality. The backups are stored on the host file system. This is achieved by mounting that directory to the &lt;code>etcd-backup-restore&lt;/code> container.&lt;/p>
 &lt;h4 id="health-checks">Health Checks&lt;/h4>
@@ -1987,12 +1977,15 @@ The webhook will increase the capacity of the &lt;code>Node&lt;/code>s to allow 
 &lt;h4 id="control-plane-exposure">Control Plane Exposure&lt;/h4>
 &lt;p>This webhook reacts on the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> in shoot namespaces in the seed in case the gardenlet&amp;rsquo;s &lt;code>APIServerSNI&lt;/code> feature gate is disabled.
 It sets the &lt;code>nodePort&lt;/code> to &lt;code>30443&lt;/code> to enable communication from the host (this requires a port mapping to work when creating the local cluster).&lt;/p>
-&lt;h4 id="machine-pod">Machine Pod&lt;/h4>
-&lt;p>This webhook reacts on &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
-It sets the &lt;code>.spec.dnsPolicy=None&lt;/code> and &lt;code>.spec.dnsConfig.nameServers&lt;/code> to the cluster IP of the &lt;code>coredns&lt;/code> &lt;code>Service&lt;/code> created in the &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespaces (see the &lt;a href="#bootstrapping">Bootstrapping section&lt;/a> for more details).&lt;/p>
-&lt;h4 id="node-1">Node&lt;/h4>
-&lt;p>This webhook reacts on &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> &lt;code>Node&lt;/code>s and sets the &lt;code>.status.{allocatable,capacity}.cpu=&amp;quot;100&amp;quot;&lt;/code> and &lt;code>.status.{allocatable,capacity}.memory=&amp;quot;100Gi&amp;quot;&lt;/code> fields.
-See also the above section about the &amp;ldquo;Node controller&amp;rdquo; for more information.&lt;/p>
+&lt;h4 id="dns-config">DNS Config&lt;/h4>
+&lt;p>This webhook reacts on events for the &lt;code>dependency-watchdog-probe&lt;/code> &lt;code>Deployment&lt;/code> as well as on events for &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
+It sets the &lt;code>.spec.dnsPolicy=None&lt;/code> and &lt;code>.spec.dnsConfig.nameServers&lt;/code> to the cluster IP of the &lt;code>coredns&lt;/code> &lt;code>Service&lt;/code> created in the &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespaces so that these pods can resolve the DNS records for shoot clusters (see the &lt;a href="#bootstrapping">Bootstrapping section&lt;/a> for more details).&lt;/p>
+&lt;h4 id="node">Node&lt;/h4>
+&lt;p>This webhook reacts on &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> &lt;code>Node&lt;/code>s and sets the &lt;code>.status.{allocatable,capacity}.cpu=&amp;quot;100&amp;quot;&lt;/code> and &lt;code>.status.{allocatable,capacity}.memory=&amp;quot;100Gi&amp;quot;&lt;/code> fields.&lt;/p>
+&lt;p>Background: Typically, the &lt;code>.status.{capacity,allocatable}&lt;/code> values are determined by the resources configured for the Docker daemon (see for example &lt;a href="https://docs.docker.com/desktop/mac/#resources">this&lt;/a> for Mac).
+Since many of the &lt;code>Pod&lt;/code>s deployed by Gardener have quite high &lt;code>.spec.resources.{requests,limits}&lt;/code>, the kind &lt;code>Node&lt;/code>s easily get filled up and only a few &lt;code>Pod&lt;/code>s can be scheduled (even if they barely consume any of their reserved resources).
+In order to improve the user experience, on startup/leader election the provider-local extension submits an empty patch which triggers the &amp;ldquo;Node webhook&amp;rdquo; (see below section).
+The webhook will increase the capacity of the &lt;code>Node&lt;/code>s to allow all &lt;code>Pod&lt;/code>s to be scheduled.&lt;/p>
 &lt;h4 id="shoot">Shoot&lt;/h4>
 &lt;p>This webhook reacts on the &lt;code>ConfigMap&lt;/code> used by the &lt;code>kube-proxy&lt;/code> and sets the &lt;code>maxPerCore&lt;/code> field to &lt;code>0&lt;/code> since other values don&amp;rsquo;t work well in conjunction with the &lt;code>kindest/node&lt;/code> image which is used as base for the shoot worker machine pods (&lt;a href="https://github.com/kubernetes-sigs/kind/blob/fa7d86470f4c0e924fc4c2e767ec8491c45f4304/pkg/cluster/internal/kubeadm/config.go#L283-L285">ref&lt;/a>).&lt;/p>
 &lt;h2 id="future-work">Future Work&lt;/h2>

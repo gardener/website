@@ -2580,7 +2580,151 @@ example &lt;code>values.yaml&lt;/code>:&lt;/li>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: |&lt;span style="color:#a31515">
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> If you can&amp;#39;t comply, only third-level/dev support at usual 8x5 working hours in EEA will be available to you for all node-related components such as Docker and Kubelet, the operating system, and everything else that would require direct inspection of your nodes through a privileged pod or SSH
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> inverted: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Adding Support for a Cloud Provider</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
+&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
+&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
+&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
+&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
+&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
+&lt;ol>
+&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
+&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
+&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to this created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate into the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Now, commit your changes and push them upstream.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
+&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
+&lt;p>⚠️&lt;/p>
+&lt;ul>
+&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
+&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
+&lt;/ul>
+&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
+&lt;ol>
+&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
+&lt;ul>
+&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
+&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
+&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
+&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
+&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
+&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Re-generate the vendors to update any new vendors imported.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
+&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
+&lt;/ol>
+&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
+&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
+&lt;ol>
+&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
+&lt;ul>
+&lt;li>Run the machine controller (driver) using the command below.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
+&lt;ul>
+&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Navigate to the newly-created directory.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
+&lt;ul>
+&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-class&lt;/code>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
+&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
+&lt;ol>
+&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
+&lt;li>To release your docker image, run the following.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Adding Support for a Cloud Provider (Legacy)</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
+&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
+&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
+&lt;ol>
+&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
+&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
+&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
+&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
+&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
+&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
+&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
+&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
+&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
+&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
+&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
+&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
 &lt;h1 id="extension-admission">Extension Admission&lt;/h1>
 &lt;p>The extensions are expected to validate their respective resources for their extension specific configurations, when the resources are newly created or updated. For example, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#infrastructure-provider">provider extensions&lt;/a> would validate &lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.provider.controlPlaneConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource and &lt;code>spec.providerConfig&lt;/code> in the &lt;code>CloudProfile&lt;/code> resource, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#network-plugin">networking extensions&lt;/a> would validate &lt;code>spec.networking.providerConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource. As best practice, the validation should be performed only if there is a change in the &lt;code>spec&lt;/code> of the resource. Please find an exemplary implementation &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/admission/validator">here&lt;/a>.&lt;/p>
 &lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for provider extension type &lt;code>aws&lt;/code>, looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, &lt;code>SecretBinding&lt;/code>s and &lt;code>Shoot&lt;/code>s. Please see &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/apis/core/v1beta1/constants/types_constants.go">this&lt;/a> for the full list of extension labels.&lt;/p></description></item><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
@@ -2800,7 +2944,7 @@ Such configurations are not evaluated by Gardener (because it doesn&amp;rsquo;t 
 &lt;h2 id="clusteropenidconnectpresets">&lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s&lt;/h2>
 &lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/usage/openidconnect-presets/">this&lt;/a> separate documentation file.&lt;/p>
 &lt;h2 id="overview-data-model">Overview Data Model&lt;/h2>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-data-model-overview_c5b559.png" alt="Gardener Overview Data Model">&lt;/p></description></item><item><title>Docs: Apis</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/docs/apis/</guid><description>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-data-model-overview_c5b559.png" alt="Gardener Overview Data Model">&lt;/p></description></item><item><title>Docs: APIs</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/documents/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/documents/apis/</guid><description>
 &lt;h2 id="specification">Specification&lt;/h2>
 &lt;h3 id="providerspec-schema">ProviderSpec Schema&lt;/h3>
 &lt;br>
@@ -22644,151 +22788,7 @@ bool
 &lt;hr/>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
-&lt;/em>&lt;/p></description></item><item><title>Docs: Cp Support New</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_new/</guid><description>
-&lt;h1 id="adding-support-for-a-new-provider">Adding support for a new provider&lt;/h1>
-&lt;p>Steps to be followed while implementing a new (hyperscale) provider are mentioned below. This is the easiest way to add new provider support using a blueprint code.&lt;/p>
-&lt;p>However, you may also develop your machine controller from scratch, which would provide you with more flexibility. First, however, make sure that your custom machine controller adheres to the &lt;code>Machine.Status&lt;/code> struct defined in the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/types.go">MachineAPIs&lt;/a>. This will make sure the MCM can act with higher-level controllers like MachineSet and MachineDeployment controller. The key is the &lt;code>Machine.Status.CurrentStatus.Phase&lt;/code> key that indicates the status of the machine object.&lt;/p>
-&lt;p>Our strong recommendation would be to follow the steps below. This provides the most flexibility required to support machine management for adding new providers. And if you feel to extend the functionality, feel free to update our &lt;a href="https://github.com/gardener/machine-controller-manager/tree/master/pkg/util/provider">machine controller libraries&lt;/a>.&lt;/p>
-&lt;h2 id="setting-up-your-repository">Setting up your repository&lt;/h2>
-&lt;ol>
-&lt;li>Create a new empty repository named &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code> on GitHub username/project. Do not initialize this repository with a README.&lt;/li>
-&lt;li>Copy the remote repository &lt;code>URL&lt;/code> (HTTPS/SSH) to this repository displayed once you create this repository.&lt;/li>
-&lt;li>Now, on your local system, create directories as required. {your-github-username} given below could also be {github-project} depending on where you have created the new repository.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to this created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/{your-github-username}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Clone &lt;a href="https://github.com/gardener/machine-controller-manager-provider-sampleprovider">this repository&lt;/a> on your local machine.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager-provider-sampleprovider.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename the directory from &lt;code>machine-controller-manager-provider-sampleprovider&lt;/code> to &lt;code>machine-controller-manager-provider-{provider-name}&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mv machine-controller-manager-provider-sampleprovider machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate into the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager-provider-{provider-name}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the remote &lt;code>origin&lt;/code> URL to the newly created repository&amp;rsquo;s URL you had copied above.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git remote set-url origin git@github.com:{your-github-username}/machine-controller-manager-provider-{provider-name}.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Rename GitHub project from &lt;code>gardener&lt;/code> to &lt;code>{github-org/your-github-username}&lt;/code> wherever you have cloned the repository above. Also, edit all occurrences of the word &lt;code>sampleprovider&lt;/code> to &lt;code>{provider-name}&lt;/code> in the code. Then, use the hack script given below to do the same.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make rename-project PROJECT_NAME={github-org/your-github-username} PROVIDER_NAME={provider-name}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>eg:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=gardener PROVIDER_NAME=AmazonWebServices (or)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> make rename-project PROJECT_NAME=githubusername PROVIDER_NAME=AWS
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Now, commit your changes and push them upstream.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git add -A
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git commit -m &lt;span style="color:#a31515">&amp;#34;Renamed SampleProvide to {provider-name}&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git push origin master
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;h2 id="code-changes-required">Code changes required&lt;/h2>
-&lt;p>The contract between the Machine Controller Manager (MCM) and the Machine Controller (MC) AKA driver has been &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/machine_error_codes/">documented here&lt;/a> and the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/machinecodes/codes/codes.go">machine error codes can be found here&lt;/a>. You may refer to them for any queries.&lt;/p>
-&lt;p>⚠️&lt;/p>
-&lt;ul>
-&lt;li>Keep in mind that &lt;strong>there should be a unique way to map between machine objects and VMs&lt;/strong>. This can be done by mapping machine object names with VM-Name/ tags/ other metadata.&lt;/li>
-&lt;li>Optionally, there should also be a unique way to map a VM to its machine class object. This can be done by tagging VM objects with tags/resource groups associated with the machine class.&lt;/li>
-&lt;/ul>
-&lt;h4 id="steps-to-integrate">Steps to integrate&lt;/h4>
-&lt;ol>
-&lt;li>Update the &lt;code>pkg/provider/apis/provider_spec.go&lt;/code> specification file to reflect the structure of the &lt;code>ProviderSpec&lt;/code> blob. It typically contains the machine template details in the &lt;code>MachineClass&lt;/code> object. Follow the sample spec provided already in the file. A sample provider specification can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/apis/aws_provider_spec.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the methods described at &lt;code>pkg/provider/core.go&lt;/code> to manage VMs on your cloud provider. Comments are provided above each method to help you fill them up with desired &lt;code>REQUEST&lt;/code> and &lt;code>RESPONSE&lt;/code> parameters.
-&lt;ul>
-&lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
-&lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
-&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
-&lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
-&lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Perform validation of APIs that you have described and make it a part of your methods as required at each request.&lt;/li>
-&lt;li>Write unit tests to make it work with your implementation by running &lt;code>make test&lt;/code>.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Re-generate the vendors to update any new vendors imported.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make revendor
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Update the sample YAML files on the &lt;code>kubernetes/&lt;/code> directory to provide sample files through which the working of the machine controller can be tested.&lt;/li>
-&lt;li>Update &lt;code>README.md&lt;/code> to reflect any additional changes&lt;/li>
-&lt;/ol>
-&lt;h2 id="testing-your-code-changes">Testing your code changes&lt;/h2>
-&lt;p>Make sure &lt;code>$TARGET_KUBECONFIG&lt;/code> points to the cluster where you wish to manage machines. Likewise, &lt;code>$CONTROL_NAMESPACE&lt;/code> represents the namespaces where MCM is looking for machine CR objects, and &lt;code>$CONTROL_KUBECONFIG&lt;/code> points to the cluster that holds these machine CRs.&lt;/p>
-&lt;ol>
-&lt;li>On the first terminal running at &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>,
-&lt;ul>
-&lt;li>Run the machine controller (driver) using the command below.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the second terminal pointing to &lt;code>$GOPATH/src/github.com/gardener&lt;/code>,
-&lt;ul>
-&lt;li>Clone the &lt;a href="https://github.com/gardener/machine-controller-manager">latest MCM code&lt;/a>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/machine-controller-manager.git
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Navigate to the newly-created directory.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cd machine-controller-manager
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the required CRDs from the machine-controller-manager repo,
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/crds
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Run the machine-controller-manager in the &lt;code>master&lt;/code> branch
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>On the third terminal pointing to &lt;code>$GOPATH/src/github.com/{github-org/your-github-username}/machine-controller-manager-provider-{provider-name}&lt;/code>
-&lt;ul>
-&lt;li>Fill in the object files given below and deploy them as described below.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-class&lt;/code>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-class.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>kubernetes secret&lt;/code> if required.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/secret.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Deploy the &lt;code>machine&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Once the machine joins, you can test by deploying a machine-deployment.&lt;/li>
-&lt;li>Deploy the &lt;code>machine-deployment&lt;/code> object and make sure it joins the cluster successfully.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>Make sure to delete both the &lt;code>machine&lt;/code> and &lt;code>machine-deployment&lt;/code> objects after use.
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete -f kubernetes/machine-deployment.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="releasing-your-docker-image">Releasing your docker image&lt;/h2>
-&lt;ol>
-&lt;li>Make sure you have logged into gcloud/docker using the CLI.&lt;/li>
-&lt;li>To release your docker image, run the following.&lt;/li>
-&lt;/ol>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> make release IMAGE_REPOSITORY=&amp;lt;link-to-image-repo&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
-&lt;li>A sample kubernetes deploy file can be found at &lt;code>kubernetes/deployment.yaml&lt;/code>. Update the same (with your desired MCM and MC images) to deploy your MCM pod.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Cp Support Old</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/development/cp_support_old/</guid><description>
-&lt;h1 id="adding-support-for-a-new-cloud-provider">Adding support for a new cloud provider&lt;/h1>
-&lt;p>For adding support for a new cloud provider in the Machine Controller Manager, follow the steps described below. Replace provider with your provider-name.&lt;/p>
-&lt;ol>
-&lt;li>Add a ProviderMachineClass CRD similar to existing AWSMachineClass into &lt;code>kubernetes/crds.yaml&lt;/code>.&lt;/li>
-&lt;li>Add ProviderMachineClass structs similar to existing AWSMachineClass into the machine APIs into &lt;code>pkg/apis/machine/types.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/types.go&lt;/code>. This would be the machineClass template used to describe provider specific configurations.&lt;/li>
-&lt;li>Add the Go structures of your machine class (list) to &lt;code>pkg/apis/machine/register.go&lt;/code> and &lt;code>pkg/apis/machine/v1alpha1/register.go&lt;/code> to allow reporting events on these objects.&lt;/li>
-&lt;li>Regenerate the machine API clients by running &lt;code>./hack/generate-code&lt;/code>&lt;/li>
-&lt;li>Add validation for the new provider machine class at &lt;code>pkg/apis/machine/validation/providermachineclass.go&lt;/code> similar to &lt;code>pkg/apis/machine/validation/awsmachineclass.go&lt;/code>&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/machine_util.go&lt;/code> to allow validation of the new provider.&lt;/li>
-&lt;li>Add a new driver into &lt;code>pkg/driver/driver_provider.go&lt;/code> similar to &lt;code>pkg/driver/driver_aws.go&lt;/code> to implement the driver interface.&lt;/li>
-&lt;li>Update &lt;code>pkg/driver/driver.go&lt;/code> to add a new switch case to support the new provider driver.&lt;/li>
-&lt;li>Add a new method in &lt;code>pkg/controller/machine_safety.go&lt;/code> called checkProviderMachineClass similar to the existing method called checkAWSMachineClass present in the same file. Now invoke this method as a go-routine in the method checkVMObjects.&lt;/li>
-&lt;li>Extend the &lt;code>StartControllers()&lt;/code> function in &lt;code>cmd/machine-controller-manager/app/controllermanager.go&lt;/code> to only start if your new machine class is under the available resources.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to add new providerMachineClassLister, providerMachineClassQueue, awsMachineClassSynced into the controller struct. Also initialize them in NewController() method.&lt;/li>
-&lt;li>Add a new file &lt;code>pkg/controller/providermachineclass.go&lt;/code> that allows re-queuing of machines which refer to an modified providerMachineClass.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code> to extend &lt;code>WaitForCacheSync&lt;/code> and &lt;code>.Shutdown()&lt;/code> similar to other cloud providers.&lt;/li>
-&lt;li>Update the example ClusterRole in &lt;code>kubernetes/deployment/in-tree/clusterrole.yaml&lt;/code> to allow operations on your new machine class.&lt;/li>
-&lt;li>Update &lt;code>pkg/controller/controller.go&lt;/code>, &lt;code>pkg/controller/secret.go&lt;/code>, &lt;code>pkg/controller/secret_util.go&lt;/code> to add event handlers to add/remove finalizers referenced by your machine Class. Refer &lt;a href="https://github.com/gardener/machine-controller-manager/pull/104/commits/013f70726b1057aed1cf7fe0f0449922ab9a256a">this commit&lt;/a>.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Create a Shooted Seed Cluster</title><link>https://gardener.cloud/docs/gardener/usage/shooted_seed/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shooted_seed/</guid><description>
+&lt;/em>&lt;/p></description></item><item><title>Docs: Create a Shooted Seed Cluster</title><link>https://gardener.cloud/docs/gardener/usage/shooted_seed/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shooted_seed/</guid><description>
 &lt;h1 id="create-shooted-seed-cluster">Create Shooted Seed Cluster&lt;/h1>
 &lt;p>Create managed seed (aka &amp;ldquo;shooted seed&amp;rdquo;) cluster with the &lt;code>shoot.gardener.cloud/use-as-seed&lt;/code> annotation.&lt;/p>
 &lt;p>&lt;strong>Note:&lt;/strong> Starting with Gardener v1.18, the &lt;code>shoot.gardener.cloud/use-as-seed&lt;/code> annotation is deprecated.

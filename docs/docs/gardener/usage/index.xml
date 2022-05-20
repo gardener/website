@@ -1215,7 +1215,41 @@ maxLines: 5000
 &lt;p>The ClusterOpenIDConnectPreset admission control is enabled by default. To disable it use the &lt;code>--disable-admission-plugins&lt;/code> flag on the gardener-apiserver.&lt;/p>
 &lt;p>For example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>--disable-admission-plugins=ClusterOpenIDConnectPreset
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/usage/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/projects/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Project Namespace Access</title><link>https://gardener.cloud/docs/gardener/usage/project_namespace_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/project_namespace_access/</guid><description>
+&lt;h1 id="project-namespace-access">Project Namespace Access&lt;/h1>
+&lt;h2 id="service-account-manager">Service Account Manager&lt;/h2>
+&lt;p>With Gardener &lt;code>v1.47&lt;/code> a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically with Kubernetes &lt;code>v1.24+&lt;/code>.&lt;/p>
+&lt;h3 id="create-a-service-account">Create a Service Account&lt;/h3>
+&lt;p>Once given the &lt;code>serviceaccountmanager&lt;/code> role a user can create/update/delete &lt;code>ServiceAccount&lt;/code>s in the project namespace. In order to create a &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo; run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc create sa robot-user
+&lt;/code>&lt;/pre>&lt;h3 id="request-a-token-for-a-service-account">Request a token for a Service Account&lt;/h3>
+&lt;p>A token for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> can be requested via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">TokenRequest API&lt;/a>.&lt;/p>
+&lt;p>The request can be made with &lt;code>kubectl&lt;/code>&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f - --raw /api/v1/namespaces/project-abc/serviceaccounts/robot-user/token
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">{
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">}
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or alternatively by directly calling the Kubernetes HTTP API&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>curl -X POST https://api.gardener/api/v1/namespaces/project-abc/serviceaccounts/robot-user/token &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Authorization: Bearer &amp;lt;auth-token&amp;gt;&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -d &lt;span style="color:#a31515">&amp;#39;{
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Mind that the returned token is not stored within the Kubernetes cluster, will be valid for &lt;code>3600&lt;/code> seconds and will be invalidated if the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> is deleted. Although &lt;code>expirationSeconds&lt;/code> can be modified depending on the needs, the returned token&amp;rsquo;s validity will not exceed the configured &lt;code>service-account-max-token-expiration&lt;/code> duration for the garden cluster. It is advised that the actual &lt;code>expirationTimestamp&lt;/code> is verified so that expectations are met. This can be done by asserting the &lt;code>expirationTimestamp&lt;/code> in the &lt;code>TokenRequestStatus&lt;/code> or the &lt;code>exp&lt;/code> claim in the token itself.&lt;/p>
+&lt;h3 id="delete-a-service-account">Delete a Service Account&lt;/h3>
+&lt;p>In order to delete the &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo; run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc delete sa robot-user
+&lt;/code>&lt;/pre>&lt;p>This will invalidate all existing tokens for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code>.&lt;/p></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/usage/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/projects/</guid><description>
 &lt;h1 id="projects">Projects&lt;/h1>
 &lt;p>The Gardener API server supports a cluster-scoped &lt;code>Project&lt;/code> resource which is used for data isolation between individual Gardener consumers. For example, each development team has its own project to manage its own shoot clusters.&lt;/p>
 &lt;p>Each &lt;code>Project&lt;/code> is backed by a Kubernetes &lt;code>Namespace&lt;/code> that contains the actual related Kubernetes resources like &lt;code>Secret&lt;/code>s or &lt;code>Shoot&lt;/code>s.&lt;/p>
@@ -1240,6 +1274,7 @@ maxLines: 5000
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># roles:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - viewer &lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - uam&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - serviceaccountmanager&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - extension:foo&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroup: rbac.authorization.k8s.io
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
@@ -1263,13 +1298,14 @@ Please note that the &lt;code>.spec.owner&lt;/code> field is deprecated and will
 Each project member must have at least one role (currently described in &lt;code>.spec.members[].role&lt;/code>, additional roles can be added to &lt;code>.spec.members[].roles[]&lt;/code>). The following roles exist:&lt;/p>
 &lt;ul>
 &lt;li>&lt;code>admin&lt;/code>: This allows to fully manage resources inside the project (e.g., secrets, shoots, configmaps, and similar).&lt;/li>
+&lt;li>&lt;code>serviceaccountmanager&lt;/code>: This allows to fully manage service accounts inside the project namespace and request tokens for them. Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/project_namespace_access/">this document&lt;/a>.&lt;/li>
 &lt;li>&lt;code>uam&lt;/code>: This allows to add/modify/remove human users or groups to/from the project member list. Technical users (service accounts) can be managed by all admins.&lt;/li>
 &lt;li>&lt;code>viewer&lt;/code>: This allows to read all resources inside the project except secrets.&lt;/li>
-&lt;li>&lt;code>owner&lt;/code>: This combines the &lt;code>admin&lt;/code> and &lt;code>uam&lt;/code> roles.&lt;/li>
+&lt;li>&lt;code>owner&lt;/code>: This combines the &lt;code>admin&lt;/code>, &lt;code>uam&lt;/code> and &lt;code>serviceaccountmanager&lt;/code> roles.&lt;/li>
 &lt;li>Extension roles (prefixed with &lt;code>extension:&lt;/code>): Please refer to &lt;a href="https://gardener.cloud/docs/gardener/extensions/project-roles/">this document&lt;/a>.&lt;/li>
 &lt;/ul>
 &lt;p>The &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#project-controller">project controller&lt;/a> inside the Gardener Controller Manager is managing RBAC resources that grant the described privileges to the respective members.&lt;/p>
-&lt;p>There are two central &lt;code>ClusterRole&lt;/code>s &lt;code>gardener.cloud:system:project-member&lt;/code> and &lt;code>gardener.cloud:system:project-viewer&lt;/code> that grant the permissions for namespaced resources (e.g., &lt;code>Secret&lt;/code>s, &lt;code>Shoot&lt;/code>s, etc.).
+&lt;p>There are three central &lt;code>ClusterRole&lt;/code>s &lt;code>gardener.cloud:system:project-member&lt;/code>, &lt;code>gardener.cloud:system:project-viewer&lt;/code> and &lt;code>gardener.cloud:system:project-serviceaccountmanager&lt;/code> that grant the permissions for namespaced resources (e.g., &lt;code>Secret&lt;/code>s, &lt;code>Shoot&lt;/code>s, &lt;code>ServiceAccount&lt;/code>s, etc.).
 Via referring &lt;code>RoleBinding&lt;/code>s created in the respective namespace the project members get bound to these &lt;code>ClusterRole&lt;/code>s and, thus, the needed permissions.
 There are also project-specific &lt;code>ClusterRole&lt;/code>s granting the permissions for cluster-scoped resources, e.g. the &lt;code>Namespace&lt;/code> or &lt;code>Project&lt;/code> itself.&lt;br>
 For each role, the following &lt;code>ClusterRole&lt;/code>s, &lt;code>ClusterRoleBinding&lt;/code>s, and &lt;code>RoleBinding&lt;/code>s are created:&lt;/p>
@@ -1288,6 +1324,12 @@ For each role, the following &lt;code>ClusterRole&lt;/code>s, &lt;code>ClusterRo
 &lt;td>&lt;code>gardener.cloud:system:project-member:&amp;lt;projectName&amp;gt;&lt;/code>&lt;/td>
 &lt;td>&lt;code>gardener.cloud:system:project-member:&amp;lt;projectName&amp;gt;&lt;/code>&lt;/td>
 &lt;td>&lt;code>gardener.cloud:system:project-member&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>serviceaccountmanager&lt;/code>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;code>gardener.cloud:system:project-serviceaccountmanager&lt;/code>&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>uam&lt;/code>&lt;/td>
@@ -1320,7 +1362,7 @@ For each role, the following &lt;code>ClusterRole&lt;/code>s, &lt;code>ClusterRo
 Beginning with v1.8 the new &lt;code>uam&lt;/code> role is being introduced.
 It is backed by the &lt;code>manage-members&lt;/code> custom RBAC verb which allows to add/modify/remove human users or groups to/from the project member list.
 Human users are subjects with &lt;code>kind=User&lt;/code> and &lt;code>name!=system:serviceaccount:*&lt;/code>, and groups are subjects with &lt;code>kind=Group&lt;/code>.
-The management of service account subjects (&lt;code>kind=ServiecAccount&lt;/code> or &lt;code>name=system:serviceaccount:*&lt;/code>) is not controlled via the &lt;code>uam&lt;/code> custom verb but with the standard &lt;code>update&lt;/code>/&lt;code>patch&lt;/code> verbs for projects.&lt;/p>
+The management of service account subjects (&lt;code>kind=ServiceAccount&lt;/code> or &lt;code>name=system:serviceaccount:*&lt;/code>) is not controlled via the &lt;code>uam&lt;/code> custom verb but with the standard &lt;code>update&lt;/code>/&lt;code>patch&lt;/code> verbs for projects.&lt;/p>
 &lt;p>All newly created projects will only bind the owner to the &lt;code>uam&lt;/code> role.
 The owner can still grant the &lt;code>uam&lt;/code> role to other members if desired.
 For projects created before Gardener v1.8 the Gardener Controller Manager will migrate all projects to also assign the &lt;code>uam&lt;/code> role to all &lt;code>admin&lt;/code> members (to not break existing use-cases). The corresponding migration logic is present in Gardener Controller Manager from v1.8 to v1.13.
@@ -1699,7 +1741,8 @@ The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-ca-start
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs stage one.
 After it is completed, the &lt;code>.status.credentials.rotation.certificateAuthorities.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.&lt;/p>
-&lt;p>Now you must update all API clients outside the cluster (such as the &lt;code>kubeconfig&lt;/code>s on developer machines) to use the newly issued CA bundle in the &lt;code>&amp;lt;shoot-name&amp;gt;.ca-cluster&lt;/code> &lt;code>Secret&lt;/code>.&lt;/p>
+&lt;p>Now you must update all API clients outside the cluster (such as the &lt;code>kubeconfig&lt;/code>s on developer machines) to use the newly issued CA bundle in the &lt;code>&amp;lt;shoot-name&amp;gt;.ca-cluster&lt;/code> &lt;code>Secret&lt;/code>.
+Please also note that client certificates must be re-issued now.&lt;/p>
 &lt;p>After updating all API clients, you can complete the rotation by annotating the shoot with the &lt;code>rotate-ca-complete&lt;/code> operation:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-ca-complete
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
@@ -1757,9 +1800,40 @@ However, this feature gate is deprecated, turned off by default and will be remo
 &lt;p>This key is used to encrypt the data of &lt;code>Secret&lt;/code> resources inside etcd.
 It is currently &lt;strong>not&lt;/strong> rotated automatically and there is no way to trigger it manually.&lt;/p>
 &lt;h2 id="serviceaccount-token-signing-key">&lt;code>ServiceAccount&lt;/code> Token Signing Key&lt;/h2>
-&lt;p>This key is used to sign the tokens for &lt;code>ServiceAccount&lt;/code>s.
-It is currently &lt;strong>not&lt;/strong> rotated automatically and there is no way to trigger it manually.
-Note that there is the option to pass such key to Gardener, please see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/#signing-key-secret">this document&lt;/a> for more details.&lt;/p>
+&lt;p>Gardener generates a key which is used to sign the tokens for &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">&lt;code>ServiceAccount&lt;/code>s&lt;/a>.
+Those tokens are typically used by workload &lt;code>Pod&lt;/code>s running inside the cluster in order to authenticate themselves with the &lt;code>kube-apiserver&lt;/code>.
+This also includes system components running in the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
+&lt;p>The token signing key has no expiration date.
+Since it might require adaptation for the consumers of the &lt;code>Shoot&lt;/code>, there is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the signing key.&lt;/strong>&lt;/p>
+&lt;blockquote>
+&lt;p>Note that the signing key rotation can only be triggered if the &lt;code>ShootSARotation&lt;/code> feature gate is enabled.&lt;/p>
+&lt;/blockquote>
+&lt;p>The rotation happens in three stages, similar to how the &lt;a href="#certificate-authorities">CA certificates&lt;/a> are rotated:&lt;/p>
+&lt;ul>
+&lt;li>In stage one, a new signing key is created and added to the bundle (together with the old signing key).&lt;/li>
+&lt;li>In stage two, end-users update all out-of-cluster API clients that communicate with the control plane via &lt;code>ServiceAccount&lt;/code> tokens.&lt;/li>
+&lt;li>In stage three, the old signing key is dropped from the bundle.&lt;/li>
+&lt;/ul>
+&lt;p>Technically, the &lt;code>Preparing&lt;/code> phase indicates stage one.
+Once it is completed, the &lt;code>Prepared&lt;/code> phase indicates readiness for stage two.
+The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>Completed&lt;/code> phase states that the rotation process has finished.&lt;/p>
+&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.serviceAccountKey&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated, last completed, and in which phase it currently is.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to start the rotation (stage one), you have to annotate the shoot with the &lt;code>rotate-serviceaccount-key-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-serviceaccount-key-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs stage one.
+After it is completed, the &lt;code>.status.credentials.rotation.serviceAccountKey.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.&lt;/p>
+&lt;p>Now you must update all API clients outside the cluster using a &lt;code>ServiceAccount&lt;/code> token (such as the &lt;code>kubeconfig&lt;/code>s on developer machines) to use a token issued by the new signing key.
+Gardener already generates new static token secrets for all &lt;code>ServiceAccount&lt;/code>s in the cluster.
+However, if you need to create it manually, you can check out &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#manually-create-a-service-account-api-token">this document&lt;/a> for instructions.&lt;/p>
+&lt;p>After updating all API clients, you can complete the rotation by annotating the shoot with the &lt;code>rotate-serviceaccount-key-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-serviceaccount-key-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
+After it is completed, the &lt;code>.status.credentials.rotation.serviceAccountKey.phase&lt;/code> is set to &lt;code>Completed&lt;/code>.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ In stage one, all worker nodes of the &lt;code>Shoot&lt;/code> will be rolled out to ensure that the &lt;code>Pod&lt;/code>s use a new token.&lt;/p>
+&lt;/blockquote>
 &lt;h2 id="openvpn-tls-auth-keys">OpenVPN TLS Auth Keys&lt;/h2>
 &lt;p>This key is used to ensure encrypted communication for the VPN connection between the control plane in the seed cluster and the shoot cluster.
 It is currently &lt;strong>not&lt;/strong> rotated automatically and there is no way to trigger it manually.&lt;/p></description></item><item><title>Docs: Shoot Info Configmap</title><link>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</guid><description>
@@ -2239,6 +2313,7 @@ The complete list of fields that trigger a rolling update:&lt;/p>
 &lt;li>&lt;code>.spec.provider.workers[].cri.name&lt;/code>&lt;/li>
 &lt;li>&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code> (except for patch version changes)&lt;/li>
 &lt;li>&lt;code>.status.credentials.rotation.certificateAuthorities.lastInitiationTime&lt;/code> (changed by gardener when a shoot CA rotation is initiated)&lt;/li>
+&lt;li>&lt;code>.status.credentials.rotation.serviceAccountKey.lastInitiationTime&lt;/code> (changed by gardener when a shoot service account signing key rotation is initiated)&lt;/li>
 &lt;/ul>
 &lt;p>Generally, the provider extension controllers might have additional constraints for changes leading to rolling updates, so please consult the respective documentation as well.&lt;/p>
 &lt;h2 id="related-documentation">Related Documentation&lt;/h2>

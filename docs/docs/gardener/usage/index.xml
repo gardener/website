@@ -1800,8 +1800,29 @@ This will propagate a new key to all worker nodes while keeping the old key acti
 However, this feature gate is deprecated, turned off by default and will be removed in a future version of Gardener.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="etcd-encryption-key">ETCD Encryption Key&lt;/h2>
-&lt;p>This key is used to encrypt the data of &lt;code>Secret&lt;/code> resources inside etcd.
-It is currently &lt;strong>not&lt;/strong> rotated automatically and there is no way to trigger it manually.&lt;/p>
+&lt;p>This key is used to encrypt the data of &lt;code>Secret&lt;/code> resources inside etcd (see &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/">upstream Kubernetes documentation&lt;/a>).&lt;/p>
+&lt;p>The encryption key has no expiration date.
+There is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the encryption key.&lt;/strong>&lt;/p>
+&lt;p>The rotation happens in three stages:&lt;/p>
+&lt;ul>
+&lt;li>In stage one, a new encryption key is created and added to the bundle (together with the old encryption key).&lt;/li>
+&lt;li>In stage two, all &lt;code>Secret&lt;/code>s in the cluster are rewritten by the &lt;code>kube-apiserver&lt;/code> so that they become encrypted with the new encryption key.&lt;/li>
+&lt;li>In stage three, the old encryption is dropped from the bundle.&lt;/li>
+&lt;/ul>
+&lt;p>Technically, the &lt;code>Preparing&lt;/code> phase indicates the stages one and two.
+Once it is completed, the &lt;code>Prepared&lt;/code> phase indicates readiness for stage three.
+The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>Completed&lt;/code> phase states that the rotation process has finished.&lt;/p>
+&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.etcdEncryptionKey&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated, last completed, and in which phase it currently is.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to start the rotation (stage one), you have to annotate the shoot with the &lt;code>rotate-etcd-encryption-key-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-etcd-encryption-key-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs the stages one and two.
+After it is completed, the &lt;code>.status.credentials.rotation.etcdEncryptionKey.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.
+Now you can complete the rotation by annotating the shoot with the &lt;code>rotate-etcd-encryption-key-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-etcd-encryption-key-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
+After it is completed, the &lt;code>.status.credentials.rotation.etcdEncryptionKey.phase&lt;/code> is set to &lt;code>Completed&lt;/code>.&lt;/p>
 &lt;h2 id="serviceaccount-token-signing-key">&lt;code>ServiceAccount&lt;/code> Token Signing Key&lt;/h2>
 &lt;p>Gardener generates a key which is used to sign the tokens for &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">&lt;code>ServiceAccount&lt;/code>s&lt;/a>.
 Those tokens are typically used by workload &lt;code>Pod&lt;/code>s running inside the cluster in order to authenticate themselves with the &lt;code>kube-apiserver&lt;/code>.

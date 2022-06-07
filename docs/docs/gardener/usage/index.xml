@@ -738,44 +738,71 @@ Consequently, existing/bring-your-own Istio deployments will no longer be suppor
 &lt;li>One Loki Statefulset in the &lt;code>garden&lt;/code> namespace which contains logs for the seed cluster and one per shoot namespace which contains logs for shoot&amp;rsquo;s controlplane.&lt;/li>
 &lt;li>One Grafana Deployment in &lt;code>garden&lt;/code> namespace and two Deployments per shoot namespace (one exposed to the end users and one for the operators). Grafana is the UI component used in the logging stack.&lt;/li>
 &lt;/ul>
+&lt;h3 id="extension-of-the-logging-stack">Extension of the logging stack&lt;/h3>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/shoot-node-logging-architecture_23c018.png" alt="">
+The logging stack is extended to scrape logs from the systemd services of each shoots&amp;rsquo; nodes and from all Gardener components in the shoot &lt;code>kube-system&lt;/code> namespace. These logs are exposed only to the Gardener operators.&lt;/p>
 &lt;h3 id="how-to-access-the-logs">How to access the logs&lt;/h3>
-&lt;p>The first step is to authenticate in front of the Grafana ingress. The secret with the credentials can be found in &lt;code>garden-&amp;lt;project&amp;gt;&lt;/code> namespace under &lt;code>&amp;lt;shoot-name&amp;gt;.monitoring&lt;/code>.
-Logs are accessible via Grafana UI. Its URL can be found in the &lt;code>Logging and Monitoring&lt;/code> section of a cluster in the Gardener Dashboard.&lt;/p>
-&lt;p>There are two methods to explore logs:&lt;/p>
-&lt;ul>
+&lt;p>The first step is to authenticate in front of the Grafana ingress.
+There are two Grafana instances where the logs are accessible from.&lt;/p>
+&lt;ol>
 &lt;li>
-&lt;p>The first option is to use the &lt;code>Explore&lt;/code> view (available at the left side of the screen). It is used for creating log queries using the predefined filters in Loki. For example:
-&lt;code>{pod_name='prometheus-0'}&lt;/code>
-or with regex:
-&lt;code>{pod_name=~'prometheus.+'}&lt;/code>&lt;/p>
+&lt;p>The user (stakeholder/cluster-owner) Grafana consist of a predefined &lt;code>Monitoring and Logging&lt;/code> dashboards which help the end-user to get the most important metrics and logs out of the box. This Grafana UI is dedicated only for the end-user and does not show logs from components which could log a sensitive information. Also, the &lt;code>Explore&lt;/code> tab is not available. Those logs are in the predefined dashboard named &lt;code>Controlplane Logs Dashboard&lt;/code>.
+In this dashboard the user can search logs by &lt;code>pod name&lt;/code>, &lt;code>container name&lt;/code>, &lt;code>severity&lt;/code> and &lt;code>a phrase or regex&lt;/code>.
+The user Grafana URL can be found in the &lt;code>Logging and Monitoring&lt;/code> section of a cluster in the Gardener Dashboard alongside with the credentials, when opened as cluster owner/user.
+The secret with the credentials can be found in &lt;code>garden-&amp;lt;project&amp;gt;&lt;/code> namespace under &lt;code>&amp;lt;shoot-name&amp;gt;.monitoring&lt;/code> in the garden cluster or in the &lt;code>control-plane&lt;/code> (shoot&amp;ndash;project&amp;ndash;shoot-name) namespace under &lt;code>observability-ingress-users-&amp;lt;hash&amp;gt;&lt;/code> secrets in the seed cluster.
+Also, the Grafana URL can be found in the &lt;code>control-plane&lt;/code> namespace under the &lt;code>grafana-users&lt;/code> ingress in the seed.
+The end-user has access only to the logs of some of the control-plane components.&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>The other option is to use &lt;code>Dashboards&lt;/code> panel. There are custom dashboards for pod logs with one selector field for &lt;code>pod_name&lt;/code> and one &lt;code>search&lt;/code> field. The &lt;code>search&lt;/code> field allows to filter the logs for a particular string. The following dashboards can be used for logs:&lt;/p>
-&lt;ul>
-&lt;li>Garden Grafana
-&lt;ul>
-&lt;li>Pod Logs&lt;/li>
-&lt;li>Extensions&lt;/li>
-&lt;li>Systemd Logs&lt;/li>
-&lt;/ul>
+&lt;p>In addition to the dashboards in the User Grafana, the Operator Grafana contains several other dashboards that aim to facilitate the work of operators.
+The operator Grafana URL can be found in the &lt;code>Logging and Monitoring&lt;/code> section of a cluster in the Gardener Dashboard alongside with the credentials, when opened as Gardener operator.
+Also, it can be found in the &lt;code>control-plane&lt;/code> namespace under the &lt;code>grafana-operators&lt;/code> ingress in the seed.
+Operators have access to the &lt;code>Explore&lt;/code> tab.
+The secret with the credentials can be found in the &lt;code>control-plane&lt;/code> (shoot&amp;ndash;project&amp;ndash;shoot-name) namespace under &lt;code>observability-ingress-&amp;lt;hash&amp;gt;-&amp;lt;hash&amp;gt;&lt;/code> secrets in the seed.
+From &lt;code>Explore&lt;/code> tab, operators have unlimited abilities to extract and manipulate logs.
+The Grafana itself helps them with suggestions and auto-completion.&lt;/p>
 &lt;/li>
-&lt;li>User Grafana
-&lt;ul>
-&lt;li>Kube Apiserver&lt;/li>
-&lt;li>Kube Controller Manager&lt;/li>
-&lt;li>Kube Scheduler&lt;/li>
-&lt;li>Cluster Autoscaler * Operator Grafana&lt;/li>
-&lt;/ul>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;em>&lt;strong>NOTE:&lt;/strong>&lt;/em> Operators are people part of the Gardener team with operator permissions, not operators of the end-user cluster!&lt;/p>
+&lt;/blockquote>
+&lt;h4 id="how-to-use-explore-tab">How to use &lt;code>Explore&lt;/code> tab.&lt;/h4>
+&lt;p>If you click on the &lt;code>Log browser &amp;gt;&lt;/code> button you will see all of the available labels.
+Clicking on the label you can see all of its available values for the given period of time you have specified.
+If you are searching for logs for the past one hour do not expect to see labels or values for which there were no logs for that period of time.
+By clicking on a value, Grafana automatically eliminates all other label and/or values with which no valid log stream can be made.
+After choosing the right labels and their values, click on &lt;code>Show logs&lt;/code> button.
+This will build &lt;code>Log query&lt;/code> and execute it.
+This approach is convenient when you don&amp;rsquo;t know the labels names or they values.
+&lt;img src="https://gardener.cloud/__resources/explore-button-usage_0dfdca.png" alt="">&lt;/p>
+&lt;p>Once you felt comfortable, you can start to use the &lt;a href="https://grafana.com/docs/loki/latest/logql/log_queries/">LogQL&lt;/a> language to search for logs.
+Next to the &lt;code>Log browser &amp;gt;&lt;/code> button is the place where you can type log queries.&lt;/p>
+&lt;p>Examples:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>You want to get logs for &lt;code>calico-node-&amp;lt;hash&amp;gt;&lt;/code> pod in the cluster &lt;code>kube-system&lt;/code>.
+The name of the node on which &lt;code>calico-node&lt;/code> was running is known but not the hash suffix of the &lt;code>calico-node&lt;/code> pod.
+Also we want to search for errors in the logs.&lt;/p>
+&lt;p>&lt;code>{pod_name=~&amp;quot;calico-node-.+&amp;quot;, nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} |~ &amp;quot;error&amp;quot;&lt;/code>&lt;/p>
+&lt;p>Here, you will get as much help as possible from the Grafana by giving you suggestions and auto-completion.&lt;/p>
 &lt;/li>
-&lt;li>Operator Grafana
-&lt;ul>
-&lt;li>All user&amp;rsquo;s dashboards&lt;/li>
-&lt;li>Kubernetes Pods&lt;/li>
-&lt;/ul>
+&lt;li>
+&lt;p>You want to get the logs from &lt;code>kubelet&lt;/code> systemd service of a given node and search for a pod name in the logs.&lt;/p>
+&lt;p>&lt;code>{unit=&amp;quot;kubelet.service&amp;quot;, nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} |~ &amp;quot;pod name&amp;quot;&lt;/code>&lt;/p>
 &lt;/li>
-&lt;/ul>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;em>&lt;strong>NOTE:&lt;/strong>&lt;/em> Under &lt;code>unit&lt;/code> label there is only the &lt;code>docker&lt;/code>, &lt;code>containerd&lt;/code>, &lt;code>kubelet&lt;/code> and &lt;code>kernel&lt;/code> logs.&lt;/p>
+&lt;/blockquote>
+&lt;ol start="3">
+&lt;li>
+&lt;p>You want to get the logs from &lt;code>cloud-config-downloader&lt;/code> systemd service of a given node and search for a string in the logs.&lt;/p>
+&lt;p>&lt;code>{job=&amp;quot;systemd-combine-journal&amp;quot;,nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} | unpack | unit=&amp;quot;cloud-config-downloader.service&amp;quot; |~ &amp;quot;last execution was&amp;quot;&lt;/code>&lt;/p>
 &lt;/li>
-&lt;/ul>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;em>&lt;strong>NOTE:&lt;/strong>&lt;/em> &lt;code>{job=&amp;quot;systemd-combine-journal&amp;quot;,nodename=&amp;quot;&amp;lt;node name&amp;gt;&amp;quot;}&lt;/code> stream &lt;a href="https://grafana.com/docs/loki/latest/clients/promtail/stages/pack/">pack&lt;/a> all logs from systemd services except &lt;code>docker&lt;/code>, &lt;code>containerd&lt;/code>, &lt;code>kubelet&lt;/code> and &lt;code>kernel&lt;/code>. To filter those log by unit you have to &lt;a href="https://grafana.com/docs/loki/latest/logql/log_queries/#unpack">unpack&lt;/a> them first.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="expose-logs-for-component-to-user-grafana">Expose logs for component to User Grafana&lt;/h3>
 &lt;p>Exposing logs for a new component to the User&amp;rsquo;s Grafana is described &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#how-to-expose-logs-to-the-users">here&lt;/a>&lt;/p>
 &lt;h3 id="configuration">Configuration&lt;/h3>

@@ -1897,10 +1897,6 @@ Please note that all of them are no technical limitations/blockers but simply ad
 &lt;p>&lt;em>We are using the &lt;a href="https://github.com/gardener/gardener-extension-networking-calico/">&lt;code>networking-calico&lt;/code>&lt;/a> extension for the CNI plugin in shoot clusters, however, it doesn&amp;rsquo;t seem to be configured correctly yet to support this scenario.&lt;/em>&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>Shoot clusters don&amp;rsquo;t support persistent storage.&lt;/p>
-&lt;p>&lt;em>We don&amp;rsquo;t install any CSI plugin into the shoot cluster yet, hence, there is no persistent storage for shoot clusters.&lt;/em>&lt;/p>
-&lt;/li>
-&lt;li>
 &lt;p>No owner TXT &lt;code>DNSRecord&lt;/code>s (hence, no &lt;a href="https://gardener.cloud/docs/gardener/proposals/17-shoot-control-plane-migration-bad-case/">&amp;ldquo;bad-case&amp;rdquo; control plane migration&lt;/a>).&lt;/p>
 &lt;p>&lt;em>In order to realize DNS (see &lt;a href="#implementation-details">Implementation Details&lt;/a> section below), the &lt;code>/etc/hosts&lt;/code> file is manipulated. This does not work for TXT records. In the future, we could look into using &lt;a href="https://coredns.io/">CoreDNS&lt;/a> instead.&lt;/em>&lt;/p>
 &lt;/li>
@@ -1910,7 +1906,8 @@ Please note that all of them are no technical limitations/blockers but simply ad
 &lt;/li>
 &lt;li>
 &lt;p>Only one shoot cluster possible when gardenlet&amp;rsquo;s &lt;code>APIServerSNI&lt;/code> feature gate is disabled.&lt;/p>
-&lt;p>&lt;em>When &lt;a href="https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/">&lt;code>APIServerSNI&lt;/code>&lt;/a> is disabled then gardenlet uses load balancer &lt;code>Service&lt;/code>s in order to expose the shoot clusters&amp;rsquo; &lt;code>kube-apiserver&lt;/code>s. Typically, local Kubernetes clusters don&amp;rsquo;t support this. In this case, the local extension uses the host IP to expose the &lt;code>kube-apiserver&lt;/code>, however, this can only be done once.&lt;/em>&lt;/p>
+&lt;p>&lt;em>When &lt;a href="https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/">&lt;code>APIServerSNI&lt;/code>&lt;/a> is disabled then gardenlet uses load balancer &lt;code>Service&lt;/code>s in order to expose the shoot clusters&amp;rsquo; &lt;code>kube-apiserver&lt;/code>s. Typically, local Kubernetes clusters don&amp;rsquo;t support this. In this case, the local extension uses the host IP to expose the &lt;code>kube-apiserver&lt;/code>, however, this can only be done once.&lt;/em>&lt;br>
+&lt;em>However, given that the &lt;code>APIServerSNI&lt;/code> feature gate is deprecated and will be removed in the future (see &lt;a href="https://github.com/gardener/gardener/pull/6007">gardener/gardener#6007&lt;/a>), we will probably not invest into this.&lt;/em>&lt;/p>
 &lt;/li>
 &lt;/ol>
 &lt;h2 id="implementation-details">Implementation Details&lt;/h2>
@@ -1922,8 +1919,8 @@ Please note that all of them are no technical limitations/blockers but simply ad
 &lt;h3 id="controllers">Controllers&lt;/h3>
 &lt;p>There are controllers for all resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group except for &lt;code>BackupBucket&lt;/code> and &lt;code>BackupEntry&lt;/code>s.&lt;/p>
 &lt;h4 id="controlplane">&lt;code>ControlPlane&lt;/code>&lt;/h4>
-&lt;p>This controller is not deploying anything since we haven&amp;rsquo;t invested yet into a &lt;code>cloud-controller-manager&lt;/code> or CSI solution.
-For the latter, we could probably use the &lt;a href="https://github.com/rancher/local-path-provisioner">local-path-provisioner&lt;/a>.&lt;/p>
+&lt;p>This controller is deploying the &lt;a href="https://github.com/rancher/local-path-provisioner">local-path-provisioner&lt;/a> as well as a related &lt;code>StorageClass&lt;/code> in order to support &lt;code>PersistentVolumeClaim&lt;/code>s in the local shoot cluster.
+Additionally, it creates a few (currently unused) dummy secrets (CA, server and client certificate, basic auth credentials) for the sake of testing the secrets manager integration in the extensions library.&lt;/p>
 &lt;h4 id="dnsrecord">&lt;code>DNSRecord&lt;/code>&lt;/h4>
 &lt;p>This controller manipulates the &lt;code>/etc/hosts&lt;/code> file and adds a new line for each &lt;code>DNSRecord&lt;/code> it observes.
 This enables accessing the shoot clusters from the respective machine, however, it also requires to run the extension with elevated privileges (&lt;code>sudo&lt;/code>).&lt;/p>

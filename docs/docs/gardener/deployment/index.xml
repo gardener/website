@@ -1603,17 +1603,13 @@ In this guide, we will start a &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a
 &lt;p>&lt;img src="https://gardener.cloud/__resources/getting_started_locally_f66391.png" alt="Architecture Diagram">&lt;/p>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;ul>
-&lt;li>
-&lt;p>Make sure that you have followed the &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup/">Local Setup guide&lt;/a> up until the [Get the sources]../development/local_setup.md#get-the-sources) step.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Make sure your Docker daemon is up-to-date, up and running and has enough resources (at least &lt;code>8&lt;/code> CPUs and &lt;code>8Gi&lt;/code> memory; see &lt;a href="https://docs.docker.com/desktop/mac/#resources">here&lt;/a> how to configure the resources for Docker for Mac).&lt;/p>
+&lt;li>Make sure that you have followed the &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup/">Local Setup guide&lt;/a> up until the [Get the sources]../development/local_setup.md#get-the-sources) step.&lt;/li>
+&lt;li>Make sure your Docker daemon is up-to-date, up and running and has enough resources (at least &lt;code>8&lt;/code> CPUs and &lt;code>8Gi&lt;/code> memory; see &lt;a href="https://docs.docker.com/desktop/mac/#resources">here&lt;/a> how to configure the resources for Docker for Mac).
 &lt;blockquote>
-&lt;p>Please note that 8 CPU / 8Gi memory might not be enough for more than two &lt;code>Shoot&lt;/code> clusters, i.e., you might need to increase these values if you want to run additional &lt;code>Shoot&lt;/code>s.&lt;/p>
-&lt;/blockquote>
-&lt;p>Additionally, please configure at least &lt;code>120Gi&lt;/code> of disk size for the Docker daemon.&lt;/p>
-&lt;blockquote>
-&lt;p>Tip: With &lt;code>docker system df&lt;/code> and &lt;code>docker system prune -a&lt;/code> you can cleanup unused data.&lt;/p>
+&lt;p>Please note that 8 CPU / 8Gi memory might not be enough for more than two &lt;code>Shoot&lt;/code> clusters, i.e., you might need to increase these values if you want to run additional &lt;code>Shoot&lt;/code>s.
+If you plan on following the optional steps to &lt;a href="#optional-setting-up-a-second-seed-cluster">create a second seed cluster&lt;/a>, the required resources will be more - at least &lt;code>10&lt;/code> CPUs and &lt;code>18Gi&lt;/code> memory.
+Additionally, please configure at least &lt;code>120Gi&lt;/code> of disk size for the Docker daemon.
+Tip: With &lt;code>docker system df&lt;/code> and &lt;code>docker system prune -a&lt;/code> you can cleanup unused data.&lt;/p>
 &lt;/blockquote>
 &lt;/li>
 &lt;/ul>
@@ -1660,8 +1656,23 @@ Hence, if you want to access the shoot cluster, you have to run the following co
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now you can access it by running&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n garden-local get secret local.kubeconfig -o jsonpath={.data.kubeconfig} | base64 -d &amp;gt; /tmp/kubeconfig-shoot-local.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl --kubeconfig=/tmp/kubeconfig-shoot-local.yaml get nodes
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deleting-the-shoot-cluster">Deleting the &lt;code>Shoot&lt;/code> cluster&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="optional-setting-up-a-second-seed-cluster">(Optional): Setting up a second seed cluster&lt;/h2>
+&lt;p>There are cases where you would want to create a second cluster seed in your local setup. For example, if you want to test the &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">control plane migration&lt;/a> feature. The following steps describe how to do that.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind2-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local2&lt;/code> and stores its kubeconfig in the &lt;code>./example/gardener-local/kind2/kubeconfig&lt;/code> file.&lt;/p>
+&lt;p>In order to deploy required resources in the KinD cluster that you just created, run:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardenlet-kind2-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The following steps assume that your are using the kubeconfig that points to the &lt;code>gardener-local&lt;/code> cluster (first KinD cluster): &lt;code>export KUBECONFIG=example/gardener-local/kind/kubeconfig&lt;/code>.&lt;/p>
+&lt;p>You can wait for the &lt;code>local2&lt;/code> &lt;code>Seed&lt;/code> to be ready by running:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=gardenletready --for=condition=extensionsready --for=condition=bootstrapped seed local2 --timeout=5m
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get seed local2&lt;/code> and wait for the &lt;code>STATUS&lt;/code> to indicate readiness:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>local2 Ready local local 4m42s vX.Y.Z-dev v1.21.1
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you want to perform control plane migration you can follow the steps outlined &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">here&lt;/a> to migrate the shoot cluster to the second seed you just created.&lt;/p>
+&lt;h2 id="deleting-the-shoot-cluster">Deleting the &lt;code>Shoot&lt;/code> cluster&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/delete shoot local garden-local
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="optional-tear-down-the-second-seed-cluster">(Optional): Tear down the second seed cluster&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind2-down
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tear-down-the-gardener-environment">Tear down the Gardener environment&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind-down
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="further-reading">Further reading&lt;/h2>

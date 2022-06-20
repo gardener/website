@@ -103,7 +103,8 @@ In this guide, we will start a &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a
 &lt;li>
 &lt;p>Make sure your Docker daemon is up-to-date, up and running and has enough resources (at least &lt;code>4&lt;/code> CPUs and &lt;code>4Gi&lt;/code> memory; see &lt;a href="https://docs.docker.com/desktop/mac/#resources">here&lt;/a> how to configure the resources for Docker for Mac).&lt;/p>
 &lt;blockquote>
-&lt;p>Please note that 4 CPU / 4Gi memory might not be enough for more than one &lt;code>Shoot&lt;/code> cluster, i.e., you might need to increase these values if you want to run additional &lt;code>Shoot&lt;/code>s.&lt;/p>
+&lt;p>Please note that 4 CPU / 4Gi memory might not be enough for more than one &lt;code>Shoot&lt;/code> cluster, i.e., you might need to increase these values if you want to run additional &lt;code>Shoot&lt;/code>s.
+If you plan on following the optional steps to &lt;a href="#optional-setting-up-a-second-seed-cluster">create a second seed cluster&lt;/a>, the required resources will be more - at least &lt;code>10&lt;/code> CPUs and &lt;code>16Gi&lt;/code> memory.&lt;/p>
 &lt;/blockquote>
 &lt;p>Additionally, please configure at least &lt;code>120Gi&lt;/code> of disk size for the Docker daemon.&lt;/p>
 &lt;blockquote>
@@ -169,8 +170,29 @@ Alternatively, make sure to set your &lt;code>KUBECONFIG&lt;/code> environment v
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When the shoot got successfully created you can access it as follows:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n garden-local get secret local.kubeconfig -o jsonpath={.data.kubeconfig} | base64 -d &amp;gt; /tmp/kubeconfig-shoot-local.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl --kubeconfig=/tmp/kubeconfig-shoot-local.yaml get nodes
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deleting-the-shoot-cluster">Deleting the &lt;code>Shoot&lt;/code> cluster&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="optional-setting-up-a-second-seed-cluster">(Optional): Setting up a second seed cluster&lt;/h2>
+&lt;p>There are cases where you would want to create a second seed cluster in your local setup. For example, if you want to test the &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">control plane migration&lt;/a> feature. The following steps describe how to do that.&lt;/p>
+&lt;p>Add a new IP address on your loopback device which will be necessary for the new KinD cluster that you will create. On Mac, the default loopback device is &lt;code>lo0&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>sudo ip addr add 127.0.0.2 dev lo0 &lt;span style="color:#008000"># adding 127.0.0.2 ip to the loopback interface&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, setup the second KinD cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind2-up KIND_ENV=local
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local2&lt;/code> and stores its kubeconfig in the &lt;code>./example/gardener-local/kind2/kubeconfig&lt;/code> file. You will need this file when starting the &lt;code>provider-local&lt;/code> extension controller for the second seed cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make register-kind2-env &lt;span style="color:#008000"># registering the local2 seed&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-gardenlet SEED_NAME=local2 &lt;span style="color:#008000"># starting gardenlet for the local2 seed&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export KUBECONFIG=./example/gardener-local/kind2/kubeconfig &lt;span style="color:#008000"># setting KUBECONFIG to point to second kind cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-extension-provider-local &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> WEBHOOK_SERVER_PORT=9444 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> WEBHOOK_CERT_DIR=/tmp/gardener-extension-provider-local2 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> SERVICE_HOST_IP=127.0.0.2 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> METRICS_BIND_ADDRESS=:8082 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> HEALTH_BIND_ADDRESS=:8083 &lt;span style="color:#008000"># starting gardener-extension-provider-local&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you want to perform a control plane migration you can follow the steps outlined &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">here&lt;/a> to migrate the shoot cluster to the second seed you just created.&lt;/p>
+&lt;h2 id="deleting-the-shoot-cluster">Deleting the &lt;code>Shoot&lt;/code> cluster&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/delete shoot local garden-local
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="optional-tear-down-the-second-seed-cluster">(Optional): Tear down the second seed cluster&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make tear-down-kind2-env
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind2-down
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tear-down-the-gardener-environment">Tear down the Gardener environment&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make tear-down-local-env
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-down

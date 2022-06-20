@@ -2312,6 +2312,15 @@ Shoot owners can do so by adding a &lt;code>namespaceSelector&lt;/code> similar 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-system
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the Shoot still has webhooks with either &lt;code>failurePolicy={Fail,nil}&lt;/code> or &lt;code>failurePolicy=Ignore &amp;amp;&amp;amp; timeoutSeconds&amp;gt;15&lt;/code> that act on &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/operation/botanist/matchers/matcher.go#L60">critical resources&lt;/a> in the &lt;code>kube-system&lt;/code> namespace, Gardener will set the &lt;code>HibernationPossible&lt;/code> to &lt;code>False&lt;/code> indicating, that the Shoot can probably not be woken up again after hibernation without manual intervention of the Gardener Operator.
 &lt;code>gardener-apiserver&lt;/code> will prevent any Shoot with the &lt;code>HibernationPossible&lt;/code> constraint set to &lt;code>False&lt;/code> from being hibernated, that is via manual hibernation as well as scheduled hibernation.&lt;/p>
+&lt;blockquote>
+&lt;p>By setting &lt;code>.controllers.shootCare.webhookRemediatorEnabled=true&lt;/code> in the gardenlet configuration, the auto-remediation of webhooks not following the best practices can be turned on in the shoot clusters.
+Concretely, missing &lt;code>namespaceSelector&lt;/code>s or &lt;code>objectSelector&lt;/code>s will be added and too high &lt;code>timeoutSeconds&lt;/code> will be lowered.
+In some cases, the &lt;code>failurePolicy&lt;/code> will be set from &lt;code>Fail&lt;/code> to &lt;code>Ignore&lt;/code>.
+Gardenlet will also add an annotation to make it visible to end-users that their webhook configurations were mutated and should be fixed by them in the first place.
+Note that all of this is no perfect solution and just done on a best effort basis.
+Only the owner of the webhook can know whether it indeed is problematic and configured correctly.&lt;/p>
+&lt;p>Webhooks labeled with &lt;code>remediation.webhook.shoot.gardener.cloud/exclude=true&lt;/code> will be excluded from auto-remediation.&lt;/p>
+&lt;/blockquote>
 &lt;p>&lt;strong>&lt;code>MaintenancePreconditionsSatisfied&lt;/code>&lt;/strong>:&lt;/p>
 &lt;p>This constraint indicates whether all preconditions for a safe maintenance operation are satisfied (see also &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/">this document&lt;/a> for more information about what happens during a shoot maintenance).
 As of today, the same checks as in the &lt;code>HibernationPossible&lt;/code> constraint are being performed (user-deployed webhooks that might interfere with potential rolling updates of shoot worker nodes).

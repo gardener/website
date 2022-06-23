@@ -91,4 +91,52 @@
 &lt;li>This is still alpha feature.&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;/ul></description></item><item><title>Docs: GRPC Based Implementation of Cloud Providers</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/external_providers_grpc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/external_providers_grpc/</guid><description>
+&lt;h1 id="grpc-based-implementation-of-cloud-providers---wip">GRPC based implementation of Cloud Providers - WIP&lt;/h1>
+&lt;h2 id="goal">Goal:&lt;/h2>
+&lt;p>Currently the Cloud Providers&amp;rsquo; (CP) functionalities ( Create(), Delete(), List() ) are part of the Machine Controller Manager&amp;rsquo;s (MCM)repository. Because of this, adding support for new CPs into MCM requires merging code into MCM which may not be required for core functionalities of MCM itself. Also, for various reasons it may not be feasible for all CPs to merge their code with MCM which is an Open Source project.&lt;/p>
+&lt;p>Because of these reasons, it was decided that the CP&amp;rsquo;s code will be moved out in separate repositories so that they can be maintained separately by the respective teams. Idea is to make MCM act as a GRPC server, and CPs as GRPC clients. The CP can register themselves with the MCM using a GRPC service exposed by the MCM. Details of this approach is discussed below.&lt;/p>
+&lt;h2 id="how-it-works">How it works:&lt;/h2>
+&lt;p>MCM acts as GRPC server and listens on a pre-defined port 5000. It implements below GRPC services. Details of each of these services are mentioned in next section.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Register()&lt;/code>&lt;/li>
+&lt;li>&lt;code>GetMachineClass()&lt;/code>&lt;/li>
+&lt;li>&lt;code>GetSecret()&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h2 id="grpc-services-exposed-by-mcm">GRPC services exposed by MCM:&lt;/h2>
+&lt;h3 id="register">Register()&lt;/h3>
+&lt;p>&lt;code>rpc Register(stream DriverSide) returns (stream MCMside) {}&lt;/code>&lt;/p>
+&lt;p>The CP GRPC client calls this service to register itself with the MCM. The CP passes the &lt;code>kind&lt;/code> and the &lt;code>APIVersion&lt;/code> which it implements, and MCM maintains an internal map for all the registered clients. A GRPC stream is returned in response which is kept open througout the life of both the processes. MCM uses this stream to communicate with the client for machine operations: &lt;code>Create()&lt;/code>, &lt;code>Delete()&lt;/code> or &lt;code>List()&lt;/code>.
+The CP client is responsible for reading the incoming messages continuously, and based on the &lt;code>operationType&lt;/code> parameter embedded in the message, it is supposed to take the required action. This part is already handled in the package &lt;code>grpc/infraclient&lt;/code>.
+To add a new CP client, import the package, and implement the &lt;code>ExternalDriverProvider&lt;/code> interface:&lt;/p>
+&lt;pre tabindex="0">&lt;code>type ExternalDriverProvider interface {
+Create(machineclass *MachineClassMeta, credentials, machineID, machineName string) (string, string, error)
+Delete(machineclass *MachineClassMeta, credentials, machineID string) error
+List(machineclass *MachineClassMeta, credentials, machineID string) (map[string]string, error)
+}
+&lt;/code>&lt;/pre>&lt;h3 id="getmachineclass">GetMachineClass()&lt;/h3>
+&lt;p>&lt;code>rpc GetMachineClass(MachineClassMeta) returns (MachineClass) {}&lt;/code>&lt;/p>
+&lt;p>As part of the message from MCM for various machine operations, the name of the machine class is sent instead of the full machine class spec. The CP client is expected to use this GRPC service to get the full spec of the machine class. This optionally enables the client to cache the machine class spec, and make the call only if the machine calass spec is not already cached.&lt;/p>
+&lt;h3 id="getsecret">GetSecret()&lt;/h3>
+&lt;p>&lt;code>rpc GetSecret(SecretMeta) returns (Secret) {}&lt;/code>&lt;/p>
+&lt;p>As part of the message from MCM for various machine operations, the Cloud Config (CC) and CP credentials are not sent. The CP client is expected to use this GRPC service to get the secret which has CC and CP&amp;rsquo;s credentials from MCM. This enables the client to cache the CC and credentials, and to make the call only if the data is not already cached.&lt;/p>
+&lt;h2 id="how-to-add-a-new-cloud-providers-support">How to add a new Cloud Provider&amp;rsquo;s support&lt;/h2>
+&lt;p>Import the package &lt;code>grpc/infraclient&lt;/code> and &lt;code>grpc/infrapb&lt;/code> from MCM (currently in MCM&amp;rsquo;s &amp;ldquo;grpc-driver&amp;rdquo; branch)&lt;/p>
+&lt;ul>
+&lt;li>Implement the interface &lt;code>ExternalDriverProvider&lt;/code>
+&lt;ul>
+&lt;li>&lt;code>Create()&lt;/code>: Creates a new machine&lt;/li>
+&lt;li>&lt;code>Delete()&lt;/code>: Deletes a machine&lt;/li>
+&lt;li>&lt;code>List()&lt;/code>: Lists machines&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Use the interface &lt;code>MachineClassDataProvider&lt;/code>
+&lt;ul>
+&lt;li>&lt;code>GetMachineClass()&lt;/code>: Makes the call to MCM to get machine class spec&lt;/li>
+&lt;li>&lt;code>GetSecret()&lt;/code>: Makes the call to MCM to get secret containing Cloud Config and CP&amp;rsquo;s credentials&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="example-implementation">Example implementation:&lt;/h3>
+&lt;p>Refer GRPC based implementation for AWS client:
+&lt;a href="https://github.com/ggaurav10/aws-driver-grpc">https://github.com/ggaurav10/aws-driver-grpc&lt;/a>&lt;/p></description></item></channel></rss>

@@ -10090,6 +10090,11 @@ However, it also has some special behaviours for certain resources:&lt;/p>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>DELETE&lt;/code> operations for &lt;code>Seed&lt;/code>s.
 Rejects the deletion if &lt;code>Shoot&lt;/code>(s) reference the seed cluster.&lt;/p>
+&lt;h2 id="shootbinding">&lt;code>ShootBinding&lt;/code>&lt;/h2>
+&lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
+&lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> operation for &lt;code>Binding&lt;/code> subresource of &lt;code>Shoot&lt;/code>s.
+It validates whether the target object is of type &lt;code>Seed&lt;/code> and &lt;code>.target.name&lt;/code> contains a valid &lt;code>Seed&lt;/code>.
+It rejects the Binding object if &lt;code>SeedChange&lt;/code> feature gate is disabled and the &lt;code>Shoot&lt;/code> is already assigned to a &lt;code>Seed&lt;/code>.&lt;/p>
 &lt;h2 id="shootdns">&lt;code>ShootDNS&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>Shoot&lt;/code>s.
@@ -11369,7 +11374,29 @@ The way to install the binaries is by creating a daemon set which copies the bin
 &lt;li>Full snapshot of the ETCD is created and terminating of the Control Plane in the &lt;code>Source Seed&lt;/code> is initiated.&lt;/li>
 &lt;/ol>
 &lt;p>If the process is successful, we update the status of the &lt;code>Shoot&lt;/code> by setting the &lt;code>.status.seedName&lt;/code> to the null value. That way, a restoration is triggered in the &lt;code>Destination Seed&lt;/code> and &lt;code>.status.lastOperation&lt;/code> is changed to &lt;code>Restore&lt;/code>. The control plane migration is completed when the &lt;code>Restore&lt;/code> operation has completed successfully.&lt;/p>
-&lt;p>By default the shoot&amp;rsquo;s etcd backups will continue to be uploaded to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Source Seed&lt;/code> after control plane migration has finished. If you want the etcd backups to instead be uploaded to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Destination Seed&lt;/code>, you have to enable the &lt;code>CopyEtcdBackupsDuringControlPlaneMigration&lt;/code> feature gate on the &lt;code>gardenlet&lt;/code> by adding the following command flag: &lt;code>--feature-gates=CopyEtcdBackupsDuringControlPlaneMigration=true&lt;/code>. Note that this will also move the existing etcd backups to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Destination Seed&lt;/code> during the control plane migration process.&lt;/p></description></item><item><title>Docs: Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
+&lt;p>By default the shoot&amp;rsquo;s etcd backups will continue to be uploaded to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Source Seed&lt;/code> after control plane migration has finished. If you want the etcd backups to instead be uploaded to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Destination Seed&lt;/code>, you have to enable the &lt;code>CopyEtcdBackupsDuringControlPlaneMigration&lt;/code> feature gate on the &lt;code>gardenlet&lt;/code> by adding the following command flag: &lt;code>--feature-gates=CopyEtcdBackupsDuringControlPlaneMigration=true&lt;/code>. Note that this will also move the existing etcd backups to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Destination Seed&lt;/code> during the control plane migration process.&lt;/p>
+&lt;h2 id="triggering-the-migration">Triggering the migration&lt;/h2>
+&lt;p>For controlplane migration, operators with necessary RBAC can request a &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/#shootsbinding-subresource">&lt;code>shoot/binding&lt;/code>&lt;/a>, with the following commands:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/binding-request.json &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/binding | jq -r &lt;span style="color:#a31515">&amp;#34;.status&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Here, the &lt;code>binding-request.json&lt;/code> has the following content:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-json" data-lang="json">&lt;span style="display:flex;">&lt;span>{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;apiVersion&amp;#34;: &lt;span style="color:#a31515">&amp;#34;core.gardener.cloud/v1beta1&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;kind&amp;#34;: &lt;span style="color:#a31515">&amp;#34;Binding&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;metadata&amp;#34;: {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;name&amp;#34;: &lt;span style="color:#a31515">&amp;#34;&amp;lt;shoot-name&amp;gt;&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;namespace&amp;#34;: &lt;span style="color:#a31515">&amp;#34;&amp;lt;shoot-namespace&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;target&amp;#34;: {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;apiVersion&amp;#34;: &lt;span style="color:#a31515">&amp;#34;core.gardener.cloud/v1beta1&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;kind&amp;#34;: &lt;span style="color:#a31515">&amp;#34;Seed&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;name&amp;#34;: &lt;span style="color:#a31515">&amp;#34;&amp;lt;seed-name&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
 &lt;h1 id="gardener-controller-manager">Gardener Controller Manager&lt;/h1>
 &lt;p>The Gardener Controller Manager (often refered to as &amp;ldquo;GCM&amp;rdquo;) is a component that runs next to the Gardener API server, similar to the Kubernetes Controller Manager.
 It runs several control loops that do not require talking to any seed or shoot cluster.

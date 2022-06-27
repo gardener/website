@@ -172,9 +172,9 @@ However, it also has some special behaviours for certain resources:&lt;/p>
 Rejects the deletion if &lt;code>Shoot&lt;/code>(s) reference the seed cluster.&lt;/p>
 &lt;h2 id="shootbinding">&lt;code>ShootBinding&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
-&lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> operation for &lt;code>Binding&lt;/code> subresource of &lt;code>Shoot&lt;/code>s.
-It validates whether the target object is of type &lt;code>Seed&lt;/code> and &lt;code>.target.name&lt;/code> contains a valid &lt;code>Seed&lt;/code>.
-It rejects the Binding object if &lt;code>SeedChange&lt;/code> feature gate is disabled and the &lt;code>Shoot&lt;/code> is already assigned to a &lt;code>Seed&lt;/code>.&lt;/p>
+&lt;p>This admission controller reacts on &lt;code>UPDATE&lt;/code> operation for &lt;code>Binding&lt;/code> subresource of &lt;code>Shoot&lt;/code>s.
+It checks for various scheduling constraints for the &lt;code>Seed&lt;/code> in the &lt;code>spec.seedName&lt;/code>.
+It rejects the update if &lt;code>SeedChange&lt;/code> feature gate is disabled and the &lt;code>Shoot&lt;/code> is already assigned to a &lt;code>Seed&lt;/code>.&lt;/p>
 &lt;h2 id="shootdns">&lt;code>ShootDNS&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>Shoot&lt;/code>s.
@@ -1299,18 +1299,8 @@ Subsequently, the Gardenlet picks up and starts to create the cluster on the spe
 &lt;p>In case the shoot has the &lt;code>testing&lt;/code> purpose then the scheduler only reads the &lt;code>.spec.provider.type&lt;/code> from the &lt;code>Shoot&lt;/code> resource and tries to find a &lt;code>Seed&lt;/code> that has the identical &lt;code>.spec.provider.type&lt;/code>.
 The region does not matter, i.e., &lt;code>testing&lt;/code> shoots may also be scheduled on a seed in a complete different region if it is better for balancing the whole Gardener system.&lt;/p>
 &lt;h2 id="shootsbinding-subresource">&lt;code>shoots/binding&lt;/code> subresource&lt;/h2>
-&lt;p>The &lt;code>shoots/binding&lt;/code> subresource is used to bind a &lt;code>Shoot&lt;/code> to a &lt;code>Seed&lt;/code>. On creation of shoot clusters, the scheduler creates such a binding automatically if an appropriate seed cluster is available.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Binding
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;shoot-name&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: &lt;span style="color:#a31515">&amp;#34;Seed&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;seed-name&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The creation of this &lt;code>Binding&lt;/code> will only alter the &lt;code>spec.seedName&lt;/code> field of the &lt;code>Shoot&lt;/code>. The &lt;code>Binding&lt;/code> resource will not be persisted anywhere.&lt;/p>
-&lt;p>Manual creation of the subresource is also possible. However, if a different seed is already assigned to the shoot, this will trigger a control-plane migration. For required steps, Please see &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/#triggering-the-migration">Triggering the migration&lt;/a>.&lt;/p>
+&lt;p>The &lt;code>shoots/binding&lt;/code> subresource is used to bind a &lt;code>Shoot&lt;/code> to a &lt;code>Seed&lt;/code>. On creation of shoot clusters, the scheduler updates the binding automatically if an appropriate seed cluster is available.
+Only an operator with necessary RBAC can update this binding manually. This can be done by changing the &lt;code>.spec.seedName&lt;/code> of the shoot. However, if a different seed is already assigned to the shoot, this will trigger a control-plane migration. For required steps, Please see &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/#triggering-the-migration">Triggering the Migration&lt;/a>.&lt;/p>
 &lt;h2 id="seedselector-field-in-the-shoot-specification">&lt;code>seedSelector&lt;/code> field in the &lt;code>Shoot&lt;/code> specification&lt;/h2>
 &lt;p>Similar to the &lt;code>.spec.nodeSelector&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedSelector&lt;/code> field.
 It allows the user to provide a label selector that must match the labels of &lt;code>Seed&lt;/code>s in order to be scheduled to one of them.

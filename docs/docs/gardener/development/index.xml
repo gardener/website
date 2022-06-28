@@ -1522,7 +1522,143 @@ Typically, the following validations should be performed:&lt;/p>
 &lt;li>Delete clusters with version = &lt;code>vX.Y&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>If everything looks good, then go ahead and file the PR (&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/pull/480">example PR&lt;/a>).
-Generally, it is again great if you add the PRs also to the umbrella issue so that they can be tracked more easily.&lt;/p></description></item><item><title>Docs: Process</title><link>https://gardener.cloud/docs/gardener/development/process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/process/</guid><description>
+Generally, it is again great if you add the PRs also to the umbrella issue so that they can be tracked more easily.&lt;/p></description></item><item><title>Docs: Priority Classes</title><link>https://gardener.cloud/docs/gardener/development/priority-classes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/priority-classes/</guid><description>
+&lt;h1 id="priorityclasses-in-gardener-clusters">&lt;code>PriorityClasses&lt;/code> in Gardener Clusters&lt;/h1>
+&lt;p>Gardener makes use of &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/">&lt;code>PriorityClasses&lt;/code>&lt;/a> to improve overall robustness of the system.
+In order to benefit from the full potential of &lt;code>PriorityClasses&lt;/code>, gardenlet manages a set of well-known &lt;code>PriorityClasses&lt;/code> with fine-granular priority values.&lt;/p>
+&lt;p>All components of the system should use these well-known &lt;code>PriorityClasses&lt;/code> instead of creating and using separate ones with arbitrary values, which would compromise the overall goal of using &lt;code>PriorityClasses&lt;/code> in the first place.
+Gardenlet manages the well-known &lt;code>PriorityClasses&lt;/code> listed in this document, so that third parties (e.g., Gardener extensions) can rely on them to be present when deploying components to Seed and Shoot clusters.&lt;/p>
+&lt;p>The listed well-known &lt;code>PriorityClasses&lt;/code> follow this rough concept:&lt;/p>
+&lt;ul>
+&lt;li>Values are close to the maximum that can be declared by the user. This is important to ensure that Shoot system components have higher priority than the workload deployed by end-users.&lt;/li>
+&lt;li>Values have a bit of headroom in between to ensure flexibility when the need for intermediate priority values arises.&lt;/li>
+&lt;li>Values of &lt;code>PriorityClasses&lt;/code> created on Seed clusters are lower than the ones on Shoots to ensure that Shoot system components have higher priority than Seed components, if the Seed is backed by a Shoot (&lt;code>ManagedSeed&lt;/code>), e.g. &lt;code>coredns&lt;/code> should have higher priority than &lt;code>gardenlet&lt;/code>.&lt;/li>
+&lt;li>Names simply include the last digits of the value to minimize confusion caused by many (similar) names like &lt;code>critical&lt;/code>, &lt;code>importance-high&lt;/code>, etc.&lt;/li>
+&lt;/ul>
+&lt;h2 id="priorityclasses-for-shoot-system-components">&lt;code>PriorityClasses&lt;/code> for Shoot System Components&lt;/h2>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Name&lt;/th>
+&lt;th>Priority&lt;/th>
+&lt;th>Associated Components (Examples)&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>system-node-critical&lt;/code> (created by Kubernetes)&lt;/td>
+&lt;td>2000001000&lt;/td>
+&lt;td>&lt;code>calico-node&lt;/code>, &lt;code>kube-proxy&lt;/code>, &lt;code>apiserver-proxy&lt;/code>, &lt;code>csi-driver&lt;/code>, &lt;code>egress-filter-applier&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>system-cluster-critical&lt;/code> (created by Kubernetes)&lt;/td>
+&lt;td>2000000000&lt;/td>
+&lt;td>&lt;code>calico-typha&lt;/code>, &lt;code>calico-kube-controllers&lt;/code>, &lt;code>coredns&lt;/code>, &lt;code>vpn-shoot&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-shoot-system-900&lt;/code>&lt;/td>
+&lt;td>999999900&lt;/td>
+&lt;td>&lt;code>node-problem-detector&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-shoot-system-800&lt;/code>&lt;/td>
+&lt;td>999999800&lt;/td>
+&lt;td>&lt;code>calico-typha-horizontal-autoscaler&lt;/code>, &lt;code>calico-typha-vertical-autoscaler&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-shoot-system-700&lt;/code>&lt;/td>
+&lt;td>999999700&lt;/td>
+&lt;td>&lt;code>blackbox-exporter&lt;/code>, &lt;code>node-exporter&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-shoot-system-600&lt;/code>&lt;/td>
+&lt;td>999999600&lt;/td>
+&lt;td>&lt;code>addons-nginx-ingress-controller&lt;/code>, &lt;code>addons-nginx-ingress-k8s-backend&lt;/code>, &lt;code>kubernetes-dashboard&lt;/code>, &lt;code>kubernetes-metrics-scraper&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="priorityclasses-for-seed-system-components">&lt;code>PriorityClasses&lt;/code> for Seed System Components&lt;/h2>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Name&lt;/th>
+&lt;th>Priority&lt;/th>
+&lt;th>Associated Components (Examples)&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-critical&lt;/code>&lt;/td>
+&lt;td>999998950&lt;/td>
+&lt;td>&lt;code>gardenlet&lt;/code>, &lt;code>gardener-resource-manager&lt;/code>, &lt;code>istio-ingressgateway&lt;/code>, &lt;code>istiod&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-900&lt;/code>&lt;/td>
+&lt;td>999998900&lt;/td>
+&lt;td>Extensions, &lt;code>gardener-seed-admission-controller&lt;/code>, &lt;code>reversed-vpn-auth-server&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-800&lt;/code>&lt;/td>
+&lt;td>999998800&lt;/td>
+&lt;td>&lt;code>dependency-watchdog-endpoint&lt;/code>, &lt;code>dependency-watchdog-probe&lt;/code>, &lt;code>etcd-druid&lt;/code>, &lt;code>(auditlog-)mutator&lt;/code>, &lt;code>vpa-admission-controller&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-700&lt;/code>&lt;/td>
+&lt;td>999998700&lt;/td>
+&lt;td>&lt;code>auditlog-seed-controller&lt;/code>, &lt;code>hvpa-controller&lt;/code>, &lt;code>vpa-recommender&lt;/code>, &lt;code>vpa-updater&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-600&lt;/code>&lt;/td>
+&lt;td>999998600&lt;/td>
+&lt;td>&lt;code>aggregate-alertmanager&lt;/code>, &lt;code>alertmanager&lt;/code>, &lt;code>fluent-bit&lt;/code>, &lt;code>grafana&lt;/code>, &lt;code>kube-state-metrics&lt;/code>, &lt;code>nginx-ingress-controller&lt;/code>, &lt;code>nginx-k8s-backend&lt;/code>, &lt;code>prometheus&lt;/code>, &lt;code>seed-prometheus&lt;/code>, &lt;code>vpa-exporter&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-reserve-excess-capacity&lt;/code>&lt;/td>
+&lt;td>-5&lt;/td>
+&lt;td>&lt;code>reserve-excess-capacity&lt;/code> (&lt;a href="https://github.com/gardener/gardener/pull/6135">ref&lt;/a>)&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="priorityclasses-for-shoot-control-plane-components">&lt;code>PriorityClasses&lt;/code> for Shoot Control Plane Components&lt;/h2>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Name&lt;/th>
+&lt;th>Priority&lt;/th>
+&lt;th>Associated Components (Examples)&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-500&lt;/code>&lt;/td>
+&lt;td>999998500&lt;/td>
+&lt;td>&lt;code>etcd-events&lt;/code>, &lt;code>etcd-main&lt;/code>, &lt;code>kube-apiserver&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-400&lt;/code>&lt;/td>
+&lt;td>999998400&lt;/td>
+&lt;td>&lt;code>gardener-resource-manager&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-300&lt;/code>&lt;/td>
+&lt;td>999998300&lt;/td>
+&lt;td>&lt;code>cloud-controller-manager&lt;/code>, &lt;code>cluster-autoscaler&lt;/code>, &lt;code>csi-driver-controller&lt;/code>, &lt;code>kube-controller-manager&lt;/code>, &lt;code>kube-scheduler&lt;/code>, &lt;code>machine-controller-manager&lt;/code>, &lt;code>vpn-seed-server&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-200&lt;/code>&lt;/td>
+&lt;td>999998200&lt;/td>
+&lt;td>&lt;code>csi-snapshot-controller&lt;/code>, &lt;code>csi-snapshot-validation&lt;/code>, &lt;code>cert-controller-manager&lt;/code>, &lt;code>shoot-dns-service&lt;/code>, &lt;code>vpa-admission-controller&lt;/code>, &lt;code>vpa-recommender&lt;/code>, &lt;code>vpa-updater&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-system-100&lt;/code>&lt;/td>
+&lt;td>999998100&lt;/td>
+&lt;td>&lt;code>alertmanager&lt;/code>, &lt;code>grafana-operators&lt;/code>, &lt;code>grafana-users&lt;/code>, &lt;code>kube-state-metrics&lt;/code>, &lt;code>prometheus&lt;/code>, &lt;code>loki&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>There is also a legacy &lt;code>PriorityClass&lt;/code> called &lt;code>gardener-shoot-controlplane&lt;/code> with value &lt;code>100&lt;/code>.
+This &lt;code>PriorityClass&lt;/code> is deprecated and will be removed in a future release.
+Make sure to migrate all your components to the above listed fine-granular &lt;code>PriorityClasses&lt;/code>.&lt;/p></description></item><item><title>Docs: Process</title><link>https://gardener.cloud/docs/gardener/development/process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/process/</guid><description>
 &lt;h1 id="releases-features-hotfixes">Releases, Features, Hotfixes&lt;/h1>
 &lt;p>This document describes how to contribute features or hotfixes, and how new Gardener releases are usually scheduled, validated, etc.&lt;/p>
 &lt;ul>

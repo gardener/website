@@ -2272,19 +2272,234 @@ the health of all the Shoot API servers.&lt;/p>
 &lt;p>&lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#monitoring">Gardener deploys a central Prometheus instance&lt;/a> in the &lt;code>garden&lt;/code> namespace that fetches metrics and data from all seed cluster nodes and all seed cluster pods.
 The network policies &lt;code>allow-to-aggregate-prometheus&lt;/code> and &lt;code>allow-from-aggregate-prometheus&lt;/code> allow traffic from and to this prometheus instance.&lt;/p>
 &lt;p>Worth mentioning is, that the network policy &lt;code>allow-to-shoot-networks&lt;/code> does not exist in the &lt;code>garden&lt;/code> namespace. This is to forbid Gardener system components to talk to workload deployed in the Shoot VPC.&lt;/p></description></item><item><title>Docs: Testing</title><link>https://gardener.cloud/docs/gardener/development/testing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/testing/</guid><description>
-&lt;h1 id="testing">Testing&lt;/h1>
+&lt;h1 id="testing-strategy-and-developer-guideline">Testing Strategy and Developer Guideline&lt;/h1>
+&lt;p>This document walks you through&lt;/p>
+&lt;ul>
+&lt;li>what kind of tests we have in Gardener&lt;/li>
+&lt;li>how to run each of them&lt;/li>
+&lt;li>what purpose each kind of test serves&lt;/li>
+&lt;li>how to best write tests that are correct, stable, fast and maintainable&lt;/li>
+&lt;li>how to debug tests that are not working as expected&lt;/li>
+&lt;/ul>
+&lt;p>The document is aimed towards developers that want to contribute code and need to write tests, as well as maintainers and reviewers that review test code.
+It serves as a common guide that we commit to follow in our project to ensure consistency in our tests, good coverage for high confidence and good maintainability.&lt;/p>
+&lt;p>The guidelines are not meant to be absolute rules.
+Always apply common sense and adapt the guideline if it doesn&amp;rsquo;t make much sense for some cases.
+If in doubt, don&amp;rsquo;t hesitate to ask questions during PR review (as an author but also as a reviewer).
+Add new learnings as soon as we make them!&lt;/p>
+&lt;p>Generally speaking, &lt;strong>tests are a strict requirement for contributing new code&lt;/strong>.
+If you touch code that is currently untested, you need to add tests for the new cases that you introduce as a minimum.
+Ideally though, you would add the missing test cases for the current code as well (&lt;strong>boy scout rule&lt;/strong> &amp;ndash; &amp;ldquo;always leave the campground cleaner than you found it&amp;rdquo;).&lt;/p>
+&lt;h2 id="writing-tests-relevant-for-all-kinds">Writing Tests (Relevant for All Kinds)&lt;/h2>
+&lt;ul>
+&lt;li>we follow BDD (behavior-driven development) testing principles and use &lt;a href="https://onsi.github.io/ginkgo/">Ginkgo&lt;/a> along with &lt;a href="http://onsi.github.io/gomega/">Gomega&lt;/a>
+&lt;ul>
+&lt;li>make sure to check out their extensive guides for more information and how to best leverage all of their features&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>use &lt;code>By&lt;/code> to structure test cases with multiple steps, so that steps are easy to follow in the logs: &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/pkg/client/kubernetes/clientmap/internal/generic_clientmap_test.go#L122-L138">example test&lt;/a>&lt;/li>
+&lt;li>call &lt;code>defer GinkgoRecover()&lt;/code> if making assertions in goroutines: &lt;a href="https://pkg.go.dev/github.com/onsi/ginkgo#GinkgoRecover">doc&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/test/integration/scheduler/scheduler_test.go#L65-L68">example test&lt;/a>&lt;/li>
+&lt;li>use &lt;code>DeferCleanup&lt;/code> instead of cleaning up manually (or use custom coding from the test framework): &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/test/integration/resourcemanager/health/health_suite_test.go#L102-L105">example test&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/test/integration/resourcemanager/health/health_test.go#L385-L390">example test&lt;/a>
+&lt;ul>
+&lt;li>&lt;code>DeferCleanup&lt;/code> makes sure to run the cleanup code in the right point in time, e.g., a &lt;code>DeferCleanup&lt;/code> added in &lt;code>BeforeEach&lt;/code> is executed with &lt;code>AfterEach&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>test failures should point to an exact location, so that failures in CI aren&amp;rsquo;t too difficult to debug/fix
+&lt;ul>
+&lt;li>use &lt;code>ExpectWithOffset&lt;/code> for making assertions in helper funcs like &lt;code>expectSomethingWasCreated&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/extensions/pkg/controller/controlplane/genericactuator/actuator_test.go#L732-L736">example test&lt;/a>&lt;/li>
+&lt;li>make sure to add additional descriptions to Gomega matchers if necessary (e.g. in a loop): &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/test/e2e/shoot/internal/rotation/certificate_authorities.go#L89-L93">example test&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>introduce helper functions for assertions to make test more readable where applicable: &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/test/integration/gardenlet/shootsecret/controller_test.go#L323-L331">example test&lt;/a>&lt;/li>
+&lt;li>introduce custom matchers to make tests more readable where applicable: &lt;a href="https://github.com/gardener/gardener/blob/2eb54485231408cbdbabaa49812572a07124364f/pkg/utils/test/matchers/matchers.go#L51-L57">example matcher&lt;/a>&lt;/li>
+&lt;li>don&amp;rsquo;t rely on accurate timing of &lt;code>time.Sleep&lt;/code> and friends
+&lt;ul>
+&lt;li>if doing so, CPU throttling in CI will make tests flaky, &lt;a href="https://github.com/gardener/gardener/issues/5410">example flake&lt;/a>&lt;/li>
+&lt;li>use fake clocks instead, &lt;a href="https://github.com/gardener/gardener/pull/4569">example PR&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>use the same client schemes that are also used by production code to avoid subtle bugs/regressions: &lt;a href="https://github.com/gardener/gardener/pull/5469">example PR&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/2de823d0a457beb9d680260243032c95fa47dc72/pkg/resourcemanager/cmd/source.go#L34-L43">production schemes&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/2de823d0a457beb9d680260243032c95fa47dc72/test/integration/resourcemanager/health/health_suite_test.go#L108-L109">usage in test&lt;/a>&lt;/li>
+&lt;li>make sure, your test is actually asserting the right thing and it doesn&amp;rsquo;t pass if the exact bug is introduced that you want to prevent
+&lt;ul>
+&lt;li>use specific error matchers instead of asserting any error has happened, make sure that the corresponding branch in the code is tested, e.g., prefer
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>Expect(err).To(MatchError(&lt;span style="color:#a31515">&amp;#34;foo&amp;#34;&lt;/span>))
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>over
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>Expect(err).To(HaveOccurred())
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>if you&amp;rsquo;re unsure about your test&amp;rsquo;s behavior, attaching the debugger can sometimes be helpful to make sure your test is correct&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>about overwriting global variables
+&lt;ul>
+&lt;li>this is a common pattern (or hack?) in go for faking calls to external functions&lt;/li>
+&lt;li>however, this can lead to races, when the global variable is used from a goroutine (e.g., the function is called)&lt;/li>
+&lt;li>alternatively, set fields on structs (passed via parameter or set directly): this is not racy, as struct values are typically (and should be) only used for a single test case&lt;/li>
+&lt;li>alternative to dealing with function variables and fields:
+&lt;ul>
+&lt;li>add an interface, which your code depends on&lt;/li>
+&lt;li>write a fake and a real implementation (similar to &lt;code>clock.Clock.Sleep&lt;/code>)&lt;/li>
+&lt;li>the real implementation calls the actual function (&lt;code>clock.RealClock.Sleep&lt;/code> calls &lt;code>time.Sleep&lt;/code>)&lt;/li>
+&lt;li>the fake implementation does whatever you want it to do for your test (&lt;code>clock.FakeClock.Sleep&lt;/code> waits until the test code advanced the time)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>use constants in test code with care
+&lt;ul>
+&lt;li>typically, you should not use constants from the same package as the tested code, instead use literals&lt;/li>
+&lt;li>if the constant value is changed, tests using the constant will still pass, although the &amp;ldquo;specification&amp;rdquo; is not fulfilled anymore&lt;/li>
+&lt;li>there are cases where it&amp;rsquo;s fine to use constants, but keep this caveat in mind when doing so&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>creating sample data for tests can be a high effort
+&lt;ul>
+&lt;li>if valuable, add a package for generating common sample data, e.g. Shoot/Cluster objects&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>make use of the &lt;code>testdata&lt;/code> directory for storing arbitrary sample data needed by tests (helm charts, YAML manifests, etc.), &lt;a href="https://github.com/gardener/gardener/pull/2140">example PR&lt;/a>
+&lt;ul>
+&lt;li>From &lt;a href="https://pkg.go.dev/cmd/go/internal/test">https://pkg.go.dev/cmd/go/internal/test&lt;/a>:
+&lt;blockquote>
+&lt;p>The go tool will ignore a directory named &amp;ldquo;testdata&amp;rdquo;, making it available to hold ancillary data needed by the tests.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
 &lt;h2 id="unit-tests">Unit Tests&lt;/h2>
-&lt;p>We follow the BDD-style testing principles and are leveraging the &lt;a href="https://onsi.github.io/ginkgo/">Ginkgo&lt;/a> framework along with &lt;a href="http://onsi.github.io/gomega/">Gomega&lt;/a> as matcher library. In order to execute the existing tests, you can use&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test &lt;span style="color:#008000"># runs tests&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make verify &lt;span style="color:#008000"># runs static code checks and tests (unit and integration)&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>There is an additional command for analyzing the code coverage of the tests. Ginkgo will generate standard Go cover profiles which will be translated into an HTML file by the &lt;a href="https://blog.golang.org/cover">Go Cover Tool&lt;/a>. Another command helps you to clean up the filesystem from the temporary cover profile files and the HTML report:&lt;/p>
+&lt;h3 id="running-unit-tests">Running Unit Tests&lt;/h3>
+&lt;p>Run all unit tests:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run all unit tests with test coverage:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test-cov
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>open gardener.coverage.html
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>open test.coverage.html
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make test-cov-clean
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="integration-tests-envtests">Integration Tests (envtests)&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run unit tests of specific packages:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run with same settings like in CI (race dector, timeout, ...)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test.sh ./pkg/resourcemanager/controller/... ./pkg/utils/secrets/...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># freestyle&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>go test ./pkg/resourcemanager/controller/... ./pkg/utils/secrets/...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo run ./pkg/resourcemanager/controller/... ./pkg/utils/secrets/...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="debugging-unit-tests">Debugging Unit Tests&lt;/h3>
+&lt;p>Use ginkgo to focus on (a set of) test specs via &lt;a href="https://onsi.github.io/ginkgo/#focused-specs">code&lt;/a> or via &lt;a href="https://onsi.github.io/ginkgo/#description-based-filtering">CLI flags&lt;/a>.
+Remember to unfocus specs before contributing code, otherwise your PR tests will fail.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ ginkgo run --focus &lt;span style="color:#a31515">&amp;#34;should delete the unused resources&amp;#34;&lt;/span> ./pkg/resourcemanager/controller/garbagecollector
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Will run 1 of 3 specs
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>SS•
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Ran 1 of 3 Specs in 0.003 seconds
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>SUCCESS! -- 1 Passed | 0 Failed | 0 Pending | 2 Skipped
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>PASS
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Use ginkgo to run tests until they fail:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ ginkgo run --until-it-fails ./pkg/resourcemanager/controller/garbagecollector
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Ran 3 of 3 Specs in 0.004 seconds
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>SUCCESS! -- 3 Passed | 0 Failed | 0 Pending | 0 Skipped
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>PASS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>All tests passed...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Will keep running them &lt;span style="color:#00f">until&lt;/span> they fail.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>This was attempt &lt;span style="color:#008000">#58&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>No, seriously... you can probably stop now.
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Use the &lt;a href="https://pkg.go.dev/golang.org/x/tools/cmd/stress">&lt;code>stress&lt;/code> tool&lt;/a> for deflaking tests that fail sporadically in CI, e.g., due resource contention (CPU throttling):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># get the stress tool&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>go install golang.org/x/tools/cmd/stress@latest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo build ./pkg/resourcemanager/controller/garbagecollector
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>go test -c ./pkg/resourcemanager/controller/garbagecollector
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -p 16 ./pkg/resourcemanager/controller/garbagecollector/garbagecollector.test -ginkgo.focus &lt;span style="color:#a31515">&amp;#34;should delete the unused resources&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5s: 1077 runs so far, 0 failures
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>10s: 2160 runs so far, 0 failures
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>stress&lt;/code> will output a path to a file containing the full failure message, when a test run fails.&lt;/p>
+&lt;h3 id="purpose-of-unit-tests">Purpose of Unit Tests&lt;/h3>
+&lt;ul>
+&lt;li>unit tests prove correctness of a single unit according to the specification of its interface
+&lt;ul>
+&lt;li>think: is the unit that I introduced doing what it is supposed to do for all cases?&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>unit tests protect against regressions caused by adding new functionality to or refactoring of a single unit
+&lt;ul>
+&lt;li>think: is the unit that was introduced earlier (by someone else) and that I changed still doing what it was supposed to do for all cases?&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>example units: functions (conversion, defaulting, validation, helpers), structs (helpers, basic building blocks like the Secrets Manager), predicates, event handlers&lt;/li>
+&lt;li>for these purposes, unit tests need to cover all important cases of input for a single unit and cover edge cases / negative paths as well (e.g., errors)
+&lt;ul>
+&lt;li>because of the possible high dimensionality of test input, unit tests need to be fast to execute: individual test cases should not take more than a few seconds, test suites not more than 2 minutes&lt;/li>
+&lt;li>fuzzing can be used as a technique in addition to usual test cases for covering edge cases&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>test coverage can be used as a tool during test development for covering all cases of a unit&lt;/li>
+&lt;li>however, test coverage data can be a false safety net
+&lt;ul>
+&lt;li>full line coverage doesn&amp;rsquo;t mean you have covered all cases of valid input&lt;/li>
+&lt;li>we don&amp;rsquo;t have strict requirements for test coverage, as it doesn&amp;rsquo;t necessarily yield the desired outcome&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>unit tests should not test too large components, e.g. entire controller &lt;code>Reconcile&lt;/code> functions
+&lt;ul>
+&lt;li>if a function/component does many steps, it&amp;rsquo;s probably better to split it up into multiple functions/components that can be unit tested individually&lt;/li>
+&lt;li>there might be special cases for very small &lt;code>Reconcile&lt;/code> functions&lt;/li>
+&lt;li>if there are a lot of edge cases, extract dedicated functions that cover them and use unit tests to test them&lt;/li>
+&lt;li>usual-sized controllers should rather be tested in integration tests&lt;/li>
+&lt;li>individual parts (e.g. helper functions) should still be tested in unit test for covering all cases, though&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>unit tests are especially easy to run with a debugger and can help in understanding concrete behavior of components&lt;/li>
+&lt;/ul>
+&lt;h3 id="writing-unit-tests">Writing Unit Tests&lt;/h3>
+&lt;ul>
+&lt;li>for the sake of execution speed, fake expensive calls/operations, e.g. secret generation: &lt;a href="https://github.com/gardener/gardener/blob/efcc0a9146d3558253b95071f2c652663f916d92/pkg/operation/botanist/component/kubescheduler/kube_scheduler_suite_test.go#L32-L34">example test&lt;/a>&lt;/li>
+&lt;li>generally, prefer fakes over mocks, e.g., use controller-runtime fake client over mock clients
+&lt;ul>
+&lt;li>mocks decrease maintainability because they expect the tested component to follow a certain way to reach the desired goal (e.g., call specific functions with particular arguments), &lt;a href="https://github.com/gardener/gardener/pull/4027/commits/111aba2c8e306421f2fa6b27e5d8ed8b2fc52be9#diff-8e61507edf985df2625840a690115c43bca6c032f2ff818389633bd4365c3efdR293-R298">example consequence&lt;/a>&lt;/li>
+&lt;li>generally, fakes should be used in &amp;ldquo;result-oriented&amp;rdquo; test code (e.g., that a certain object was labelled, but the test doesn&amp;rsquo;t care if it was via patch or update as both a valid ways to reach the desired goal)&lt;/li>
+&lt;li>although rare, there are valid use cases for mocks, e.g. if the following aspects are important for correctness:
+&lt;ul>
+&lt;li>asserting that an exact function is called&lt;/li>
+&lt;li>asserting that functions are called in a specific order&lt;/li>
+&lt;li>asserting that exact parameters/values/&amp;hellip; are passed&lt;/li>
+&lt;li>asserting that a certain function was not called&lt;/li>
+&lt;li>many of these can also be verified with fakes, although mocks might be simpler&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>only use mocks if the tested code directly calls the mock; never if the tested code only calls the mock indirectly (e.g., through a helper package/function)&lt;/li>
+&lt;li>keep in mind the maintenance implications of using mocks:
+&lt;ul>
+&lt;li>can you make a valid non-behavioral change in the code without breaking the test or dependent tests?&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>it&amp;rsquo;s valid to mix fakes and mocks in the same test or between test cases&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>generally, use the go test package, i.e., declare &lt;code>package &amp;lt;production_package&amp;gt;_test&lt;/code>
+&lt;ul>
+&lt;li>helps in avoiding cyclic dependencies between production, test and helper packages&lt;/li>
+&lt;li>also forces you to distinguish between the public (exported) API surface of your code and internal state that might not be of interest to tests&lt;/li>
+&lt;li>it might be valid to use the same package as the tested code if you want to test unexported functions
+&lt;ul>
+&lt;li>alternatively, an &lt;a href="https://go.dev/doc/go1.4#internalpackages">&lt;code>internal&lt;/code> package&lt;/a> can be used to host &amp;ldquo;internal&amp;rdquo; helpers: &lt;a href="https://github.com/gardener/gardener/tree/2eb54485231408cbdbabaa49812572a07124364f/pkg/client/kubernetes/clientmap">example package&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>helpers can also be exported if no one is supposed to import the containing package (e.g. controller package)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="integration-tests-envtests">Integration Tests (envtests)&lt;/h2>
 &lt;p>Integration tests in Gardener use the &lt;code>sigs.k8s.io/controller-runtime/pkg/envtest&lt;/code> package.
-It sets up a temporary control plane (etcd + kube-apiserver) and runs the test against it.
-The &lt;code>test-integration&lt;/code> make rule prepares the environment automatically by downloading the respective binaries (if not yet present) and sets the necessary environment variables.&lt;/p>
+It sets up a temporary control plane (etcd + kube-apiserver) and runs the test against it.&lt;/p>
+&lt;p>Historically, &lt;a href="#test-machinery-tests">test machinery tests&lt;/a> have also been called &amp;ldquo;integration tests&amp;rdquo;.
+However, test machinery does not perform integration testing but rather executes a form of end-to-end tests against a real landscape.
+Hence, we tried to sharpen the terminology that we use to distinguish between &amp;ldquo;real&amp;rdquo; integration tests and test machinery tests but you might still find &amp;ldquo;integration tests&amp;rdquo; referring to test machinery tests in old issues or outdated documents.&lt;/p>
+&lt;h3 id="running-integration-tests">Running Integration Tests&lt;/h3>
+&lt;p>The &lt;code>test-integration&lt;/code> make rule prepares the environment automatically by downloading the respective binaries (if not yet present) and sets the necessary environment variables.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test-integration
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you want to run a specific set of integration tests, you can also execute them using &lt;code>./hack/test-integration.sh&lt;/code> directly instead of using the &lt;code>test-integration&lt;/code> rule. For example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh ./test/integration/resourcemanager/tokenrequestor
@@ -2292,7 +2507,7 @@ The &lt;code>test-integration&lt;/code> make rule prepares the environment autom
 If you want to execute the test suites directly via &lt;code>go test&lt;/code> or &lt;code>ginkgo&lt;/code>, you have to point the &lt;code>KUBEBUILDER_ASSETS&lt;/code> environment variable to the path that contains the etcd and kube-apiserver binaries. Alternatively, you can install the binaries to &lt;code>/usr/local/kubebuilder/bin&lt;/code>.&lt;/p>
 &lt;h3 id="debugging-integration-tests">Debugging Integration Tests&lt;/h3>
 &lt;p>You can configure envtest to use an existing cluster instead of starting a temporary control plane for your test.
-This can be helpful for debugging integration tests, because you can easily inspect what is going on in your test cluster.
+This can be helpful for debugging integration tests, because you can easily inspect what is going on in your test cluster with &lt;code>kubectl&lt;/code>.
 For example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
@@ -2300,12 +2515,73 @@ For example:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run test with verbose output&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh -v ./test/integration/resourcemanager/health -ginkgo.v
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="end-to-end-tests-using-provider-local">End-to-end Tests (using provider-local)&lt;/h2>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get managedresource -A -w
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Similar to &lt;a href="#debugging-unit-tests">debugging unit tests&lt;/a>, the &lt;code>stress&lt;/code> tool can help hunting flakes in integration tests.
+Though, you might need to run less tests in parallel though (specified via &lt;code>-p&lt;/code>) and have a bit more patience.&lt;/p>
+&lt;h3 id="purpose-of-integration-tests">Purpose of Integration Tests&lt;/h3>
+&lt;ul>
+&lt;li>integration tests prove that multiple units are correctly integrated into a fully-functional component of the system&lt;/li>
+&lt;li>example component with multiple units: a controller with its reconciler, watches, predicates, event handlers, queues, etc.&lt;/li>
+&lt;li>integration tests set up a full component (including used libraries) and run it against a test environment close to the actual setup
+&lt;ul>
+&lt;li>e.g., start controllers against a real Kubernetes control plane to catch bugs that can only happen when talking to a real API server&lt;/li>
+&lt;li>integration tests are generally more expensive to run (e.g., in terms of execution time)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>integration tests should not cover each and every detailed case
+&lt;ul>
+&lt;li>rather cover a good portion of the &amp;ldquo;usual&amp;rdquo; cases that components will face during normal operation (positive and negative test cases)&lt;/li>
+&lt;li>but don&amp;rsquo;t cover all failure cases or all cases of predicates -&amp;gt; they should be covered in unit tests already&lt;/li>
+&lt;li>generally, not supposed to &amp;ldquo;generate test coverage&amp;rdquo; but to provide confidence that components work well&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>as integration tests typically test only one component (or a cohesive set of components) isolated from others, they cannot catch bugs that occur when multiple controllers interact (could be discovered by e2e tests, though)&lt;/li>
+&lt;li>rule of thumb: a new integration tests should be added for each new controller (an integration test doesn&amp;rsquo;t replace unit tests though)&lt;/li>
+&lt;/ul>
+&lt;h3 id="writing-integration-tests">Writing Integration Tests&lt;/h3>
+&lt;ul>
+&lt;li>make sure to have a clean test environment on both test suite and test case level:
+&lt;ul>
+&lt;li>set up dedicated test environments (envtest instances) per test suite&lt;/li>
+&lt;li>use dedicated namespaces per test suite, use &lt;code>GenerateName&lt;/code> with a test-specific prefix: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/secret/secret_suite_test.go#L94-L105">example test&lt;/a>
+&lt;ul>
+&lt;li>this allows running a test in parallel against the same existing cluster for deflaking and stress testing: &lt;a href="https://github.com/gardener/gardener/pull/5953">example PR&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>use dedicated test resources for each test case, use &lt;code>GenerateName&lt;/code> (&lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/health/health_test.go#L38-L48">example test&lt;/a>) or checksum of &lt;code>CurrentSpecReport().LeafNodeLocation.String()&lt;/code> (&lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/managedresource/resource_test.go#L61-L67">example test&lt;/a>)
+&lt;ul>
+&lt;li>this avoids cascading failures of test cases and distracting from the actual root failure&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>don&amp;rsquo;t tolerate already existing resources (~dirty test environment), code smell: ignoring already exist errors&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>don&amp;rsquo;t use a cached client in test code (e.g., the one from a controller-runtime manager), always construct a dedicated test client (uncached): &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/managedresource/resource_suite_test.go#L96-L97">example test&lt;/a>&lt;/li>
+&lt;li>use &lt;a href="https://onsi.github.io/gomega/#making-asynchronous-assertions">asynchronous assertions&lt;/a>: &lt;code>Eventually&lt;/code> and &lt;code>Consistently&lt;/code>
+&lt;ul>
+&lt;li>never &lt;code>Expect&lt;/code> anything to happen synchronously (immediately)&lt;/li>
+&lt;li>don&amp;rsquo;t use retry or wait until functions -&amp;gt; use &lt;code>Eventually&lt;/code>, &lt;code>Consistently&lt;/code> instead: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/controllermanager/shootmaintenance/utils_test.go#L36-L48">example test&lt;/a>&lt;/li>
+&lt;li>this allows to override the interval/timeout values from outside instead of hard-coding this in the test (see &lt;code>hack/test-integration.sh&lt;/code>): &lt;a href="https://github.com/gardener/gardener/pull/5938#discussion_r869155906">example PR&lt;/a>&lt;/li>
+&lt;li>beware of the default &lt;code>Eventually&lt;/code> / &lt;code>Consistently&lt;/code> timeouts / poll intervals: &lt;a href="https://onsi.github.io/gomega/#eventually">docs&lt;/a>&lt;/li>
+&lt;li>don&amp;rsquo;t set custom (high) timeouts and intervals in test code: &lt;a href="https://github.com/gardener/gardener/pull/4983">example PR&lt;/a>
+&lt;ul>
+&lt;li>instead, shorten sync period of controllers, overwrite intervals of the tested code, or use fake clocks: &lt;a href="https://github.com/gardener/gardener/blob/7c4031a57836de20758f32e1015c8a0f6c754d0f/test/integration/resourcemanager/managedresource/resource_suite_test.go#L137-L139">example test&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>pass &lt;code>g Gomega&lt;/code> to &lt;code>Eventually&lt;/code>/&lt;code>Consistently&lt;/code> and use &lt;code>g.Expect&lt;/code> in it: &lt;a href="https://onsi.github.io/gomega/#category-3-making-assertions-eminem-the-function-passed-into-codeeventuallycode">docs&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/708f65c279276abd3a770c2f84a89e02876b3c38/test/e2e/shoot/internal/rotation/certificate_authorities.go#L111-L122">example test&lt;/a>, &lt;a href="https://github.com/gardener/gardener/pull/4936">example PR&lt;/a>&lt;/li>
+&lt;li>don&amp;rsquo;t forget to call &lt;code>{Eventually,Consistently}.Should()&lt;/code>, otherwise the assertions always silently succeeds without errors: &lt;a href="https://github.com/onsi/gomega/issues/561">onsi/gomega#561&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="end-to-end-e2e-tests-using-provider-local">End-to-end (e2e) Tests (using provider-local)&lt;/h2>
 &lt;p>We run a suite of e2e tests on every pull request and periodically on the &lt;code>master&lt;/code> branch.
 It uses a &lt;a href="https://kind.sigs.k8s.io/">KinD cluster&lt;/a> and &lt;a href="https://skaffold.dev/">skaffold&lt;/a> to boostrap a full installation of Gardener based on the current revision, including &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">provider-local&lt;/a>.
 This allows us to run e2e tests in an isolated test environment and fully locally without any infrastructure interaction.
 The tests perform a set of operations on Shoot clusters, e.g. creating, deleting, hibernating and waking up.&lt;/p>
 &lt;p>These tests are executed in our prow instance at &lt;a href="https://prow.gardener.cloud/">prow.gardener.cloud&lt;/a>, see &lt;a href="https://github.com/gardener/ci-infra/blob/e324cb79c39c013d7f253c33690b7fcc92c001d8/config/jobs/gardener/gardener-e2e-kind.yaml">job definition&lt;/a> and &lt;a href="https://prow.gardener.cloud/?repo=gardener%2Fgardener&amp;amp;job=*gardener-e2e-kind">job history&lt;/a>.&lt;/p>
+&lt;h3 id="running-e2e-tests">Running e2e Tests&lt;/h3>
 &lt;p>You can also run these tests on your development machine, using the following commands:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
@@ -2317,8 +2593,106 @@ The tests perform a set of operations on Shoot clusters, e.g. creating, deleting
 This can be useful to speed of the development of e2e tests.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/test-e2e-local.sh --label-filter &lt;span style="color:#a31515">&amp;#34;Shoot &amp;amp;&amp;amp; credentials-rotation&amp;#34;&lt;/span> -- --project-namespace=garden-local --existing-shoot-name=local
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Also see: &lt;a href="https://gardener.cloud/docs/gardener/development/getting_started_locally/">developing Gardener locally&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/">deploying Gardener locally&lt;/a>.&lt;/p>
+&lt;h3 id="debugging-e2e-tests">Debugging e2e Tests&lt;/h3>
+&lt;p>When debugging e2e test failures in CI, logs of the cluster components can be very helpful.
+Our e2e test jobs export logs of all containers running in the kind cluster to prow&amp;rsquo;s artifacts storage.
+You can find them by clicking the &lt;code>Artifacts&lt;/code> link in the top bar in prow&amp;rsquo;s job view and navigating to &lt;code>artifacts&lt;/code>.
+This directory will contain all cluster component logs grouped by node.&lt;/p>
+&lt;p>Pull all artifacts using &lt;a href="https://cloud.google.com/storage/docs/gsutil">&lt;code>gsutil&lt;/code>&lt;/a> for searching and filtering the logs locally (use the path displayed in the artifacts view):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gsutil cp -r gs://gardener-prow/pr-logs/pull/gardener_gardener/6136/pull-gardener-e2e-kind/1542030416616099840/artifacts/gardener-local-control-plane /tmp
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="purpose-of-e2e-tests">Purpose of e2e Tests&lt;/h3>
+&lt;ul>
+&lt;li>e2e tests provide a high level of confidence that our code runs as expected by users when deployed to production&lt;/li>
+&lt;li>they are supposed to catch bugs resulting from interaction between multiple components&lt;/li>
+&lt;li>test cases should be as close as possible to real usage by endusers
+&lt;ul>
+&lt;li>should test &amp;ldquo;from the perspective of the user&amp;rdquo; (or operator)&lt;/li>
+&lt;li>example: I create a Shoot and expect to be able to connect to it via the provided kubeconfig&lt;/li>
+&lt;li>accordingly, don&amp;rsquo;t assert details of the system
+&lt;ul>
+&lt;li>e.g., the user also wouldn&amp;rsquo;t expect that there is a kube-apiserver deployment in the seed, they rather expect that they can talk to it no matter how it is deployed&lt;/li>
+&lt;li>only assert details of the system if the tested feature is not fully visible to the end-user and there is no other way of ensuring that the feature works reliably&lt;/li>
+&lt;li>e.g., the Shoot CA rotation is not fully visible to the user but is assertable by looking at the secrets in the Seed.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>pro: can be executed by developers and users without any real infrastructure (provider-local)&lt;/li>
+&lt;li>con: they currently cannot be executed with real infrastructure (e.g., provider-aws), we will work on this as part of &lt;a href="https://github.com/gardener/gardener/issues/6016">#6016&lt;/a>&lt;/li>
+&lt;li>keep in mind that the tested scenario is still artificial in a sense of using default configuration, only a few objects, only a few config/settings combinations are covered
+&lt;ul>
+&lt;li>we will never be able to cover the full &amp;ldquo;test matrix&amp;rdquo; and this should not be our goal&lt;/li>
+&lt;li>bugs will still be released and will still happen in production; we can&amp;rsquo;t avoid it&lt;/li>
+&lt;li>instead, we should add test cases for preventing bugs in features or settings that were frequently regressed: &lt;a href="https://github.com/gardener/gardener/pull/5725">example PR&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>usually e2e tests cover the &amp;ldquo;straight-forward cases&amp;rdquo;
+&lt;ul>
+&lt;li>however, negative test cases can also be included, especially if they are important from the user&amp;rsquo;s perspective&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="writing-e2e-tests">Writing e2e Tests&lt;/h3>
+&lt;ul>
+&lt;li>always wrap API calls and similar things in &lt;code>Eventually&lt;/code> blocks: &lt;a href="https://github.com/gardener/gardener/blob/a66b8ec47995561393bf1ad9a817463089a0255e/test/e2e/shoot/internal/rotation/observability.go#L46-L55">example test&lt;/a>
+&lt;ul>
+&lt;li>at this point, we are pretty much working with a distributed system and failures can happen anytime&lt;/li>
+&lt;li>wrapping calls in &lt;code>Eventually&lt;/code> makes tests more stable and more realistic (usually, you wouldn&amp;rsquo;t call the system broken if a single API call fails because of a short connectivity issue)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>most of the points from &lt;a href="#writing-integration-tests">writing integration tests&lt;/a> are relevant for e2e tests as well (especially the points about asynchronous assertions)&lt;/li>
+&lt;/ul>
 &lt;h2 id="test-machinery-tests">Test Machinery Tests&lt;/h2>
-&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/development/testmachinery_tests/">Test Machinery Tests&lt;/a>.&lt;/p></description></item><item><title>Docs: Testmachinery Tests</title><link>https://gardener.cloud/docs/gardener/development/testmachinery_tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/testmachinery_tests/</guid><description>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/development/testmachinery_tests/">Test Machinery Tests&lt;/a>.&lt;/p>
+&lt;h3 id="purpose-of-test-machinery-tests">Purpose of Test Machinery Tests&lt;/h3>
+&lt;ul>
+&lt;li>test machinery tests have to be executed against full-blown Gardener installations&lt;/li>
+&lt;li>they can provide a very high level of confidence that an installation is functional in its current state, this includes: all Gardener components, Extensions, the used Cloud Infrastructure, all relevant settings/configuration&lt;/li>
+&lt;li>this brings the following benefits:
+&lt;ul>
+&lt;li>they test more realistic scenarios than e2e tests (real configuration, real infrastructure, etc.)&lt;/li>
+&lt;li>tests run &amp;ldquo;where the users are&amp;rdquo;&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>however, this also brings significant drawbacks:
+&lt;ul>
+&lt;li>tests are difficult to develop and maintain&lt;/li>
+&lt;li>tests require a full Gardener installation and cannot be executed in CI (on PR-level or against master)&lt;/li>
+&lt;li>tests require real infrastructure (think cloud provider credentials, cost)&lt;/li>
+&lt;li>using &lt;code>TestDefinitions&lt;/code> under &lt;code>.test-defs&lt;/code> requires a full test machinery installation&lt;/li>
+&lt;li>accordingly, tests are heavyweight and expensive to run&lt;/li>
+&lt;li>testing against real infrastructure can cause flakes sometimes (e.g., in outage situations)&lt;/li>
+&lt;li>failures are hard to debug, because clusters are deleted after the test (for obvious cost reasons)&lt;/li>
+&lt;li>bugs can only be caught, once it&amp;rsquo;s &amp;ldquo;too late&amp;rdquo;, i.e., when code is merged and deployed&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>today, test machinery tests cover a bigger &amp;ldquo;test matrix&amp;rdquo; (e.g., Shoot creation across infrastructures, kubernetes versions, machine image versions, etc.)&lt;/li>
+&lt;li>test machinery also runs Kubernetes conformance tests&lt;/li>
+&lt;li>however, because of the listed drawbacks, we should rather focus on augmenting our e2e tests, as we can run them locally and in CI in order to catch bugs before they get merged&lt;/li>
+&lt;li>it&amp;rsquo;s still a good idea to add test machinery tests if a feature needs to be tested that is depending on some installation-specific configuration&lt;/li>
+&lt;/ul>
+&lt;h3 id="writing-test-machinery-tests">Writing Test Machinery Tests&lt;/h3>
+&lt;ul>
+&lt;li>generally speaking, most points from &lt;a href="#writing-integration-tests">writing integration tests&lt;/a> and &lt;a href="#writing-e2e-tests">writing e2e tests&lt;/a> apply here as well&lt;/li>
+&lt;li>however, test machinery tests contain a lot of technical debt and existing code doesn&amp;rsquo;t follow these best practices&lt;/li>
+&lt;li>as test machinery tests are out of our general focus, we don&amp;rsquo;t intend on reworking the tests soon or providing more guidance on how to write new ones&lt;/li>
+&lt;/ul>
+&lt;h2 id="manual-tests">Manual Tests&lt;/h2>
+&lt;ul>
+&lt;li>manual tests can be useful when the cost of trying to automatically test certain functionality are too high&lt;/li>
+&lt;li>useful for PR verification, if a reviewer wants to verify that all cases are properly tested by automated tests&lt;/li>
+&lt;li>currently, it&amp;rsquo;s the simplest option for testing upgrade scenarios
+&lt;ul>
+&lt;li>e.g. migration coding is probably best tested manually, as it&amp;rsquo;s a high effort to write an automated test for little benefit&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>obviously, the need for manual tests should be kept at a bare minimum
+&lt;ul>
+&lt;li>instead, we should add e2e tests wherever sensible/valuable&lt;/li>
+&lt;li>we want to implement some form of general upgrade tests as part of &lt;a href="https://github.com/gardener/gardener/issues/6016">#6016&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Testmachinery Tests</title><link>https://gardener.cloud/docs/gardener/development/testmachinery_tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/testmachinery_tests/</guid><description>
 &lt;h1 id="test-machinery-tests">Test Machinery Tests&lt;/h1>
 &lt;p>In order to automatically qualify Gardener releases, we execute a set of end-to-end tests using &lt;a href="https://github.com/gardener/test-infra">Test Machinery&lt;/a>.
 This requires a full Gardener installation including infrastructure extensions as well as a setup of Test Machinery itself.

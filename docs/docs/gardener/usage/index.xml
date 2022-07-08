@@ -2153,7 +2153,60 @@ Auto-scaling scale down of the main ETCD is disabled for such clusters.&lt;/li>
 &lt;p>There are also differences with respect to how &lt;code>testing&lt;/code> shoots are scheduled after creation, please consult the &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/">Scheduler documentation&lt;/a>.&lt;/p>
 &lt;h2 id="future-steps">Future Steps&lt;/h2>
 &lt;p>We might introduce more behavioral difference depending on the shoot purpose in the future.
-As of today, there are no plans yet.&lt;/p></description></item><item><title>Docs: Shoot Serviceaccounts</title><link>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</guid><description>
+As of today, there are no plans yet.&lt;/p></description></item><item><title>Docs: Shoot Scheduling Profiles</title><link>https://gardener.cloud/docs/gardener/usage/shoot_scheduling_profiles/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_scheduling_profiles/</guid><description>
+&lt;h1 id="shoot-scheduling-profiles">Shoot Scheduling Profiles&lt;/h1>
+&lt;p>This guide describes the available scheduling profiles and how they can be configured in the Shoot cluster. It also clarifies how a custom scheduling profile can be configured.&lt;/p>
+&lt;h2 id="scheduling-profiles">Scheduling profiles&lt;/h2>
+&lt;p>The scheduling process in the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/">kube-scheduler&lt;/a> happens in series of stages. A &lt;a href="https://kubernetes.io/docs/reference/scheduling/config/#profiles">scheduling profile&lt;/a> allows configuring the different stages of the scheduling.&lt;/p>
+&lt;p>As of today, Gardener supports two predefined scheduling profiles:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>balanced&lt;/code> (default)&lt;/p>
+&lt;p>&lt;strong>Overview&lt;/strong>&lt;/p>
+&lt;p>The &lt;code>balanced&lt;/code> profile attempts to spread Pods evenly across Nodes to obtain a more balanced resource usage. This profile provides the default kube-scheduler behavior.&lt;/p>
+&lt;p>&lt;strong>How it works?&lt;/strong>&lt;/p>
+&lt;p>The kube-scheduler is started without any profiles. In such case, by default, one profile with the scheduler name &lt;code>default-scheduler&lt;/code> is created. This profile includes the default plugins. If a Pod doesn&amp;rsquo;t specify the &lt;code>.spec.schedulerName&lt;/code> field, kube-apiserver sets it to &lt;code>default-scheduler&lt;/code>. Then, the Pod gets scheduled by the &lt;code>default-scheduler&lt;/code> accordingly.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>bin-packing&lt;/code> (alpha)&lt;/p>
+&lt;p>&lt;strong>Overview&lt;/strong>&lt;/p>
+&lt;p>The &lt;code>bin-packing&lt;/code> profile scores Nodes based on the allocation of resources. It prioritizes Nodes with most allocated resources. By favoring the Nodes with most allocation some of the other Nodes become under-utilized over time (because new Pods keep being scheduled to the most allocated Nodes). Then, the cluster-autoscaler identifies such under-utilized Nodes and removes them from the cluster. In this way, this profile provides a greater overall resource utilization (compared to the &lt;code>balanced&lt;/code> profile).&lt;/p>
+&lt;blockquote>
+&lt;p>Note: The decision of when to remove a Node is a trade-off between optimizing for utilization or the availability of resources. Removing under-utilized Nodes improves cluster utilization, but new workloads might have to wait for resources to be provisioned again before they can run.&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>Note: The &lt;code>bin-packing&lt;/code> profile can be configured only for Shoot clusters with Kubernetes version &lt;code>&amp;gt;= 1.20&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>Note: The &lt;code>bin-packing&lt;/code> profile is considered as alpha feature. Use it only for evaluation purposes.&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;strong>How it works?&lt;/strong>&lt;/p>
+&lt;p>The kube-scheduler is configured with the following bin packing profile:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: kubescheduler.config.k8s.io/v1beta3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: KubeSchedulerConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>profiles:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- schedulerName: bin-packing-scheduler
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pluginConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NodeResourcesFit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scoringStrategy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: MostAllocated
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> plugins:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> score:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> disabled:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NodeResourcesBalancedAllocation
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To impose the new profile, a &lt;code>MutatingWebhookConfiguration&lt;/code> is deployed in the Shoot cluster. The &lt;code>MutatingWebhookConfiguration&lt;/code> intercepts &lt;code>CREATE&lt;/code> operations for Pods and sets the &lt;code>.spec.schedulerName&lt;/code> field to &lt;code>bin-packing-scheduler&lt;/code>. Then, the Pod gets scheduled by the &lt;code>bin-packing-scheduler&lt;/code> accordingly. Pods that specify a custom scheduler (i.e., having &lt;code>.spec.schedulerName&lt;/code> different from &lt;code>default-scheduler&lt;/code> and &lt;code>bin-packing-scheduler&lt;/code>) are not affected.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="configuring-the-scheduling-profile">Configuring the scheduling profile&lt;/h2>
+&lt;p>The scheduling profile can be configured via the &lt;code>.spec.kubernetes.kubeScheduler.profile&lt;/code> field in the Shoot:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeScheduler:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> profile: &lt;span style="color:#a31515">&amp;#34;default&amp;#34;&lt;/span> &lt;span style="color:#008000"># or &amp;#34;bin-packing&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="custom-scheduling-profiles">Custom scheduling profiles&lt;/h2>
+&lt;p>The kube-scheduler&amp;rsquo;s component configs allows configuring custom scheduling profiles to match the cluster needs. As of today, Gardener supports only two predefined scheduling profiles. The profile configuration in the component config is quite expressive and it is not possible to easily define profiles that would match the needs of every cluster. Because of these reasons, there are no plans to add support for new predefined scheduling profiles. If a cluster owner wants to use a custom scheduling profile then they have to deploy (and maintain) a dedicated kube-scheduler deployment in the cluster itself.&lt;/p></description></item><item><title>Docs: Shoot Serviceaccounts</title><link>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_serviceaccounts/</guid><description>
 &lt;h1 id="serviceaccount-configurations-for-shoot-clusters">&lt;code>ServiceAccount&lt;/code> Configurations For Shoot Clusters&lt;/h1>
 &lt;p>The &lt;code>Shoot&lt;/code> specification allows to configure some of the settings for the handling of &lt;code>ServiceAccount&lt;/code>s:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1

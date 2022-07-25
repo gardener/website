@@ -219,173 +219,7 @@ You may want to have a more detailed look for &lt;code>Project&lt;/code>s, &lt;c
 export SHOOT_NAME=my-shoot
 export SERVER=cluster-server-address
 curl -k --cert &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/client.crt --key &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/client.key -XPATCH -H &amp;#34;Accept: application/json&amp;#34; -H &amp;#34;Content-Type: application/merge-patch+json&amp;#34; --data &amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;seedName&amp;#34;:&amp;#34;&amp;lt;destination-seed&amp;gt;&amp;#34;}}&amp;#39; https://${SERVER}/apis/core.gardener.cloud/v1beta1/namespaces/${NAMESPACE}/shoots/${SHOOT_NAME}/binding | jq -r &amp;#34;.spec.seedName&amp;#34;
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Create a Shooted Seed Cluster</title><link>https://gardener.cloud/docs/gardener/usage/shooted_seed/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shooted_seed/</guid><description>
-&lt;h1 id="create-shooted-seed-cluster">Create Shooted Seed Cluster&lt;/h1>
-&lt;p>Create managed seed (aka &amp;ldquo;shooted seed&amp;rdquo;) cluster with the &lt;code>shoot.gardener.cloud/use-as-seed&lt;/code> annotation.&lt;/p>
-&lt;p>&lt;strong>Note:&lt;/strong> Starting with Gardener v1.18, the &lt;code>shoot.gardener.cloud/use-as-seed&lt;/code> annotation is deprecated.
-It still works as described here, however behind the scenes a &lt;code>ManagedSeed&lt;/code> resource is created and reconciled.
-It is strongly recommended to use such resources directly to register shoots as seeds, as described in &lt;a href="https://gardener.cloud/docs/gardener/usage/managed_seed/">Register Shoot as Seed&lt;/a>. For instructions how to migrate existing seeds managed via the &lt;code>use-as-seed&lt;/code> annotation, see &lt;a href="https://gardener.cloud/docs/gardener/usage/managed_seed/#migrating-from-the-use-as-seed-annotation-to-managedseeds">Migrating from the &lt;code>use-as-seed&lt;/code> Annotation to &lt;code>ManagedSeeds&lt;/code>&lt;/a>.&lt;/p>
-&lt;h2 id="procedure">Procedure&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>Add the following project labels to the &lt;code>garden&lt;/code> namespace if they don&amp;rsquo;t exist yet:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/role: project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> project.gardener.cloud/name: garden
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>The annotation works only for shoot clusters created in the &lt;code>garden&lt;/code> namespace. Create a project for the &lt;code>garden&lt;/code> namespace using &lt;code>kubectl&lt;/code> if you don&amp;rsquo;t have one yet.&lt;/p>
-&lt;blockquote>
-&lt;p>⚠️&lt;br>Don&amp;rsquo;t use the Gardener Dashboard as it would add a &lt;code>garden&lt;/code> prefix for the namespace.&lt;/p>
-&lt;/blockquote>
-&lt;p>Example: &lt;a href="https://github.com/gardener/gardener/blob/master/example/05-project-dev.yaml">/example/05-project-dev.yaml&lt;/a>&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> owner:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Create the shoot cluster.&lt;/p>
-&lt;p>Set the following annotation on the &lt;code>Shoot&lt;/code> to mark it as a shooted seed cluster.&lt;/p>
-&lt;p>Example (full example: &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">/example/90-shoot.yaml&lt;/a>):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot.gardener.cloud/use-as-seed: &amp;gt;-&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> &lt;span style="color:#00f">true&lt;/span>,shootDefaults.pods=100.96.0.0/11,shootDefaults.services=100.64.0.0/13,disable-capacity-reservation,with-secret-ref
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;ul>
-&lt;li>The networks from the seed cluster and its shoot clusters have to be different. To create shoot clusters with the dashboard you have to set a different worker CIDR in the shooted seed cluster (&lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.networking.nodes&lt;/code>) and set the &lt;code>shootDefaults&lt;/code> in the &lt;code>shoot.gardener.cloud/use-as-seed&lt;/code> annotation to different CIDRs.&lt;/li>
-&lt;li>Optional: The shoot clusters to be created can use the same network as the garden cluster. To use the same network, set different CIDRs for pods and services in the shooted seed cluster (&lt;code>spec.networking.pods&lt;/code> and &lt;code>spec.networking.services&lt;/code>).&lt;/li>
-&lt;/ul>
-&lt;/blockquote>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="configuration-options-for-the-seed-cluster">Configuration Options for the Seed Cluster&lt;/h2>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Option&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>&lt;code>true&lt;/code>&lt;/td>
-&lt;td>Registers the cluster as a seed cluster. Automatically deploys the gardenlet into the shoot cluster, unless specified otherwise (e.g. setting the &lt;code>no-gardenlet&lt;/code> flag).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>no-gardenlet&lt;/code>&lt;/td>
-&lt;td>Prevents the automatic deployment of the gardenlet into the shoot cluster. Instead, the &lt;code>Seed&lt;/code> object will be created with the assumption that another gardenlet will be responsible for managing it (according to its &lt;code>seedConfig&lt;/code> configuration).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>disable-capacity-reservation&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.settings.excessCapacity.enabled&lt;/code> in the seed cluster to false (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>invisible&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.settings.scheduling.visible&lt;/code> in the seed cluster to false (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>)&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>visible&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.settings.scheduling.visible&lt;/code> in the seed cluster to true (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>) (&lt;strong>default&lt;/strong>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>disable-dns&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.settings.shootDNS.enabled&lt;/code> in the seed cluster to false (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>protected&lt;/code>&lt;/td>
-&lt;td>Only shoot clusters in the &lt;code>garden&lt;/code> namespace can use this seed cluster.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>unprotected&lt;/code>&lt;/td>
-&lt;td>Shoot clusters from all namespaces can use this seed cluster (&lt;strong>default&lt;/strong>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>loadBalancerServices.annotations.*&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.settings.loadBalancerServices.annotations&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>), e.g &lt;code>loadBalancerServices.annotations.service.beta.kubernetes.io/aws-load-balancer-type=nlb&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>with-secret-ref&lt;/code>&lt;/td>
-&lt;td>Creates a secret with the &lt;code>kubeconfig&lt;/code> of the cluster in the &lt;code>garden&lt;/code> namespace in the garden cluster and specifies the &lt;code>.spec.secretRef&lt;/code> in the &lt;code>Seed&lt;/code> object accordingly.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>shootDefaults.pods&lt;/code>&lt;/td>
-&lt;td>Default pod network CIDR for shoot clusters created on this seed cluster.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>shootDefaults.services&lt;/code>&lt;/td>
-&lt;td>Default service network CIDR for shoot clusters created on this seed cluster.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>minimumVolumeSize&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.volume.minimumSize&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>blockCIDRs&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.network.blockCIDRs&lt;/code> seperated by &lt;code>;&lt;/code> (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>backup.provider&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.backup.provider&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>backup.region&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.backup.region&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>backup.secretRef.name&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.backup.secretRef.name&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>backup.secretRef.namespace&lt;/code>&lt;/td>
-&lt;td>Set &lt;code>spec.backup.secretRef.namespace&lt;/code> in the seed cluster (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">/example/50-seed.yaml&lt;/a>).&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>apiServer.autoscaler.minReplicas&lt;/code>&lt;/td>
-&lt;td>Controls the minimum number of &lt;code>kube-apiserver&lt;/code> replicas for the shooted seed cluster.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>apiServer.autoscaler.maxReplicas&lt;/code>&lt;/td>
-&lt;td>Controls the maximum number of &lt;code>kube-apiserver&lt;/code> replicas for the shooted seed cluster.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>apiServer.replicas&lt;/code>&lt;/td>
-&lt;td>Controls how many &lt;code>kube-apiserver&lt;/code> replicas the shooted seed cluster gets by default.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>use-serviceaccount-bootstrapping&lt;/code>&lt;/td>
-&lt;td>States that the gardenlet registers with the garden cluster using a temporary &lt;code>ServiceAccount&lt;/code> instead of a &lt;code>CertificateSigningRequest&lt;/code> (&lt;strong>default&lt;/strong>)&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>providerConfig.*&lt;/code>&lt;/td>
-&lt;td>Sets &lt;code>providerConfig&lt;/code> configuration parameters of the Seed resource. Each parameter is specified via its path, e.g. &lt;code>providerConfig.param1=foo&lt;/code> or &lt;code>providerConfig.sublevel1.sublevel2.param3=bar&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>featureGates.*={true,false}&lt;/code>&lt;/td>
-&lt;td>Overwrites the &lt;code>.featureGates&lt;/code> in the gardenlet configuration (only applicable when the &lt;code>no-gardenlet&lt;/code> setting is &lt;strong>not&lt;/strong> set), e.g. &lt;code>featureGates.APIServerSNI=true&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>resources.capacity.*&lt;/code>&lt;/td>
-&lt;td>Overwrites the &lt;code>resources.capacity&lt;/code> field in the gardenlet configuration (only applicable when the &lt;code>no-gardenlet&lt;/code> setting is &lt;strong>not&lt;/strong> set), e.g. &lt;code>resources.capacity.shoots=250&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>resources.reserved.*&lt;/code>&lt;/td>
-&lt;td>Overwrites the &lt;code>resources.reserved&lt;/code> field in the gardenlet configuration (only applicable when the &lt;code>no-gardenlet&lt;/code> setting is &lt;strong>not&lt;/strong> set), e.g. &lt;code>resources.reserved.foo=42&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ingress.controller.kind&lt;/code>&lt;/td>
-&lt;td>Activates and specifies the kind of the managed ingress controller in the seed&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ingress.controller.providerConfig.*&lt;/code>&lt;/td>
-&lt;td>Sets provider specific configuration parameters for the managed ingress controller. Each parameter is specified via its path, e.g. &lt;code>ingress.controller.providerConfig.param1=foo&lt;/code> or &lt;code>ingress.controller.providerConfig.sublevel1.sublevel2.param3=bar&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table></description></item><item><title>Docs: CSI Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
+&lt;/code>&lt;/pre></description></item><item><title>Docs: CSI Components</title><link>https://gardener.cloud/docs/gardener/usage/csi_components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/csi_components/</guid><description>
 &lt;h1 id="custom-csi-components">(Custom) CSI Components&lt;/h1>
 &lt;p>Some provider extensions for Gardener are using CSI components to manage persistent volumes in the shoot clusters.
 Additionally, most of the provider extensions are deploying controllers for taking volume snapshots (CSI snapshotter).&lt;/p>
@@ -905,7 +739,7 @@ maxLines: 5000
 &lt;/ul>
 &lt;p>&lt;strong>Decrease this value if the browser works slowly!&lt;/strong>&lt;/p></description></item><item><title>Docs: Managed Seed</title><link>https://gardener.cloud/docs/gardener/usage/managed_seed/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/managed_seed/</guid><description>
 &lt;h1 id="register-shoot-as-seed">Register Shoot as Seed&lt;/h1>
-&lt;p>An existing shoot can be registered as a seed by creating a &lt;code>ManagedSeed&lt;/code> resource. This resource replaces the &lt;code>use-as-seed&lt;/code> annotation that was previously used to create &lt;a href="https://gardener.cloud/docs/gardener/usage/shooted_seed/">shooted seeds&lt;/a>, and that is already deprecated. It contains:&lt;/p>
+&lt;p>An existing shoot can be registered as a seed by creating a &lt;code>ManagedSeed&lt;/code> resource. This resource contains:&lt;/p>
 &lt;ul>
 &lt;li>The name of the shoot that should be registered as seed.&lt;/li>
 &lt;li>An optional &lt;code>seedTemplate&lt;/code> section that contains the &lt;code>Seed&lt;/code> spec and parts of its metadata, such as labels and annotations.&lt;/li>
@@ -967,18 +801,8 @@ maxLines: 5000
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For an example that uses non-default configuration, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/55-managedseed-seedtemplate.yaml">55-managed-seed-seedtemplate.yaml&lt;/a>&lt;/p>
-&lt;h2 id="migrating-from-the-use-as-seed-annotation-to-managedseeds">Migrating from the &lt;code>use-as-seed&lt;/code> Annotation to &lt;code>ManagedSeeds&lt;/code>&lt;/h2>
-&lt;p>If you have existing seeds managed via the &lt;code>use-as-seed&lt;/code> annotation, you should migrate them to &lt;code>ManagedSeed&lt;/code> resources before support for the annotation has been completely removed from Gardener.&lt;/p>
-&lt;p>The &lt;em>seed registration controller&lt;/em> that is responsible for reconciling the &lt;code>use-as-seed&lt;/code> annotation is still functional, However, instead of reconciling the annotation directly as before, it converts it to a &lt;code>ManagedSeed&lt;/code> resource and lets the &lt;em>managed seed controller&lt;/em> perform the actual reconciliation. Therefore, for every &lt;code>use-as-seed&lt;/code> annotation, you already have an equivalent &lt;code>ManagedSeed&lt;/code> resource in your cluster. Since it has been created by reconciling an annotation on a shoot, it is also &amp;ldquo;owned&amp;rdquo; by the shoot, that is it contains an &lt;code>ownerReference&lt;/code> to the corresponding shoot. This owner reference is used by the seed registration controller to determine that it should continue updating (or deleting) the &lt;code>ManagedSeed&lt;/code> as a result of reconciling changes to (or the removal of) the &lt;code>use-as-seed&lt;/code> annotation.&lt;/p>
-&lt;p>In order to migrate the &lt;code>use-as-seed&lt;/code> annotation to a &lt;code>ManagedSeed&lt;/code>, you should simply:&lt;/p>
-&lt;ul>
-&lt;li>Remove the owner reference to the shoot from the existing &lt;code>ManagedSeed&lt;/code> resource.&lt;/li>
-&lt;li>Remove the &lt;code>use-as-seed&lt;/code> annotation from the &lt;code>Shoot&lt;/code> resource.&lt;/li>
-&lt;li>From this moment on, update or delete the &lt;code>ManagedSeed&lt;/code> directly, instead of indirectly via the &lt;code>use-as-seed&lt;/code> annotation.&lt;/li>
-&lt;/ul>
-&lt;p>If the shoot containing the &lt;code>use-as-seed&lt;/code> annotation was created via a yaml file (e.g. via &lt;code>kubectl apply -f&lt;/code>), a helm chart, or a script, you should update the corresponding file, template, or script so that it contains or generates the &lt;code>ManagedSeed&lt;/code> that you have in your cluster, instead of the &lt;code>use-as-seed&lt;/code> annotation. If you use an automated approach, make sure that the owner reference is removed from the existing &lt;code>ManagedSeed&lt;/code> before removing the annotation from the &lt;code>Shoot&lt;/code>.&lt;/p>
 &lt;h3 id="specifying-apiserver-replicas-and-autoscaler-options">Specifying &lt;code>apiServer&lt;/code> &lt;code>replicas&lt;/code> and &lt;code>autoscaler&lt;/code> options&lt;/h3>
-&lt;p>A few of &lt;code>use-as-seed&lt;/code> configuration options are not supported in a &lt;code>Seed&lt;/code> resource, and therefore also not in a &lt;code>ManagedSeed&lt;/code>. These options are (from the &lt;a href="https://gardener.cloud/docs/gardener/usage/shooted_seed/">shooted seeds&lt;/a> description):&lt;/p>
+&lt;p>There are few configuration options that are not supported in a &lt;code>Shoot&lt;/code> resource but due to backward compatibility reasons it is possible to specify them for a &lt;code>Shoot&lt;/code> that is referred by a &lt;code>ManagedSeed&lt;/code>. These options are:&lt;/p>
 &lt;table>
 &lt;thead>
 &lt;tr>
@@ -989,20 +813,22 @@ maxLines: 5000
 &lt;tbody>
 &lt;tr>
 &lt;td>&lt;code>apiServer.autoscaler.minReplicas&lt;/code>&lt;/td>
-&lt;td>Controls the minimum number of &lt;code>kube-apiserver&lt;/code> replicas for the shooted seed cluster.&lt;/td>
+&lt;td>Controls the minimum number of &lt;code>kube-apiserver&lt;/code> replicas for the shoot registered as seed cluster.&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>apiServer.autoscaler.maxReplicas&lt;/code>&lt;/td>
-&lt;td>Controls the maximum number of &lt;code>kube-apiserver&lt;/code> replicas for the shooted seed cluster.&lt;/td>
+&lt;td>Controls the maximum number of &lt;code>kube-apiserver&lt;/code> replicas for the the shoot registered as seed cluster.&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>apiServer.replicas&lt;/code>&lt;/td>
-&lt;td>Controls how many &lt;code>kube-apiserver&lt;/code> replicas the shooted seed cluster gets by default.&lt;/td>
+&lt;td>Controls how many &lt;code>kube-apiserver&lt;/code> replicas the shoot registered as seed cluster gets by default.&lt;/td>
 &lt;/tr>
 &lt;/tbody>
 &lt;/table>
-&lt;p>For backward compatibility, it is still possible to specify these options via the &lt;code>shoot.gardener.cloud/managed-seed-api-server&lt;/code> annotation, using exactly the same syntax as before.&lt;/p>
-&lt;p>If you use any of these fields in any or your &lt;code>use-as-seed&lt;/code> annotations, instead of removing the annotation completely as mentioned above, simply rename it to &lt;code>managed-seed-api-server&lt;/code>, keeping these fields, and removing everything else.&lt;/p></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/usage/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-local-dns/</guid><description>
+&lt;p>It is possible to specify these options via the &lt;code>shoot.gardener.cloud/managed-seed-api-server&lt;/code> annotation on the Shoot resource. Example configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot.gardener.cloud/managed-seed-api-server: &lt;span style="color:#a31515">&amp;#34;apiServer.replicas=3,apiServer.autoscaler.minReplicas=3,apiServer.autoscaler.maxReplicas=6&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/usage/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-local-dns/</guid><description>
 &lt;h1 id="nodelocaldns-configuration">NodeLocalDNS Configuration&lt;/h1>
 &lt;p>This is a short guide describing how to enable DNS caching on the shoot cluster nodes.&lt;/p>
 &lt;h2 id="background">Background&lt;/h2>
@@ -2773,7 +2599,7 @@ the secondary owner identifier.&lt;/p></description></item><item><title>Docs: Tr
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener copies the secret during the reconciliation of shoot clusters to the shoot namespace in the seed. Afterwards, &lt;code>Ingress&lt;/code> resources in that namespace for the mentioned components will refer to the wildcard certificate.&lt;/p>
 &lt;h2 id="best-practice">Best practice&lt;/h2>
-&lt;p>While it is possible to create the wildcard certificates manually and deploy them to seed clusters, it is recommended to let certificate management components do this job. Often, a seed cluster is also a shoot cluster at the same time (shooted seed) and might already provide a certificate service extension.
+&lt;p>While it is possible to create the wildcard certificates manually and deploy them to seed clusters, it is recommended to let certificate management components do this job. Often, a seed cluster is also a shoot cluster at the same time (ManagedSeed) and might already provide a certificate service extension.
 Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item><item><title>Docs: Worker Pool K8s Versions</title><link>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</guid><description>
 &lt;h1 id="controlling-the-kubernetes-versions-for-specific-worker-pools">Controlling the Kubernetes versions for specific worker pools&lt;/h1>
 &lt;p>Since Gardener &lt;code>v1.36&lt;/code>, worker pools can have different Kubernetes versions specified than the control plane.&lt;/p>

@@ -2,18 +2,18 @@
 &lt;h1 id="extension-admission">Extension Admission&lt;/h1>
 &lt;p>The extensions are expected to validate their respective resources for their extension specific configurations, when the resources are newly created or updated. For example, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#infrastructure-provider">provider extensions&lt;/a> would validate &lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.provider.controlPlaneConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource and &lt;code>spec.providerConfig&lt;/code> in the &lt;code>CloudProfile&lt;/code> resource, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#network-plugin">networking extensions&lt;/a> would validate &lt;code>spec.networking.providerConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource. As best practice, the validation should be performed only if there is a change in the &lt;code>spec&lt;/code> of the resource. Please find an exemplary implementation &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/admission/validator">here&lt;/a>.&lt;/p>
 &lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for provider extension type &lt;code>aws&lt;/code>, looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, &lt;code>SecretBinding&lt;/code>s and &lt;code>Shoot&lt;/code>s. Please see &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/apis/core/v1beta1/constants/types_constants.go">this&lt;/a> for the full list of extension labels.&lt;/p></description></item><item><title>Docs: BackupBucket</title><link>https://gardener.cloud/docs/gardener/extensions/backupbucket/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/backupbucket/</guid><description>
-&lt;h1 id="contract-backupbucket-resource">Contract: &lt;code>BackupBucket&lt;/code> resource&lt;/h1>
+&lt;h1 id="contract-backupbucket-resource">Contract: &lt;code>BackupBucket&lt;/code> Resource&lt;/h1>
 &lt;p>The Gardener project features a sub-project called &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> to take periodic backups of etcd backing Shoot clusters. It demands the bucket (or its equivalent in different object store providers) to be created and configured externally with appropriate credentials. The &lt;code>BackupBucket&lt;/code> resource takes this responsibility in Gardener.&lt;/p>
-&lt;p>Before introducing the &lt;code>BackupBucket&lt;/code> extension resource Gardener was using Terraform in order to create and manage these provider-specific resources (e.g., see &lt;a href="https://github.com/gardener/gardener/tree/0.27.0/charts/seed-terraformer/charts/aws-backup">here&lt;/a>).
-Now, Gardener commissions an external, provider-specific controller to take over this task. You can also refer to backupInfra proposal documentation to get idea about how the transition was done and understand the resource in broader scope.&lt;/p>
-&lt;h2 id="what-is-the-scope-of-bucket">What is the scope of bucket?&lt;/h2>
-&lt;p>A bucket will be provisioned per &lt;code>Seed&lt;/code>. So, backup of every &lt;code>Shoot&lt;/code> created on that &lt;code>Seed&lt;/code> will be stored under different shoot specific prefix under the bucket.
-For the backup of the &lt;code>Shoot&lt;/code> rescheduled on different &lt;code>Seed&lt;/code> it will continue to use the same bucket.&lt;/p>
-&lt;h2 id="what-is-the-lifespan-of-backupbucket">What is the lifespan of &lt;code>BackupBucket&lt;/code>?&lt;/h2>
-&lt;p>The bucket associated with &lt;code>BackupBucket&lt;/code> will be created at creation of &lt;code>Seed&lt;/code>. And as per current implementation, it will be deleted on deletion of &lt;code>Seed&lt;/code> and there isn&amp;rsquo;t any &lt;code>BackupEntry&lt;/code> resource associated with it.&lt;/p>
-&lt;p>In the future, we plan to introduce schedule for &lt;code>BackupBucket&lt;/code> the deletion logic for &lt;code>BackupBucket&lt;/code> resource, which will reschedule the it on different available &lt;code>Seed&lt;/code>, on deletion or failure of health check for current associated &lt;code>seed&lt;/code>. In that case, &lt;code>BackupBucket&lt;/code> will be deleted only if there isn&amp;rsquo;t any schedulable &lt;code>Seed&lt;/code> available and there isn&amp;rsquo;t any associated &lt;code>BackupEntry&lt;/code> resource.&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What needs to be implemented to support a new infrastructure provider?&lt;/h2>
-&lt;p>As part of the seed flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
+&lt;p>Before introducing the &lt;code>BackupBucket&lt;/code> extension resource, Gardener was using Terraform in order to create and manage these provider-specific resources (e.g., see &lt;a href="https://github.com/gardener/gardener/tree/0.27.0/charts/seed-terraformer/charts/aws-backup">AWS Backup&lt;/a>).
+Now, Gardener commissions an external, provider-specific controller to take over this task. You can also refer to &lt;a href="https://gardener.cloud/docs/gardener/proposals/02-backupinfra/">backupInfra proposal documentation&lt;/a> to get idea about how the transition was done and understand the resource in broader scope.&lt;/p>
+&lt;h2 id="what-is-the-scope-of-bucket">What is the Scope of Bucket?&lt;/h2>
+&lt;p>A bucket will be provisioned per &lt;code>Seed&lt;/code>. So, a backup of every &lt;code>Shoot&lt;/code> created on that &lt;code>Seed&lt;/code> will be stored under a different shoot specific prefix under the bucket.
+For the backup of the &lt;code>Shoot&lt;/code> rescheduled on different &lt;code>Seed&lt;/code>, it will continue to use the same bucket.&lt;/p>
+&lt;h2 id="what-is-the-lifespan-of-backupbucket">What is the Lifespan of &lt;code>BackupBucket&lt;/code>?&lt;/h2>
+&lt;p>The bucket associated with &lt;code>BackupBucket&lt;/code> will be created at the creation of the &lt;code>Seed&lt;/code>. And as per current implementation, it will also be deleted on deletion of the &lt;code>Seed&lt;/code>, if there isn&amp;rsquo;t any &lt;code>BackupEntry&lt;/code> resource associated with it.&lt;/p>
+&lt;p>In the future, we plan to introduce a schedule for &lt;code>BackupBucket&lt;/code> - the deletion logic for the &lt;code>BackupBucket&lt;/code> resource, which will reschedule it on different available &lt;code>Seed&lt;/code>s on deletion or failure of a health check for the currently associated &lt;code>seed&lt;/code>. In that case, the &lt;code>BackupBucket&lt;/code> will be deleted only if there isn&amp;rsquo;t any schedulable &lt;code>Seed&lt;/code> available and there isn&amp;rsquo;t any associated &lt;code>BackupEntry&lt;/code> resource.&lt;/p>
+&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What Needs to be Implemented to Support a New Infrastructure Provider?&lt;/h2>
+&lt;p>As part of the seed flow, Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: BackupBucket
@@ -27,26 +27,25 @@ For the backup of the &lt;code>Shoot&lt;/code> rescheduled on different &lt;code
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backupprovider
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used to create the needed resources. This provider secret will be configured
-by Gardener operator in the &lt;code>Seed&lt;/code> resource and propagated over there by seed controller.&lt;/p>
-&lt;p>After your controller has created the required bucket, if required it generates the secret to access the objects in buckets and put reference to it in &lt;code>status&lt;/code>. This secret is
-supposed to be used by Gardener or eventually &lt;code>BackupEntry&lt;/code> resource and etcd-backup-restore component to backup the etcd.&lt;/p>
-&lt;p>In order to support a new infrastructure provider you need to write a controller that watches all &lt;code>BackupBucket&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>. You can take a look at the below referenced example implementation for the Azure provider.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used to create the needed resources. This provider secret will be configured by the Gardener operator in the &lt;code>Seed&lt;/code> resource and propagated over there by the seed controller.&lt;/p>
+&lt;p>After your controller has created the required bucket, if required, it generates the secret to access the objects in the bucket and put a reference to it in &lt;code>status&lt;/code>. This secret is supposed to be used by Gardener or eventually a &lt;code>BackupEntry&lt;/code> resource and etcd-backup-restore component to backup the etcd.&lt;/p>
+&lt;p>In order to support a new infrastructure provider, you need to write a controller that watches all &lt;code>BackupBucket&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>. You can take a look at the below referenced example implementation for the Azure provider.&lt;/p>
+&lt;h2 id="references-and-additional-resources">References and Additional Resources&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/extensions/#backupbucket">&lt;code>BackupBucket&lt;/code> API Reference&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener-extension-provider-azure/tree/master/pkg/controller/backupbucket">Exemplary implementation for the Azure provider&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">&lt;code>BackupEntry&lt;/code> resource documentation&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/proposals/02-backupinfra/">Shared bucket proposal&lt;/a>&lt;/li>
 &lt;/ul></description></item><item><title>Docs: BackupEntry</title><link>https://gardener.cloud/docs/gardener/extensions/backupentry/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/backupentry/</guid><description>
-&lt;h1 id="contract-backupentry-resource">Contract: &lt;code>BackupEntry&lt;/code> resource&lt;/h1>
-&lt;p>The Gardener project features a sub-project called &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> to take periodic backups of etcd backing Shoot clusters. It demands the bucket (or its equivalent in different object store providers) access credentials to be created and configured externally with appropriate credentials. The &lt;code>BackupEntry&lt;/code> resource takes this responsibility in Gardener to provide this information by creating a secret specific to the component. Said that, the core motivation for introducing this resource was to support retention of backups post deletion of &lt;code>Shoot&lt;/code>. The etcd-backup-restore components takes responsibility of garbage collecting old backups out of the defined period. Once a shoot is deleted, we need to persist the backups for few days. Hence, Gardener uses the &lt;code>BackupEntry&lt;/code> resource for this housekeeping work post deletion of a &lt;code>Shoot&lt;/code>. The &lt;code>BackupEntry&lt;/code> resource is responsible for shoot specific prefix under referred bucket.&lt;/p>
-&lt;p>Before introducing the &lt;code>BackupEntry&lt;/code> extension resource Gardener was using Terraform in order to create and manage these provider-specific resources (e.g., see &lt;a href="https://github.com/gardener/gardener/tree/0.27.0/charts/seed-terraformer/charts/aws-backup">here&lt;/a>).
-Now, Gardener commissions an external, provider-specific controller to take over this task. You can also refer to backupInfra proposal documentation to get idea about how the transition was done and understand the resource in broader scope.&lt;/p>
-&lt;h2 id="what-is-the-lifespan-of-backupentry">What is the lifespan of &lt;code>BackupEntry&lt;/code>?&lt;/h2>
-&lt;p>The bucket associated with &lt;code>BackupEntry&lt;/code> will be created at using &lt;code>BackupBucket&lt;/code> resource. The &lt;code>BackupEntry&lt;/code> resource will be created as a part of a &lt;code>Shoot&lt;/code> creation. But resource might continue to exist post deletion of a &lt;code>Shoot&lt;/code> (see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#backupentry-controller">this&lt;/a> for more details).&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What needs to be implemented to support a new infrastructure provider?&lt;/h2>
-&lt;p>As part of the shoot flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
+&lt;h1 id="contract-backupentry-resource">Contract: &lt;code>BackupEntry&lt;/code> Resource&lt;/h1>
+&lt;p>The Gardener project features a sub-project called &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> to take periodic backups of etcd backing Shoot clusters. It demands the bucket (or its equivalent in different object store providers) access credentials to be created and configured externally with appropriate credentials. The &lt;code>BackupEntry&lt;/code> resource takes this responsibility in Gardener to provide this information by creating a secret specific to the component.&lt;/p>
+&lt;p>That being said, the core motivation for introducing this resource was to support retention of backups post deletion of &lt;code>Shoot&lt;/code>. The etcd-backup-restore components take responsibility of garbage collecting old backups out of the defined period. Once a shoot is deleted, we need to persist the backups for few days. Hence, Gardener uses the &lt;code>BackupEntry&lt;/code> resource for this housekeeping work post deletion of a &lt;code>Shoot&lt;/code>. The &lt;code>BackupEntry&lt;/code> resource is responsible for shoot specific prefix under referred bucket.&lt;/p>
+&lt;p>Before introducing the &lt;code>BackupEntry&lt;/code> extension resource, Gardener was using Terraform in order to create and manage these provider-specific resources (e.g., see &lt;a href="https://github.com/gardener/gardener/tree/0.27.0/charts/seed-terraformer/charts/aws-backup">AWS Backup&lt;/a>).
+Now, Gardener commissions an external, provider-specific controller to take over this task. You can also refer to &lt;a href="https://gardener.cloud/docs/gardener/proposals/02-backupinfra/">backupInfra proposal documentation&lt;/a> to get idea about how the transition was done and understand the resource in broader scope.&lt;/p>
+&lt;h2 id="what-is-the-lifespan-of-backupentry">What is the Lifespan of &lt;code>BackupEntry&lt;/code>?&lt;/h2>
+&lt;p>The bucket associated with &lt;code>BackupEntry&lt;/code> will be created by using a &lt;code>BackupBucket&lt;/code> resource. The &lt;code>BackupEntry&lt;/code> resource will be created as a part of the &lt;code>Shoot&lt;/code> creation. But resources might continue to exist post deletion of a &lt;code>Shoot&lt;/code> (see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#backupentry-controller">Gardenlet&lt;/a> for more details).&lt;/p>
+&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What Needs to be Implemented to Support a New Infrastructure Provider?&lt;/h2>
+&lt;p>As part of the shoot flow, Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: BackupEntry
@@ -63,10 +62,10 @@ Now, Gardener commissions an external, provider-specific controller to take over
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backupprovider
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used to create the needed resources. This provider secret will be propagated from &lt;code>BackupBucket&lt;/code> resource by Shoot controller.&lt;/p>
-&lt;p>Your controller is supposed to create the &lt;code>etcd-backup&lt;/code> secret in control-plane namespace of a shoot. This secret is supposed to be used by Gardener or eventually the etcd-backup-restore component to backup the etcd. The controller implementation should cleanup the objects created under shoot specific prefix in bucket equivalent to name of &lt;code>BackupEntry&lt;/code> resource.&lt;/p>
-&lt;p>In order to support a new infrastructure provider you need to write a controller that watches all &lt;code>BackupBucket&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>. You can take a look at the below referenced example implementation for the Azure provider.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used to create the needed resources. This provider secret will be propagated from the &lt;code>BackupBucket&lt;/code> resource by the shoot controller.&lt;/p>
+&lt;p>Your controller is supposed to create the &lt;code>etcd-backup&lt;/code> secret in the control plane namespace of a shoot. This secret is supposed to be used by Gardener or eventually by the etcd-backup-restore component to backup the etcd. The controller implementation should clean up the objects created under the shoot specific prefix in the bucket equivalent to the name of the &lt;code>BackupEntry&lt;/code> resource.&lt;/p>
+&lt;p>In order to support a new infrastructure provider, you need to write a controller that watches all the &lt;code>BackupBucket&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>. You can take a look at the below referenced example implementation for the Azure provider.&lt;/p>
+&lt;h2 id="references-and-additional-resources">References and Additional Resources&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/extensions/#backupbucket">&lt;code>BackupEntry&lt;/code> API Reference&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener-extension-provider-azure/tree/master/pkg/controller/backupentry">Exemplary implementation for the Azure provider&lt;/a>&lt;/li>
@@ -181,7 +180,7 @@ E.g., there should be different identities for &lt;code>Infrastructrue&lt;/code>
 &lt;/ul></description></item><item><title>Docs: Cluster</title><link>https://gardener.cloud/docs/gardener/extensions/cluster/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/cluster/</guid><description>
 &lt;h1 id="cluster-resource">&lt;code>Cluster&lt;/code> resource&lt;/h1>
 &lt;p>As part of the extensibility epic a lot of responsibility that was previously taken over by Gardener directly has now been shifted to extension controllers running in the seed clusters.
-These extensions often serve a well-defined purpose, e.g. the management of &lt;a href="https://gardener.cloud/docs/gardener/extensions/dns/">DNS records&lt;/a>, &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">infrastructure&lt;/a>, etc.
+These extensions often serve a well-defined purpose, e.g. the management of &lt;a href="https://github.com/gardener/gardener/blob/master/docs/extensions/dns.md">DNS records&lt;/a>, &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">infrastructure&lt;/a>, etc.
 We have introduced a couple of extension CRDs in the seeds whose specification is written by Gardener, and which are acted up by the extensions.&lt;/p>
 &lt;p>However, the extensions sometimes require more information that is not directly part of the specification.
 One example of that is the GCP infrastructure controller which needs to know the shoot&amp;rsquo;s pod and service network.
@@ -221,7 +220,7 @@ Extension controllers can take whatever information they want out of it that mig
 &lt;/ul>
 &lt;h2 id="extension-resources-not-associated-with-a-shoot">Extension resources not associated with a shoot&lt;/h2>
 &lt;p>In some cases, Gardener may create extension resources that are not associated with a shoot, but are needed to support some functionality internal to Gardener. Such resources will be created in the &lt;code>garden&lt;/code> namespace of a seed cluster.&lt;/p>
-&lt;p>For example, if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">managed ingress controller&lt;/a> is active on the seed, Gardener will create a &lt;a href="https://gardener.cloud/docs/gardener/extensions/dns/">DNSProvider / DNSEntry&lt;/a> or a &lt;a href="https://gardener.cloud/docs/gardener/extensions/dnsrecord/">DNSRecord&lt;/a> resource(s) in the &lt;code>garden&lt;/code> namespace of the seed cluster for the ingress DNS record.&lt;/p>
+&lt;p>For example, if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">managed ingress controller&lt;/a> is active on the seed, Gardener will create a &lt;a href="https://gardener.cloud/docs/gardener/extensions/dnsrecord/">DNSRecord&lt;/a> resource(s) in the &lt;code>garden&lt;/code> namespace of the seed cluster for the ingress DNS record.&lt;/p>
 &lt;p>Extension controllers that may be expected to reconcile extension resources in the &lt;code>garden&lt;/code> namespace should make sure that they can tolerate the absence of a cluster resource. This means that they should not attempt to read the cluster resource in such cases, or if they do they should ignore the &amp;ldquo;not found&amp;rdquo; error.&lt;/p>
 &lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
 &lt;ul>
@@ -689,106 +688,11 @@ The helper function &lt;code>extensionscontroller.GenericTokenKubeconfigSecretNa
 &lt;p>Gardener creates several certificate authorities (CA) that are used to create server certificates for various components.
 For example, the shoot&amp;rsquo;s etcd has its own CA, the kube-aggregator has its own CA as well, and both are different to the actual cluster&amp;rsquo;s CA.&lt;/p>
 &lt;p>With &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/">GEP-18&lt;/a> (Shoot cluster CA rotation), extensions are required to do the same and generate dedicated CAs for their components (e.g. for signing a server certificate for cloud-controller-manager). They must not depend on the CA secrets managed by gardenlet.&lt;/p>
-&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/extensions/ca-rotation/">CA Rotation in Extensions&lt;/a> for the exact requirements, that extensions need to fulfill in order to support the CA rotation feature.&lt;/p></description></item><item><title>Docs: DNS</title><link>https://gardener.cloud/docs/gardener/extensions/dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/dns/</guid><description>
-&lt;h1 id="contract-dnsprovider-and-dnsentry-resources">Contract: &lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources&lt;/h1>
-&lt;p>Every shoot cluster requires external DNS records that are publicly resolvable.
-The management of these DNS records requires provider-specific knowledge which is to be developed outside of the Gardener&amp;rsquo;s core repository.&lt;/p>
-&lt;h2 id="what-does-gardener-create-dns-records-for">What does Gardener create DNS records for?&lt;/h2>
-&lt;h3 id="internal-domain-name">Internal domain name&lt;/h3>
-&lt;p>Every shoot cluster&amp;rsquo;s kube-apiserver running in the seed is exposed via a load balancer that has a public endpoint (IP or hostname).
-This endpoint is used by end-users and also by system components (that are running in another network, e.g., the kubelet or kube-proxy) to talk to the cluster.
-In order to be robust against changes of this endpoint (e.g., caused due to re-creation of the load balancer or move of the control plane to another seed cluster) Gardener creates a so-called &lt;em>internal domain name&lt;/em> for every shoot cluster.
-The &lt;em>internal domain name&lt;/em> is a publicly resolvable DNS record that points to the load balancer of the kube-apiserver.
-Gardener uses this domain name in the kubeconfigs of all system components (instead of writing the load balancer endpoint directly into it.
-This way Gardener does not need to recreate all the kubeconfigs if the endpoint changes - it just needs to update the DNS record.&lt;/p>
-&lt;h3 id="external-domain-name">External domain name&lt;/h3>
-&lt;p>The internal domain name is not configurable by end-users directly but dictated by the Gardener administrator.
-However, end-users usually prefer to have another DNS name, maybe even using their own domain sometimes to access their Kubernetes clusters.
-Gardener supports that by creating another DNS record, named &lt;em>external domain name&lt;/em>, that actually points to the &lt;em>internal domain name&lt;/em>.
-The kubeconfig handed out to end-users does contain this &lt;em>external domain name&lt;/em>, i.e., users can access their clusters with the DNS name they like to.&lt;/p>
-&lt;p>As not every end-user has an own domain it is possible for Gardener administrators to configure so-called &lt;em>default domains&lt;/em>.
-If configured, shoots that do not specify a domain explicitly get an &lt;em>external domain name&lt;/em> based on a default domain (unless explicitly stated that this shoot should not get an external domain name (&lt;code>.spec.dns.provider=unmanaged&lt;/code>).&lt;/p>
-&lt;h3 id="domain-name-for-ingress-deprecated">Domain name for ingress (deprecated)&lt;/h3>
-&lt;p>Gardener allows to deploy a &lt;code>nginx-ingress-controller&lt;/code> into a shoot cluster (deprecated).
-This controller is exposed via a public load balancer (again, either IP or hostname).
-Gardener creates a wildcard DNS record pointing to this load balancer.
-&lt;code>Ingress&lt;/code> resources can later use this wildcard DNS record to expose underlying applications.&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-dns-provider">What needs to be implemented to support a new DNS provider?&lt;/h2>
-&lt;p>As part of the shoot flow Gardener will create two special resources in the seed cluster that need to be reconciled by an extension controller.
-The first resource (&lt;code>DNSProvider&lt;/code>) is a declaration of a DNS provider (e.g., &lt;code>aws-route53&lt;/code>, &lt;code>google-clouddns&lt;/code>, &amp;hellip;) with a reference to a &lt;code>Secret&lt;/code> object that contains the provider-specific credentials in order to talk to the provider&amp;rsquo;s API.
-It also allows to specify two lists of domains that shall be allowed or disallowed to be used for DNS entries:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: aws-credentials
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># aws-route53 specific credentials here&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSProvider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-aws-account
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws-route53
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: aws-credentials
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domains:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - dev.my-fancy-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exclude:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - staging.my-fancy-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - prod.my-fancy-domain.com
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When reconciling this resource the DNS controller has to read information about available DNS zones to figure out which domains can actually be supported by the provided credentials.
-Based on the constraints given in the &lt;code>DNSProvider&lt;/code> resources &lt;code>.spec.domains.{include|exclude}&lt;/code> fields it shall later only allow certain DNS entries.
-Gardener waits until the &lt;code>status&lt;/code> indicates that the registration went well:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSProvider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Ready
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: everything ok
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Other possible states are &lt;code>Pending&lt;/code>, &lt;code>Error&lt;/code>, and &lt;code>Invalid&lt;/code>.
-The DNS controller may provide an explanation of the &lt;code>.status.state&lt;/code> in the &lt;code>.status.message&lt;/code> field.&lt;/p>
-&lt;p>Now Gardener may create &lt;code>DNSEntry&lt;/code> objects that represent the ask to create an actual external DNS record:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: dns
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsName: apiserver.cluster1.dev.my-fancy-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 600
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targets:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 8.8.8.8
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It has to be automatically determined whether the to-be-created DNS record is of type &lt;code>A&lt;/code> or &lt;code>CNAME&lt;/code>.
-The spec shall also allow the creation of &lt;code>TXT&lt;/code> records, e.g.:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: dns
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsName: data.apiserver.cluster1.dev.my-fancy-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 120
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> text: |&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> content for the DNS TXT record
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>status&lt;/code> section of this resource looks similar like the &lt;code>DNSProvider&lt;/code>&amp;rsquo;s.
-Gardener is (as of today) only evaluating the &lt;code>.status.state&lt;/code> and &lt;code>.status.message&lt;/code> fields.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/external-dns-management/tree/master/pkg/apis/dns/v1alpha1">&lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> API (Golang specification)&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/external-dns-management">external-dns-management project in Gardener&amp;rsquo;s GitHub organization&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: DNS Record</title><link>https://gardener.cloud/docs/gardener/extensions/dnsrecord/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/dnsrecord/</guid><description>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/extensions/ca-rotation/">CA Rotation in Extensions&lt;/a> for the exact requirements, that extensions need to fulfill in order to support the CA rotation feature.&lt;/p></description></item><item><title>Docs: DNS Record</title><link>https://gardener.cloud/docs/gardener/extensions/dnsrecord/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/dnsrecord/</guid><description>
 &lt;h1 id="contract-dnsrecord-resources">Contract: &lt;code>DNSRecord&lt;/code> resources&lt;/h1>
 &lt;p>Every shoot cluster requires external DNS records that are publicly resolvable.
 The management of these DNS records requires provider-specific knowledge which is to be developed outside the Gardener&amp;rsquo;s core repository.&lt;/p>
-&lt;p>Currently, Gardener uses &lt;a href="https://gardener.cloud/docs/gardener/extensions/dns/">&lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources&lt;/a>. However, this introduces undesired coupling of Gardener to a controller that does not adhere to the Gardener extension contracts. Because of this, we plan to stop using &lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources for Gardener DNS records in the future and use the &lt;code>DNSRecord&lt;/code> resources described here instead.&lt;/p>
+&lt;p>Currently, Gardener uses &lt;a href="https://github.com/gardener/gardener/blob/master/docs/extensions/dns.md">&lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources&lt;/a>. However, this introduces undesired coupling of Gardener to a controller that does not adhere to the Gardener extension contracts. Because of this, we plan to stop using &lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources for Gardener DNS records in the future and use the &lt;code>DNSRecord&lt;/code> resources described here instead.&lt;/p>
 &lt;h2 id="what-does-gardener-create-dns-records-for">What does Gardener create DNS records for?&lt;/h2>
 &lt;h3 id="internal-domain-name">Internal domain name&lt;/h3>
 &lt;p>Every shoot cluster&amp;rsquo;s kube-apiserver running in the seed is exposed via a load balancer that has a public endpoint (IP or hostname).

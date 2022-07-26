@@ -88,75 +88,115 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="dns-providers-domain-scope">DNS providers, domain scope&lt;/h2>
-&lt;p>Gardener can only manage DNS records on your behalf if you have proper DNS providers in place. Please consult &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/">this page&lt;/a> for more information.&lt;/p>
-&lt;h2 id="request-dns-records-via-serviceingress-resources">Request DNS records via Service/Ingress resources&lt;/h2>
-&lt;p>To request a DNS name for an Ingress or Service object in the shoot cluster
-it must be annotated with the DNS class &lt;code>garden&lt;/code> and an annotation denoting
-the desired DNS names.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="before-you-start">Before you start&lt;/h2>
+&lt;p>You should :&lt;/p>
+&lt;ul>
+&lt;li>Have created a shoot cluster&lt;/li>
+&lt;li>Have created and correctly configured a DNS Provider (Please consult &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/">this page&lt;/a> for more information)&lt;/li>
+&lt;li>Have a basic understanding of DNS (see link under &lt;a href="#references">References&lt;/a>)&lt;/li>
+&lt;/ul>
+&lt;p>There are 2 types of DNS that you can use within Kubernetes :&lt;/p>
+&lt;ul>
+&lt;li>internal (usually managed by coreDNS)&lt;/li>
+&lt;li>external (managed by a public DNS provider).&lt;/li>
+&lt;/ul>
+&lt;p>This page, and the extension, exclusively works for external DNS handling.&lt;/p>
+&lt;p>Gardener allows 2 way of managing your external DNS:&lt;/p>
+&lt;ul>
+&lt;li>Manually, which means you are in charge of creating / maintaining your Kubernetes related DNS entries&lt;/li>
+&lt;li>Via the Gardener DNS extension&lt;/li>
+&lt;/ul>
+&lt;h2 id="gardener-dns-extension">Gardener DNS extension&lt;/h2>
+&lt;p>The managed external DNS records feature of the Gardener clusters makes all this easier. You do not need DNS service provider specific knowledge, and in fact you do not need to leave your cluster at all to achieve that. You simply annotate the Ingress / Service that needs its DNS records managed and it will be automatically created / managed by Gardener.&lt;/p>
+&lt;p>Managed external DNS records are supported with the following DNS provider types:&lt;/p>
+&lt;ul>
+&lt;li>aws-route53&lt;/li>
+&lt;li>azure-dns&lt;/li>
+&lt;li>azure-private-dns&lt;/li>
+&lt;li>google-clouddns&lt;/li>
+&lt;li>openstack-designate&lt;/li>
+&lt;li>alicloud-dns&lt;/li>
+&lt;li>cloudflare-dns&lt;/li>
+&lt;/ul>
+&lt;h3 id="request-dns-records-for-ingress-resources">Request DNS records for Ingress resources&lt;/h3>
+&lt;p>To request a DNS name for an Ingress or Service object in the shoot cluster it must be annotated with the DNS class &lt;code>garden&lt;/code> and an annotation denoting the desired DNS names.&lt;/p>
 &lt;p>Example for an annotated Ingress resource:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-ingress
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#39;*&amp;#39;&lt;/span> &lt;span style="color:#008000"># collects domains names from .spec.rules[].host&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Let Gardener manage external DNS records for this Ingress.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: special.example.com &lt;span style="color:#008000"># Use &amp;#34;*&amp;#34; to collects domains names from .spec.rules[].host&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># If you are delegating the certificate management to Gardener, uncomment the following line&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#cert.gardener.cloud/purpose: managed&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-ingress
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: test.ingress.my-dns-domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: special.example.com
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: &lt;span style="color:#a31515">&amp;#34;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backend:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 9000
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pathType: Prefix
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - test.ingress.my-dns-domain.com
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: my-cert-secret-name
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For a Service (it must have the type &lt;code>LoadBalancer&lt;/code>) this looks like this:&lt;/p>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Uncomment the following part if you are delegating the certificate management to Gardener&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#tls:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - hosts:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - special.example.com&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># secretName: my-cert-secret-name&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For an Ingress, the DNS names are already declared in the specification. Nevertheless the &lt;em>dnsnames&lt;/em> annotation must be present. Here a subset of the DNS names of the ingress can be specified. If DNS names for all names are desired, the value &lt;code>all&lt;/code> can be used.&lt;/p>
+&lt;p>Keep in mind that ingress resources are ignored unless an ingress controller is set up. Gardener does not provide an ingress controller by default. See the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/">Kubernetes documentation&lt;/a> and &lt;a href="https://gardener.cloud/docs/guides/applications/service-access/#loadbalancer-vs-ingress">Gardener documentation&lt;/a> for more details.&lt;/p>
+&lt;h3 id="request-dns-records-for-service-type-loadbalancer">Request DNS records for service type LoadBalancer&lt;/h3>
+&lt;p>Example for an annotated Service (it must have the type &lt;code>LoadBalancer&lt;/code>) resource:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Let Gardener manage external DNS records for this Service.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: special.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: my.subdomain.for.some.domain.cloud
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: amazing-app
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="creating-a-dnsentry-resource-explicitly">Creating a DNSEntry resource explicitly&lt;/h4>
+&lt;p>It is also possible to create a DNS entry via the Kubernetes resource called &lt;code>DNSEntry&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Let Gardener manage this DNS entry.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: special-dnsentry
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 80
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 80
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;em>dnsnames&lt;/em> annotation accepts a comma-separated list of DNS names, if
-multiple names are required.&lt;/p>
-&lt;p>For an Ingress, the DNS names are already declared in the specification.
-Nevertheless the &lt;em>dnsnames&lt;/em> annotation must be present. Here a subset of the
-DNS names of the ingress can be specified. If DNS names for all names are
-desired, the value &lt;code>all&lt;/code> can be used.&lt;/p>
-&lt;p>If one of the accepted DNS names is a direct subname of the shoot&amp;rsquo;s ingress
-domain, this is already handled by the standard wildcard entry for the ingress
-domain. Therefore this name should be excluded from the &lt;em>dnsnames&lt;/em> list in the
-annotation. If only this DNS name is configured in the ingress, no explicit
-DNS entry is required, and the DNS annotations should be omitted at all.&lt;/p>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsName: special.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 600
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targets:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 1.2.3.4
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If one of the accepted DNS names is a direct subname of the shoot&amp;rsquo;s ingress domain, this is already handled by the standard wildcard entry for the ingress domain. Therefore this name should be excluded from the &lt;em>dnsnames&lt;/em> list in the annotation. If only this DNS name is configured in the ingress, no explicit DNS entry is required, and the DNS annotations should be omitted at all.&lt;/p>
+&lt;p>You can check the status of the &lt;code>DNSEntry&lt;/code> with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get dnsentry
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME DNS TYPE PROVIDER STATUS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>mydnsentry special.example.com aws-route53 default/aws Ready 24s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As soon as the status of the entry is &lt;code>Ready&lt;/code>, the provider has accepted the new DNS record. Depending on the provider and your DNS settings and cache, &lt;strong>it may take up to 24 hours for the new entry to be propagated over all internet&lt;/strong>.&lt;/p>
 &lt;p>More examples can be found &lt;a href="https://github.com/gardener/external-dns-management/blob/master/examples/">here&lt;/a>&lt;/p>
 &lt;h3 id="request-dns-records-for-serviceingress-resources-using-a-dnsannotation-resource">Request DNS records for Service/Ingress resources using a DNSAnnotation resource&lt;/h3>
-&lt;p>In rare cases it may not be possible to add annotations to a &lt;code>Service&lt;/code> or &lt;code>Ingress&lt;/code> resource object.
-E.g. the helm chart used to deploy the resource may no be adaptable for some reasons or some automation is used,
-which always restores the original content of the resource object by dropping any additional annotations.&lt;/p>
-&lt;p>In these cases you may use an additional &lt;code>DNSAnnotation&lt;/code> resource.&lt;/p>
-&lt;p>The &lt;code>DNSAnnotation&lt;/code> resource makes the DNS shoot service behave as if annotations have been added to the referenced
-resource.&lt;/p>
-&lt;p>For the Ingress example shown above, you can create a &lt;code>DNSAnnotation&lt;/code> resource alternatively to provide
-the annotations.&lt;/p>
+&lt;p>In rare cases it may not be possible to add annotations to a &lt;code>Service&lt;/code> or &lt;code>Ingress&lt;/code> resource object.&lt;/p>
+&lt;p>E.g.: the helm chart used to deploy the resource may not be adaptable for some reasons or some automation is used, which always restores the original content of the resource object by dropping any additional annotations.&lt;/p>
+&lt;p>In these cases, it is recommended to use an additional &lt;code>DNSAnnotation&lt;/code> resource in order to have more flexibility that &lt;code>DNSentry resources&lt;/code>. The &lt;code>DNSAnnotation&lt;/code> resource makes the DNS shoot service behave as if annotations have been added to the referenced resource.&lt;/p>
+&lt;p>For the Ingress example shown above, you can create a &lt;code>DNSAnnotation&lt;/code> resource alternatively to provide the annotations.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSAnnotation
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -173,46 +213,37 @@ the annotations.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#39;*&amp;#39;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that the DNSAnnotation resource itself needs the &lt;code>dns.gardener.cloud/class=garden&lt;/code> annotation.&lt;/p>
-&lt;p>No annotations in the Ingress resource would be needed.s&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-ingress
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please note this only works for anotations known to the DNS shoot service, i.e with keys &lt;code>dns.gardener.cloud/...&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that the DNSAnnotation resource itself needs the &lt;code>dns.gardener.cloud/class=garden&lt;/code> annotation. This also only works for annotations known to the DNS shoot service (see &lt;a href="#accepted-external-dns-records-annotations">Accepted External DNS Records Annotations&lt;/a>).&lt;/p>
 &lt;p>For more details, see also &lt;a href="https://github.com/gardener/external-dns-management#dnsannotation-objects">DNSAnnotation objects&lt;/a>&lt;/p>
-&lt;h2 id="request-dns-records-via-dnsentry-resources">Request DNS records via DNSEntry resources&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: dns
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsName: &lt;span style="color:#a31515">&amp;#34;my.subdomain.for.shootsomain.cloud&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 600
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># txt records, either text or targets must be specified&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># text:&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - foo-bar&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targets:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># target records (CNAME or A records)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 8.8.8.8
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="dns-record-events">DNS record events&lt;/h2>
+&lt;h3 id="accepted-external-dns-records-annotations">Accepted External DNS Records Annotations&lt;/h3>
+&lt;p>Here are all of the accepted annotation related to the DNS extension:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>- dns.gardener.cloud/dnsnames &lt;span style="color:#008000"># Mandatory, accepts a comma-separated list of DNS names if multiple names are required&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- dns.gardener.cloud/class &lt;span style="color:#008000"># Mandatory, DNS extension class name (usually &amp;#34;garden&amp;#34;)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- dns.gardener.cloud/ttl &lt;span style="color:#008000"># Recommended, Time-To-Live of the DNS record&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- dns.gardener.cloud/cname-lookup-interval &lt;span style="color:#008000"># Optional, lookup interval for CNAMEs that must be resolved to IP (in seconds)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- dns.gardener.cloud/realms &lt;span style="color:#008000"># Optional, for restricting provider access for shoot DNS entries&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If one of the accepted DNS names is a direct subdomain of the shoot&amp;rsquo;s ingress domain, this is already handled by the standard wildcard entry for the ingress domain. Therefore, this name should be excluded from the &lt;em>dnsnames&lt;/em> list in the annotation. If only this DNS name is configured in the ingress, no explicit DNS entry is required, and the DNS annotations should be omitted at all.&lt;/p>
+&lt;h2 id="troubleshooting">Troubleshooting&lt;/h2>
+&lt;h3 id="general-dns-tools">General DNS tools&lt;/h3>
+&lt;p>To check the DNS resolution, use the &lt;code>nslookup&lt;/code> or &lt;code>dig&lt;/code> command.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ nslookup special.your-domain.com
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or with dig&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ dig +short special.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Depending on your network settings, you may get a successful response faster using a public DNS server (e.g. 8.8.8.8, 8.8.4.4, or 1.1.1.1)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dig @8.8.8.8 +short special.example.com
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="dns-record-events">DNS record events&lt;/h3>
 &lt;p>The DNS controller publishes Kubernetes events for the resource which requested the DNS record (Ingress, Service, DNSEntry). These events reveal more information about the DNS requests being processed and are especially useful to check any kind of misconfiguration, e.g. requests for a domain you don&amp;rsquo;t own.&lt;/p>
 &lt;p>Events for a successfully created DNS record:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl -n default describe service my-service
+&lt;pre tabindex="0">&lt;code>$ kubectl describe service my-service
 Events:
 Type Reason Age From Message
 ---- ------ ---- ---- -------
-Normal dns-annotation 19s dns-controller-manager my.subdomain.for.shootsomain.cloud: dns entry is pending
-Normal dns-annotation 19s (x3 over 19s) dns-controller-manager my.subdomain.for.shootsomain.cloud: dns entry pending: waiting for dns reconciliation
-Normal dns-annotation 9s (x3 over 10s) dns-controller-manager my.subdomain.for.shootsomain.cloud: dns entry active
+Normal dns-annotation 19s dns-controller-manager special.example.com: dns entry is pending
+Normal dns-annotation 19s (x3 over 19s) dns-controller-manager special.example.com: dns entry pending: waiting for dns reconciliation
+Normal dns-annotation 9s (x3 over 10s) dns-controller-manager special.example.com: dns entry active
 &lt;/code>&lt;/pre>&lt;p>Please note, events vanish after their retention period (usually &lt;code>1h&lt;/code>).&lt;/p>
-&lt;h2 id="dnsentry-status">DNSEntry status&lt;/h2>
+&lt;h3 id="dnsentry-status">DNSEntry status&lt;/h3>
 &lt;p>&lt;code>DNSEntry&lt;/code> resources offer a &lt;code>.status&lt;/code> sub-resource which can be used to check the current state of the object.&lt;/p>
 &lt;p>Status of a erroneous &lt;code>DNSEntry&lt;/code>.&lt;/p>
 &lt;pre tabindex="0">&lt;code> status:
@@ -220,7 +251,14 @@ message: No responsible provider found
 observedGeneration: 3
 provider: remote
 state: Error
-&lt;/code>&lt;/pre></description></item><item><title>Docs: DNS Providers</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/</guid><description>
+&lt;/code>&lt;/pre>&lt;h2 id="references">References&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/docs/extensions/dns.md">DNSEntry and DNSProvider&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://www.cloudflare.com/en-ca/learning/dns/what-is-dns">Understanding DNS&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/">Kubernetes Internal DNS&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/external-dns-management/blob/master/pkg/apis/dns/v1alpha1/dnsentry.go">DNSEntry API (Golang)&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/">Managing Certificates with Gardener&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: DNS Providers</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/</guid><description>
 &lt;h1 id="dns-providers">DNS Providers&lt;/h1>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>Gardener can manage DNS records on your behalf, so that you can request them via different resource types (see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_names/">here&lt;/a>) within the shoot cluster. The domains for which you are permitted to request records, are however restricted and depend on the DNS provider configuration.&lt;/p>
@@ -307,7 +345,7 @@ names for shoot clusters. So, far only the external DNS domain of a shoot
 for managed DNS names.&lt;/p>
 &lt;h2 id="configuration">Configuration&lt;/h2>
 &lt;p>A general description for configuring the DNS management of the
-gardener can be found &lt;a href="https://gardener.cloud/docs/gardener/extensions/dns/">here&lt;/a>.&lt;/p>
+gardener can be found &lt;a href="https://github.com/gardener/gardener/blob/master/docs/extensions/dns.md">here&lt;/a>.&lt;/p>
 &lt;p>To generally enable the DNS management for shoot objects the
 &lt;code>shoot-dns-service&lt;/code> extension must be registered by providing an
 appropriate &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service/blob/master/example/controller-registration.yaml">extension registration&lt;/a> in the garden cluster.&lt;/p>

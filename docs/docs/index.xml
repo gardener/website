@@ -1,4 +1,4 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Docs</title><link>https://gardener.cloud/docs/</link><description>Recent content in Docs on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Tue, 01 Dec 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/docs/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Gardenctl V2</title><link>https://gardener.cloud/docs/gardenctl-v2/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardenctl-v2/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Docs</title><link>https://gardener.cloud/docs/</link><description>Recent content in Docs on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Wed, 20 Jul 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/docs/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Gardenctl V2</title><link>https://gardener.cloud/docs/gardenctl-v2/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardenctl-v2/</guid><description>
 &lt;h1 id="gardenctl-v2">gardenctl-v2&lt;/h1>
 &lt;p>&lt;img src="https://github.com/gardener/gardenctl-v2/raw/DEFAULT_BRANCH/logo/logo_gardener_cli_large.png" alt="">&lt;/p>
 &lt;p>&lt;a href="https://goreportcard.com/report/github.com/gardener/gardenctl-v2">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardenctl-v2" alt="Go Report Card">&lt;/a>
@@ -97,6 +97,433 @@ your shell completion command. Example:&lt;/p>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ssh">SSH&lt;/h3>
 &lt;p>Establish an SSH connection to a Shoot cluster&amp;rsquo;s node.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gardenctl ssh my-node
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Manage certificates with Gardener for default domain</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_default_domain_cert/</link><pubDate>Wed, 20 Jul 2022 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_default_domain_cert/</guid><description>
+&lt;h1 id="manage-certificates-with-gardener-for-default-domain">Manage certificates with Gardener for default domain&lt;/h1>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>Dealing with applications on Kubernetes which offer a secure service endpoints (e.g. HTTPS) also require you to enable a
+secured communication via SSL/TLS. With the &lt;a href="https://github.com/gardener/gardener-extension-shoot-cert-service">certificate extension&lt;/a> enabled, Gardener can manage commonly trusted X.509 certificate for your application
+endpoint. From initially requesting certificate, it also handeles their renewal in time using the free Let&amp;rsquo;s Encrypt API.&lt;/p>
+&lt;p>&lt;strong>There are two senarios with which you can use the certificate extension&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>You want to use a certificate for a subdomain the shoot&amp;rsquo;s default DNS (see &lt;code>.spec.dns.domain&lt;/code> of your shoot resource, e.g. &lt;code>short.ingress.shoot.project.default-domain.gardener.cloud&lt;/code>). If this is your case, please keep reading this article.&lt;/li>
+&lt;li>You want to use a certificate for a custom domain. If this is your case, please see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/">Manage certificates with Gardener for public domain&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Before you start this guide there are a few requirements you need to fulfill:&lt;/p>
+&lt;ul>
+&lt;li>You have an existing shoot cluster&lt;/li>
+&lt;/ul>
+&lt;p>Since you are using the default DNS name, all DNS configuration should already be done and ready.&lt;/p>
+&lt;h2 id="issue-a-certificatey">Issue a certificatey&lt;/h2>
+&lt;p>Every X.509 certificate is represented by a Kubernetes custom resource &lt;code>certificate.cert.gardener.cloud&lt;/code> in your cluster. A &lt;code>Certificate&lt;/code> resource may be used to initiate a new certificate request as well as to manage its lifecycle. Gardener&amp;rsquo;s certificate service regularly checks the expiration timestamp of Certificates, triggers a renewal process if necessary and replaces the existing X.509 certificate with a new one.&lt;/p>
+&lt;blockquote>
+&lt;p>Your application should be able to reload replaced certificates in a timely manner to avoid service disruptions.&lt;/p>
+&lt;/blockquote>
+&lt;p>Certificates can be requested via 3 resources type&lt;/p>
+&lt;ul>
+&lt;li>Ingress&lt;/li>
+&lt;li>Service (type LoadBalancer)&lt;/li>
+&lt;li>certificate (Gardener CRD)&lt;/li>
+&lt;/ul>
+&lt;p>If either of the first 2 are used, a corresponding &lt;code>Certificate&lt;/code> resource will automatically be created.&lt;/p>
+&lt;h3 id="using-an-ingress-resource">Using an ingress Resource&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: &lt;span style="color:#a31515">&amp;#34;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-a-service-type-loadbalancer">Using a service type LoadBalancer&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/secretname: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># You may add more domains separated by commas (e.g. &amp;#34;service.shoot.project.default-domain.gardener.cloud, amazing.shoot.project.default-domain.gardener.cloud&amp;#34;)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;service.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#cert.gardener.cloud/issuer: custom-issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-the-custom-certificate-resource">Using the custom Certificate resource&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Optionnal if using the default issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuerRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you&amp;rsquo;re interested in the current progress of your request, you&amp;rsquo;re advised to consult the description, more specifically the &lt;code>status&lt;/code> attribute in case the issuance failed.&lt;/p>
+&lt;h2 id="request-a-wildcard-certificate">Request a wildcard certificate&lt;/h2>
+&lt;p>In order to avoid the creation of multiples certificates for every single endpoints, you may want to create a wildcard certificate for your shoot&amp;rsquo;s default cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/commonName: &lt;span style="color:#a31515">&amp;#34;*.ingress.shoot.project.default-domain.gardener.cloud&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - amazing.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: amazing.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: &lt;span style="color:#a31515">&amp;#34;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please note that this can also be achived by directly adding an annotation to a Service type LoadBalancer. You could also create a Certificate object with a wildcard domain.&lt;/p>
+&lt;h2 id="more-information">More information&lt;/h2>
+&lt;p>For more information and more examples about using the certificate extension, please see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/">Manage certificates with Gardener for public domain&lt;/a>&lt;/p></description></item><item><title>Docs: Manage certificates with Gardener for public domain</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</link><pubDate>Wed, 20 Jul 2022 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_cert/</guid><description>
+&lt;h1 id="manage-certificates-with-gardener-for-public-domain">Manage certificates with Gardener for public domain&lt;/h1>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>Dealing with applications on Kubernetes which offer a secure service endpoints (e.g. HTTPS) also require you to enable a
+secured communication via SSL/TLS. With the &lt;a href="https://github.com/gardener/gardener-extension-shoot-cert-service">certificate extension&lt;/a> enabled, Gardener can manage commonly trusted X.509 certificate for your application
+endpoint. From initially requesting certificate, it also handeles their renewal in time using the free Let&amp;rsquo;s Encrypt API.&lt;/p>
+&lt;p>&lt;strong>There are two senarios with which you can use the certificate extension&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>You want to use a certificate for a subdomain the shoot&amp;rsquo;s default DNS (see &lt;code>.spec.dns.domain&lt;/code> of your shoot resource, e.g. &lt;code>short.ingress.shoot.project.default-domain.gardener.cloud&lt;/code>). If this is your case, please see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/request_default_domain_cert/">Manage certificates with Gardener for default domain&lt;/a>&lt;/li>
+&lt;li>You want to use a certificate for a custom domain. If this is your case, please keep reading this article.&lt;/li>
+&lt;/ul>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Before you start this guide there are a few requirements you need to fulfill:&lt;/p>
+&lt;ul>
+&lt;li>You have an existing shoot cluster&lt;/li>
+&lt;li>Your custom domain is under a &lt;a href="https://www.iana.org/domains/root/db">public top level domain&lt;/a> (e.g. &lt;code>.com&lt;/code>)&lt;/li>
+&lt;li>Your custom zone is resolvable with a public resolver via the internet (e.g. &lt;code>8.8.8.8&lt;/code>)&lt;/li>
+&lt;li>You have a custom DNS provider configured and working (see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/">&amp;ldquo;DNS Providers&amp;rdquo;&lt;/a>)&lt;/li>
+&lt;/ul>
+&lt;p>As part of the &lt;a href="https://letsencrypt.org/">Let&amp;rsquo;s Encrypt&lt;/a> &lt;a href="https://tools.ietf.org/html/rfc8555">ACME&lt;/a> challenge validation process, Gardener sets a DNS TXT entry and Let&amp;rsquo;s Encrypt checks if it can both resolve and authenticate it. Therefore, it&amp;rsquo;s important that your DNS-entries are publicly resolvable. You can check this by querying e.g. Googles public DNS server and if it returns an entry your DNS is publicly visible:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># returns the A record for cert-example.example.com using Googles DNS server (8.8.8.8)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dig cert-example.example.com @8.8.8.8 A
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="dns-provider">DNS provider&lt;/h3>
+&lt;p>In order to issue certificates for a custom domain you need to specify a DNS provider which is permitted to create DNS records for subdomains of your requested domain in the certificate. For example, if you request a certificate for &lt;code>host.example.com&lt;/code> your DNS provider must be capable of managing subdomains of &lt;code>host.example.com&lt;/code>.&lt;/p>
+&lt;p>DNS providers are normally specified in the shoot manifest. To learn more on how to configure one, please see the &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/docs/usage/dns_providers/">DNS provider&lt;/a> documentation.&lt;/p>
+&lt;h2 id="issue-a-certificate">Issue a certificate&lt;/h2>
+&lt;p>Every X.509 certificate is represented by a Kubernetes custom resource &lt;code>certificate.cert.gardener.cloud&lt;/code> in your cluster. A &lt;code>Certificate&lt;/code> resource may be used to initiate a new certificate request as well as to manage its lifecycle. Gardener&amp;rsquo;s certificate service regularly checks the expiration timestamp of Certificates, triggers a renewal process if necessary and replaces the existing X.509 certificate with a new one.&lt;/p>
+&lt;blockquote>
+&lt;p>Your application should be able to reload replaced certificates in a timely manner to avoid service disruptions.&lt;/p>
+&lt;/blockquote>
+&lt;p>Certificates can be requested via 3 resources type&lt;/p>
+&lt;ul>
+&lt;li>Ingress&lt;/li>
+&lt;li>Service (type LoadBalancer)&lt;/li>
+&lt;li>Certificate (Gardener CRD)&lt;/li>
+&lt;/ul>
+&lt;p>If either of the first 2 are used, a corresponding &lt;code>Certificate&lt;/code> resource will created automatically.&lt;/p>
+&lt;h3 id="using-an-ingress-resource">Using an ingress Resource&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Optional but recommended, this is going to create the DNS entry at the same time&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Must not exceed 64 characters.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - amazing.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Certificate and private key reside in this secret.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: amazing.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: &lt;span style="color:#a31515">&amp;#34;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Replace the &lt;code>hosts&lt;/code> and &lt;code>rules[].host&lt;/code> value again with your own domain and adjust the remaining Ingress attributes in accordance with your deployment (e.g. the above is for an &lt;code>istio&lt;/code> Ingress controller and forwards traffic to a &lt;code>service1&lt;/code> on port 80).&lt;/p>
+&lt;h3 id="using-a-service-type-loadbalancer">Using a service type LoadBalancer&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/secretname: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: example.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Optional&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ttl: &lt;span style="color:#a31515">&amp;#34;600&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/commonname: &lt;span style="color:#a31515">&amp;#34;*.example.example.com&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: http
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-the-custom-certificate-resource">Using the custom Certificate resource&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: amazing.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Optionnal if using the default issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuerRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="supported-attributes">Supported attributes&lt;/h2>
+&lt;p>Here is a list of all supported annotations regarding the certificate extension:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:left">Path&lt;/th>
+&lt;th style="text-align:left">Annotation&lt;/th>
+&lt;th style="text-align:left">Value&lt;/th>
+&lt;th style="text-align:left">Required&lt;/th>
+&lt;th style="text-align:left">Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:left">N/A&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/purpose:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>managed&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Yes when using annotations&lt;/td>
+&lt;td style="text-align:left">Flag for Gardener that this specific Ingress or Service requires a certificate&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>spec.commonName&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/commonname:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">E.g. &amp;ldquo;*.demo.example.com&amp;rdquo; or &lt;br> &amp;ldquo;special.example.com&amp;rdquo;&lt;/td>
+&lt;td style="text-align:left">Certificate and Ingress : No &lt;br/> Service: yes&lt;/td>
+&lt;td style="text-align:left">Specifies for which domain the certificate request will be created. If not specified, the names from spec.tls[].hosts are used. This entry must comply with the &lt;a href="#Character-Restrictions">64 character&lt;/a> limit.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>spec.dnsName&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/dnsnames:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">E.g. &amp;ldquo;special.example.com&amp;rdquo;&lt;/td>
+&lt;td style="text-align:left">Certificate and Ingress : No &lt;br/> Service: yes&lt;/td>
+&lt;td style="text-align:left">Additional domains the certificate should be valid for (Subject Alternative Name). If not specified, the names from spec.tls[].hosts are used. Entries in this list can be longer than 64 characters.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>spec.secretRef.name&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/secretname:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>any-name&lt;/code>&lt;/td>
+&lt;td style="text-align:left">Yes for certificate and Service&lt;/td>
+&lt;td style="text-align:left">Specifies the secret which contains the certificate/key pair. If the secret is not available yet, it&amp;rsquo;ll be created automatically as soon as the certificate has been issued.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">&lt;code>spec.issuerRef.name&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/issuer:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">E.g. &lt;code>gardener&lt;/code>&lt;/td>
+&lt;td style="text-align:left">No&lt;/td>
+&lt;td style="text-align:left">Specifies the issuer you want to use. Only necessary if you request certificates for &lt;a href="#Custom-Domains">custom domains&lt;/a>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:left">N/A&lt;/td>
+&lt;td style="text-align:left">&lt;code>cert.gardener.cloud/revoked:&lt;/code>&lt;/td>
+&lt;td style="text-align:left">&lt;code>true&lt;/code> otherwise always false&lt;/td>
+&lt;td style="text-align:left">No&lt;/td>
+&lt;td style="text-align:left">Use only to revoke a certificate, see &lt;a href="#references">reference&lt;/a> for more details&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="request-a-wildcard-certificate">Request a wildcard certificate&lt;/h2>
+&lt;p>In order to avoid the creation of multiples certificates for every single endpoints, you may want to create a wildcard certificate for your shoot&amp;rsquo;s default cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/purpose: managed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert.gardener.cloud/commonName: &lt;span style="color:#a31515">&amp;#34;*.example.com&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - hosts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - amazing.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: tls-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - host: amazing.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> http:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paths:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - pathType: Prefix
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: &lt;span style="color:#a31515">&amp;#34;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backend:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: amazing-svc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number: 8080
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please note that this can also be achived by directly adding an annotation to a Service type LoadBalancer. You could also create a Certificate object with a wildcard domain.&lt;/p>
+&lt;h2 id="using-a-custom-issuer">Using a custom Issuer&lt;/h2>
+&lt;p>Most Gardener deployment with the certification extension enabled have a preconfigured &lt;code>garden&lt;/code> issuer. It is also usually configured to use Let&amp;rsquo;s Encrypt as the certificate provider.&lt;/p>
+&lt;p>If you need a custom issuer for a specific cluster, please see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/custom_shoot_issuer/">Using a custom Issuer&lt;/a>&lt;/p>
+&lt;h2 id="quotas">Quotas&lt;/h2>
+&lt;p>For security reasons there may be a default quota on the certificate requests per day set globally in the controller
+registration of the shoot-cert-service.&lt;/p>
+&lt;p>The default quota only applies if there is no explicit quota defined for the issuer itself with the field
+&lt;code>requestsPerDayQuota&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: your-email@example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requestsPerDayQuota: 10
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="dns-propagation">DNS Propagation&lt;/h2>
+&lt;p>As stated before, cert-manager uses the ACME challenge protocol to authenticate that you are the DNS owner for the domain&amp;rsquo;s certificate you are requesting. This works by creating a DNS TXT record in your DNS provider under &lt;code>_acme-challenge.example.example.com&lt;/code> containing a token to compare with. The TXT record is only visible during the domain validation. Typically, the record is propagated within a few minutes. But if the record is not visible to the ACME server for any reasons, the certificate request is retried again after several minutes. This means you may have to wait up to one hour after the propagation problem has been resolved before the certificate request is retried. Take a look in the events with &lt;code>kubectl describe ingress example&lt;/code> for troubleshooting.&lt;/p>
+&lt;h2 id="character-restrictions">Character Restrictions&lt;/h2>
+&lt;p>Due to the ACME protocol specification, at least one domain of the domains you request a certificate for must not exceed a character limit of 64 (CN - Common Name).&lt;/p>
+&lt;p>For example, the following request is invalid:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-invalid
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>But it is valid to request a certificate for this domain if you have at least one domain which does not exceed the mentioned limit:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cert-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonName: short.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsNames:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - morethan64characters.ingress.shoot.project.default-domain.gardener.cloud
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="references">References&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/cert-management">Gardener cert-management&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">Managing DNS with Gardener&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Using a custom Issuer</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/custom_shoot_issuer/</link><pubDate>Wed, 20 Jul 2022 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-cert-service/docs/usage/custom_shoot_issuer/</guid><description>
+&lt;h1 id="using-a-custom-issuer">Using a custom Issuer&lt;/h1>
+&lt;p>Another possibility to request certificates for custom domains is a dedicated issuer.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: This is only needed if the default issuer provided by Gardener is restricted to shoot related domains or you are using domain names not visible to public DNS servers. &lt;strong>Which means that your senario most likely doesn&amp;rsquo;t require your to add an issuer&lt;/strong>.&lt;/p>
+&lt;/blockquote>
+&lt;p>The custom issuers are specified normally in the shoot manifest. If the &lt;code>shootIssuers&lt;/code> feature is enabled, it can alternatively be defined in the shoot cluster.&lt;/p>
+&lt;h2 id="custom-issuer-in-the-shoot-manifest">Custom issuer in the shoot manifest&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - email: your-email@example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer &lt;span style="color:#008000"># issuer name must be specified in every custom issuer request, must not be &amp;#34;garden&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: &lt;span style="color:#a31515">&amp;#39;https://acme-v02.api.letsencrypt.org/directory&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKeySecretName: my-privatekey &lt;span style="color:#008000"># referenced resource, the private key must be stored in the secret at `data.privateKey` (optionally, only needed as alternative to auto registration) &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#precheckNameservers: # to provide special set of nameservers to be used for prechecking DNSChallenges for an issuer&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#- dns1.private.company-net:53&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#- dns2.private.company-net:53&amp;#34; &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#shootIssuers:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#enabled: true &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my-privatekey
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: custom-issuer-privatekey &lt;span style="color:#008000"># name of secret in Gardener project&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you are using an ACME provider for private domains, you may need to change the nameservers used for
+checking the availability of the DNS challenge&amp;rsquo;s TXT record before the certificate is requested from the ACME provider.
+By default, only public DNS servers may be used for this purpose.
+At least one of the &lt;code>precheckNameservers&lt;/code> must be able to resolve the private domain names.&lt;/p>
+&lt;h2 id="using-an-issuer-in-the-shoot-cluster">Using an issuer in the shoot cluster&lt;/h2>
+&lt;p>&lt;em>Prerequiste&lt;/em>: The &lt;code>shootIssuers&lt;/code> feature has to be enabled.
+It is either enabled globally in the &lt;code>ControllerDeployment&lt;/code> or in the shoot manifest
+with:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-cert-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.cert.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CertConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootIssuers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span> &lt;span style="color:#008000"># if true, allows to specify issuers in the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Example for specifying an &lt;code>Issuer&lt;/code> resource and its &lt;code>Secret&lt;/code> directly in any
+namespace of the shoot cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: cert.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Issuer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> acme:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domains:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> include:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - my.own.domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> email: some.user@my.own.domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKeySecretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://acme-v02.api.letsencrypt.org/directory
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-own-issuer-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privateKey: ... &lt;span style="color:#008000"># replace &amp;#39;...&amp;#39; with valus encoded as base64&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Hibernate a Cluster</title><link>https://gardener.cloud/docs/gardener/usage/shoot_hibernate/</link><pubDate>Thu, 19 Nov 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_hibernate/</guid><description>
 &lt;h1 id="hibernate-a-cluster">Hibernate a Cluster&lt;/h1>
 &lt;p>Clusters are only needed 24 hours a day if they run productive workload. So whenever you do development in a cluster, or just use it for tests or demo purposes, you can save much money if you scale-down your Kubernetes resources whenever you don&amp;rsquo;t need them. However, scaling them down manually can become time-consuming the more resources you have.&lt;/p>
@@ -11589,439 +12016,4 @@ The way to install the binaries is by creating a daemon set which copies the bin
 export SHOOT_NAME=my-shoot
 export SERVER=cluster-server-address
 curl -k --cert &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/client.crt --key &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/client.key -XPATCH -H &amp;#34;Accept: application/json&amp;#34; -H &amp;#34;Content-Type: application/merge-patch+json&amp;#34; --data &amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;seedName&amp;#34;:&amp;#34;&amp;lt;destination-seed&amp;gt;&amp;#34;}}&amp;#39; https://${SERVER}/apis/core.gardener.cloud/v1beta1/namespaces/${NAMESPACE}/shoots/${SHOOT_NAME}/binding | jq -r &amp;#34;.spec.seedName&amp;#34;
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
-&lt;h1 id="gardener-controller-manager">Gardener Controller Manager&lt;/h1>
-&lt;p>The &lt;code>gardener-controller-manager&lt;/code> (often refered to as &amp;ldquo;GCM&amp;rdquo;) is a component that runs next to the Gardener API server, similar to the Kubernetes Controller Manager.
-It runs several control loops that do not require talking to any seed or shoot cluster.
-Also, as of today it exposes an HTTP server that is serving several health check endpoints and metrics.&lt;/p>
-&lt;p>This document explains the various functionalities of the &lt;code>gardener-controller-manager&lt;/code> and their purpose.&lt;/p>
-&lt;h2 id="control-loops">Control Loops&lt;/h2>
-&lt;h3 id="bastion-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerbastion">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/bastion">&lt;code>Bastion&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>&lt;code>Bastion&lt;/code> resources have a limited lifetime which can be extended up to a certain amount by performing a heartbeat on them.
-The &lt;code>Bastion&lt;/code> controller is responsible for deleting expired or rotten &lt;code>Bastion&lt;/code>s.&lt;/p>
-&lt;ul>
-&lt;li>&amp;ldquo;expired&amp;rdquo; means a &lt;code>Bastion&lt;/code> has exceeded its &lt;code>status.expirationTimestamp&lt;/code>.&lt;/li>
-&lt;li>&amp;ldquo;rotten&amp;rdquo; means a &lt;code>Bastion&lt;/code> is older than the configured &lt;code>maxLifetime&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;p>The &lt;code>maxLifetime&lt;/code> defaults to 24 hours and is an option in the &lt;code>BastionControllerConfiguration&lt;/code> which is part of &lt;code>gardener-controller-manager&lt;/code>s &lt;code>ControllerManagerControllerConfiguration&lt;/code>, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-controller-manager.yaml">the example config file&lt;/a> for details.&lt;/p>
-&lt;p>The controller also deletes &lt;code>Bastion&lt;/code>s in case the referenced &lt;code>Shoot&lt;/code>&lt;/p>
-&lt;ul>
-&lt;li>does no longer exist&lt;/li>
-&lt;li>is marked for deletion (i.e., have a non-&lt;code>nil&lt;/code> &lt;code>.metadata.deletionTimestamp&lt;/code>)&lt;/li>
-&lt;li>was migrated to another seed (i.e., &lt;code>Shoot.spec.seedName&lt;/code> is different than &lt;code>Bastion.spec.seedName&lt;/code>).&lt;/li>
-&lt;/ul>
-&lt;p>The deletion of &lt;code>Bastion&lt;/code>s triggers the &lt;code>gardenlet&lt;/code> to perform the necessary cleanups in the Seed cluster, so some time can pass between deletion and the &lt;code>Bastion&lt;/code> actually disappearing.
-Clients like &lt;code>gardenctl&lt;/code> are advised to not re-use &lt;code>Bastion&lt;/code>s whose deletion timestamp has been set already.&lt;/p>
-&lt;p>Refer to &lt;a href="https://gardener.cloud/docs/gardener/proposals/15-manage-bastions-and-ssh-key-pair-rotation/">GEP-15&lt;/a> for more information on the lifecycle of
-&lt;code>Bastion&lt;/code> resources.&lt;/p>
-&lt;h3 id="cloudprofile-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercloudprofile">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/cloudprofile">&lt;code>CloudProfile&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>&lt;code>CloudProfile&lt;/code>s are essential when it comes to reconciling &lt;code>Shoot&lt;/code>s since they contain constraints (like valid machine types, Kubernetes versions, or machine images) and sometimes also some global configuration for the respective environment (typically via provider-specific configuration in &lt;code>.spec.providerConfig&lt;/code>).&lt;/p>
-&lt;p>Consequently, to ensure that &lt;code>CloudProfile&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>CloudProfile&lt;/code> anymore.&lt;/p>
-&lt;h3 id="project-controller">&lt;code>Project&lt;/code> Controller&lt;/h3>
-&lt;p>This controller consists out of three reconciliation loops:
-The main loop is reconciling &lt;code>Project&lt;/code> resources while the second loop is controlling the necessary actions for stale projects.&lt;/p>
-&lt;h4 id="main-reconciler">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciler will create a dedicated &lt;code>Namespace&lt;/code> prefixed with &lt;code>garden-&lt;/code> for each &lt;code>Project&lt;/code> resource.
-The name of the namespace can either be stated in the &lt;code>.spec.namespace&lt;/code>, or it will be auto-generated by the reconciler.
-If &lt;code>.spec.namespace&lt;/code> is set then it creates it if it does not exist yet.
-Otherwise, it tries to adopt it.
-This will only succeed if the &lt;code>Namespace&lt;/code> was previously labeled with &lt;code>gardener.cloud/role=project&lt;/code> and &lt;code>project.gardener.cloud/name=&amp;lt;project-name&amp;gt;&lt;/code>.
-This is to prevent that end-users can adopt arbitrary namespaces and escalate their privileges, e.g. the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
-&lt;p>After the namespace was created/adopted the reconciler creates several &lt;code>ClusterRole&lt;/code>s and &lt;code>ClusterRoleBinding&lt;/code>s that allow the project members to access related resources based on their roles.
-These RBAC resources are prefixed with &lt;code>gardener.cloud:system:project{-member,-viewer}:&amp;lt;project-name&amp;gt;&lt;/code>.
-Gardener administrators and extension developers can define their own roles, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/project-roles/">this document&lt;/a> for more information.&lt;/p>
-&lt;p>In addition, operators can configure the Project controller to maintain a default &lt;a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/">ResourceQuota&lt;/a> for project namespaces.
-Quotas can especially limit the creation of user facing resources, e.g. &lt;code>Shoots&lt;/code>, &lt;code>SecretBindings&lt;/code>, &lt;code>Secrets&lt;/code> and thus protect the Garden cluster from massive resource exhaustion but also enable operators to align quotas with respective enterprise policies.&lt;/p>
-&lt;blockquote>
-&lt;p>⚠️ &lt;strong>Gardener itself is not exempted from configured quotas&lt;/strong>. For example, Gardener creates &lt;code>Secrets&lt;/code> for every shoot cluster in the project namespace and at the same time increases the available quota count. Please mind this additional resource consumption.&lt;/p>
-&lt;/blockquote>
-&lt;p>The GCM configuration provides a template section &lt;code>controllers.project.quotas&lt;/code> where such a ResourceQuota (see example below) can be deposited.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>controllers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> project:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> quotas:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - config:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ResourceQuota
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hard:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/shoots.core.gardener.cloud: &lt;span style="color:#a31515">&amp;#34;100&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/secretbindings.core.gardener.cloud: &lt;span style="color:#a31515">&amp;#34;10&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/secrets: &lt;span style="color:#a31515">&amp;#34;800&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> projectSelector: {}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Project controller takes the shown &lt;code>config&lt;/code> and creates a &lt;code>ResourceQuota&lt;/code> with the name &lt;code>gardener&lt;/code> in the project namespace.
-If a &lt;code>ResourceQuota&lt;/code> resource with the name &lt;code>gardener&lt;/code> already exists, the controller will only update fields in &lt;code>spec.hard&lt;/code> which are &lt;strong>unavailable&lt;/strong> at that time.
-Labels and annotations on the &lt;code>ResourceQuota&lt;/code> &lt;code>config&lt;/code> get merged with the respective fields on existing &lt;code>ResourceQuota&lt;/code>s.
-An optional &lt;code>projectSelector&lt;/code> narrows down the amount of projects that are equipped with the given &lt;code>config&lt;/code>.
-If multiple configs match for a project, then only the first match in the list is applied to the project namespace.&lt;/p>
-&lt;p>The &lt;code>.status.phase&lt;/code> of the &lt;code>Project&lt;/code> resources will be set to &lt;code>Ready&lt;/code> or &lt;code>Failed&lt;/code> by the reconciler to indicate whether the reconciliation loop was performed successfully.
-Also, it will generate &lt;code>Event&lt;/code>s to provide further information about its operations.&lt;/p>
-&lt;h4 id="stale-projects-reconciler">&amp;ldquo;Stale Projects&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>As Gardener is a large-scale Kubernetes as a Service it is designed for being used by a large amount of end-users.
-Over time, it is likely to happen that some of the hundreds or thousands of &lt;code>Project&lt;/code> resources are no longer actively used.&lt;/p>
-&lt;p>Gardener offers the &amp;ldquo;stale projects&amp;rdquo; reconciler which will take care of identifying such stale projects, marking them with a &amp;ldquo;warning&amp;rdquo;, and eventually deleting them after a certain time period.
-This reconciler is enabled by default and works as following:&lt;/p>
-&lt;ol>
-&lt;li>Projects are considered as &amp;ldquo;stale&amp;rdquo;/not actively used when all of the following conditions apply: The namespace associated with the &lt;code>Project&lt;/code> does not have any&amp;hellip;
-&lt;ol>
-&lt;li>&lt;code>Shoot&lt;/code> resources.&lt;/li>
-&lt;li>&lt;code>Plant&lt;/code> resources.&lt;/li>
-&lt;li>&lt;code>BackupEntry&lt;/code> resources.&lt;/li>
-&lt;li>&lt;code>Secret&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
-&lt;li>&lt;code>Quota&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
-&lt;li>The time period when the project was used for the last time (&lt;code>status.lastActivityTimestamp&lt;/code>) is longer than the configured &lt;code>minimumLifetimeDays&lt;/code>&lt;/li>
-&lt;/ol>
-&lt;/li>
-&lt;/ol>
-&lt;p>If a project is considered &amp;ldquo;stale&amp;rdquo; then its &lt;code>.status.staleSinceTimestamp&lt;/code> will be set to the time when it was first detected to be stale.
-If it gets actively used again this timestamp will be removed.
-After some time the &lt;code>.status.staleAutoDeleteTimestamp&lt;/code> will be set to a timestamp after which Gardener will auto-delete the &lt;code>Project&lt;/code> resource if it still is not actively used.&lt;/p>
-&lt;p>The component configuration of the &lt;code>gardener-controller-manager&lt;/code> offers to configure the following options:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>minimumLifetimeDays&lt;/code>: Don&amp;rsquo;t consider newly created &lt;code>Project&lt;/code>s as &amp;ldquo;stale&amp;rdquo; too early to give people/end-users some time to onboard and get familiar with the system. The &amp;ldquo;stale project&amp;rdquo; reconciler won&amp;rsquo;t set any timestamp for &lt;code>Project&lt;/code>s younger than &lt;code>minimumLifetimeDays&lt;/code>. When you change this value then projects marked as &amp;ldquo;stale&amp;rdquo; may be no longer marked as &amp;ldquo;stale&amp;rdquo; in case they are young enough, or vice versa.&lt;/li>
-&lt;li>&lt;code>staleGracePeriodDays&lt;/code>: Don&amp;rsquo;t compute auto-delete timestamps for stale &lt;code>Project&lt;/code>s that are unused for only less than &lt;code>staleGracePeriodDays&lt;/code>. This is to not unnecessarily make people/end-users nervous &amp;ldquo;just because&amp;rdquo; they haven&amp;rsquo;t actively used their &lt;code>Project&lt;/code> for a given amount of time. When you change this value then already assigned auto-delete timestamps may be removed again if the new grace period is not yet exceeded.&lt;/li>
-&lt;li>&lt;code>staleExpirationTimeDays&lt;/code>: Expiration time after which stale &lt;code>Project&lt;/code>s are finally auto-deleted (after &lt;code>.status.staleSinceTimestamp&lt;/code>). If this value is changed and an auto-delete timestamp got already assigned to the projects then the new value will only take effect if it&amp;rsquo;s increased. Hence, decreasing the &lt;code>staleExpirationTimeDays&lt;/code> will not decrease already assigned auto-delete timestamps.&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>Gardener administrators/operators can exclude specific &lt;code>Project&lt;/code>s from the stale check by annotating the related &lt;code>Namespace&lt;/code> resource with &lt;code>project.gardener.cloud/skip-stale-check=true&lt;/code>.&lt;/p>
-&lt;/blockquote>
-&lt;h4 id="activity-reconciler">&amp;ldquo;Activity&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>Since the other two reconcilers are unable to actively monitor the relevant objects that are used in a &lt;code>Project&lt;/code> (&lt;code>Shoot&lt;/code>, &lt;code>Plant&lt;/code>, etc.), there could be a situation where the user creates and deletes objects in a short period of time. In that case the &lt;code>Stale Project Reconciler&lt;/code> could not see that there was any activity on that project and it will still mark it as a &lt;code>Stale&lt;/code>, even though it is actively used.&lt;/p>
-&lt;p>The &lt;code>Project Activity Reconciler&lt;/code> is implemented to take care of such cases. An event handler will notify the reconciler for any acitivity and then it will update the &lt;code>status.lastActivityTimestamp&lt;/code>. This update will also trigger the &lt;code>Stale Project Reconciler&lt;/code>.&lt;/p>
-&lt;h3 id="event-controller">Event Controller&lt;/h3>
-&lt;p>With the Gardener Event Controller you can prolong the lifespan of events related to Shoot clusters.
-This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
-&lt;p>All events in K8s are deleted after a configurable time-to-live (controlled via a &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/">kube-apiserver argument&lt;/a> called &lt;code>--event-ttl&lt;/code> (defaulting to 1 hour)).
-The need to prolong the time-to-live for Shoot cluster events frequently arises when debugging customer issues on live systems.
-This controller leaves events involving Shoots untouched while deleting all other events after a configured time.
-In order to activate it, provide the following configuration:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>concurrentSyncs&lt;/code>: The amount of goroutines scheduled for reconciling events.&lt;/li>
-&lt;li>&lt;code>ttlNonShootEvents&lt;/code>: When an event reaches this time-to-live it gets deleted unless it is a Shoot-related event (defaults to &lt;code>1h&lt;/code>, equivalent to the &lt;code>event-ttl&lt;/code> default).&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>⚠️ In addition, you should also configure the &lt;code>--event-ttl&lt;/code> for the kube-apiserver to define an upper-limit of how long Shoot-related events should be stored.
-The &lt;code>--event-ttl&lt;/code> should be larger than the &lt;code>ttlNonShootEvents&lt;/code> or this controller will have no effect.&lt;/p>
-&lt;/blockquote>
-&lt;h3 id="shoot-reference-controller">Shoot Reference Controller&lt;/h3>
-&lt;p>Shoot objects may specify references to further objects in the Garden cluster which are required for certain features.
-For example, users can configure various DNS providers via &lt;code>.spec.dns.providers&lt;/code> and usually need to refer to a corresponding &lt;code>secret&lt;/code> with valid DNS provider credentials inside.
-Such objects need a special protection against deletion requests as long as they are still being referenced by one or multiple shoots.&lt;/p>
-&lt;p>Therefore, the Shoot Reference Controller scans shoot clusters for referenced objects and adds the finalizer &lt;code>gardener.cloud/reference-protection&lt;/code> to their &lt;code>.metadata.finalizers&lt;/code> list.
-The scanned shoot also gets this finalizer to enable a proper garbage collection in case the Gardener-Controller-Manager is offline at the moment of an incoming deletion request.
-When an object is not actively referenced anymore because the shoot specification has changed or all related shoots were deleted (are in deletion), the controller will remove the added finalizer again, so that the object can safely be deleted or garbage collected.&lt;/p>
-&lt;p>The Shoot Reference Controller inspects the following references:&lt;/p>
-&lt;ul>
-&lt;li>DNS provider secrets (&lt;code>.spec.dns.provider&lt;/code>)&lt;/li>
-&lt;li>Audit policy configmaps (&lt;code>.spec.kubernetes.kubeAPIServer.auditConfig.auditPolicy.configMapRef&lt;/code>)&lt;/li>
-&lt;/ul>
-&lt;p>Further checks might be added in the future.&lt;/p>
-&lt;h3 id="shoot-retry-controller">Shoot Retry Controller&lt;/h3>
-&lt;p>The Shoot Retry Controller is responsible for retrying certain failed Shoots. Currently the controller retries only failed Shoots with error code &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>.&lt;/p>
-&lt;h3 id="seed-controller">Seed Controller&lt;/h3>
-&lt;p>The Seed controller in the &lt;code>gardener-controller-manager&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconciler-1">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciliation loop takes care about seed related operations in the Garden cluster. When a new &lt;code>Seed&lt;/code> object is created
-the reconciler creates a new &lt;code>Namespace&lt;/code> in the garden cluster &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code>. &lt;code>Namespaces&lt;/code> dedicated to single
-seed clusters allow us to segregate access permissions i.e., a Gardenlet must not have permissions to access objects in
-all &lt;code>Namespaces&lt;/code> in the Garden cluster.
-There are objects in a Garden environment which are created once by the operator e.g., default domain secret,
-alerting credentials, and required for operations happening in the Gardenlet. Therefore, we not only need a seed specific
-&lt;code>Namespace&lt;/code> but also a copy of these &amp;ldquo;shared&amp;rdquo; objects.&lt;/p>
-&lt;p>The &amp;ldquo;main&amp;rdquo; reconciler takes care about this replication:&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th style="text-align:center">Kind&lt;/th>
-&lt;th style="text-align:center">Namespace&lt;/th>
-&lt;th style="text-align:center">Label Selector&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td style="text-align:center">Secret&lt;/td>
-&lt;td style="text-align:center">garden&lt;/td>
-&lt;td style="text-align:center">gardener.cloud/role&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;h4 id="backup-bucket-reconciler">&amp;ldquo;Backup Bucket&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>Every time a &lt;code>BackupBucket&lt;/code> object is created or updated, the referenced &lt;code>Seed&lt;/code> object is enqueued for reconciliation.
-It&amp;rsquo;s the reconciler&amp;rsquo;s task to check the &lt;code>status&lt;/code> subresource of all existing &lt;code>BackupBuckets&lt;/code> that belong to this seed.
-If at least one &lt;code>BackupBucket&lt;/code> has &lt;code>.status.lastError&lt;/code>, the seed condition &lt;code>BackupBucketsReady&lt;/code> will turn &lt;code>false&lt;/code> and
-consequently the seed is considered as &lt;code>NotReady&lt;/code>. Once the &lt;code>BackupBucket&lt;/code> is healthy again, the seed will be re-queued
-and the condition will turn &lt;code>true&lt;/code>.&lt;/p>
-&lt;h4 id="lifecycle-reconciler">&amp;ldquo;Lifecycle&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>The &amp;ldquo;Lifecycle&amp;rdquo; reconciler processes &lt;code>Seed&lt;/code> objects which are enqueued every 10 seconds in order to check if the responsible
-Gardenlet is still responding and operable. Therefore, it checks renewals via &lt;code>Lease&lt;/code> objects of the seed in the garden cluster
-which are renewed regularly by the Gardenlet.&lt;/p>
-&lt;p>In case a &lt;code>Lease&lt;/code> is not renewed for the configured amount in &lt;code>config.controllers.seed.monitorPeriod.duration&lt;/code>:&lt;/p>
-&lt;ol>
-&lt;li>The reconciler assumes that the Gardenlet stopped operating and updates the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code>.&lt;/li>
-&lt;li>Additionally, conditions and constraints of all &lt;code>Shoot&lt;/code> resources scheduled on the affected seed are set to &lt;code>Unknown&lt;/code> as well
-because a striking Gardenlet won&amp;rsquo;t be able to maintain these conditions any more.&lt;/li>
-&lt;li>If the gardenlet&amp;rsquo;s client certificate has expired (identified based on the &lt;code>.status.clientCertificateExpirationTimestamp&lt;/code> field in the &lt;code>Seed&lt;/code> resource) and if it is managed by a &lt;code>ManagedSeed&lt;/code> then this will be triggered for a reconciliation. This will trigger the bootstrapping process again and allows gardenlets to obtain a fresh client certificate.&lt;/li>
-&lt;/ol>
-&lt;h3 id="controllerregistration-controller">ControllerRegistration Controller&lt;/h3>
-&lt;p>The &lt;code>ControllerRegistration&lt;/code> controller makes sure that the required &lt;a href="https://github.com/gardener/gardener/blob/master/docs/README.md#extensions">Gardener extensions&lt;/a> specified by the &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/">&lt;code>ControllerRegistration&lt;/code>&lt;/a> resources are present in the seed clusters. It also takes care of the creation and deletion of &lt;code>ControllerInstallation&lt;/code> objects for a given seed cluster.
-The controller has three reconciliation loops.&lt;/p>
-&lt;h4 id="main-reconciler-2">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciliation loop watches the &lt;code>Seed&lt;/code> objects and determines which &lt;code>ControllerRegistrations&lt;/code> are required for them and creates/deletes the corresponding extension controller to reach the determined state. To begin with, it computes the kind/type combinations of extensions required for the seed. For this, the controller examines a live list of &lt;code>ControllerRegistration&lt;/code>s, &lt;code>ControllerInstallation&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>BackupEntry&lt;/code>s, &lt;code>Shoot&lt;/code>s, and &lt;code>Secret&lt;/code>s from the garden cluster. For example, it examines the shoots running on the seed and deducts kind/type like &lt;code>Infrastructure/gcp&lt;/code>. It also decides whether they should always be deployed based on the &lt;code>.spec.deployment.policy&lt;/code>.
-For the configuration options, please see this &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#deployment-configuration-options">section&lt;/a>.&lt;/p>
-&lt;p>Based on these required combinations, each of them are mapped to &lt;code>ControllerRegistration&lt;/code> objects and then to their corresponding &lt;code>ControllerInstallation&lt;/code> objects (if existing). The controller then creates or updates the required &lt;code>ControllerInstallation&lt;/code> objects for the given seed. It also deletes every existing &lt;code>ControllerInstallation&lt;/code> whose referenced &lt;code>ControllerRegistration&lt;/code> is not part of the required list. For example, if the shoots in the seed are no longer using the DNS provider &lt;code>aws-route53&lt;/code>, then the controller proceeds to delete the respective &lt;code>ControllerInstallation&lt;/code> object.&lt;/p>
-&lt;h4 id="controllerregistration-reconciler">&amp;ldquo;ControllerRegistration&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciliation loop watches the &lt;code>ControllerRegistration&lt;/code> resource and adds finalizers to it when they are created. In case a deletion request comes in for the resource, i.e., if a &lt;code>.metadata.deletionTimestamp&lt;/code> is set, it actively scans for a &lt;code>ControllerInstallation&lt;/code> resource using this &lt;code>ControllerRegistration&lt;/code>, and decides whether the deletion can be allowed. In case no related &lt;code>ControllerInstallation&lt;/code> is present, it removes the finalizer and marks it for deletion.&lt;/p>
-&lt;h4 id="seed-reconciler">&amp;ldquo;Seed&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This loop also watches the &lt;code>Seed&lt;/code> object and adds finalizers to it at creation. If a &lt;code>.metadata.deletionTimestamp&lt;/code> is set for the seed then the controller checks for existing &lt;code>ControllerInstallation&lt;/code> objects which reference this seed. If no such objects exist then it removes the finalizer and allows the deletion.&lt;/p>
-&lt;h3 id="certificatesigningrequest-controller">&amp;ldquo;CertificateSigningRequest&amp;rdquo; controller&lt;/h3>
-&lt;p>After the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a> gets deployed on the Seed cluster it needs to establish itself as a trusted party to communicate with the Gardener API server. It runs through a bootstrap flow similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">kubelet bootstrap&lt;/a> process.&lt;/p>
-&lt;p>On startup the gardenlet uses a &lt;code>kubeconfig&lt;/code> with a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap token&lt;/a> which authenticates it as being part of the &lt;code>system:bootstrappers&lt;/code> group. This kubeconfig is used to create a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">&lt;code>CertificateSigningRequest&lt;/code>&lt;/a> (CSR) against the Gardener API server.&lt;/p>
-&lt;p>The controller in &lt;code>gardener-controller-manager&lt;/code> checks whether the &lt;code>CertificateSigningRequest&lt;/code> has the expected organisation, common name and usages which the gardenlet would request.&lt;/p>
-&lt;p>It only auto-approves the CSR if the client making the request is allowed to &amp;ldquo;create&amp;rdquo; the
-&lt;code>certificatesigningrequests/seedclient&lt;/code> subresource. Clients with the &lt;code>system:bootstrappers&lt;/code> group are bound to the &lt;code>gardener.cloud:system:seed-bootstrapper&lt;/code> &lt;code>ClusterRole&lt;/code>, hence, they have such privileges. As the bootstrap kubeconfig for the gardenlet contains a bootstrap token which is authenticated as being part of the &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/controlplane/charts/application/templates/clusterrolebinding-seed-bootstrapper.yaml">&lt;code>systems:bootstrappers&lt;/code> group&lt;/a>, its created CSR gets auto-approved.&lt;/p>
-&lt;h3 id="plant-controller">&amp;ldquo;Plant&amp;rdquo; Controller&lt;/h3>
-&lt;p>Using the &lt;code>Plant&lt;/code> resource, an external Kubernetes cluster (not managed by Gardener) can be registered to Gardener. &lt;code>gardener-controller-manager&lt;/code> is the component that is responsible for the &lt;code>Plant&lt;/code> resource reconciliation. As part of the reconciliation loop, the &lt;code>gardener-controller-manager&lt;/code> performs health checks on the external Kubernetes cluster and gathers more information about it - all of this information serves for monitoring purposes of the external Kubernetes cluster.&lt;/p>
-&lt;p>The component configuration of the &lt;code>gardener-controller-manager&lt;/code> offers to configure the following options for the plant controller:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>syncPeriod&lt;/code>: The duration of how often the Plant resource is reconciled, i.e., how often health checks are performed. The default value is &lt;code>30s&lt;/code>.&lt;/li>
-&lt;li>&lt;code>concurrentSyncs&lt;/code>: The number of goroutines scheduled for reconciling events, i.e., the number of possible parallel reconciliations. The default value is &lt;code>5&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;p>The &lt;code>Plant&lt;/code> resource reports the following information for the external Kubernetes cluster:&lt;/p>
-&lt;ul>
-&lt;li>Cluster information
-&lt;ul>
-&lt;li>Cloud provider information - the cloud provider type and region are maintained in the &lt;code>Plant&lt;/code> status (&lt;code>.status.clusterInfo.cloud&lt;/code>).&lt;/li>
-&lt;li>Kubernetes version - the Kubernetes version is maintained in the &lt;code>Plant&lt;/code> status (&lt;code>.status.clusterInfo.kubernetes.version&lt;/code>).&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Cluster status
-&lt;ul>
-&lt;li>API Server availability - maintained as condition with type &lt;code>APIServerAvailable&lt;/code>.&lt;/li>
-&lt;li>Cluster &lt;code>Node&lt;/code>s healthiness - maintained as condition with type &lt;code>EveryNodeReady&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul></description></item><item><title>Docs: ControllerRegistration</title><link>https://gardener.cloud/docs/gardener/extensions/controllerregistration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/controllerregistration/</guid><description>
-&lt;h1 id="registering-extension-controllers">Registering Extension Controllers&lt;/h1>
-&lt;p>Extensions are registered in the garden cluster via &lt;a href="https://github.com/gardener/gardener/blob/master/example/25-controllerregistration.yaml">&lt;code>ControllerRegistration&lt;/code>&lt;/a> resources.
-Deployment for respective extensions are specified via &lt;a href="https://github.com/gardener/gardener/blob/master/example/25-controllerdeployment.yaml">&lt;code>ControllerDeployment&lt;/code>&lt;/a> resources.
-Gardener evaluates the registrations and deployments and creates &lt;a href="https://github.com/gardener/gardener/blob/master/example/25-controllerinstallation.yaml">&lt;code>ControllerInstallation&lt;/code>&lt;/a> resources which describe the request &amp;ldquo;please install this controller &lt;code>X&lt;/code> to this seed &lt;code>Y&lt;/code>&amp;rdquo;.&lt;/p>
-&lt;p>Similar to how &lt;code>CloudProfile&lt;/code> or &lt;code>Seed&lt;/code> resources get into the system, the Gardener administrator must deploy the &lt;code>ControllerRegistration&lt;/code> and &lt;code>ControllerDeployment&lt;/code> resources (this does not happen automatically in any way - the administrator decides which extensions shall be enabled).&lt;/p>
-&lt;p>The specification mainly describes which of Gardener&amp;rsquo;s extension CRDs are managed, for example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerDeployment
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: helm
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> chart: H4sIFAAAAAAA/yk... &lt;span style="color:#008000"># &amp;lt;base64-gzip-chart&amp;gt;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> foo: bar
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerRegistration
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deployment:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deploymentRefs:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: OperatingSystemConfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> primary: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This information tells Gardener that there is an extension controller that can handle &lt;code>OperatingSystemConfig&lt;/code> resources of type &lt;code>gardenlinux&lt;/code>.
-A reference to the shown &lt;code>ControllerDeployment&lt;/code> specifies how the deployment of the extension controller is accomplished.&lt;/p>
-&lt;p>Also, it specifies that this controller is the primary one responsible for the lifecycle of the &lt;code>OperatingSystemConfig&lt;/code> resource.
-Setting &lt;code>primary&lt;/code> to &lt;code>false&lt;/code> would allow to register additional, secondary controllers that may also watch/react on the &lt;code>OperatingSystemConfig/coreos&lt;/code> resources, however, only the primary controller may change/update the main &lt;code>status&lt;/code> of the extension object (that are used to &amp;ldquo;communicate&amp;rdquo; with the Gardenlet).
-Particularly, only the primary controller may set &lt;code>.status.lastOperation&lt;/code>, &lt;code>.status.lastError&lt;/code>, &lt;code>.status.observedGeneration&lt;/code>, and &lt;code>.status.state&lt;/code>.
-Secondary controllers may contribute to the &lt;code>.status.conditions[]&lt;/code> if they like, of course.&lt;/p>
-&lt;p>Secondary controllers might be helpful in scenarios where additional tasks need to be completed which are not part of the reconciliation logic of the primary controller but separated out into a dedicated extension.&lt;/p>
-&lt;p>⚠️ There must be exactly one primary controller for every registered kind/type combination.
-Also, please note that the &lt;code>primary&lt;/code> field cannot be changed after creation of the &lt;code>ControllerRegistration&lt;/code>.&lt;/p>
-&lt;h2 id="deploying-extension-controllers">Deploying Extension Controllers&lt;/h2>
-&lt;p>Submitting above &lt;code>ControllerDeployment&lt;/code> and &lt;code>ControllerRegistration&lt;/code> will create a &lt;code>ControllerInstallation&lt;/code> resource:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerInstallation
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deploymentRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> registrationRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: os-gardenlinux
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seedRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: aws-eu1
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This resource expresses that Gardener requires the &lt;code>os-gardenlinux&lt;/code> extension controller to run on the &lt;code>aws-eu1&lt;/code> seed cluster.&lt;/p>
-&lt;p>The Gardener Controller Manager does automatically determine which extension is required on which seed cluster and will only create &lt;code>ControllerInstallation&lt;/code> objects for those.
-Also, it will automatically delete &lt;code>ControllerInstallation&lt;/code>s referencing extension controllers that are no longer required on a seed (e.g., because all shoots on it have been deleted).
-There are additional configuration options, please see &lt;a href="#deployment-configuration-options">this section&lt;/a>.&lt;/p>
-&lt;h2 id="how-do-extension-controllers-get-deployed-to-seeds">How do extension controllers get deployed to seeds?&lt;/h2>
-&lt;p>After Gardener has written the &lt;code>ControllerInstallation&lt;/code> resource some component must satisfy this request and start deploying the extension controller to the seed.
-Depending on the complexity of the controller&amp;rsquo;s lifecycle management, configuration, etc. there are two possible scenarios:&lt;/p>
-&lt;h3 id="scenario-1-deployed-by-gardener">Scenario 1: Deployed by Gardener&lt;/h3>
-&lt;p>In many cases the extension controllers are easy to deploy and configure.
-It is sufficient to simply create a Helm chart (standardized way of packaging software in the Kubernetes context) and deploy it together with some static configuration values.
-Gardener supports this scenario and allows to provide arbitrary deployment information in the &lt;code>ControllerDeployment&lt;/code> resource&amp;rsquo;s &lt;code>.providerConfig&lt;/code> section:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: helm
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> chart: H4sIFAAAAAAA/yk...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> foo: bar
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If &lt;code>.type=helm&lt;/code> then Gardener itself will take over the responsibility the deployment.
-It base64-decodes the provided Helm chart (&lt;code>.providerConfig.chart&lt;/code>) and deploys it with the provided static configuration (&lt;code>.providerConfig.values&lt;/code>).
-The chart and the values can be updated at any time - Gardener will recognize and re-trigger the deployment process.&lt;/p>
-&lt;p>In order to allow extensions to get information about the garden and the seed cluster Gardener does mix-in certain properties into the values (root level) of every deployed Helm chart:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> identifier: &amp;lt;uuid-of-gardener-installation&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> identifier: &amp;lt;seed-name&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec: &amp;lt;complete-seed-spec&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Extensions can use this information in their Helm chart in case they require knowledge about the garden and the seed environment.
-The list might be extended in the future.&lt;/p>
-&lt;p>ℹ️ Gardener uses the UUID of the &lt;code>garden&lt;/code> &lt;code>Namespace&lt;/code> object in the &lt;code>.gardener.garden.identifier&lt;/code> property.&lt;/p>
-&lt;h3 id="scenario-2-deployed-by-a-non-human-kubernetes-operator">Scenario 2: Deployed by a (non-human) Kubernetes operator&lt;/h3>
-&lt;p>Some extension controllers might be more complex and require additional domain-specific knowledge wrt. lifecycle or configuration.
-In this case, we encourage to follow the Kubernetes operator pattern and deploy a dedicated operator for this extension into the garden cluster.
-The &lt;code>ControllerDeployments&lt;/code>&amp;rsquo;s &lt;code>.type&lt;/code> field would then not be &lt;code>helm&lt;/code>, and no Helm chart or values need to be provided there.
-Instead, the operator itself knows how to deploy the extension into the seed.
-It must watch &lt;code>ControllerInstallation&lt;/code> resources and act one those referencing a &lt;code>ControllerRegistration&lt;/code> the operator is responsible for.&lt;/p>
-&lt;p>In order to let Gardener know that the extension controller is ready and running in the seed the &lt;code>ControllerInstallation&lt;/code>&amp;rsquo;s &lt;code>.status&lt;/code> field supports two conditions: &lt;code>RegistrationValid&lt;/code> and &lt;code>InstallationSuccessful&lt;/code> - both must be provided by the responsible operator:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2019-01-22T11:51:11Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2019-01-22T11:51:11Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: Chart could be rendered successfully.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: RegistrationValid
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Valid
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - lastTransitionTime: &lt;span style="color:#a31515">&amp;#34;2019-01-22T11:51:12Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2019-01-22T11:51:12Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: Installation of new resources succeeded.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: InstallationSuccessful
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Installed
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Additionally, the &lt;code>.status&lt;/code> field has a &lt;code>providerStatus&lt;/code> section into which the operator can (optionally) put any arbitrary data associated with this installation.&lt;/p>
-&lt;h2 id="extensions-in-the-garden-cluster-itself">Extensions in the garden cluster itself&lt;/h2>
-&lt;p>The &lt;code>Shoot&lt;/code> resource itself will contain some provider-specific data blobs.
-As a result, some extensions might also want to run in the garden cluster, e.g., to provide &lt;code>ValidatingWebhookConfiguration&lt;/code>s for validating the correctness of their provider-specific blobs:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: johndoe-aws
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-dev
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloud:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: eu-west-1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: aws.cloud.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureConfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vpc: &lt;span style="color:#008000"># specify either &amp;#39;id&amp;#39; or &amp;#39;cidr&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># id: vpc-123456&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cidr: 10.250.0.0/16
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> internal:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.112.0/22
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> public:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.96.0/22
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.0.0/19
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - eu-west-1a
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In the above example, Gardener itself does not understand the AWS-specific provider configuration for the infrastructure.
-However, if this part of the &lt;code>Shoot&lt;/code> resource should be validated then you should run an AWS-specific component in the garden cluster that registers a webhook. You can do it similarly if you want to default some fields of a resource (by using a &lt;code>MutatingWebhookConfiguration&lt;/code>).&lt;/p>
-&lt;p>Again, similar to how Gardener is deployed to the garden cluster, these components must be deployed and managed by the Gardener administrator.&lt;/p>
-&lt;h3 id="extension-resource-configurations">&lt;code>Extension&lt;/code> resource configurations&lt;/h3>
-&lt;p>The &lt;code>Extension&lt;/code> resource allows injecting arbitrary steps into the shoot reconciliation flow that are unknown to Gardener.
-Hence, it is slightly special and allows further configuration when registering it:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerRegistration
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: extension-foo
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Extension
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: foo
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> primary: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> globallyEnabled: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reconcileTimeout: 30s
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>globallyEnabled=true&lt;/code> option specifies that the &lt;code>Extension/foo&lt;/code> object shall be created by default for all shoots (unless they opted out by setting &lt;code>.spec.extensions[].enabled=false&lt;/code> in the &lt;code>Shoot&lt;/code> spec).&lt;/p>
-&lt;p>The &lt;code>reconcileTimeout&lt;/code> tells Gardener how long it should wait during its shoot reconciliation flow for the &lt;code>Extension/foo&lt;/code>&amp;rsquo;s reconciliation to finish.&lt;/p>
-&lt;h3 id="deployment-configuration-options">Deployment configuration options&lt;/h3>
-&lt;p>The &lt;code>.spec.deployment&lt;/code> resource allows to configure a deployment &lt;code>policy&lt;/code>.
-There are the following policies:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>OnDemand&lt;/code> (default): Gardener will demand the deployment and deletion of the extension controller to/from seed clusters dynamically. It will automatically determine (based on other resources like &lt;code>Shoot&lt;/code>s) whether it is required and decide accordingly.&lt;/li>
-&lt;li>&lt;code>Always&lt;/code>: Gardener will demand the deployment of the extension controller to seed clusters independent of whether it is actually required or not. This might be helpful if you want to add a new component/controller to all seed clusters by default. Another use-case is to minimize the durations until extension controllers get deployed and ready in case you have highly fluctuating seed clusters.&lt;/li>
-&lt;li>&lt;code>AlwaysExceptNoShoots&lt;/code>: Similar to &lt;code>Always&lt;/code>, but if the seed does not have any shoots then the extension is not being deployed. It will be deleted from a seed after the last shoot has been removed from it.&lt;/li>
-&lt;/ul>
-&lt;p>Also, the &lt;code>.spec.deployment.seedSelector&lt;/code> allows to specify a label selector for seed clusters.
-Only if it matches the labels of a seed then it will be deployed to it.
-Please note that a seed selector can only be specified for secondary controllers (&lt;code>primary=false&lt;/code> for all &lt;code>.spec.resources[]&lt;/code>).&lt;/p></description></item><item><title>Docs: ControlPlane</title><link>https://gardener.cloud/docs/gardener/extensions/controlplane/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/controlplane/</guid><description>
-&lt;h1 id="contract-controlplane-resource">Contract: &lt;code>ControlPlane&lt;/code> resource&lt;/h1>
-&lt;p>Most Kubernetes clusters require a &lt;code>cloud-controller-manager&lt;/code> or CSI drivers in order to work properly.
-Before introducing the &lt;code>ControlPlane&lt;/code> extension resource Gardener was having several different Helm charts for the &lt;code>cloud-controller-manager&lt;/code> deployments for the various providers.
-Now, Gardener commissions an external, provider-specific controller to take over this task.&lt;/p>
-&lt;h2 id="which-control-plane-resources-are-required">Which control plane resources are required?&lt;/h2>
-&lt;p>As mentioned in the &lt;a href="https://gardener.cloud/docs/gardener/extensions/controlplane-webhooks/">controlplane customization webhooks&lt;/a> document Gardener shall not deploy any &lt;code>cloud-controller-manager&lt;/code> or any other provider-specific component.
-Instead, it creates a &lt;code>ControlPlane&lt;/code> CRD that should be picked up by provider extensions.
-Its purpose is to trigger the deployment of such provider-specific components in the shoot namespace in the seed cluster.&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What needs to be implemented to support a new infrastructure provider?&lt;/h2>
-&lt;p>As part of the shoot flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControlPlane
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: control-plane
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: openstack
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-west1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloudprovider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ControlPlaneConfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerProvider: provider
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zone: eu-1a
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudControllerManager:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CustomResourceValidation: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> infrastructureProviderStatus:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureStatus
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingPool:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: vpc-1234
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subnets:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - purpose: nodes
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: subnetid
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used for the shoot cluster.
-However, the most important section is the &lt;code>.spec.providerConfig&lt;/code> and the &lt;code>.spec.infrastructureProviderStatus&lt;/code>.
-The first one contains an embedded declaration of the provider specific configuration for the control plane (that cannot be known by Gardener itself).
-You are responsible for designing how this configuration looks like.
-Gardener does not evaluate it but just copies this part from what has been provided by the end-user in the &lt;code>Shoot&lt;/code> resource.
-The second one contains the output of the &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">&lt;code>Infrastructure&lt;/code> resource&lt;/a> (that might be relevant for the CCM config).&lt;/p>
-&lt;p>In order to support a new control plane provider you need to write a controller that watches all &lt;code>ControlPlane&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>.
-You can take a look at the below referenced example implementation for the Alicloud provider.&lt;/p>
-&lt;p>The control plane controller as part of the &lt;code>ControlPlane&lt;/code> reconciliation, often deploys resources (e.g. pods/deployments) into the Shoot namespace in the &lt;code>Seed&lt;/code> as part of its &lt;code>ControlPlane&lt;/code> reconciliation loop.
-Because the namespace contains &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">network policies&lt;/a> that per default &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#default-deny-all-ingress-and-all-egress-traffic">deny all ingress and egress traffic&lt;/a>,
-the pods may need to have proper labels matching to the selectors of the network policies in order to allow the required network traffic.
-Otherwise, they won&amp;rsquo;t be allowed to talk to certain other components (e.g., the kube-apiserver of the shoot).
-Please &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/seed_network_policies.md">see this document&lt;/a> for more information.&lt;/p>
-&lt;h2 id="non-provider-specific-information-required-for-infrastructure-creation">Non-provider specific information required for infrastructure creation&lt;/h2>
-&lt;p>Most providers might require further information that is not provider specific but already part of the shoot resource.
-One example for this is the &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/tree/master/pkg/controller/controlplane">GCP control plane controller&lt;/a> which needs the Kubernetes version of the shoot cluster (because it already uses the in-tree Kubernetes cloud-controller-manager).
-As Gardener cannot know which information is required by providers it simply mirrors the &lt;code>Shoot&lt;/code>, &lt;code>Seed&lt;/code>, and &lt;code>CloudProfile&lt;/code> resources into the seed.
-They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> extension resource&lt;/a> and can be used to extract information that is not part of the &lt;code>Infrastructure&lt;/code> resource itself.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and additional resources&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_controlplane.go">&lt;code>ControlPlane&lt;/code> API (Golang specification)&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener-extension-provider-alicloud/tree/master/pkg/controller/controlplane">Exemplary implementation for the Alicloud provider&lt;/a>&lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;/code>&lt;/pre></description></item></channel></rss>

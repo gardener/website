@@ -322,6 +322,9 @@ Clients like &lt;code>gardenctl&lt;/code> are advised to not re-use &lt;code>Bas
 &lt;h3 id="cloudprofile-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercloudprofile">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/cloudprofile">&lt;code>CloudProfile&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>CloudProfile&lt;/code>s are essential when it comes to reconciling &lt;code>Shoot&lt;/code>s since they contain constraints (like valid machine types, Kubernetes versions, or machine images) and sometimes also some global configuration for the respective environment (typically via provider-specific configuration in &lt;code>.spec.providerConfig&lt;/code>).&lt;/p>
 &lt;p>Consequently, to ensure that &lt;code>CloudProfile&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>CloudProfile&lt;/code> anymore.&lt;/p>
+&lt;h3 id="quota-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerquota">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/quota">&lt;code>Quota&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>&lt;code>Quota&lt;/code> object limits the resources consumed by shoot clusters either per provider secret or per project/namespace.&lt;/p>
+&lt;p>Consequently, to ensure that &lt;code>Quota&lt;/code>s in-use are always present in the system until the last &lt;code>SecretBinding&lt;/code> that references them gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>SecretBinding&lt;/code> referencing the &lt;code>Quota&lt;/code> anymore.&lt;/p>
 &lt;h3 id="project-controller">&lt;code>Project&lt;/code> Controller&lt;/h3>
 &lt;p>This controller consists out of three reconciliation loops:
 The main loop is reconciling &lt;code>Project&lt;/code> resources while the second loop is controlling the necessary actions for stale projects.&lt;/p>
@@ -983,9 +986,8 @@ Standard mechanisms like &lt;code>HorizontalPodAutoscaler&lt;/code> or &lt;code>
 &lt;h4 id="origin">Origin&lt;/h4>
 &lt;p>All the objects managed by the resource manager get a dedicated annotation
 &lt;code>resources.gardener.cloud/origin&lt;/code> describing the &lt;code>ManagedResource&lt;/code> object that describes
-this object.&lt;/p>
-&lt;p>By default this is in this format &amp;lt;namespace&amp;gt;/&amp;lt;objectname&amp;gt;.
-In multi-cluster scenarios (the &lt;code>ManagedResource&lt;/code> objects are maintained in a
+this object. The default format is &lt;code>&amp;lt;namespace&amp;gt;/&amp;lt;objectname&amp;gt;&lt;/code>.&lt;/p>
+&lt;p>In multi-cluster scenarios (the &lt;code>ManagedResource&lt;/code> objects are maintained in a
 cluster different from the one the described objects are managed), it might
 be useful to include the cluster identity, as well.&lt;/p>
 &lt;p>This can be enforced by setting the &lt;code>--cluster-id&lt;/code> option. Here, several
@@ -999,8 +1001,8 @@ automatically maintained in all clusters managed or involved in a gardener lands
 no identity is used&lt;/li>
 &lt;li>empty string: no cluster identity is used (completely cluster local scenarios)&lt;/li>
 &lt;/ul>
-&lt;p>The format of the origin annotation with a cluster id is &amp;lt;cluster id&amp;gt;:&amp;lt;namespace&amp;gt;/&amp;lt;objectname&amp;gt;.&lt;/p>
-&lt;p>The default for the cluster id is the empty value (do not use cluster id).&lt;/p>
+&lt;p>By default cluster id is not used. If cluster id is specified the format is &lt;code>&amp;lt;cluster id&amp;gt;:&amp;lt;namespace&amp;gt;/&amp;lt;objectname&amp;gt;&lt;/code>.&lt;/p>
+&lt;p>In addition to the origin annotation, all objects managed by the resource manager get a dedicated label &lt;code>resources.gardener.cloud/managed-by&lt;/code>. This label can be used to describe these objects with a &lt;a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/">selector&lt;/a>. By default it is set to &amp;ldquo;gardener&amp;rdquo;, but this can be overwritten by setting the &lt;code>--managed-by-label&lt;/code> option.&lt;/p>
 &lt;h3 id="garbage-collector-for-immutable-configmapssecrets">Garbage Collector For Immutable &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s&lt;/h3>
 &lt;p>In Kubernetes, workload resources (e.g., &lt;code>Pod&lt;/code>s) can mount &lt;code>ConfigMap&lt;/code>s or &lt;code>Secret&lt;/code>s or reference them via environment variables in containers.
 Typically, when the content of such &lt;code>ConfigMap&lt;/code>/&lt;code>Secret&lt;/code> gets changed then the respective workload is usually not dynamically reloading the configuration, i.e., a restart is required.

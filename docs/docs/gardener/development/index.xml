@@ -2503,6 +2503,8 @@ Remember to unfocus specs before contributing code, otherwise your PR tests will
 &lt;h2 id="integration-tests-envtests">Integration Tests (envtests)&lt;/h2>
 &lt;p>Integration tests in Gardener use the &lt;code>sigs.k8s.io/controller-runtime/pkg/envtest&lt;/code> package.
 It sets up a temporary control plane (etcd + kube-apiserver) and runs the test against it.&lt;/p>
+&lt;p>Package &lt;code>github.com/gardener/gardener/pkg/envtest&lt;/code> augments controller-runtime&amp;rsquo;s &lt;code>envtest&lt;/code> package by starting and registering &lt;code>gardener-apiserver&lt;/code>.
+This is used to test controllers that act on resources in the Gardener APIs (aggregated APIs).&lt;/p>
 &lt;p>Historically, &lt;a href="#test-machinery-tests">test machinery tests&lt;/a> have also been called &amp;ldquo;integration tests&amp;rdquo;.
 However, test machinery does not perform integration testing but rather executes a form of end-to-end tests against a real landscape.
 Hence, we tried to sharpen the terminology that we use to distinguish between &amp;ldquo;real&amp;rdquo; integration tests and test machinery tests but you might still find &amp;ldquo;integration tests&amp;rdquo; referring to test machinery tests in old issues or outdated documents.&lt;/p>
@@ -2531,7 +2533,12 @@ Though, you might need to run less tests in parallel though (specified via &lt;c
 &lt;h3 id="purpose-of-integration-tests">Purpose of Integration Tests&lt;/h3>
 &lt;ul>
 &lt;li>integration tests prove that multiple units are correctly integrated into a fully-functional component of the system&lt;/li>
-&lt;li>example component with multiple units: a controller with its reconciler, watches, predicates, event handlers, queues, etc.&lt;/li>
+&lt;li>example components with multiple units:
+&lt;ul>
+&lt;li>a controller with its reconciler, watches, predicates, event handlers, queues, etc.&lt;/li>
+&lt;li>a webhook with its server, handler, decoder and webhook configuration&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;li>integration tests set up a full component (including used libraries) and run it against a test environment close to the actual setup
 &lt;ul>
 &lt;li>e.g., start controllers against a real Kubernetes control plane to catch bugs that can only happen when talking to a real API server&lt;/li>
@@ -2553,14 +2560,25 @@ Though, you might need to run less tests in parallel though (specified via &lt;c
 &lt;li>make sure to have a clean test environment on both test suite and test case level:
 &lt;ul>
 &lt;li>set up dedicated test environments (envtest instances) per test suite&lt;/li>
-&lt;li>use dedicated namespaces per test suite, use &lt;code>GenerateName&lt;/code> with a test-specific prefix: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/secret/secret_suite_test.go#L94-L105">example test&lt;/a>
+&lt;li>use dedicated namespaces per test suite
 &lt;ul>
+&lt;li>use &lt;code>GenerateName&lt;/code> with a test-specific prefix: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/secret/secret_suite_test.go#L94-L105">example test&lt;/a>&lt;/li>
+&lt;li>restrict the controller-runtime manager to the test namespace by setting &lt;code>manager.Options.Namespace&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/d9b00b574182094c5d03ab16dfc2d20515e9b6ed/test/integration/controllermanager/cloudprofile/cloudprofile_suite_test.go#L104">example test&lt;/a>&lt;/li>
+&lt;li>alternatively, use a test-specific prefix with a random suffix determined upfront: &lt;a href="https://github.com/gardener/gardener/blob/ce3973a605886ab6a496cf7f9fb6a5de54a5e7c2/test/integration/resourcemanager/tokeninvalidator/tokeninvalidator_suite_test.go#L68">example test&lt;/a>
+&lt;ul>
+&lt;li>this can be used to restrict webhooks to a dedicated test namespace: &lt;a href="https://github.com/gardener/gardener/blob/ce3973a605886ab6a496cf7f9fb6a5de54a5e7c2/test/integration/resourcemanager/tokeninvalidator/tokeninvalidator_suite_test.go#L73">example test&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;li>this allows running a test in parallel against the same existing cluster for deflaking and stress testing: &lt;a href="https://github.com/gardener/gardener/pull/5953">example PR&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>use dedicated test resources for each test case, use &lt;code>GenerateName&lt;/code> (&lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/health/health_test.go#L38-L48">example test&lt;/a>) or checksum of &lt;code>CurrentSpecReport().LeafNodeLocation.String()&lt;/code> (&lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/managedresource/resource_test.go#L61-L67">example test&lt;/a>)
+&lt;li>use dedicated test resources for each test case
 &lt;ul>
-&lt;li>this avoids cascading failures of test cases and distracting from the actual root failure&lt;/li>
+&lt;li>use &lt;code>GenerateName&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/health/health_test.go#L38-L48">example test&lt;/a>&lt;/li>
+&lt;li>alternatively, use a checksum of &lt;code>CurrentSpecReport().LeafNodeLocation.String()&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/managedresource/resource_test.go#L61-L67">example test&lt;/a>&lt;/li>
+&lt;li>logging the created object names is generally a good idea to support debugging failing or flaky tests: &lt;a href="https://github.com/gardener/gardener/blob/50f92c5dc35160fe05da9002a79e7ce4a9cf3509/test/integration/controllermanager/cloudprofile/cloudprofile_test.go#L94-L96">example test&lt;/a>&lt;/li>
+&lt;li>always delete all resources after the test case (e.g., via &lt;code>DeferCleanup&lt;/code>) that were created for the test case&lt;/li>
+&lt;li>this avoids conflicts between test cases and cascading failures which distract from the actual root failures&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>don&amp;rsquo;t tolerate already existing resources (~dirty test environment), code smell: ignoring already exist errors&lt;/li>
@@ -2580,6 +2598,13 @@ Though, you might need to run less tests in parallel though (specified via &lt;c
 &lt;/li>
 &lt;li>pass &lt;code>g Gomega&lt;/code> to &lt;code>Eventually&lt;/code>/&lt;code>Consistently&lt;/code> and use &lt;code>g.Expect&lt;/code> in it: &lt;a href="https://onsi.github.io/gomega/#category-3-making-assertions-eminem-the-function-passed-into-codeeventuallycode">docs&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/708f65c279276abd3a770c2f84a89e02876b3c38/test/e2e/shoot/internal/rotation/certificate_authorities.go#L111-L122">example test&lt;/a>, &lt;a href="https://github.com/gardener/gardener/pull/4936">example PR&lt;/a>&lt;/li>
 &lt;li>don&amp;rsquo;t forget to call &lt;code>{Eventually,Consistently}.Should()&lt;/code>, otherwise the assertions always silently succeeds without errors: &lt;a href="https://github.com/onsi/gomega/issues/561">onsi/gomega#561&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>when using Gardener&amp;rsquo;s envtest (&lt;code>envtest.GardenerTestEnvironment&lt;/code>):
+&lt;ul>
+&lt;li>disable gardener-apiserver&amp;rsquo;s admission plugins that are not relevant to the integration test itself by passing &lt;code>--disable-admission-plugins&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/50f92c5dc35160fe05da9002a79e7ce4a9cf3509/test/integration/controllermanager/shoot/maintenance/maintenance_suite_test.go#L61-L67">example test&lt;/a>&lt;/li>
+&lt;li>this makes setup / teardown code simpler and ensures to only test code relevant to the tested component itself (but not the entire set of admission plugins)&lt;/li>
+&lt;li>e.g., you can disable the &lt;code>ShootValidator&lt;/code> plugin to create &lt;code>Shoots&lt;/code> that reference non-existing &lt;code>SecretBindings&lt;/code> or disable the &lt;code>DeletionConfirmation&lt;/code> plugin to delete Gardener resources without adding a deletion confirmation first.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>

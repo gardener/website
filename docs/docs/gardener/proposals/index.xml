@@ -2894,7 +2894,1721 @@ The proposal, as outlined below, suggests to implement the necessary changes in 
 &lt;h3 id="goals">Goals&lt;/h3>
 &lt;h3 id="non-goals">Non-Goals&lt;/h3>
 &lt;h2 id="proposal">Proposal&lt;/h2>
-&lt;h2 id="alternatives">Alternatives&lt;/h2></description></item><item><title>Docs: Monitoring Stack - Migrating to the prometheus-operator</title><link>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</guid><description>
+&lt;h2 id="alternatives">Alternatives&lt;/h2></description></item><item><title>Docs: Highly Available Shoot Control Planes</title><link>https://gardener.cloud/docs/gardener/proposals/20-ha-control-planes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/20-ha-control-planes/</guid><description>
+&lt;h1 id="gep20---highly-available-shoot-control-planes">GEP20 - Highly Available Shoot Control Planes&lt;/h1>
+&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="#gep20---highly-available-shoot-control-planes">GEP20 - Highly Available Shoot Control Planes&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#motivation">Motivation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#high-availablity">High Availablity&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#topologies">Topologies&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#recommended-number-of-nodes-and-zones">Recommended number of nodes and zones&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#recommended-number-of-replicas">Recommended number of replicas&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#gardener-shoot-api">Gardener Shoot API&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#proposed-changes">Proposed changes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#gardener-scheduler">Gardener Scheduler&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#case-1-ha-shoot-with-no-seed-assigned">Case #1: HA shoot with no seed assigned&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#case-2-ha-shoot-with-assigned-seed-and-updated-failure-tolerance">Case #2: HA shoot with assigned seed and updated failure tolerance&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#setting-up-a-seed-for-ha">Setting up a Seed for HA&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#hosting-a-ha-shoot-control-plane-with-node-failure-tolerance">Hosting a HA shoot control plane with &lt;code>node&lt;/code> failure tolerance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#hosting-a-ha-shoot-control-plane-with-zone-failure-tolerance">Hosting a HA shoot control plane with &lt;code>zone&lt;/code> failure tolerance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#compute-seed-usage">Compute Seed Usage&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#scheduling-control-plane-components">Scheduling control plane components&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#zone-pinning">Zone pinning&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#single-zone">Single-Zone&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#multi-zone-replicas--zones">Multi-Zone (#replicas &amp;lt;= #zones)&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#multi-zone-replicas--zones-1">Multi-Zone (#replicas &amp;gt; #zones)&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#disruptions-and-zero-downtime-maintenance">Disruptions and zero downtime maintenance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#seed-system-components">Seed System Components&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#shoot-control-plane-components">Shoot Control Plane Components&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#kube-apiserver">Kube Apiserver&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#gardener-resource-manager">Gardener Resource Manager&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#etcd">Etcd&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#gardener-etcd-component-changes">Gardener &lt;code>etcd&lt;/code> component changes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#handling-outages">Handling Outages&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#node-failures">Node failures&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#impact-of-node-failure">Impact of Node failure&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#what-is-zone-outage">What is Zone outage?&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#impact-of-a-zone-outage">Impact of a Zone Outage&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#identify-a-zone-outage">Identify a Zone outage&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#identify-zone-recovery">Identify zone recovery&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#recovery">Recovery&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#current-recovery-mechanisms">Current Recovery Mechanisms&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#recovery-from-node-failure">Recovery from Node failure&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#recovery-from-zone-failure">Recovery from Zone failure&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#option-1-leverage-existing-recovery-options---preferred">Option #1: Leverage existing recovery options - &lt;code>Preferred&lt;/code>&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#option-2-redundencies-for-all-critical-control-plane-components">Option #2: Redundencies for all critical control plane components&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#option-3-auto-rebalance-pods-in-the-event-of-az-failure">Option #3: Auto-rebalance pods in the event of AZ failure&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#cost-implications-on-hosting-ha-control-plane">Cost Implications on hosting HA control plane&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#compute--storage">Compute &amp;amp; Storage&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#network-latency">Network latency&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#cross-zonal-traffic">Cross-Zonal traffic&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#ingressegress-traffic-analysis">Ingress/Egress traffic analysis&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#optimizing-cost-topology-aware-hint">Optimizing Cost: Topology Aware Hint&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#references">References&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#appendix">Appendix&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#etcd-active-passive-options">ETCD Active-Passive Options&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#topology-spread-constraints-evaluation-and-findings">Topology Spread Constraints evaluation and findings&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#availability-zone-outage-simulation">Availability Zone Outage simulation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#ingressegress-traffic-analysis-details">Ingress/Egress Traffic Analysis Details&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="summary">Summary&lt;/h2>
+&lt;p>Gardener today only offers highly available control planes for some of its components (like Kubernetes API Server and Gardener Resource Manager) which are deployed with multiple replicas and allow a distribution across nodes. Many of the other critical control plane components including &lt;code>etcd&lt;/code> are only offered with a single replica, making them susceptible to both node failure as well as zone failure causing downtimes.&lt;/p>
+&lt;p>This GEP extends the failure domain tolerance for shoot control plane components as well as seed components to survive extensive node or availability zone (AZ) outages.&lt;/p>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>High availability (HA) of Kubernetes control planes is desired to ensure continued operation, even in the case of partial failures of nodes or availability zones. Tolerance to common failure domains ranges from hardware (e.g. utility power sources and backup power sources, network switches, disk/data, racks, cooling systems etc.) to software.&lt;/p>
+&lt;p>Each consumer therefore needs to decide on the degree of failure isolation that is desired for the control plane of their respective shoot clusters.&lt;/p>
+&lt;h2 id="goals">Goals&lt;/h2>
+&lt;ul>
+&lt;li>Provision shoot clusters with highly available control planes (HA shoots) and a failure tolerance on node or AZ level. Consumers may enable/disable high-availability and choose failure tolerance between multiple nodes within a single zone or multiple nodes spread across multiple zones.&lt;/li>
+&lt;li>Migrating non-HA to HA shoots. For failure tolerance on &lt;code>zone&lt;/code> level only if shoot is already scheduled to a &lt;code>multi-zonal&lt;/code> seed.&lt;/li>
+&lt;li>Scheduling HA shoots to adequate seeds.&lt;/li>
+&lt;/ul>
+&lt;h2 id="non-goals">Non-Goals&lt;/h2>
+&lt;ul>
+&lt;li>Setting up a high available Gardener service.&lt;/li>
+&lt;li>Upgrading from a single-zone shoot control plane to a multi-zonal shoot control plane.&lt;/li>
+&lt;li>Failure domains on region level, i.e. multi-region control-planes.&lt;/li>
+&lt;li>Downgrading HA shoots to non-HA shoots.&lt;/li>
+&lt;li>In the current scope, three control plane components - &lt;code>Kube Apiserver&lt;/code>, &lt;code>etcd&lt;/code> and &lt;code>Gardener Resource Manager&lt;/code> will be highly available. In the future, other components could be set up in HA mode.&lt;/li>
+&lt;li>To achieve HA we consider components to have at least three replicas. Greater failure tolerance is not targeted by this GEP.&lt;/li>
+&lt;/ul>
+&lt;h2 id="high-availablity">High Availablity&lt;/h2>
+&lt;h3 id="topologies">Topologies&lt;/h3>
+&lt;p>Many shoot control plane (&lt;code>etcd&lt;/code>, &lt;code>kube-apiserver&lt;/code>, &lt;code>gardener-resource-manager&lt;/code>, &amp;hellip;) and seed system components (&lt;code>gardenlet&lt;/code>, &lt;code>istio&lt;/code>, &lt;code>etcd-druid&lt;/code>, &amp;hellip;) provide means to achieve high availability. Commonly these either run in an &lt;strong>Active-Active&lt;/strong> or in an &lt;strong>Active-Passive&lt;/strong> mode.
+Active-Active means that each component replica serves incoming requests (primarily intended for load balancing) whereas Active-Passive means that only one replica is active while others remain on stand-by.&lt;/p>
+&lt;h3 id="recommended-number-of-nodes-and-zones">Recommended number of nodes and zones&lt;/h3>
+&lt;p>It is recommended that for high-availability setup an odd number of nodes (node tolerance) or zones (zone tolerance) must be used. This also follows the &lt;a href="https://etcd.io/docs/v3.4/faq/#why-an-odd-number-of-cluster-members">recommendations&lt;/a> on the etcd cluster size. The recommendations for number of zones will be largely influenced by quorum-based etcd cluster setup recommendations as other shoot control plane components are either stateless or non-quorum-based stateful components.&lt;/p>
+&lt;p>&lt;strong>Let&amp;rsquo;s take the following example to explain this recommendation further:&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>Seed clusters&amp;rsquo; worker nodes are spread across &lt;strong>two zones&lt;/strong>&lt;/li>
+&lt;li>Gardener would distribute a &lt;strong>three member&lt;/strong> etcd cluster - AZ-1: 2 replicas, AZ-2: 1 replica&lt;/li>
+&lt;li>If AZ-1 goes down then, quorum is lost and the only remaining etcd member enters into a read-only state.&lt;/li>
+&lt;li>If AZ-2 goes down then:
+&lt;ul>
+&lt;li>If the leader is in AZ-2, then it will force a re-election and the quorum will be restored with 2 etcd members in AZ-1.&lt;/li>
+&lt;li>If the leader is not in AZ-2, then etcd cluster will still be operational without any downtime as the quorum is not lost.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Result:&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>There seems to be no clear benefit to spreading an etcd cluster across 2 zones as there is an additional cost of cross-zonal traffic that will be incurred due to communication amongst the etcd members and also due to API server communication with an etcd member across zones.&lt;/li>
+&lt;li>There is no significant gain in availability as compared to an etcd cluster provisioned within a single zone. Therefore it is a recommendation that for regions having 2 availability zones, etcd cluster should only be spread across nodes in a single AZ.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Validation&lt;/strong>&lt;/p>
+&lt;p>Enforcing that a highly available &lt;code>ManagedSeed&lt;/code> is setup with odd number of zones, additional checks needs to be introduced in &lt;a href="https://github.com/gardener/gardener/blob/master/plugin/pkg/managedseed/validator/admission.go">admission plugin&lt;/a>.&lt;/p>
+&lt;h3 id="recommended-number-of-replicas">Recommended number of replicas&lt;/h3>
+&lt;p>The minimum number of replicas required to achieve HA depends on the &lt;a href="#topologies">topology&lt;/a> and the requirement of each component that run in an &lt;code>active-active&lt;/code> mode.&lt;/p>
+&lt;p>&lt;strong>Active-Active&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>If application needs a quorum to operate (e.g. &lt;code>etcd&lt;/code>), at least &lt;strong>three replicas&lt;/strong> are required (&lt;a href="https://etcd.io/docs/v3.3/faq/#why-an-odd-number-of-cluster-members">ref&lt;/a>).&lt;/li>
+&lt;li>Non-quorum based components are also supposed to run with a minimum count of &lt;strong>three replicas&lt;/strong> to survive node/zone outages and support load balancing.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Active-Passive&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>Components running in a &lt;code>active-passive&lt;/code> mode are expected to have at least &lt;strong>two&lt;/strong> replicas, so that there is always one replica on stand-by.&lt;/li>
+&lt;/ul>
+&lt;h2 id="gardener-shoot-api">Gardener Shoot API&lt;/h2>
+&lt;h3 id="proposed-changes">Proposed changes&lt;/h3>
+&lt;p>The following changes to the shoot API are suggested to enable the HA feature for a shoot cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controlPlane:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> highAvailability:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> failureTolerance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;node | zone&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The consumer can optionally specify &lt;code>highAvailability&lt;/code> in the shoot spec. Failure tolerance of &lt;code>node&lt;/code> (aka &lt;code>single-zone&lt;/code> shoot clusters) signifies that the HA shoot control plane can tolerate a single node failure, whereas &lt;code>zone&lt;/code> (aka &lt;code>multi-zone&lt;/code> shoots clusters) signifies that the HA shoot control plane can withstand an outage of a single zone.&lt;/p>
+&lt;h2 id="gardener-scheduler">Gardener Scheduler&lt;/h2>
+&lt;p>A scheduling request could be for a HA shoot with failure tolerance of &lt;code>node&lt;/code> or &lt;code>zone&lt;/code>. It is therefore required to appropriately select a seed.&lt;/p>
+&lt;h3 id="case-1-ha-shoot-with-no-seed-assigned">Case #1: HA shoot with no seed assigned&lt;/h3>
+&lt;p>&lt;em>Proposed Changes&lt;/em>&lt;/p>
+&lt;p>&lt;strong>Fitering candidate seeds&lt;/strong>&lt;/p>
+&lt;p>A new &lt;code>filter step&lt;/code> needs to be introduced in the &lt;a href="https://github.com/gardener/gardener/blob/4dbba56e24b5999fd728cb84b09a4d6d54f64479/pkg/scheduler/controller/shoot/reconciler.go#L110">reconciler&lt;/a> which selects candidate seeds. It ensures that shoots with &lt;code>zone&lt;/code> tolerance are only scheduled to seeds which have worker nodes across multiple availability tones (aka &lt;code>multi-zonal seeds&lt;/code>).&lt;/p>
+&lt;p>&lt;strong>Scoring of candidate seeds&lt;/strong>&lt;/p>
+&lt;p>Today, after &lt;strong>Gardener Scheduler&lt;/strong> filtered candidates and applied the configured strategy, it chooses the seed with least scheduled shoots &lt;a href="https://github.com/gardener/gardener/blob/b7e6d8691ccc9421a4cee73286497a1f004d5612/pkg/scheduler/controller/shoot/reconciler.go#L160">ref&lt;/a>.&lt;/p>
+&lt;p>This GEP intends to enhance this very last step by also taking the requested failure tolerance into consideration: If there are potential single- and multi-zonal candidates remaining, a single-zonal seed is always preferred for a shoot requesting no or &lt;code>node&lt;/code> tolerance, independent from the utilization of the seed (also see this &lt;a href="https://github.com/gardener/gardener/pull/6102">draft PR&lt;/a>). A multi-zonal seed is only chosen if no single-zonal one is suitable &lt;strong>after&lt;/strong> filtering was done and the strategy has been applied.&lt;/p>
+&lt;p>&lt;em>Motivation:&lt;/em> It is expected that operators will prepare their landscapes for HA control-planes by changing worker nodes of existing seeds but also by adding completely new multi-zonal seed clusters. For the latter, multi-zonal seeds should primarily be reserved for multi-zonal shoots.&lt;/p>
+&lt;h3 id="case-2-ha-shoot-with-assigned-seed-and-updated-failure-tolerance">Case #2: HA shoot with assigned seed and updated failure tolerance&lt;/h3>
+&lt;p>A shoot has a pre-defined non-HA seed. A change has been made to the shoot spec, setting control HA to &lt;code>zone&lt;/code>.&lt;/p>
+&lt;p>&lt;em>Proposed Change&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>If the shoot is not already scheduled on a multi-zonal seed, then the &lt;a href="https://github.com/gardener/gardener/tree/master/plugin/pkg/shoot/validator">shoot admission plugin&lt;/a> must deny the request.&lt;/li>
+&lt;li>Either shoot owner creates shoot from scratch or needs to align with Gardener operator who has to move the shoot to a proper seed first via control plane migration (editing the &lt;code>shoots/binding&lt;/code> resource).&lt;/li>
+&lt;li>An automated control plane migration is deliberately not performed as it involves a considerable downtime and the feature itself is not stable by the time this GEP was written.&lt;/li>
+&lt;/ul>
+&lt;h2 id="setting-up-a-seed-for-ha">Setting up a Seed for HA&lt;/h2>
+&lt;p>As mentioned in &lt;a href="#high-availablity">High-Availablity&lt;/a>, certain aspects need to be considered for a seed cluster to host HA shoots. The following sections explain the requirements for a seed cluster to host a single or multi zonal HA shoot cluster.&lt;/p>
+&lt;h3 id="hosting-a-ha-shoot-control-plane-with-node-failure-tolerance">Hosting a HA shoot control plane with &lt;code>node&lt;/code> failure tolerance&lt;/h3>
+&lt;p>To host an HA shoot control plane within a single zone, it should be ensured that each worker pool that potentially runs seed system or shoot control plane components should at least have &lt;strong>three nodes&lt;/strong>. This is also the minium size that is required by an HA &lt;code>etcd&lt;/code> cluster with a failure tolerance of a single node. Furthermore, the nodes must run in a single zone only (see &lt;a href="#recommended-number-of-nodes-and-zones">Recommended number of nodes and zones&lt;/a>).&lt;/p>
+&lt;h3 id="hosting-a-ha-shoot-control-plane-with-zone-failure-tolerance">Hosting a HA shoot control plane with &lt;code>zone&lt;/code> failure tolerance&lt;/h3>
+&lt;p>To host an HA shoot control plane across availability zones, worker pools should have a minimum of &lt;strong>three nodes spread across an odd number of availability zones (min. 3)&lt;/strong>.&lt;/p>
+&lt;p>An additional label &lt;code>seed.gardener.cloud/multi-zonal: true&lt;/code> should be added to the seed indicating that this seed is capable of hosting multi-zonal HA shoot control planes, which in turn will help gardener scheduler to short-list the seeds as candidates.&lt;/p>
+&lt;p>In case of a &lt;code>ManagedSeed&lt;/code> Gardener can add this label automatically to seed clusters if at least one worker pool fulfills the requirements mentioned above and doesn&amp;rsquo;t enforce &lt;code>Taints&lt;/code> on its nodes. Gardener may in addition validate if the &lt;code>ManagedSeed&lt;/code> is properly set up for the &lt;code>seed.gardener.cloud/multi-zonal: true&lt;/code> label when it is added manually.&lt;/p>
+&lt;h3 id="compute-seed-usage">Compute Seed Usage&lt;/h3>
+&lt;p>At present seed usage is computed by counting the number of shoot control planes that are hosted in a seed. Every seed has a number of shoots it can host &lt;code>status.allocatable.shoots&lt;/code> (configurable via &lt;a href="https://github.com/gardener/gardener/blob/4e2d28f2af7093eb94819652a6f4709b5fbfaf06/pkg/gardenlet/apis/config/v1alpha1/types.go#L449">ResourceConfiguration&lt;/a>. Operators need to rethink this value for multi-zonal seed clusters.&lt;/p>
+&lt;p>Which parameters could be considered?&lt;/p>
+&lt;ul>
+&lt;li>Number of available machines of a type as requested as part of the shoot spec. Sufficient capacity should be available to also allow rolling updates which will also be governed by &lt;code>maxSurge&lt;/code> configuration at the worker pool level.&lt;/li>
+&lt;li>Node CIDR range must grant enough space to schedule additional replicas that the HA feature requires. (For instance, for etcd the requirement for nodes will be 3 times as compared to the current single node).&lt;/li>
+&lt;li>If additional zones are added to an existing non-multi-zonal seed cluster to make it multi-zonal then care should be taken that zone specific CIDRs are appropriately checked and changed if required.&lt;/li>
+&lt;li>Number of volumes that will be required to host a multi-node/multi-zone etcd cluster will increase by &lt;code>(n-1)&lt;/code> where &lt;code>n&lt;/code> is the total number of members in the etcd cluster.&lt;/li>
+&lt;/ul>
+&lt;p>The above list is not an exhaustive list and is just indicative that the currently set limit of 250 will have to be revisited.&lt;/p>
+&lt;h2 id="scheduling-control-plane-components">Scheduling control plane components&lt;/h2>
+&lt;h3 id="zone-pinning">Zone pinning&lt;/h3>
+&lt;p>HA shoot clusters with failure tolerance of &lt;code>node&lt;/code> as well as non-HA shoot clusters can be scheduled on &lt;code>single-zonal&lt;/code> and &lt;code>multi-zonal&lt;/code> seeds alike. On a &lt;code>multi-zonal&lt;/code> seed it&amp;rsquo;s desireable to place components of the same control plane in &lt;strong>one zone only&lt;/strong> to reduce cost and latency effects due to cross network traffic.
+Thus, it&amp;rsquo;s essential to add &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity">Pod affinity&lt;/a> rules to control plane component with multiple replicas:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> affinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podAffinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requiredDuringSchedulingIgnoredDuringExecution:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/shoot: &amp;lt;technical-id&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: &lt;span style="color:#a31515">&amp;#34;topology.kubernetes.io/zone&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>A special challenge is to select the entire set of control plane pods belonging to a single control plane. Today, Gardener and extensions don&amp;rsquo;t put a common label to the affected pods. We propose to introduce a new label &lt;code>gardener.cloud/shoot: &amp;lt;technical-id&amp;gt;&lt;/code> where &lt;code>technical-id&lt;/code> is the shoot namespace. A mutating webhoook in the &lt;strong>Gardener Resource Manager&lt;/strong> should apply this label and the affinity rules to every pod in the control plane. This label and the pod affinity rule will ensure that all the pods in the control plane are pinned to a specific zone for HA shoot cluster having failure tolerance of &lt;code>node&lt;/code>.&lt;/p>
+&lt;h3 id="single-zone">Single-Zone&lt;/h3>
+&lt;p>There are control plane components (like etcd) which requires one etcd member pod per node. Following anti-affinity rule guarantees that each pod of etcd is scheduled onto a different node.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> affinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podAntiAffinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requiredDuringSchedulingIgnoredDuringExecution:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: &lt;span style="color:#a31515">&amp;#34;kubernetes.io/hostname&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other control plane components which do not have a stricter requirements to have one replica per node, a more optimal scheduling strategy should be used. Following topology spread constraint provides better utilization of node resources, allowing cluster autoscaler to downsize node groups if certain nodes are under-utilized.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: kubernetes.io/hostname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Using topology spread constraints (as described above) would still ensure that if there are more than one replica defined for a control plane component then it will be distributed across more than one node ensuring failure tolerance of at least one node.&lt;/p>
+&lt;h3 id="multi-zone-replicas--zones">Multi-Zone (#replicas &amp;lt;= #zones)&lt;/h3>
+&lt;p>If the replica count is equal to the number of available zones, then we can enforce the zone spread during scheduling.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> affinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podAntiAffinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requiredDuringSchedulingIgnoredDuringExecution:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: &lt;span style="color:#a31515">&amp;#34;topology.kubernetes.io/zone&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="multi-zone-replicas--zones-1">Multi-Zone (#replicas &amp;gt; #zones)&lt;/h3>
+&lt;p>Enforcing a zone spread for components with a replica count higher than the total amount of zones is not possible. In this case we plan to rather use the following &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/">Pod Topology Spread Constraints&lt;/a> which allows a distribution over zones and nodes. The &lt;code>maxSkew&lt;/code> value determines how big a imbalance of the pod distribution can be and thus it allows to schedule replicas with a count beyond the number of availability zones (e.g. &lt;a href="#kube-apiserver">Kube-Apiserver&lt;/a>).&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>During testing we found a few inconsistencies and some quirks (more &lt;a href="#topology-spread-constraints-evaluation-and-findings">information&lt;/a>) which is why we rely on Topology Spread Constraints (TSC) only for this case.&lt;/li>
+&lt;li>In addition to circumvent issue &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215">kubernetes/kubernetes#98215&lt;/a>, Gardener is supposed to add a &lt;code>gardener.cloud/rolloutVersion&lt;/code> label and incrementing the version every time the &lt;code>.spec&lt;/code> of the component is changed (see &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215#issuecomment-766146323">workaround&lt;/a>).&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>Update:&lt;/code> &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215">kubernetes/kubernetes#98215&lt;/a> has been very recently closed. A new &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/pkg/features/kube_features.go#L540-L551">feature-gate&lt;/a> has been created which is only available from kubernetes 1.5 onwards.&lt;/p>
+&lt;/blockquote>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/rolloutVersion: &amp;lt;version&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: kubernetes.io/hostname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/rolloutVersion: &amp;lt;version&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="disruptions-and-zero-downtime-maintenance">Disruptions and zero downtime maintenance&lt;/h2>
+&lt;p>A secondary effect of provisioning affected seed system and shoot control plane components in an HA fashion is the support for zero downtime maintenance, i.e. a certain amount of replicas always serves requests while an update is being rolled out.
+Therefore, proper &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/">PodDisruptionBudgets&lt;/a> are required. With this GEP it&amp;rsquo;s planned to set &lt;code>spec.maxUnavailable: 1&lt;/code> for every involved and further mentioned component.&lt;/p>
+&lt;h2 id="seed-system-components">Seed System Components&lt;/h2>
+&lt;p>The following seed system components already run or are planned[*] to be configured with a minimum of two replicas:&lt;/p>
+&lt;ul>
+&lt;li>Etcd-Druid* (active-passive)&lt;/li>
+&lt;li>Gardenlet* (active-passive)&lt;/li>
+&lt;li>Istio Ingress Gateway* (active-active)&lt;/li>
+&lt;li>Istio Control Plane* (active-passive)&lt;/li>
+&lt;li>Gardener Resource Manager (controllers: active-passive, webhooks: active-active)&lt;/li>
+&lt;li>Gardener Seed Admission Controller (active-active)&lt;/li>
+&lt;li>Nginx Ingress Controller (active-active)&lt;/li>
+&lt;li>Reversed VPN Auth Server (active-active)&lt;/li>
+&lt;/ul>
+&lt;p>The reason to run controller in &lt;code>active-passive&lt;/code> mode is that in case of an outage a stand-by instance can quickly take over the leadership which reduces the overall downtime of that component in comparison to a single replica instance that would need to be evicted and re-scheduled first (see &lt;a href="#current-recovery-mechanisms">Current-Recovery-Mechanisms&lt;/a>).&lt;/p>
+&lt;p>In addition, the pods of above mentioned components will be configured with the discussed anti-affinity rules (see &lt;a href="#scheduling-control-plane-components">Scheduling control plane components&lt;/a>). The &lt;code>Single-Zone&lt;/code> case will be the default while &lt;code>Multi-Zone&lt;/code> anti-affinity rules apply to seed system components, if the seed is labelled with &lt;code>seed.gardener.cloud/multi-zonal: true&lt;/code> (see &lt;a href="#hosting-a-multi-zonal-ha-shoot-control-plane">Hosting a multi-zonal HA shoot control plane&lt;/a>).&lt;/p>
+&lt;h2 id="shoot-control-plane-components">Shoot Control Plane Components&lt;/h2>
+&lt;p>Similar to the &lt;a href="#seed-system-components">Seed System Components&lt;/a> the following shoot control plane components are considered critical so that Gardener ought to avoid any downtime. Thus, &lt;a href="#current-recovery-mechanisms">current recovery mechanisms&lt;/a> are considered insufficient if only one replica is involved.&lt;/p>
+&lt;h3 id="kube-apiserver">Kube Apiserver&lt;/h3>
+&lt;p>The Kube Apiserver&amp;rsquo;s &lt;code>HVPA&lt;/code> resource needs to be adjusted in case of an HA shoot request:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hpa:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minReplicas: 3
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The discussed &lt;code>TSC&lt;/code> in &lt;a href="#scheduling-control-plane-components">Scheduling control plane components&lt;/a> applies as well.&lt;/p>
+&lt;h3 id="gardener-resource-manager">Gardener Resource Manager&lt;/h3>
+&lt;p>The Gardener Resource Manager is already set up with &lt;code>spec.replicas: 3&lt;/code> today. Only the &lt;a href="#scheduling-control-plane-components">Affinity and anti-affinity&lt;/a> rules must be configured on top.&lt;/p>
+&lt;h3 id="etcd">Etcd&lt;/h3>
+&lt;p>In contrast to other components, it&amp;rsquo;s not trivial to run multiple replicas for &lt;code>etcd&lt;/code> because different rules and considerations apply to form a quorum-based cluster &lt;a href="https://etcd.io/docs/v3.4/op-guide/clustering/">ref&lt;/a>.
+Most of the complexity (e.g. cluster bootstrap, scale-up) is already outsourced to &lt;a href="https://github.com/gardener/etcd-druid">Etcd-Druid&lt;/a> and efforts have been made to support may use-cases already (see &lt;a href="https://github.com/gardener/etcd-druid/issues/107">gardener/etcd-druid#107&lt;/a> and &lt;a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/multi-node/README.md">Multi-Node etcd GEP&lt;/a>). Please note, that especially for &lt;code>etcd&lt;/code> an &lt;code>active-passive&lt;/code> alternative was evaluated &lt;a href="#etcd-active-passive-options">here&lt;/a>. Due to the complexity and implementation effort it was decided to proceed with the &lt;code>active-active&lt;/code> built-in support, but to keep this as a reference in case we&amp;rsquo;ll see blockers in the future.&lt;/p>
+&lt;h4 id="gardener-etcd-component-changes">Gardener &lt;code>etcd&lt;/code> component changes&lt;/h4>
+&lt;p>With most of the complexity being handled by &lt;a href="https://github.com/gardener/etcd-druid">Etcd-Druid&lt;/a>, Gardener still needs to implement the following requirements if HA is enabled.:&lt;/p>
+&lt;ul>
+&lt;li>Set &lt;code>etcd.spec.replicas: 3&lt;/code>.&lt;/li>
+&lt;li>Set &lt;code>etcd.spec.etcd.schedulingConstraints&lt;/code> to the matching &lt;a href="#scheduling-control-plane-components">anti-affinity rule&lt;/a>.&lt;/li>
+&lt;li>Deploy &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">NetworkPolicies&lt;/a> that a allow a &lt;code>peer-to-peer&lt;/code> communication between the etcd pods.&lt;/li>
+&lt;li>Create and pass a peer CA and server/client certificate to &lt;code>etcd.spec.etcd.peerUrlTls&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>The groundwork for this was already done by &lt;a href="https://github.com/gardener/gardener/pull/5741">gardener/gardener#5741&lt;/a>.&lt;/p>
+&lt;h2 id="handling-outages">Handling Outages&lt;/h2>
+&lt;h3 id="node-failures">Node failures&lt;/h3>
+&lt;p>It is possible that node(s) hosting the control plane component are no longer available/reachable. Some of the reasons could be crashing of a node, kubelet running on the node is unable to renew its lease, network partition etc. The topology of control plane components and recovery mechanisms will determine the duration of the downtime that will result when a node is no longer reachable/available.&lt;/p>
+&lt;h4 id="impact-of-node-failure">Impact of Node failure&lt;/h4>
+&lt;p>&lt;strong>Case #1&lt;/strong>&lt;/p>
+&lt;p>HA Failure Tolerance: &lt;code>node&lt;/code>&lt;/p>
+&lt;p>For control plane components having multiple replicas, each replica will be provisioned on a different node (one per node) as per the scheduling constraints.&lt;/p>
+&lt;p>Since there are lesser than the desired replicas for shoot control plane pods, &lt;code>kube-scheduler&lt;/code> will attempt to look for another node while respecting pod scheduling constraints. If a node satisfying scheduling constraints is found then it will be chosen to schedule control plane pods. If there are no nodes that satisfy the scheduling constraints, then it must wait for &lt;code>Cluster-Autoscaler&lt;/code> to scale the node group and then for the &lt;code>Machine-Controller-Manager&lt;/code> to provision a new node in the scaled node group. In the event &lt;code>Machine-Controller-Manager&lt;/code> is unable to create a new machine, then the replica that was evicted from the failed node, will be stuck in &lt;code>Pending&lt;/code> state.&lt;/p>
+&lt;p>&lt;em>Impact on etcd&lt;/em>&lt;/p>
+&lt;p>Assuming that default etcd cluster size of 3 members, unavailability of one node is tolerated. If more than 1 node hosting the control plane components goes down or is unavailable, then etcd cluster will lose quorum till new nodes are provisioned.&lt;/p>
+&lt;p>&lt;strong>Case #2&lt;/strong>&lt;/p>
+&lt;p>HA Failure Tolerance: &lt;code>zone&lt;/code>&lt;/p>
+&lt;p>For control plane components having multiple replicas, each replica will be spread across zones as per the scheduling constraints.&lt;/p>
+&lt;p>&lt;em>etcd&lt;/em>&lt;/p>
+&lt;p>&lt;code>kube-scheduler&lt;/code> will attempt to look for another node in the same zone since the pod scheduling constraints will prevent it from scheduling the pod onto another zone. If a node is found where there are no control plane components deployed, then it will choose that node to schedule the control plane pods. If there are no nodes that satisfy the scheduling constraints, then it must wait for &lt;code>Machine-Controller-Manager&lt;/code> to provision a new node. Reference to &lt;code>PVC&lt;/code> will also prevent an &lt;code>etcd&lt;/code> member from getting scheduled in another zone since persistent volumes are not shared across availability zones.&lt;/p>
+&lt;p>&lt;em>Kube Apiserver and Gardener Resource Manager&lt;/em>&lt;/p>
+&lt;p>These control plane components will use &lt;a href="#scheduling-control-plane-components">these&lt;/a> rules which allows the replica deployed on the now deleted machine to be brought up on another node within the same zone. However, if there are no nodes available in that zone, then for &lt;em>Gardener Resource Manager&lt;/em> which uses &lt;code>requiredDuringSchedulingIgnoredDuringExecution&lt;/code> no replacement replica will be scheduled in another zone. &lt;em>Kube ApiServer&lt;/em> on the other hand uses topology spread constrains with &lt;code>maxSkew=2&lt;/code> on the &lt;code>topologyKey: topology.kubernetes.io/zone&lt;/code> which allows it to schedule a replacement pod in another zone.&lt;/p>
+&lt;p>&lt;em>Other control plane components having single replica&lt;/em>&lt;/p>
+&lt;p>Currently there are no pod scheduling constraints on such control plane components. &lt;a href="#current-recovery-mechanisms">Current recovery mechanisms&lt;/a> as described above will come into play and recover these pods.&lt;/p>
+&lt;h3 id="what-is-zone-outage">What is Zone outage?&lt;/h3>
+&lt;p>No clear definition of a zone outage emerges. However, we can look at different reasons for a zone outage across providers that have been listed in the past and derive a definition out of it.&lt;/p>
+&lt;p>Some of the most common failures for zone outages have been due to:&lt;/p>
+&lt;ul>
+&lt;li>Network congestion, failure of network devices etc., resulting in loss of connectivity to the nodes within a zone.&lt;/li>
+&lt;li>Infrastructure power down due to cooling systems failure/general temperature threshold breach.&lt;/li>
+&lt;li>Loss of power due to extreme weather conditions and failure of primary and backup generators resulting in partial or complete shutdown of infrastructure.&lt;/li>
+&lt;li>Operator mistakes leading to cascading DNS issues, over-provisioning of servers resulting in massive increase in system memory.&lt;/li>
+&lt;li>Stuck volumes or volumes with severely degraded performance which are unable to service read and write requests which can potentially have cascading effects on other critical services like load balancers, database services etc.&lt;/li>
+&lt;/ul>
+&lt;p>The above list is not comprehensive but a general pattern emerges. The outages range from:&lt;/p>
+&lt;ol>
+&lt;li>Shutdown of machines in a specific availability zone due to infrastructure failure which in turn could be due to many reasons listed above.&lt;/li>
+&lt;li>Network connectivity to the machines running in an availability zone is either severely impacted or broken.&lt;/li>
+&lt;li>Subset of essential services (e.g. EBS volumes in case of AWS provider) are unhealthy which might also have a cascading effect on other services.&lt;/li>
+&lt;li>Elevated API request failure rates when creating or updating infrastructure resources like machines, load balancers, etc.&lt;/li>
+&lt;/ol>
+&lt;p>One can further derive that either there is a complete breakdown of an entire availability zone (1 and 2 above) or there is a degradation or unavailability of a subset of essential services.&lt;/p>
+&lt;p>In the first version of this document we define an AZ outage only when either of (1) or (2) occurs as defined above.&lt;/p>
+&lt;h4 id="impact-of-a-zone-outage">Impact of a Zone Outage&lt;/h4>
+&lt;p>As part of the &lt;a href="#current-recovery-mechanisms">current recovery mechanisms&lt;/a>, if &lt;code>Machine-Controller-Manager&lt;/code> is able to delete the machines, then per &lt;code>MachineDeployment&lt;/code> it will delete one machine at a time and wait for a new machine to transition from &lt;code>Pending&lt;/code> to &lt;code>Running&lt;/code> state. In case of a network outage, it will be able to delete a machine and subsequently launch a new machine but the newly launched machine will be stuck in &lt;code>Pending&lt;/code> state as the &lt;code>Kubelet&lt;/code> running on the machine will not be able to create its lease. There will also not be any corresponding &lt;code>Node&lt;/code> object for the newly launched machine. Rest of the machines in this &lt;code>MachineDeployment&lt;/code> will be stuck in &lt;code>Unknown&lt;/code> state.&lt;/p>
+&lt;p>&lt;strong>Kube Apiserver, Gardener Resource Manager &amp;amp; seed system components&lt;/strong>&lt;/p>
+&lt;p>These pods are stateless, losing one pod can be tolerated since there will be two other replicas that will continue to run in other two zones which are available (considering that there are 3 zones in a region).&lt;/p>
+&lt;p>&lt;strong>etcd&lt;/strong>&lt;/p>
+&lt;p>A minimum and default size of HA etcd cluster setup is 3. This allows tolerance of one AZ failure. If more than one AZ fails or is unreachable then etcd cluster will lose its quorum. Pod Anti-Affinity policies that are initially set will not allow automatic rescheduling of etcd pod onto another zone (unless of course affinity rules are dynamically changed). Reference to &lt;code>PVC&lt;/code> will also prevent an &lt;code>etcd&lt;/code> member from getting scheduled in another zone, since persistent volumes are not shared across availability zones.&lt;/p>
+&lt;p>&lt;strong>Other Shoot Control Plane Components&lt;/strong>&lt;/p>
+&lt;p>All the other shoot control plane components have:&lt;/p>
+&lt;ul>
+&lt;li>Single replicas&lt;/li>
+&lt;li>No affinity rules influencing their scheduling&lt;/li>
+&lt;/ul>
+&lt;p>See the &lt;a href="#current-recovery-mechanisms">current recovery mechanisms&lt;/a> described above.&lt;/p>
+&lt;h3 id="identify-a-zone-outage">Identify a Zone outage&lt;/h3>
+&lt;blockquote>
+&lt;p>NOTE: This section should be read in context of the currently limited definition of a zone outage as described above.&lt;/p>
+&lt;/blockquote>
+&lt;p>In case the &lt;code>Machine-Controller-Manager&lt;/code> is unable to delete &lt;code>Failed&lt;/code> machines, then following will be observed:&lt;/p>
+&lt;ul>
+&lt;li>All nodes in that zone will be stuck in &lt;code>NotReady&lt;/code> or &lt;code>Unknown&lt;/code> state and there will be an additional taint &lt;code>key: node.kubernetes.io/unreachable, effect: NoSchedule&lt;/code> on the node resources.&lt;/li>
+&lt;li>Across all &lt;code>MachineDeployment&lt;/code> in the affected zone, one machine will be in &lt;code>Terminating&lt;/code> state and other existing machines will be in &lt;code>Unknown&lt;/code> state. There might one additional machine in &lt;code>CrashLoopBackOff&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>In case the &lt;code>Machine-Controller-Manager&lt;/code> is able to delete the &lt;code>Failed&lt;/code> machines then following will be observed:&lt;/p>
+&lt;ul>
+&lt;li>For every &lt;code>MachineDeployment&lt;/code> in the affected zone, there will be one machine stuck in &lt;code>Pending&lt;/code> state and all other machines will be in &lt;code>Unknown&lt;/code> state.&lt;/li>
+&lt;li>For the machine in &lt;code>Pending&lt;/code> state there will not be any corresponding node object.&lt;/li>
+&lt;li>For all the machines in &lt;code>Unknown&lt;/code> state, corresponding node resource will be in &lt;code>NotReady/Unknown&lt;/code> state and there will be an additional taint &lt;code>key: node.kubernetes.io/unreachable, effect: NoSchedule&lt;/code> on each of the node.&lt;/li>
+&lt;/ul>
+&lt;p>If the above state is observed for an extended period of time (beyond a threshold that could be defined), then it can be deduced that there is a zone outage.&lt;/p>
+&lt;h3 id="identify-zone-recovery">Identify zone recovery&lt;/h3>
+&lt;blockquote>
+&lt;p>NOTE: This section should be read in context of the current limited definition of a zone outage as described above.&lt;/p>
+&lt;/blockquote>
+&lt;p>The machines which were previously stuck in either &lt;code>Pending&lt;/code> or &lt;code>CrashLoopBackOff&lt;/code> state are now in &lt;code>Running&lt;/code> state and if there are corresponding &lt;code>Node&lt;/code> resources created for machines, then the zonal recovery has started.&lt;/p>
+&lt;h3 id="recovery">Recovery&lt;/h3>
+&lt;h4 id="current-recovery-mechanisms">Current Recovery Mechanisms&lt;/h4>
+&lt;p>Gardener and upstream Kubernetes already provide recovery mechanism for node and pod recovery in case of a failure of a node. Those have been tested in the scope of a &lt;a href="#availability-zone-outage-simulation">availability zone outage simulation&lt;/a>.&lt;/p>
+&lt;p>&lt;em>Machine recovery&lt;/em>&lt;/p>
+&lt;p>In the seed control plane, &lt;code>Kube Controller Manager&lt;/code> will detect that a node has not renewed its lease and after a timeout (usually 40 seconds - configurable via &lt;code>--node-monitor-grace-period&lt;/code>) it will transition the &lt;code>Node&lt;/code> to &lt;code>Unknown&lt;/code> state. &lt;code>Machine-Controller-Manager&lt;/code> will detect that an existing &lt;code>Node&lt;/code> has transitioned to &lt;code>Unknown&lt;/code> state and will do the following:&lt;/p>
+&lt;ul>
+&lt;li>It will transition the corresponding &lt;code>Machine&lt;/code> to &lt;code>Failed&lt;/code> state after waiting for a duration (currently 10 mins, configured via the &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml">&amp;ndash;machine-health-timeout&lt;/a> flag).&lt;/li>
+&lt;li>Thereafter a &lt;code>deletion timestamp&lt;/code> will be put on this machine indicating that the machine is now going to be terminated, transitioning the machine to &lt;code>Terminating&lt;/code> state.&lt;/li>
+&lt;li>It attempts to drain the node first and if it is unable to drain the node, then currently after a period of 2 hours (configurable via &lt;code>machine-drain-timeout&lt;/code>), it will attempt to force-delete the &lt;code>Machine&lt;/code> and create a new machine.&lt;/li>
+&lt;/ul>
+&lt;p>In case &lt;code>Machine-Controller-Manager&lt;/code> is unable to delete a machine, then that machine will be stuck in &lt;code>Terminating&lt;/code> state. It will attempt to launch a new machine and if that also fails, then the new machine will transition to &lt;code>CrashLoopBackoff&lt;/code> and will be stuck in this state.&lt;/p>
+&lt;p>&lt;em>Pod recovery&lt;/em>&lt;/p>
+&lt;p>Once &lt;code>Kube Controller Manager&lt;/code> transitions the node to &lt;code>Unknown&lt;/code>/&lt;code>NotReady&lt;/code>, it also puts the following taints on the node:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>taints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- effect: NoSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: node.kubernetes.io/unreachable
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- effect: NoExecute
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: node.kubernetes.io/unreachable
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This annotation has the following effect:&lt;/p>
+&lt;ul>
+&lt;li>New pods will not be scheduled unless they have a toleration added which is all permissive or matches the effect and/or key.&lt;/li>
+&lt;/ul>
+&lt;p>In case where &lt;code>kubelet&lt;/code> cannot reach the control plane, evicting the pod is not possible without intervention. See &lt;a href="https://kubernetes.io/docs/concepts/architecture/nodes/#condition">here&lt;/a> for more details. It has been observed that the pods will be stuck in &lt;code>Terminating&lt;/code> state.&lt;/p>
+&lt;h4 id="recovery-from-node-failure">Recovery from Node failure&lt;/h4>
+&lt;p>If there is a single node failure in any availability zone irrespective of whether it is a &lt;code>single-zone&lt;/code> or &lt;code>multi-zone&lt;/code> setup, then the recovery is automatic (see &lt;a href="#current-recovery-mechanisms">current recovery mechanisms&lt;/a>). In the mean time, if there are other available nodes (as per affinity rules) in the same availability zone, then the scheduler will deploy the affected shoot control plane components on these nodes.&lt;/p>
+&lt;h4 id="recovery-from-zone-failure">Recovery from Zone failure&lt;/h4>
+&lt;p>In the following section, options are presented to recover from an availability zone failure in a multi-zone shoot control plane setup.&lt;/p>
+&lt;h3 id="option-1-leverage-existing-recovery-options---preferred">Option #1: Leverage existing recovery options - &lt;code>Preferred&lt;/code>&lt;/h3>
+&lt;p>In this option existing recovery mechanisms as described above are used. There is no change to the current replicas for all shoot control plane components and there is no dynamic re-balancing of quorum based pods considered.&lt;/p>
+&lt;p>&lt;em>Pros:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Less complex to implement since no dynamic re-balancing of pods is required and there is no need to determine if there is an AZ outage.&lt;/li>
+&lt;li>Additional cost to host an HA shoot control plane is kept to the bare minimum.&lt;/li>
+&lt;li>Existing recovery mechanisms are leveraged.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Cons:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Existing recovery of pods will result in a downtime of up to ~5 mins for pods which can be rescheduled onto another node/zone.&lt;/li>
+&lt;li>etcd cluster will run with one less member resulting in no tolerance to any further failure. If it takes a long time to recover a zone then etcd cluster is now susceptible to a quorum loss, if any further failure happens.&lt;/li>
+&lt;li>Any zero downtime maintenance is disabled during this time.&lt;/li>
+&lt;li>If the recovery of the zone takes a long time, then it is possible that difference revision between the leader and the follower (which was in the zone that is not available) becomes large. When the AZ is restored and the etcd pod is deployed again, then there will be an additional load on the etcd leader to synchronize this etcd member.&lt;/li>
+&lt;/ul>
+&lt;h3 id="option-2-redundencies-for-all-critical-control-plane-components">Option #2: Redundencies for all critical control plane components&lt;/h3>
+&lt;p>In this option :&lt;/p>
+&lt;ul>
+&lt;li>Kube Apiserver, Gardener Resource Manager and etcd will be setup with a minimum of 3 replicas as it is done today.&lt;/li>
+&lt;li>All other critical control plane components are setup with more than one replicas. Based on the criticality of the functionality different replica count (&amp;gt;1) could be decided.&lt;/li>
+&lt;li>As in &lt;code>Option #1&lt;/code> no additional recovery mechanism other than what currently exists are provided.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Pros:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Toleration to at least a single AZ is now provided for all critical control plane components.&lt;/li>
+&lt;li>There is no need for dynamic re-balancing of pods in the event of an AZ failure and there is also no need to determine if there is an AZ outage reducing the complexity.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Cons&lt;/em>:&lt;/p>
+&lt;ul>
+&lt;li>Provisioning redundancies entails additional hosting cost. With all critical components now set up with more than one replica, the overall requirement for compute resources will increase.&lt;/li>
+&lt;li>Increase in the overall resource requirements will result in lesser number of shoot control planes that can be hosted in a seed, thereby requiring more seeds to be provisioned, which also increases the cost of hosting seeds.&lt;/li>
+&lt;li>If the recovery of the zone takes a long time, then it is possible that difference revision between the leader and the follower (which was in the zone that is not available) becomes large. When the AZ is restored and the etcd pod is deployed again, then there will be an additional load on the etcd leader to synchronize this etcd member.&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong>&lt;/p>
+&lt;hr>
+&lt;p>Before increasing the replicas for control plane components that currently have a single replica following needs to be checked:&lt;/p>
+&lt;ol>
+&lt;li>Is the control plane component stateless? If it is stateless, then it is easier to increase the replicas.&lt;/li>
+&lt;li>If the control plane component is not stateless, then check if leader election is required to ensure that at any time there is only one leader and the rest of the replicas will only be followers. This will require additional changes to be implemented if they are not already there.&lt;/li>
+&lt;/ol>
+&lt;/blockquote>
+&lt;h3 id="option-3-auto-rebalance-pods-in-the-event-of-az-failure">Option #3: Auto-rebalance pods in the event of AZ failure&lt;/h3>
+&lt;blockquote>
+&lt;p>NOTE: Prerequisite for this option is to have the ability to detect an outage and recover from it.&lt;/p>
+&lt;/blockquote>
+&lt;p>Kube Apiserver, Gardener Resource Manager, etcd and &lt;a href="#seed-system-components">seed system compontents&lt;/a> will be setup with multiple replicas spread across zones. Rest of the control plane components will continue to have a single replica. However, in this option etcd cluster members will be rebalanced to ensure that the desired replicas are available at all times.&lt;/p>
+&lt;p>&lt;em>Recovering etcd cluster to its full strength&lt;/em>&lt;/p>
+&lt;p>Affinity rules set on etcd statefulset enforces that there will be at most one etcd member per zone. Two approaches could be taken:&lt;/p>
+&lt;p>&lt;strong>Variant-#1&lt;/strong>&lt;/p>
+&lt;p>Change the affinity rules and always use &lt;code>preferredDuringSchedulingIgnoredDuringExecution&lt;/code> for &lt;code>topologyKey: topology.kubernetes.io/zone&lt;/code>. If all zones are available then it will prefer to distribute the etcd members across zones, each zone having just one replica. In case of zonal failure, kube scheduler will be able to re-schedule this pod in another zone while ensuring that it chooses a node within that zone that does not already have an etcd member running.&lt;/p>
+&lt;p>&lt;em>Pros&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Simpler to implement as it does not require any change in the affinity rules upon identification of a zonal failure.&lt;/li>
+&lt;li>Etcd cluster runs with full strength as long as there is a single zone where etcd pods can be rescheduled.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Cons&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>It is possible that even when there is no zonal failure, more than one etcd member can be provisioned in a single zone. The chances of that happening are slim as typically there is a dedicate worker pool for hosting etcd pods.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Variant-#2&lt;/strong>&lt;/p>
+&lt;p>Use &lt;code>requiredDuringSchedulingIgnoredDuringExecution&lt;/code> for &lt;code>topologyKey: topology.kubernetes.io/zone&lt;/code> during the initial setup to strictly enforce one etcd member per zone.&lt;/p>
+&lt;p>If and when a zonal failure is detected then &lt;code>etcd-druid&lt;/code> should do the following:&lt;/p>
+&lt;ul>
+&lt;li>Remove the PV and PVC for the etcd member in a zone having an outage&lt;/li>
+&lt;li>Change the affinity rules for etcd pods to now use &lt;code>preferredDuringSchedulingIgnoredDuringExecution&lt;/code> for &lt;code>topologyKey: topology.kubernetes.io/zone&lt;/code> during the downtime duration of a zone.&lt;/li>
+&lt;li>Delete the etcd pod in the zone which has an outage&lt;/li>
+&lt;/ul>
+&lt;p>This will force the kube-scheduler to schedule the new pod in another zone.&lt;/p>
+&lt;p>When it is detected that the zone has now recovered then it should re-balance the etcd members. To achieve that the following &lt;code>etcd-druid&lt;/code> should do the following:&lt;/p>
+&lt;ul>
+&lt;li>Change the affinity rule to again have &lt;code>requiredDuringSchedulingIgnoredDuringExecution&lt;/code> for &lt;code>topologyKey: topology.kubernetes.io/zone&lt;/code>&lt;/li>
+&lt;li>Delete an etcd pod from a zone which has 2 pods running. Subsequently also delete the associated PV and PVC.&lt;/li>
+&lt;/ul>
+&lt;p>The kube-scheduler will now schedule this pod in the just recovered zone.&lt;/p>
+&lt;p>Consequence of doing this is that &lt;code>etcd-druid&lt;/code>, which today runs with a single replica, now needs to have a HA setup across zones.&lt;/p>
+&lt;p>&lt;em>Pros&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>When all the zones are healthy and available, it ensures that there is at most one pod per zone, thereby providing the desired QoS w.r.t failure tolerance. Only in the case of a zone failure will it relax the rule for spreading etcd members to allowing more than one member in a zone to be provisioned. However this would ideally be temporary.&lt;/li>
+&lt;li>Etcd cluster runs with full strength as long as there is a single zone where etcd pods can be rescheduled.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Cons&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>It is complex to implement.&lt;/li>
+&lt;li>Requires &lt;code>etcd-druid&lt;/code> to be highly available as it now plays a key role in ensuring that the affinity rules are changed and PV/PVC&amp;rsquo;s are deleted.&lt;/li>
+&lt;/ul>
+&lt;h2 id="cost-implications-on-hosting-ha-control-plane">Cost Implications on hosting HA control plane&lt;/h2>
+&lt;h3 id="compute--storage">Compute &amp;amp; Storage&lt;/h3>
+&lt;p>Cost differential as compared to current setup will be due to:&lt;/p>
+&lt;blockquote>
+&lt;p>Consider a 3 zone cluster (in case of multi-zonal shoot control plane) and 3 node cluster (in case of single-zonal shoot control plane)&lt;/p>
+&lt;/blockquote>
+&lt;ul>
+&lt;li>&lt;strong>Machines&lt;/strong>: Depending on the number of zones, a minimum of one additional machine per zone will be provisioned.&lt;/li>
+&lt;li>&lt;strong>Persistent Volume&lt;/strong>: 4 additional PVs need to be provisioned for &lt;code>etcd-main&lt;/code> and &lt;code>etcd-events&lt;/code> pods.&lt;/li>
+&lt;li>&lt;strong>Backup-Bucket&lt;/strong>: &lt;code>etcd&lt;/code> backup-restore container uses provider object store as a backup-bucket to store full and delta snapshots. In a multi-node etcd setup, there will only be a leading backup-bucket sidecar (in etcd leader pod) that will only be taking snapshots and uploading it to the object store. Therefore there is no additional cost incurred as compared to the current non-HA shoot control plane setup.&lt;/li>
+&lt;/ul>
+&lt;h3 id="network-latency">Network latency&lt;/h3>
+&lt;p>Network latency measurements were done focusing on &lt;code>etcd&lt;/code>. Three different etcd topologies were considered for comparison - single node etcd (cluster-size = 1), multi-node etcd (within a single zone, cluster-size = 3) and multi-node etcd (across 3 zones, cluster-size = 3).&lt;/p>
+&lt;p>&lt;strong>Test Details&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>etcd benchmark tool is used to generate load and reports generated from the benchmark tool is used.&lt;/li>
+&lt;li>A subset of etcd requests (namely &lt;code>PUT&lt;/code>, &lt;code>RANGE&lt;/code>) are considered for network analysis.&lt;/li>
+&lt;li>Following are the parameters that have been considered for each test run across all etcd topologies:
+&lt;ul>
+&lt;li>Number of connections&lt;/li>
+&lt;li>Number of clients connecting to etcd concurrently&lt;/li>
+&lt;li>Size and the number of key-value pairs that are and queried&lt;/li>
+&lt;li>Consistency which can either be &lt;code>serializable&lt;/code> or &lt;code>linearizable&lt;/code>&lt;/li>
+&lt;li>For each &lt;code>PUT&lt;/code> or &lt;code>GET&lt;/code> (range) request leader and followers are targetted&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Zones have other workloads running and therefore measurements will have outliers which are ignored.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Acronyms used&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> - single node, single zone etcd cluster&lt;/li>
+&lt;li>&lt;code>mn-sz&lt;/code> - multi node, single zone etcd cluster&lt;/li>
+&lt;li>&lt;code>mn-mz&lt;/code> - multi node, multi zone etcd cluster&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Test findings for PUT requests&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>When number of clients and connections are kept at 1 then it is observed that &lt;code>sn-sz&lt;/code> latency is lesser (range of 20%-50%) as compared to &lt;code>mn-sz&lt;/code>. The variance is due to changes in payload size.&lt;/li>
+&lt;li>For the following observations it was ensured that the only a leader is targetted for both multi-node etcd cluster topologies and that the leader is in the same zone as that of &lt;code>sn-sz&lt;/code> to have a fair comparison.
+&lt;ul>
+&lt;li>When the number of clients, connections and payload size is increased then it has been observed that &lt;code>sn-sz&lt;/code> latency is more (in the range of 8% to 30%) as compared to &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>When comparing &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code> following observations were made:
+&lt;ul>
+&lt;li>When number of clients and connections are kept at 1 then irrespective of the payload size, &lt;code>mn-sz&lt;/code> latency is lesser (~3%) as compared to &lt;code>mn-mz&lt;/code>. However the difference is in the usually is within 1ms.&lt;/li>
+&lt;li>&lt;code>mn-sz&lt;/code> latency is lesser (range of 5%-20%) as compared to &lt;code>mn-mz&lt;/code> when the request is directly serviced by the leader. However the difference is in a range of a micro-seconds to a few milli-seconds.&lt;/li>
+&lt;li>&lt;code>mn-sz&lt;/code> latency is lesser (range of 20-30%) as compared to &lt;code>mn-mz&lt;/code> when the request is serviced by a follower. However the difference is usually within the same millisecond.&lt;/li>
+&lt;li>When the number of clients and connections are kept at 1 then irrespective of the payload size it is observed that latency of a leader is lesser than any follower. This is on the expected lines. However if the number of clients and connections are increased then leader seems to have a higher latency as compared to a follower which could not be explained.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Test findings for GET (Range) requests&lt;/strong>&lt;/p>
+&lt;p>Using etcd benchmark tool range requests were generated.&lt;/p>
+&lt;p>&lt;em>Range Request to fetch one key per request&lt;/em>&lt;/p>
+&lt;p>We fixed the number of connections and clients to 1 and varied the payload size. Range requests were directed to leader and follower etcd members and network latencies were measured. Following are the findings:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> latency is ~40% greater as compared to &lt;code>mn-sz&lt;/code> and around 30% greater as compared to &lt;code>mn-mz&lt;/code> for smaller payload sizes. However for larger payload sizes (~1MB) the trend reverses and we see that &lt;code>sn-sz&lt;/code> latency is around (15-20%) lesser as compared to &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code>.&lt;/li>
+&lt;li>&lt;code>mn-sz&lt;/code> latency is ~20% lesser than &lt;code>mn-mz&lt;/code>&lt;/li>
+&lt;li>With consistency set to serializable, latency was lesser (in the range of 15-40%) as compared to when consistency was set to linearizable.&lt;/li>
+&lt;li>When requesting a single key at time (keeping number of connections and clients to 1):
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> latency is ~40% greater as compared to &lt;code>mn-sz&lt;/code> and around 30% greater as compared to &lt;code>mn-mz&lt;/code>.&lt;/li>
+&lt;li>&lt;code>mn-sz&lt;/code> latency is ~20% lesser than &lt;code>mn-mz&lt;/code>&lt;/li>
+&lt;li>With consistency serializable latency was ~40% lesser as compared to when consistency was set to linearizable.&lt;/li>
+&lt;li>For both &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code> leader latency is in general lesser (in the range of 20% to 50%) than that of the follower. However the difference is still in milliseconds range when consistency is set to linearizable and in micro seconds range when it is set to serializable.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>When connections and clients were increased keeping the payload size fixed then following were the findings:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> latency is ~30% greater as compared to &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code> with consistency set to linearizable. This is consistent with the above finding as well. However when consistency is set to serializable then across all topologies latencies are comparable (within ~1 millisecond).&lt;/li>
+&lt;li>With increased connections and clients the latencies of &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code> are almost similar.&lt;/li>
+&lt;li>With consistency set to serializable, latency was ~20% lesser as compared to when consistency was set to linearizable. This is also consistent with the above findings.&lt;/li>
+&lt;li>When range requests are served by the follower then &lt;code>mn-sz&lt;/code> latency is ~20% lesser than &lt;code>mn-mz&lt;/code> when consistency is set to linearizable. However it is quite the opposite when consistency is set to serializable.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Range requests to fetch all keys per request&lt;/em>&lt;/p>
+&lt;p>For these tests - for payload size = 1MB, total number of key-value&amp;rsquo;s retrieved per request are 1000 and for payload-size = 256 bytes, total number of key-value pairs retrived per request are 100000.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> latency is around 5% lesser than both &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code>. This is a deviation for smaller payloads (see above), but for larger payloads this finding is consistent.&lt;/li>
+&lt;li>There is hardly any difference in latency between &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code>.&lt;/li>
+&lt;li>There seems to be no significant different between serializable and linearizable consistency setting. However, when follower etcd instances serviced the request, there were mixed results and nothing could be concluded.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Summary&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>For range requests consistency of &lt;code>Serializable&lt;/code> has a lesser network latency as compared to &lt;code>Linearizable&lt;/code> which is on the expected lines as linearlizable requests must go through the raft consensus process.&lt;/li>
+&lt;li>For PUT requests:
+&lt;ul>
+&lt;li>&lt;code>sn-sz&lt;/code> has a lower network latency when number of clients and connections are less. However it starts to deteriorate once that is increased along with increase in payload size makine multi-node etcd clusters out-perform single-node etcd in terms of network latency.&lt;/li>
+&lt;li>In general &lt;code>mn-sz&lt;/code> has lesser network latency as compared to &lt;code>mn-mz&lt;/code> but it is still within milliseconds and therefore is not of concern.&lt;/li>
+&lt;li>Requests that go directly to the leader have lesser overall network latency as compared to when the request goes to the follower. This is also expected as the follower will have to forward all PUT requests to the leader as an additional hop.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>For GET requests:
+&lt;ul>
+&lt;li>For lower payload sizes &lt;code>sn-sz&lt;/code> latency is greater as compared to &lt;code>mn-sz&lt;/code> and &lt;code>mn-mz&lt;/code> but with larger payload sizes this trend reverses.&lt;/li>
+&lt;li>With lower number of connections and clients &lt;code>mn-sz&lt;/code> has lower latencies as compared to &lt;code>mn-mz&lt;/code> however this difference diminishes as number of connections/clients/payload size is increased.&lt;/li>
+&lt;li>In general when consistency is set to serializable it has lower overall latency as compared to linearizable. There were some outliers w.r.t etcd followers but currently we do not give too much weightage to it.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>In a nutshell we do not see any major concerns w.r.t latencies in a multi-zonal setup as compared to single-zone HA setup or single node etcd.&lt;/p>
+&lt;blockquote>
+&lt;p>NOTE: Detailed network latency analysis can be viewed &lt;a href="https://github.com/gardener/etcd-druid/blob/master/docs/etcd-network-latency.md">here&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="cross-zonal-traffic">Cross-Zonal traffic&lt;/h3>
+&lt;p>Providers typically do not charge ingress and egress traffic which is contained within an availability zone. However, they do charge traffic that is across zones.&lt;/p>
+&lt;p>Cross zonal traffic rates for some of the providers are:&lt;/p>
+&lt;ul>
+&lt;li>AWS: &lt;a href="https://aws.amazon.com/vpc/pricing/">https://aws.amazon.com/vpc/pricing/&lt;/a> and &lt;a href="https://aws.amazon.com/ec2/pricing/on-demand/">https://aws.amazon.com/ec2/pricing/on-demand/&lt;/a>&lt;/li>
+&lt;li>Azure: &lt;a href="https://azure.microsoft.com/en-in/pricing/details/bandwidth/">https://azure.microsoft.com/en-in/pricing/details/bandwidth/&lt;/a>&lt;/li>
+&lt;li>GCP: &lt;a href="https://cloud.google.com/vpc/network-pricing">https://cloud.google.com/vpc/network-pricing&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>Setting up shoot control plane with failure tolerance &lt;code>zone&lt;/code> will therefore have a higher running cost due to ingress/egress cost as compared to a HA shoot with failure tolerance of &lt;code>node&lt;/code> or to a non-HA control plane.&lt;/p>
+&lt;h4 id="ingressegress-traffic-analysis">Ingress/Egress traffic analysis&lt;/h4>
+&lt;p>Majority of the cross zonal traffic is generated via the following communication lines:&lt;/p>
+&lt;ul>
+&lt;li>Between Kube Apiserver and etcd members (ingress/egress)&lt;/li>
+&lt;li>Amongst etcd members (ingress/egress)&lt;/li>
+&lt;/ul>
+&lt;p>Since both of these components are spread across zones, their contribution to the cross-zonal network cost is the largest. In this section the focus is only on these components and the cross-zonal traffic that gets generated.&lt;/p>
+&lt;p>Details of the network traffic is described in &lt;a href="#Ingress/Egress-Traffic-Analysis-Details">Ingress/Egress traffic analysis&lt;/a> section.&lt;/p>
+&lt;p>&lt;strong>Observation Summary&lt;/strong>&lt;/p>
+&lt;p>&lt;em>Terminology&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Idle state&lt;/code>: In an &lt;code>idle&lt;/code> state of a shoot control plane, there is no user driven activity which results in a call to the API server. All the controllers have started and initial listing of watched resources has been completed (in other words informer caches are now in sync).&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Findings&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>etcd inherently uses &lt;code>raft&lt;/code> consensus protocol to provide consistency and linearizability guarantees. All &lt;code>PUT&lt;/code> or &lt;code>DELETE&lt;/code> requests are always and only serviced by the &lt;code>leader etcd pod&lt;/code>. Kube Apiserver can either connect to a &lt;code>leader&lt;/code> or a &lt;code>follower&lt;/code> etcd.
+&lt;ul>
+&lt;li>If Kube Apiserver connects to the leader then for every &lt;code>PUT&lt;/code>, the leader will additionally distribute the request payload to all the followers and only if the majority of followers responded with a successful update to their local &lt;code>boltDB&lt;/code> database, will the leader commit the message and subsequently respond back to the client. For &lt;code>Delete&lt;/code>, a similar flow is executed but instead of passing around the entire k8s resource, only keys that need to be deleted are passed, making this operation significantly lighter from the network bandwidth consumption perspective.&lt;/li>
+&lt;li>If the Kube Apiserver connects to a follower then for every &lt;code>PUT&lt;/code>, the follower will first forward the &lt;code>PUT&lt;/code> request along with the request payload to the leader, who in turn will attempt to get consensus from majority of the followers by again sending the entire request payload to all the followers. Rest of the flow is the same as above. There is an additional network traffic from follower to leader and is equal to the weight of the request payload. For &lt;code>Delete&lt;/code> a similar flow is executed where the follower will forward the keys that need to be deleted to the leader as an additional step. Rest of the flow is the same as the &lt;code>PUT&lt;/code> request flow. Since the keys are quite small in size, the network bandwidth consumed is very small.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>GET&lt;/code> calls made to the Kube Apiserver with &lt;code>labels + selector&lt;/code> get translated to &lt;code>range&lt;/code> requests to etcd. etcd&amp;rsquo;s database does not understand labels and selectors and is therefore not optimized for k8s query patterns. This call can either be serviced by the &lt;code>leader&lt;/code> or &lt;code>follower&lt;/code> etcd member. &lt;code>follower&lt;/code> etcd will not forward the call to the leader.&lt;/li>
+&lt;li>From within controllers, periodic informer resync which generates reconcile events does not make calls to the Kube Apiserver (under the condition that no change is made to the resources for which a watch is created).&lt;/li>
+&lt;li>If a &lt;code>follower&lt;/code> etcd is not in sync (w.r.t revisions) with the &lt;code>leader&lt;/code> etcd, then it will reject the call. The client (in this case Kube Apiserver) retries. Needs to be checked, if it retries by connecting to another etcd member. This will result in additional cross zonal traffic. This is currently not a concern as members are generally kept in sync and will only go out of sync in case of a crash of a member or addition of a new member (as a learner) or during rolling updates. However, the time it takes to complete the sync is generally quick.&lt;/li>
+&lt;li>etcd cluster members which are spread across availability zones generated a total cross zonal traffic of ~84 Kib/s in an ideal multi-zonal shoot control plane. Across several runs we have seen this number go up to ~100Kib/s.&lt;/li>
+&lt;li>etcd follower to another etcd follower remains consistent at ~2Kib/s in all the cases that have been tested (see Appendix).&lt;/li>
+&lt;li>Kube Apiserver making a PUT call to a etcd follower is more expensive than directly making the call to the etcd leader. A PUT call also carries the entire payload of the k8s resource that is being created. &lt;code>Topology aware hints&lt;/code> should be evaluated to potentially reduce the network cost to some extent.&lt;/li>
+&lt;li>In case of a large difference (w.r.t revision) between a follower and a leader, significant network traffic is observed between the leader and the follower. This is usually an edge case, but occurrence of these cases should be monitored.&lt;/li>
+&lt;/ul>
+&lt;h4 id="optimizing-cost-topology-aware-hint">Optimizing Cost: Topology Aware Hint&lt;/h4>
+&lt;p>In a multi-zonal shoot control plane setup there will be multiple replicas of Kube Apiserver and etcd spread across different availability zones. Network cost and latency is much lower when the communication is within a zone and increases once zonal boundary is crossed. Network traffic amongst etcd members cannot be optimized as these are strictly spread across different zones. However, what could be optimized is the network traffic between Kube Apiserver and etcd member (leader or follower) deployed within a single zone. Kubernetes provides &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">topology aware hints&lt;/a> to influence how clients should consume endpoints. Additional metadata is added to &lt;code>EndpointSlice&lt;/code> to influence routing of traffic to the endpoints closer to the caller. &lt;code>Kube-Proxy&lt;/code> utilizes the hints (added as metadata) to favor routing to topologically closer endpoints.&lt;/p>
+&lt;p>Disclaimer: &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">Topology Aware Hints&lt;/a> won&amp;rsquo;t improve network traffic if the seed has worker nodes in more than three zones and the Kube Apiserver is scaled beyond three replicas at the same time. In this case, Kube Apiserver replicas run in zones which don&amp;rsquo;t have an etcd and thus cross zone traffic is inevitable.&lt;/p>
+&lt;p>&lt;em>During evaluation of this feature some caveats were discovered:&lt;/em>&lt;/p>
+&lt;p>For each cluster, gardener provides a capability to create one or more &lt;code>Worker Pool/Group&lt;/code>. Each worker pool can span across one or more availability zones. For a combination of each worker pool and zone there will be a corresponding &lt;code>MachineDeployment&lt;/code> which will also map 1:1 to a &lt;code>Node Group&lt;/code> which is understood by cluster-autoscaler.&lt;/p>
+&lt;p>Consider the following cluster setup:
+&lt;img src="https://gardener.cloud/__resources/multi-zone-node-groups_bd3aab.png">&lt;/p>
+&lt;p>&lt;code>EndpointSliceController&lt;/code> does the following:&lt;/p>
+&lt;ul>
+&lt;li>Computes the overall allocatable CPU across all zones - call it &lt;code>TotalCPU&lt;/code>&lt;/li>
+&lt;li>Computes the allocatable CPU for all nodes per zone - call it &lt;code>ZoneTotalCPU&lt;/code>&lt;/li>
+&lt;li>For each zone it computes the CPU ratio via &lt;code>ZoneTotalCPU/TotalCPU&lt;/code>. If the ratio between any two zones is approaching 2x, then it will remove all topology hints.&lt;/li>
+&lt;/ul>
+&lt;p>Given that the cluster-autoscaler can scale the individual node groups based on unscheduled pods or lower than threshold usage, it is possible that topological hints are added and removed dynamically. This results in non-determinism w.r.t request routing across zones, resulting in difficult to estimate cross-zonal network cost and network latencies.&lt;/p>
+&lt;p>&lt;a href="https://github.com/kubernetes/kubernetes/issues/110714">K8S#110714&lt;/a> has been raised.&lt;/p>
+&lt;h2 id="references">References&lt;/h2>
+&lt;ol>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/">https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/">https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/&lt;/a>&lt;/li>
+&lt;/ol>
+&lt;h2 id="appendix">Appendix&lt;/h2>
+&lt;h3 id="etcd-active-passive-options">ETCD Active-Passive Options&lt;/h3>
+&lt;p>In this topology there will be just one &lt;code>active/primary etcd&lt;/code> instance and all other &lt;code>etcd&lt;/code> instances will be running as &lt;code>hot-standby&lt;/code>. Each &lt;code>etcd&lt;/code> instance serves as an independent single node cluster.
+There are three options to setup an &lt;code>active-passive&lt;/code> etcd.&lt;/p>
+&lt;details>
+&lt;summary>Option-1: Independent single node etcd clusters&lt;/summary>
+&lt;img src="https://gardener.cloud/__resources/activepassive-option1_8e565b.png">
+&lt;p>&lt;code>Primary etcd&lt;/code> will periodically take a snapshot (full and delta) and will push these snapshots to the backup-bucket. &lt;code>Hot-Standy etcd&lt;/code> instances will periodically query the backup-bucket and sync its database accordingly. If a new full snapshot is available which has a higher revision number than what is available in its local etcd database then it will restore from a full snapshot. It will additionally check if there are delta snapshots having a higher revision number. If that is the case then it will apply the delta snapshots directly to its local etcd database.&lt;/p>
+&lt;blockquote>
+&lt;p>NOTE: There is no need to run an embedded etcd to apply delta snapshots.&lt;/p>
+&lt;/blockquote>
+&lt;p>For the sake of illustration only assume that there are two etcd pods &lt;code>etcd-0&lt;/code> and &lt;code>etcd-1&lt;/code> with corresponding labels which uniquely identify each pod. Assume that &lt;code>etcd-0&lt;/code> is the current &lt;code>primary/active&lt;/code> etcd instance.&lt;/p>
+&lt;p>&lt;code>etcd-druid&lt;/code> will take an additional responsibility to monitor the health of &lt;code>etcd-0&lt;/code> and &lt;code>etcd-1&lt;/code>. When it detects that the &lt;code>etcd-0&lt;/code> is no longer healthy it will patch the &lt;code>etcd&lt;/code> service to point to the &lt;code>etcd-1&lt;/code> pod by updating the label/selector so that it becomes the &lt;code>primary&lt;/code> etcd. It will then restart &lt;code>etc-0&lt;/code> pod and henceforth that will serve as a &lt;code>hot-standby&lt;/code>.&lt;/p>
+&lt;p>&lt;strong>Pros&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>There is no leader election, no quorum related issues to be handled. It is simpler to setup and manage.&lt;/li>
+&lt;li>Allows you to just have a total of two etcd nodes - one is active and another is passive. This allows high availability across zones in cases where regions only have 2 zones (e.g. CCloud and Azure regions that do not have more than 2 zones).&lt;/li>
+&lt;li>For all PUT calls the maximum cost in terms of network bandwidth is one call (cross-zonal) from Kube ApiServer to etcd instance which carries the payload with it. In comparison in a three member etcd cluster, the leader will have to send the PUT request to other members (cross zonal) in the etcd cluster which will be slightly more expensive than just having a single member etcd.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Cons&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>As compared to an &lt;code>active-active&lt;/code> etcd cluster there is not much difference in cost of compute resources (CPU, Memory, Storage)&lt;/li>
+&lt;li>etcd-druid will have to periodically check the health of both the &lt;code>primary&lt;/code> and &lt;code>hot-standby&lt;/code> nodes and ensure that these are up and running.&lt;/li>
+&lt;li>There will be a potential delay in determining that a &lt;code>primary&lt;/code> etcd instance is no longer healthy. Thereby increasing the delay in switching to the &lt;code>hot-standy&lt;/code> etcd instance causing longer downtime. It is also possible that at the same time &lt;code>hot-standy&lt;/code> also went down or is otherwise unhealthy resulting in a complete downtime. The amount of time it will take to recover from such a situation would be several minutes (time to start etcd pod + time to restore either from full snapshot or apply delta snapshots).&lt;/li>
+&lt;li>Synchronization is always via backup-bucket which will be less frequent as compared to an &lt;code>active-active&lt;/code> etcd cluster where there is real-time synchronization done for any updates by the leader to majority or all of its followers. If the primary crashes, the time.&lt;/li>
+&lt;li>During the switchover from &lt;code>primary&lt;/code> to &lt;code>hot-standby&lt;/code> if the &lt;code>hot-standy&lt;/code> etcd is in process of applying delta snaphots or restoring from a new full snapshot then &lt;code>hot-standby&lt;/code> should ensure that the backup-restore container sets the readiness probe to indicate that it is not ready yet causing additional downtime.&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Option-2: Perpetual Learner&lt;/summary>
+&lt;img src="https://gardener.cloud/__resources/activepassive-option2_7533da.png">
+&lt;p>In this option etcd cluster and learner facilities are leveraged. &lt;code>etcd-druid&lt;/code> will bootstrap a cluster with one member. Once this member is ready to serve client requests then an additional &lt;code>learner&lt;/code> will be added which joins the etcd cluster as a non-voting member. Learner will reject client reads and writes requests and the clients will have to reattempt. Typically switching to another member in a cluster post retries is provided out-of-the-box by etcd &lt;code>clientv3&lt;/code>. The only &lt;code>member&lt;/code> who is also the leader will serve all client requests.&lt;/p>
+&lt;p>&lt;strong>Pros&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>All the pros in &lt;code>Option-1&lt;/code> are also applicable for this option.&lt;/li>
+&lt;li>Leaner will be continuously updated by the leader and will remain in-sync with the leader. Using a learner retains historical data and its ordering and is therefore better in that aspect as compared to &lt;code>Option-2&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Cons&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>All the cons in &lt;code>Option-1&lt;/code> are also applicable for this option.&lt;/li>
+&lt;li>&lt;code>etcd-druid&lt;/code> will now have to additionally play an active role in managing members of an etcd cluster by add new members as &lt;code>learner&lt;/code> and promoting &lt;code>learner&lt;/code> to an active member if the leader is no longer available. This will increase the complexity in &lt;code>etcd-druid&lt;/code>.&lt;/li>
+&lt;li>To prevent clients from re-attempting to reach the &lt;code>learner&lt;/code>, &lt;code>etcd-druid&lt;/code> will have to ensure that the label on the learner are set differently than the &lt;code>leader&lt;/code>. This needs to be done every time there is a switch in the leader/learner.&lt;/li>
+&lt;li>Since etcd only allows addition of 1 learner at a time, this means that the HA setup can only have one failover etcd node, limiting its capability to have more than one &lt;code>hot-standby&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;h3 id="topology-spread-constraints-evaluation-and-findings">Topology Spread Constraints evaluation and findings&lt;/h3>
+&lt;details>
+&lt;summary>Finding #1&lt;/summary>
+&lt;p>Consider the following setup:&lt;/p>
+&lt;p>&lt;em>Single zone &amp;amp; multiple nodes&lt;/em>&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/singlezone-multinode_e38d39.png" style="width:200px;height:250px">
+&lt;p>When the constraints defined above are applied then the following was the findings:&lt;/p>
+&lt;ul>
+&lt;li>With 3 replicas of etcd, all three got scheduled (one per node). This was a bit unexpected. As per the documentation if there are multiple constraints then they will be evaluated in conjunction. The first constraint should only allow 1 etcd pod per zone and the remaining 2 should not have been scheduled and should continue to be stuck in &lt;code>pending&lt;/code> state. However all 3 etcd pods got scheduled and started successfully.&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Finding #2&lt;/summary>
+&lt;p>Consider the following setup:&lt;/p>
+&lt;p>_&lt;em>Multiple zones &amp;amp; multiple nodes&lt;/em>&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/multizone-multinode_6dc42e.png" style="width:450px;height:250px">
+&lt;p>When the constraints defined above are applied then the following was the findings:&lt;/p>
+&lt;ul>
+&lt;li>Both constraints are evaluated in &lt;code>conjunction&lt;/code> and the scheduling is done as expected.&lt;/li>
+&lt;li>TSC behaves correctly till replicas=5. Beyond that TSC fails. This was reported as an issue &lt;a href="https://github.com/kubernetes/kubernetes/issues/109364">kubernetes#109364&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Finding #3&lt;/summary>
+&lt;/details>
+&lt;blockquote>
+&lt;p>NOTE: Also see the &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/#known-limitations">&lt;code>Known Limitations&lt;/code>&lt;/a>&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="availability-zone-outage-simulation">Availability Zone Outage simulation&lt;/h3>
+&lt;p>A zone outage was simulated by doing the following (Provider:AWS):&lt;/p>
+&lt;ul>
+&lt;li>Network ACL were replaced with empty ACL (which denies all ingress and egress). This was done for all subnets in a zone. Impact of denying all traffic:
+&lt;ul>
+&lt;li>Kubelet running on the nodes in this zone will not be able to communicate to the Kube Apiserver. This will inturn result in &lt;code>Kube-Controller-Manager&lt;/code> changing the status of the corresponding &lt;code>Node&lt;/code> objects to &lt;code>Unknown&lt;/code>.&lt;/li>
+&lt;li>Control plane components will not be able to communicate to the kubelet, thereby unable to drain the node.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>To simulate the scenario where &lt;code>Machine-Controller-Manager&lt;/code> is unable to create/delete machines, &lt;code>cloudprovider&lt;/code> credentials were changed so that any attempt to create/delete machines will be un-authorized.&lt;/li>
+&lt;/ul>
+&lt;p>Worker groups were configured to use &lt;code>region: eu-west-1&lt;/code> and &lt;code>zones: eu-west-1a, eu-west-1b, eu-west-1c&lt;/code>. &lt;code>eu-west-1a&lt;/code> zone was brought down following the above steps. State before and after the outage simulation is captured below.&lt;/p>
+&lt;details>
+&lt;summary>State before the outage simulation&lt;/summary>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get po -n &amp;lt;shoot-control-ns&amp;gt; &lt;span style="color:#008000"># list of pods in the shoot control plane&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>READY&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;th>NODE&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>cert-controller-manager-6cf9787df6-wzq86&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>cloud-controller-manager-7748bcf697-n66t7&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-driver-controller-6cd9bc7997-m7hr6&lt;/td>
+&lt;td>6/6&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-snapshot-controller-5f774d57b4-2bghj&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-snapshot-validation-7c99986c85-rr7zk&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-0&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-1&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-2&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-0&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-77.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-1&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-22-85.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-2&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-53-131.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-jwggx&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-jwggx&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-jwggx&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>grafana-operators-79b9cd58bb-z6hc2&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>grafana-operators-79b9cd58bb-z6hc2&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-7p4xc&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-845p7&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-mrspt&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-controller-manager-6b94bcbc4-9bz8q&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-scheduler-7f855ffbc4-8c9pg&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-state-metrics-5446bb6d56-xqqnt&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>loki-0&lt;/td>
+&lt;td>4/4&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>machine-controller-manager-967bc89b5-kgdwx&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>prometheus-0&lt;/td>
+&lt;td>3/3&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot-dns-service-75768bd764-4957h&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-admission-controller-6994f855c9-5vmh6&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-recommender-5bf4cfccb6-wft4b&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-updater-6f795d7bb8-snq67&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpn-seed-server-748674b7d8-qmjbm&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get nodes -o=custom-columns=&lt;span style="color:#a31515">&amp;#39;NAME:metadata.name,ZONE:metadata.labels.topology\.kubernetes\.io\/zone&amp;#39;&lt;/span> &lt;span style="color:#008000"># list of nodes with name, zone and status (was taken separately)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;th>ZONE&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-22-85.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-3-0.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-53-131.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1b&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1b&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-73-77.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1c&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1c&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get machines &lt;span style="color:#008000"># list of machines for the multi-AZ shoot control plane&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z1-66659-sf4wt&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z2-c767d-s8cmf&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z3-9678d-6p8w5&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z1-766bc-pjq6n&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z2-85968-5qmjh&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z3-5f499-hnrs6&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-etcd-compaction-z1-6bd58-9ffc7&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/details>
+&lt;details>
+&lt;summary>State during outage&lt;/summary>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get po -n &amp;lt;shoot-control-ns&amp;gt; &lt;span style="color:#008000"># list of pods in the shoot control plane&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>READY&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;th>NODE&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>cert-controller-manager-6cf9787df6-dt5nw&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>cloud-controller-manager-7748bcf697-t2pn7&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-driver-controller-6cd9bc7997-bn82b&lt;/td>
+&lt;td>6/6&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-snapshot-controller-5f774d57b4-rskwj&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>csi-snapshot-validation-7c99986c85-ft2qp&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-0&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-1&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-events-2&lt;/td>
+&lt;td>0/2&lt;/td>
+&lt;td>Pending&lt;/td>
+&lt;td>&lt;none>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-0&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-77.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-1&lt;/td>
+&lt;td>0/2&lt;/td>
+&lt;td>Pending&lt;/td>
+&lt;td>&lt;none>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>etcd-main-2&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-53-131.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-8wr5n&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-jwggx&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gardener-resource-manager-7fff9f77f6-lkgjh&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>grafana-operators-79b9cd58bb-m55sx&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>grafana-users-85c7b6856c-gx48n&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-845p7&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-mrspt&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-apiserver-5fcb7f4bff-vkrdh&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-controller-manager-6b94bcbc4-49v5x&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-scheduler-7f855ffbc4-6xnbk&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>kube-state-metrics-5446bb6d56-g8wkp&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>loki-0&lt;/td>
+&lt;td>4/4&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>machine-controller-manager-967bc89b5-rr96r&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>prometheus-0&lt;/td>
+&lt;td>3/3&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot-dns-service-75768bd764-7xhrw&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-admission-controller-6994f855c9-7xt8p&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-recommender-5bf4cfccb6-8wdpr&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpa-updater-6f795d7bb8-gccv2&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>vpn-seed-server-748674b7d8-cb8gh&lt;/td>
+&lt;td>2/2&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Most of the pods except &lt;code>etcd-events-2&lt;/code> and &lt;code>etcd-main-1&lt;/code> are stuck in &lt;code>Pending&lt;/code> state. Rest all of the pods are which were running on nodes in &lt;code>eu-west-1a&lt;/code> zone were rescheduled automatically.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get nodes -o=custom-columns=&lt;span style="color:#a31515">&amp;#39;NAME:metadata.name,ZONE:metadata.labels.topology\.kubernetes\.io\/zone&amp;#39;&lt;/span> &lt;span style="color:#008000"># list of nodes with name, zone and status (was taken separately)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;th>ZONE&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>ip-10-242-20-17.eu-west-1.compute.internal&lt;/td>
+&lt;td>NotReady&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-22-85.eu-west-1.compute.internal&lt;/td>
+&lt;td>NotReady&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-3-0.eu-west-1.compute.internal&lt;/td>
+&lt;td>NotReady&lt;/td>
+&lt;td>eu-west-1a&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-53-131.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1b&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-60-155.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1b&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-73-77.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1c&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ip-10-242-73-89.eu-west-1.compute.internal&lt;/td>
+&lt;td>Ready&lt;/td>
+&lt;td>eu-west-1c&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get machines &lt;span style="color:#008000"># list of machines for the multi-AZ shoot control plane&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>NAME&lt;/th>
+&lt;th>STATUS&lt;/th>
+&lt;th>AGE&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z1-66659-jlv56&lt;/td>
+&lt;td>Terminating&lt;/td>
+&lt;td>21m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z1-66659-sf4wt&lt;/td>
+&lt;td>Unknown&lt;/td>
+&lt;td>3d&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z2-c767d-s8cmf&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>3d&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-etcd-z3-9678d-6p8w5&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>3d&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z1-766bc-9m45j&lt;/td>
+&lt;td>CrashLoopBackOff&lt;/td>
+&lt;td>2m55s&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z1-766bc-pjq6n&lt;/td>
+&lt;td>Unknown&lt;/td>
+&lt;td>2d21h&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z1-766bc-vlflq&lt;/td>
+&lt;td>Terminating&lt;/td>
+&lt;td>28m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z2-85968-5qmjh&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>3d&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z2-85968-zs9lr&lt;/td>
+&lt;td>CrashLoopBackOff&lt;/td>
+&lt;td>7m26s&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-cpu-worker-z3-5f499-hnrs6&lt;/td>
+&lt;td>Running&lt;/td>
+&lt;td>2d21h&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-etcd-compaction-z1-6bd58-8qzln&lt;/td>
+&lt;td>CrashLoopBackOff&lt;/td>
+&lt;td>12m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>shoot&amp;ndash;garden&amp;ndash;aws-ha2-etcd-compaction-z1-6bd58-9ffc7&lt;/td>
+&lt;td>Terminating&lt;/td>
+&lt;td>3d&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>MCM attempts to delete the machines and since it is unable to the machines transition to &lt;code>Terminating&lt;/code> state and are stuck there. It subsequently attempts to launch new machines which also fails and these machines transition to &lt;code>CrashLoopBackOff&lt;/code> state.&lt;/p>
+&lt;/details>
+&lt;h3 id="ingressegress-traffic-analysis-details">Ingress/Egress Traffic Analysis Details&lt;/h3>
+&lt;p>Consider the following etcd cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ etcdctl endpoint status --cluster -w table
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>ENDPOINT&lt;/th>
+&lt;th>ID&lt;/th>
+&lt;th>VERSION&lt;/th>
+&lt;th>DB SIZE&lt;/th>
+&lt;th>IS LEADER&lt;/th>
+&lt;th>IS LEARNER&lt;/th>
+&lt;th>RAFT TERM&lt;/th>
+&lt;th>RAFT INDEX&lt;/th>
+&lt;th>RAFT APPLIED INDEX&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>37e93e9d1dd2cc8e&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>7.6 MB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>47&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>65fe447d73e9dc58&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>7.6 MB&lt;/td>
+&lt;td>true&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>47&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>ad4fe89f4e731298&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>7.6 MB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>47&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;td>3863&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;details>
+&lt;summary>Multi-zonal shoot control plane ingress/egress traffic in a fresh shoot cluster with no user activity&lt;/summary>
+&lt;p>The steady state traffic (post all controllers have made initial &lt;code>list&lt;/code> requests to refresh their informer caches) is depicted below (span = 1hr):&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/etcdcluster-steadystate-traffic_4f7a2b.png">
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Leader to per follower max egress: ~20Kib/s&lt;/li>
+&lt;li>One Follower to Leader max egress: ~20Kib/s&lt;/li>
+&lt;li>Follower to follower max egress: ~2Kibs/s&lt;/li>
+&lt;/ul>
+&lt;p>Total ingress + egress traffic amongst etcd members = ~84Kib/s.&lt;/p>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during PUT requests to etcd leader&lt;/summary>
+&lt;p>Generating a load 100 put requests/second for 30 seconds duration by targeting etcd leader, This will generate ~100KiB/s traffic (value size is 1kib).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span> benchmark put --target-leader --rate 100 --conns=400 --clients=400 --sequential-keys --key-starts 0 --val-size=1024 --total=3000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=https://etcd-main-client:2379 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --key=/var/etcd/ssl/client/client/tls.key &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --cacert=/var/etcd/ssl/client/ca/bundle.crt &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --cert=/var/etcd/ssl/client/client/tls.crt
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/put-request-targeting-leader_0fcdd1.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Leader to per follower max egress: ~155 KiB/s (pattern duration: 50 secs)&lt;/li>
+&lt;li>One Follower to Leader max egress: ~50Kib/s (pattern duration: 50 secs)&lt;/li>
+&lt;li>Follower to follower max egress: ~2Kibs/s&lt;/li>
+&lt;/ul>
+&lt;p>Total ingress + egress traffic amongst etcd members = ~412Kib/s.&lt;/p>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during PUT requests to etcd follower&lt;/summary>
+Generating a load 100 put requests/second for 30 seconds duration by targeting etcd follower, This will generate ~100KiB/s traffic(value size is 1kib).
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>benchmark put --rate 100 --conns=400 --clients=400 --sequential-keys --key-starts 3000 --val-size=1024 --total=3000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --key=/var/etcd/ssl/client/client/tls.key &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --cacert=/var/etcd/ssl/client/ca/bundle.crt &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --cert=/var/etcd/ssl/client/client/tls.crt
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/put-request-targeting-follower_faa2ab.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>In this case, the follower(&lt;code>etcd-main-1&lt;/code>) redirects the put request to leader(&lt;code>etcd-main2&lt;/code>) max egress: ~168 KiB/s&lt;/li>
+&lt;li>Leader to per follower max egress: ~150 KiB/s (pattern duration: 50 secs)&lt;/li>
+&lt;li>One Follower to Leader max egress: ~45Kib/s (pattern duration: 50 secs)&lt;/li>
+&lt;li>Follower to follower max egress: ~2Kibs/s&lt;/li>
+&lt;/ul>
+&lt;p>Total ingress + egress traffic amongst etcd members = ~517KiB/s.&lt;/p>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during etcd follower initial sync with large revision difference&lt;/summary>
+&lt;p>Consider the following etcd cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ etcdctl endpoint status --cluster -w table
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>ENDPOINT&lt;/th>
+&lt;th>ID&lt;/th>
+&lt;th>VERSION&lt;/th>
+&lt;th>DB SIZE&lt;/th>
+&lt;th>IS LEADER&lt;/th>
+&lt;th>IS LEARNER&lt;/th>
+&lt;th>RAFT TERM&lt;/th>
+&lt;th>RAFT INDEX&lt;/th>
+&lt;th>RAFT APPLIED INDEX&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>37e93e9d1dd2cc8e&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>5.1 GB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>48&lt;/td>
+&lt;td>47527&lt;/td>
+&lt;td>47527&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>ad4fe89f4e731298&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>5.1 GB&lt;/td>
+&lt;td>true&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>48&lt;/td>
+&lt;td>47576&lt;/td>
+&lt;td>47576&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>In this case, new follower or crashed follower &lt;code>etcd-main-2&lt;/code> joins the etcd cluster with large revision difference (5.1 GB DB size). The etcd follower had its DB size = 14MB when it crashed. There was a flurry of activity and that increased the leader DB size to 5.1GB thus creating a huge revision difference.&lt;/p>
+&lt;blockquote>
+&lt;p>Scale up etcd member to 3&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;code>kubectl scale statefulsets etcd-main --replicas=3 -n shoot--ash-garden--mz-neem&lt;/code>&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>ENDPOINT&lt;/th>
+&lt;th>ID&lt;/th>
+&lt;th>VERSION&lt;/th>
+&lt;th>DB SIZE&lt;/th>
+&lt;th>IS LEADER&lt;/th>
+&lt;th>IS LEARNER&lt;/th>
+&lt;th>RAFT TERM&lt;/th>
+&lt;th>RAFT INDEX&lt;/th>
+&lt;th>RAFT APPLIED INDEX&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>37e93e9d1dd2cc8e&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>5.1 GB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>48&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>65fe447d73e9dc58&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>5.0 GB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>48&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>ad4fe89f4e731298&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>5.1 GB&lt;/td>
+&lt;td>true&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>48&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;td>50502&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;img src="https://gardener.cloud/__resources/etcd-member-initial-sync-with-large-revision_a51b87.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Leader to new follower or crashed follower &lt;code>etcd-main-2&lt;/code> (which joins with large revision difference) max egress: ~120 MiB/s (noticeable pattern duration: 40 secs).&lt;/li>
+&lt;li>New follower &lt;code>etcd-main-2&lt;/code> to Leader max egress: ~159 KiB/s (pattern duration: 40 secs).&lt;/li>
+&lt;li>Leader to another follower &lt;code>etcd-main-0&lt;/code> max egress: &amp;lt;20KiB/s.&lt;/li>
+&lt;li>Follower &lt;code>etcd-main-0&lt;/code> to Leader max egress: &amp;lt;20&amp;gt; Kib/s.&lt;/li>
+&lt;li>Follower to follower max egress: ~2Kibs/s&lt;/li>
+&lt;/ul>
+&lt;p>Total ingress + egress traffic amongst etcd members = ~121MiB/s.&lt;/p>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during GET requests to etcd leader&lt;/summary>
+&lt;p>In this case, trying to get the keys which matches between 1 and 17999 by targeting leader &lt;code>etcd-main-1&lt;/code>. This will dump both keys and values.&lt;/p>
+&lt;p>Executing the following command from &lt;code>etcd-client&lt;/code> pod(running in same namespace).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>root@etcd-client:/# etcdctl --endpoints=https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 get 1 17999 &amp;gt; /tmp/range2.txt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@etcd-client:/# du -h /tmp/range2.txt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>607M /tmp/range2.txt
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/get-request-targeting-leader_cc22ea.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Downloaded dump file is around 607 MiB.&lt;/li>
+&lt;li>Leader &lt;code>etcd-main-1&lt;/code> to &lt;code>etcd-client&lt;/code> max egress ~34MiBs.&lt;/li>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during GET requests to etcd follower&lt;/summary>
+&lt;p>In this case, trying to get the keys which matches between 1 and 17999 by targeting follower&lt;code>etcd-main-2&lt;/code>. This will dump both keys and values.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>root@etcd-client:/# etcdctl --endpoints=https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 get 1 17999 &amp;gt; /tmp/range.txt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@etcd-client:/# du -h /tmp/range.txt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>607M /tmp/range.txt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@etcd-client:/#
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/get-request-targeting-follower_12d930.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Downloaded dump file is around 607 MiB.&lt;/li>
+&lt;li>Follower &lt;code>etcd-main-2&lt;/code> to &lt;code>etcd-client&lt;/code> max egress ~32MiBs.&lt;/li>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern&lt;/li>
+&lt;li>&lt;strong>Watch requests are not forwarded to Leader &lt;code>etcd-main-1&lt;/code> from &lt;code>etcd-main-2&lt;/code>&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during DELETE requests to etcd leader&lt;/summary>
+&lt;p>In this case, trying to delete the keys which matches between 0 and 99999 by targeting leader.&lt;/p>
+&lt;p>Executing the following command from &lt;code>etcd-client&lt;/code> pod.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>root@etcd-client:/# time etcdctl --endpoints=https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 del 0 99999 --dial-timeout=300s --command-timeout=300s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>99999
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>real 0m0.664s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>user 0m0.008s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>sys 0m0.016s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@etcd-client:/#
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/delete-request-targeting-leader_89e7a2.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Downloaded dump file is around 607 MiB.&lt;/li>
+&lt;li>Leader &lt;code>etcd-main-2&lt;/code> to &lt;code>etcd-client&lt;/code> max egress ~226B/s.&lt;/li>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern.&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during DELETE requests to etcd follower&lt;/summary>
+&lt;p>In this case, trying to delete the keys which matches between 0 and 99999 by targeting follower.&lt;/p>
+&lt;p>Executing the following command from &lt;code>etcd-client&lt;/code> pod.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>root@etcd-client:/# time etcdctl --endpoints=https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 del 0 99999 --dial-timeout=300s --command-timeout=300s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>99999
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>real 0m0.664s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>user 0m0.008s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>sys 0m0.016s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@etcd-client:/#
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/delete-request-targeting-follower_66ffbf.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Downloaded dump file is around 607 MiB.&lt;/li>
+&lt;li>Leader &lt;code>etcd-main-2&lt;/code> to &lt;code>etcd-client&lt;/code> max egress ~222B/s.&lt;/li>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern.&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;details>
+&lt;summary>Traffic generated during WATCH requests to etcd&lt;/summary>
+&lt;p>Etcd cluster state&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>ENDPOINT&lt;/th>
+&lt;th>ID&lt;/th>
+&lt;th>VERSION&lt;/th>
+&lt;th>DB SIZE&lt;/th>
+&lt;th>IS LEADER&lt;/th>
+&lt;th>IS LEARNER&lt;/th>
+&lt;th>RAFT TERM&lt;/th>
+&lt;th>RAFT INDEX&lt;/th>
+&lt;th>RAFT APPLIED INDEX&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-0.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>37e93e9d1dd2cc8e&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>673 MB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>388&lt;/td>
+&lt;td>970471&lt;/td>
+&lt;td>970471&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-2.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>65fe447d73e9dc58&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>673 MB&lt;/td>
+&lt;td>true&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>388&lt;/td>
+&lt;td>970472&lt;/td>
+&lt;td>970472&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;a href="https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379">https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379&lt;/a>&lt;/td>
+&lt;td>ad4fe89f4e731298&lt;/td>
+&lt;td>3.4.13&lt;/td>
+&lt;td>673 MB&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>false&lt;/td>
+&lt;td>388&lt;/td>
+&lt;td>970472&lt;/td>
+&lt;td>970472&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Watching the keys which matches between 0 and 99999 by targeting follower.&lt;/p>
+&lt;p>Executing the following command from &lt;code>etcd-client&lt;/code> pod.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>time etcdctl --endpoints=https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 watch 0 99999 --dial-timeout=300s --command-timeout=300s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In parallel generating &lt;code>100000&lt;/code> keys and each value size is 1Kib by targeting etcd leader for this case around(500rps)&lt;/p>
+&lt;pre tabindex="0">&lt;code>benchmark put --target-leader --rate 500 --conns=400 --clients=800 --sequential-keys --key-starts 0 --val-size=1024 --total=100000 \
+--endpoints=https://etcd-main-client:2379 \
+--key=/var/etcd/ssl/client/client/tls.key \
+--cacert=/var/etcd/ssl/client/ca/bundle.crt \
+--cert=/var/etcd/ssl/client/client/tls.crt
+&lt;/code>&lt;/pre>&lt;img src="https://gardener.cloud/__resources/watch-request-targeting-follower_b0c016.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern.&lt;/li>
+&lt;li>Follower &lt;code>etcd-main-1&lt;/code> to &lt;code>etcd-client&lt;/code> max egress is 496 KiBs.&lt;/li>
+&lt;li>&lt;strong>Watch requests are not forwarded to Leader &lt;code>etcd-main-2&lt;/code> from follower &lt;code>etcd-main-1&lt;/code>&lt;/strong> .&lt;/li>
+&lt;/ul>
+&lt;p>Deleting the keys which matches between 0 and 99999 by targeting follower and in parallel watching the keys.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>root@etcd-client:/# time etcdctl --endpoints=https://etcd-main-1.etcd-main-peer.shoot--ash-garden--mz-neem.svc:2379 del 0 99999 --dial-timeout=300s --command-timeout=300s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>99999
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>real 0m0.590s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>user 0m0.018s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>sys 0m0.006s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;img src="https://gardener.cloud/__resources/watch-request-del-targeting-follower_f4a9b0.png"/>
+&lt;p>&lt;em>Observations:&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>Etcd intra cluster network traffic remains same, observed there is no change in network traffic pattern.&lt;/li>
+&lt;li>Follower &lt;code>etcd-main-1&lt;/code> to &lt;code>etcd-client&lt;/code> max egress is 222B/s.&lt;/li>
+&lt;li>watch lists the keys which are deleted, not values.&lt;/li>
+&lt;/ul>
+&lt;/details></description></item><item><title>Docs: Monitoring Stack - Migrating to the prometheus-operator</title><link>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</guid><description>
 &lt;h1 id="gep-19-monitoring-stack---migrating-to-the-prometheus-operator">GEP-19: Monitoring Stack - Migrating to the prometheus-operator&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>

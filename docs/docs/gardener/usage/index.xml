@@ -283,7 +283,34 @@ simply applying a configuration can break DNS).&lt;/p>
 This should bring the cluster DNS back to functioning state.&lt;/p>
 &lt;h2 id="references">References&lt;/h2>
 &lt;p>[1] &lt;a href="https://github.com/coredns/coredns/tree/master/plugin/import">Import plugin&lt;/a>
-[2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item><item><title>Docs: DNS Autoscaling</title><link>https://gardener.cloud/docs/gardener/usage/dns-autoscaling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/dns-autoscaling/</guid><description>
+[2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item><item><title>Docs: Default Seccomp Profile</title><link>https://gardener.cloud/docs/gardener/usage/default_seccomp_profile/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/default_seccomp_profile/</guid><description>
+&lt;h1 id="default-seccomp-profile-and-configuration">Default Seccomp Profile and Configuration&lt;/h1>
+&lt;p>This is a short guide describing how to enable the defaulting of seccomp profiles for Gardener managed workloads in the seed.&lt;/p>
+&lt;h2 id="default-kubernetes-behavior">Default Kubernetes Behavior&lt;/h2>
+&lt;p>The state of Kubernetes in versions &amp;lt; 1.25 is such that all workloads by default run in &lt;code>Unconfined&lt;/code> (seccomp disabled) mode. This is undesirable since this is the least restrictive profile. Also mind that any privileged container will always run as &lt;code>Unconfined&lt;/code>. More information about seccomp can be found in this &lt;a href="https://kubernetes.io/docs/tutorials/security/seccomp/">Kubernetes tutorial&lt;/a>.&lt;/p>
+&lt;h2 id="setting-the-seccomp-profile-to-runtimedefault">Setting the Seccomp Profile to RuntimeDefault&lt;/h2>
+&lt;p>To address the above issue, Gardener provides a webhook that is capable of mutating pods in the seed clusters, explicitly providing them with a seccomp profile type of &lt;code>RuntimeDefault&lt;/code>. This profile is defined by the container runtime and represents a set of default syscalls that are allowed or not.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> securityContext:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seccompProfile:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: RuntimeDefault
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>A &lt;code>Pod&lt;/code> is mutated when all of the following preconditions are fulfilled:&lt;/p>
+&lt;ol>
+&lt;li>The &lt;code>Pod&lt;/code> is created in Gardener managed namespace.&lt;/li>
+&lt;li>The &lt;code>Pod&lt;/code> is NOT labeled with &lt;code>seccompprofile.resources.gardener.cloud/skip&lt;/code>.&lt;/li>
+&lt;li>The &lt;code>Pod&lt;/code> does NOT explicitly specify &lt;code>.spec.securityContext.seccompProfile.type&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;h3 id="how-to-configure">How to Configure&lt;/h3>
+&lt;p>To enable the usage this feature, the Gardenlet &lt;code>DefaultSeccompProfile&lt;/code> feature gate must be set to &lt;code>true&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> DefaultSeccompProfile: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please refer to the examples &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">here&lt;/a> for more information.&lt;/p>
+&lt;p>Once the feature gate is enabled, the webhook will be registered and configured for the seed cluster. Newly created pods will be mutated to have their seccomp profile set to &lt;code>RuntimeDefault&lt;/code>.&lt;/p>
+&lt;blockquote>
+&lt;p>Please note that this feature is still in Alpha, so you might see instabilities every now and then.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="future-steps">Future steps&lt;/h2>
+&lt;p>The Gardener team plans to provide support for a similar feature for shoot clusters by enabling the &lt;code>kubelet&lt;/code>&amp;rsquo;s &lt;code>SeccompDefault&lt;/code> feature gate. This will happen in a future release once Kubernetes promotes the &lt;code>SeccompDefault&lt;/code> feature gate to Beta (expected in version 1.25). See &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/">here&lt;/a> for more information on Kubernetes feature gates. Once this support is implemented the &lt;code>Gardenlet&lt;/code>&amp;rsquo;s &lt;code>DefaultSeccompProfile&lt;/code> feature gate may become obsolete in scenarios where the &lt;code>kubelet&lt;/code>&amp;rsquo;s &lt;code>SeccompDefault&lt;/code> feature gate is enabled, i.e. for ManagedSeeds running Kubernetes version &amp;gt;= 1.25.&lt;/p></description></item><item><title>Docs: DNS Autoscaling</title><link>https://gardener.cloud/docs/gardener/usage/dns-autoscaling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/dns-autoscaling/</guid><description>
 &lt;h1 id="dns-autoscaling">DNS Autoscaling&lt;/h1>
 &lt;p>This is a short guide describing different options how to automatically scale CoreDNS in the shoot cluster.&lt;/p>
 &lt;h2 id="background">Background&lt;/h2>

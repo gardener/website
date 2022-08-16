@@ -2517,8 +2517,8 @@ Hence, we tried to sharpen the terminology that we use to distinguish between &a
 If you want to execute the test suites directly via &lt;code>go test&lt;/code> or &lt;code>ginkgo&lt;/code>, you have to point the &lt;code>KUBEBUILDER_ASSETS&lt;/code> environment variable to the path that contains the etcd and kube-apiserver binaries. Alternatively, you can install the binaries to &lt;code>/usr/local/kubebuilder/bin&lt;/code>.&lt;/p>
 &lt;h3 id="debugging-integration-tests">Debugging Integration Tests&lt;/h3>
 &lt;p>You can configure envtest to use an existing cluster instead of starting a temporary control plane for your test.
-This can be helpful for debugging integration tests, because you can easily inspect what is going on in your test cluster with &lt;code>kubectl&lt;/code>.
-For example:&lt;/p>
+This can be helpful for debugging integration tests, because you can easily inspect what is going on in your test cluster with &lt;code>kubectl&lt;/code>.&lt;/p>
+&lt;p>Run an &lt;code>envtest&lt;/code> suite (not using &lt;code>gardener-apiserver&lt;/code>) against an existing cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_CLUSTER=true
@@ -2528,9 +2528,58 @@ For example:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get managedresource -A -w
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>) against an existing gardener setup:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make dev-setup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># you might need to disable some admission plugins in hack/local-development/start-apiserver&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># via --disable-admission-plugins depending on the test suite&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_GARDENER=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run test with verbose output&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh -v ./test/integration/controllermanager/bastion -ginkgo.v
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get bastion -A -w
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Similar to &lt;a href="#debugging-unit-tests">debugging unit tests&lt;/a>, the &lt;code>stress&lt;/code> tool can help hunting flakes in integration tests.
-Though, you might need to run less tests in parallel though (specified via &lt;code>-p&lt;/code>) and have a bit more patience.&lt;/p>
-&lt;h3 id="purpose-of-integration-tests">Purpose of Integration Tests&lt;/h3>
+Though, you might need to run less tests in parallel though (specified via &lt;code>-p&lt;/code>) and have a bit more patience.
+Generally, reproducing flakes in integration tests is easier when stress-testing against an existing cluster instead of starting temporary individual control planes per test run.&lt;/p>
+&lt;p>Stress-test an &lt;code>envtest&lt;/code> suite (not using &lt;code>gardener-apiserver&lt;/code>):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo build ./test/integration/resourcemanager/health
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a cluster to run the test against&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_CLUSTER=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># use same timeout settings like in CI&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source ./hack/test-integration.env
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./test/integration/resourcemanager/health/health.test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Stress-test a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo build ./test/integration/controllermanager/bastion
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a cluster including gardener-apiserver to run the test against&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make dev-setup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># you might need to disable some admission plugins in hack/local-development/start-apiserver&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># via --disable-admission-plugins depending on the test suite&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_GARDENER=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># use same timeout settings like in CI&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source ./hack/test-integration.env
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./test/integration/controllermanager/bastion/bastion.test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="purpose-of-integration-tests">Purpose of Integration Tests&lt;/h3>
 &lt;ul>
 &lt;li>integration tests prove that multiple units are correctly integrated into a fully-functional component of the system&lt;/li>
 &lt;li>example components with multiple units:

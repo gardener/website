@@ -784,13 +784,10 @@ If the &lt;code>DNSRecord&lt;/code> resource specifies a zone in &lt;code>.spec.
 &lt;p>Some providers might require further information that is not provider specific but already part of the shoot resource.
 As Gardener cannot know which information is required by providers it simply mirrors the &lt;code>Shoot&lt;/code>, &lt;code>Seed&lt;/code>, and &lt;code>CloudProfile&lt;/code> resources into the seed.
 They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> extension resource&lt;/a> and can be used to extract information that is not part of the &lt;code>DNSRecord&lt;/code> resource itself.&lt;/p>
-&lt;h2 id="using-dnsrecord-instead-of-dnsprovider-and-dnsentry-resources">Using &lt;code>DNSRecord&lt;/code> instead of &lt;code>DNSProvider&lt;/code> and &lt;code>DNSEntry&lt;/code> resources&lt;/h2>
-&lt;p>gardenlet creates &lt;code>DNSRecord&lt;/code> resources. All three DNS records mentioned above (internal, external, and ingress) are managed via &lt;code>DNSRecords&lt;/code> (before the &lt;code>UseDNSRecords&lt;/code> feature gate they were managed via the &lt;code>DNSProvider&lt;/code> / &lt;code>DNSEntry&lt;/code> resources).
-&lt;code>DNSProvider&lt;/code> resources will still be created for all providers listed in &lt;code>spec.dns.providers&lt;/code>, including the one marked as &lt;code>primary: true&lt;/code>.
-These providers can be used for &lt;code>DNSEntry&lt;/code> resources needed by workloads deployed on the shoot cluster.&lt;/p>
-&lt;p>If the feature gate is disabled, Gardener will not create any &lt;code>DNSRecord&lt;/code> resources and use &lt;code>DNSProvider&lt;/code> / &lt;code>DNSEntry&lt;/code> resources for its DNS records.
-The feature gate was introduced in &lt;code>v1.27&lt;/code> and was in &lt;code>Alpha&lt;/code> stage (disabled by default) until &lt;code>v1.38&lt;/code> (including). With &lt;code>v1.44&lt;/code> the feature gate is graduated to &lt;code>GA&lt;/code> and can&amp;rsquo;t be disabled.&lt;/p>
-&lt;p>In order to successfully reconcile a shoot with the feature gate enabled, extension controllers for &lt;code>DNSRecord&lt;/code> resources for types used in the default, internal and custom domain secrets should be registered via &lt;code>ControllerRegistration&lt;/code> resources.&lt;/p>
+&lt;h2 id="using-dnsrecord-resources">Using &lt;code>DNSRecord&lt;/code> resources&lt;/h2>
+&lt;p>gardenlet manages &lt;code>DNSRecord&lt;/code> resources for all three DNS records mentioned above (internal, external, and ingress).
+In order to successfully reconcile a shoot with the feature gate enabled, extension controllers for &lt;code>DNSRecord&lt;/code> resources for types used in the default, internal and custom domain secrets should be registered via &lt;code>ControllerRegistration&lt;/code> resources.&lt;/p>
+&lt;p>Note: For compatibility reasons, the &lt;code>spec.dns.providers&lt;/code> section is still used to specify additional providers. Only the one marked as &lt;code>primary: true&lt;/code> will be used for &lt;code>DNSRecord&lt;/code>. All others are considered by the &lt;code>shoot-dns-service&lt;/code> extension only (if deployed).&lt;/p>
 &lt;h3 id="support-for-dnsrecord-resources-in-the-provider-extensions">Support for &lt;code>DNSRecord&lt;/code> resources in the provider extensions&lt;/h3>
 &lt;p>The following table contains information about the provider extension version that adds support for &lt;code>DNSRecord&lt;/code> resources:&lt;/p>
 &lt;table>
@@ -1870,10 +1867,6 @@ In addition, we had issues with shoot clusters having more than one node (hence,
 &lt;h4 id="worker">&lt;code>Worker&lt;/code>&lt;/h4>
 &lt;p>This controller leverages the standard &lt;a href="https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker/genericactuator">generic &lt;code>Worker&lt;/code> actuator&lt;/a> in order to deploy the &lt;a href="https://github.com/gardener/machine-controller-manager">&lt;code>machine-controller-manager&lt;/code>&lt;/a> as well as the &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local">&lt;code>machine-controller-manager-provider-local&lt;/code>&lt;/a>.&lt;/p>
 &lt;p>Additionally, it generates the &lt;a href="https://github.com/gardener/machine-controller-manager-provider-local/blob/master/kubernetes/machine-class.yaml">&lt;code>MachineClass&lt;/code>es&lt;/a> and the &lt;code>MachineDeployment&lt;/code>s based on the specification of the &lt;code>Worker&lt;/code> resources.&lt;/p>
-&lt;h4 id="dnsprovider">&lt;code>DNSProvider&lt;/code>&lt;/h4>
-&lt;p>Due to legacy reasons, the gardenlet still creates &lt;code>DNSProvider&lt;/code> resources part of the &lt;a href="https://github.com/gardener/external-dns-management/">&lt;code>dns.gardener.cloud/v1alpha1&lt;/code> API group&lt;/a>.
-Since those are only needed in conjunction with the &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">&lt;code>shoot-dns-service&lt;/code> extension&lt;/a> and have no relevance for the local provider, it just sets their &lt;code>status.state=Ready&lt;/code> to please the expectations.
-In the future, this controller can be dropped when the gardenlet no longer creates such &lt;code>DNSProvider&lt;/code>s.&lt;/p>
 &lt;h4 id="ingress">&lt;code>Ingress&lt;/code>&lt;/h4>
 &lt;p>Gardenlet creates a wildcard DNS record for the Seed&amp;rsquo;s ingress domain pointing to the &lt;code>nginx-ingress-controller&lt;/code>&amp;rsquo;s LoadBalancer.
 This domain is commonly used by all &lt;code>Ingress&lt;/code> objects created in the Seed for Seed and Shoot components.

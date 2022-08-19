@@ -2949,6 +2949,7 @@ The proposal, as outlined below, suggests to implement the necessary changes in 
 &lt;li>&lt;a href="#gardener-etcd-component-changes">Gardener &lt;code>etcd&lt;/code> component changes&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
+&lt;li>&lt;a href="#other-critical-components-having-single-replica">Other critical components having single replica&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>&lt;a href="#handling-outages">Handling Outages&lt;/a>
@@ -3216,6 +3217,20 @@ Most of the complexity (e.g. cluster bootstrap, scale-up) is already outsourced 
 &lt;li>Create and pass a peer CA and server/client certificate to &lt;code>etcd.spec.etcd.peerUrlTls&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>The groundwork for this was already done by &lt;a href="https://github.com/gardener/gardener/pull/5741">gardener/gardener#5741&lt;/a>.&lt;/p>
+&lt;h3 id="other-critical-components-having-single-replica">Other critical components having single replica&lt;/h3>
+&lt;p>Following shoot control plane components are currently setup with a single replica and are planned to run with a minimum of 2 replicas:&lt;/p>
+&lt;ul>
+&lt;li>Cluster Autoscaler (if enabled)&lt;/li>
+&lt;li>Cloud Controller Manager (CCM)&lt;/li>
+&lt;li>Kube Controller Manager (KCM)&lt;/li>
+&lt;li>Kube Scheduler&lt;/li>
+&lt;li>Machine Controller Manager (MCM)&lt;/li>
+&lt;li>CSI driver controller&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>NOTE: MCM, CCM and CSI driver controller are components deployed by provider extensions. HA specific configuration should be configured there.&lt;/p>
+&lt;/blockquote>
+&lt;p>Additionally &lt;a href="#scheduling-control-plane-components">Affinity and anti-affinity&lt;/a> rules must be configured.&lt;/p>
 &lt;h2 id="handling-outages">Handling Outages&lt;/h2>
 &lt;h3 id="node-failures">Node failures&lt;/h3>
 &lt;p>It is possible that node(s) hosting the control plane component are no longer available/reachable. Some of the reasons could be crashing of a node, kubelet running on the node is unable to renew its lease, network partition etc. The topology of control plane components and recovery mechanisms will determine the duration of the downtime that will result when a node is no longer reachable/available.&lt;/p>
@@ -3294,9 +3309,9 @@ Most of the complexity (e.g. cluster bootstrap, scale-up) is already outsourced 
 &lt;p>&lt;em>Machine recovery&lt;/em>&lt;/p>
 &lt;p>In the seed control plane, &lt;code>Kube Controller Manager&lt;/code> will detect that a node has not renewed its lease and after a timeout (usually 40 seconds - configurable via &lt;code>--node-monitor-grace-period&lt;/code>) it will transition the &lt;code>Node&lt;/code> to &lt;code>Unknown&lt;/code> state. &lt;code>Machine-Controller-Manager&lt;/code> will detect that an existing &lt;code>Node&lt;/code> has transitioned to &lt;code>Unknown&lt;/code> state and will do the following:&lt;/p>
 &lt;ul>
-&lt;li>It will transition the corresponding &lt;code>Machine&lt;/code> to &lt;code>Failed&lt;/code> state after waiting for a duration (currently 10 mins, configured via the &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml">&amp;ndash;machine-health-timeout&lt;/a> flag).&lt;/li>
+&lt;li>It will transition the corresponding &lt;code>Machine&lt;/code> to &lt;code>Failed&lt;/code> state after waiting for a duration (currently 10 mins, configured via the &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml#L49">&amp;ndash;machine-health-timeout&lt;/a> flag).&lt;/li>
 &lt;li>Thereafter a &lt;code>deletion timestamp&lt;/code> will be put on this machine indicating that the machine is now going to be terminated, transitioning the machine to &lt;code>Terminating&lt;/code> state.&lt;/li>
-&lt;li>It attempts to drain the node first and if it is unable to drain the node, then currently after a period of 2 hours (configurable via &lt;code>machine-drain-timeout&lt;/code>), it will attempt to force-delete the &lt;code>Machine&lt;/code> and create a new machine.&lt;/li>
+&lt;li>It attempts to drain the node first and if it is unable to drain the node, then currently after a period of 2 hours (configurable via &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml#L48">machine-drain-timeout&lt;/a>), it will attempt to force-delete the &lt;code>Machine&lt;/code> and create a new machine. Draining a node will be skipped if certain conditions are met e.g. node in &lt;code>NotReady&lt;/code> state, node condition reported by &lt;code>node-problem-exporter&lt;/code> as &lt;code>ReadonlyFilesystem&lt;/code> etc.&lt;/li>
 &lt;/ul>
 &lt;p>In case &lt;code>Machine-Controller-Manager&lt;/code> is unable to delete a machine, then that machine will be stuck in &lt;code>Terminating&lt;/code> state. It will attempt to launch a new machine and if that also fails, then the new machine will transition to &lt;code>CrashLoopBackoff&lt;/code> and will be stuck in this state.&lt;/p>
 &lt;p>&lt;em>Pod recovery&lt;/em>&lt;/p>
@@ -3325,7 +3340,7 @@ Most of the complexity (e.g. cluster bootstrap, scale-up) is already outsourced 
 &lt;/ul>
 &lt;p>&lt;em>Cons:&lt;/em>&lt;/p>
 &lt;ul>
-&lt;li>Existing recovery of pods will result in a downtime of up to ~5 mins for pods which can be rescheduled onto another node/zone.&lt;/li>
+&lt;li>Existing recovery of pods will result in a downtime of up to a total of &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml#L49">&amp;ndash;machine-health-timeout&lt;/a> + &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/dff3d2417ff732fcce69ba10bbe5d04e13781539/charts/internal/machine-controller-manager/seed/templates/deployment.yaml#L48">&amp;ndash;machine-drain-timeout&lt;/a> (which as of today is 2hr10min) for pods which can be rescheduled onto another node/zone. Stateful pods due to the affinity rules will not recover, however stateless pods will eventually recover.&lt;/li>
 &lt;li>etcd cluster will run with one less member resulting in no tolerance to any further failure. If it takes a long time to recover a zone then etcd cluster is now susceptible to a quorum loss, if any further failure happens.&lt;/li>
 &lt;li>Any zero downtime maintenance is disabled during this time.&lt;/li>
 &lt;li>If the recovery of the zone takes a long time, then it is possible that difference revision between the leader and the follower (which was in the zone that is not available) becomes large. When the AZ is restored and the etcd pod is deployed again, then there will be an additional load on the etcd leader to synchronize this etcd member.&lt;/li>

@@ -2570,6 +2570,7 @@ Generally, reproducing flakes in integration tests is easier when stress-testing
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make dev-setup
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># you might need to disable some admission plugins in hack/local-development/start-apiserver&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># via --disable-admission-plugins depending on the test suite&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># especially the ResourceQuota plugin can quickly lead to test failures when stress-testing&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_GARDENER=true
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
@@ -2621,6 +2622,14 @@ Generally, reproducing flakes in integration tests is easier when stress-testing
 &lt;li>this allows running a test in parallel against the same existing cluster for deflaking and stress testing: &lt;a href="https://github.com/gardener/gardener/pull/5953">example PR&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
+&lt;li>if the controller works on cluster-scoped resources
+&lt;ul>
+&lt;li>label the resources with a label specific to the test run, e.g. the test namespace&amp;rsquo;s name: &lt;a href="https://github.com/gardener/gardener/blob/b01239edfd594b09ecd44dd77fba7a05a74820e8/test/integration/controllermanager/cloudprofile/cloudprofile_test.go#L38">example test&lt;/a>&lt;/li>
+&lt;li>restrict the manager&amp;rsquo;s cache for these objects with a corresponding label selector: &lt;a href="https://github.com/gardener/gardener/blob/b01239edfd594b09ecd44dd77fba7a05a74820e8/test/integration/controllermanager/cloudprofile/cloudprofile_suite_test.go#L110-L116">example test&lt;/a>&lt;/li>
+&lt;li>alternatively, use a default label selector for all objects in the manager&amp;rsquo;s cache: &lt;a href="https://github.com/gardener/gardener/blob/b01239edfd594b09ecd44dd77fba7a05a74820e8/test/integration/controllermanager/controllerdeployment/controllerdeployment_suite_test.go#L112-L116">example test&lt;/a>&lt;/li>
+&lt;li>this allows running a test in parallel against the same existing cluster for deflaking and stress testing, even if it works with cluster-scoped resources that are visible to all parallel test runs: &lt;a href="https://github.com/gardener/gardener/pull/6527">example PR&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;li>use dedicated test resources for each test case
 &lt;ul>
 &lt;li>use &lt;code>GenerateName&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/health/health_test.go#L38-L48">example test&lt;/a>&lt;/li>
@@ -2654,6 +2663,12 @@ Generally, reproducing flakes in integration tests is easier when stress-testing
 &lt;li>disable gardener-apiserver&amp;rsquo;s admission plugins that are not relevant to the integration test itself by passing &lt;code>--disable-admission-plugins&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/50f92c5dc35160fe05da9002a79e7ce4a9cf3509/test/integration/controllermanager/shoot/maintenance/maintenance_suite_test.go#L61-L67">example test&lt;/a>&lt;/li>
 &lt;li>this makes setup / teardown code simpler and ensures to only test code relevant to the tested component itself (but not the entire set of admission plugins)&lt;/li>
 &lt;li>e.g., you can disable the &lt;code>ShootValidator&lt;/code> plugin to create &lt;code>Shoots&lt;/code> that reference non-existing &lt;code>SecretBindings&lt;/code> or disable the &lt;code>DeletionConfirmation&lt;/code> plugin to delete Gardener resources without adding a deletion confirmation first.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>use a custom rate limiter for controllers in integration tests: &lt;a href="https://github.com/gardener/gardener/blob/3dd6b111d677eb4bceadaa8fc469877097660577/test/integration/controllermanager/exposureclass/exposureclass_suite_test.go#L130-L131">example test&lt;/a>
+&lt;ul>
+&lt;li>this can be used for limiting exponential backoff to shorten wait times&lt;/li>
+&lt;li>otherwise, if using the default rate limiter, exponential backoff might exceed the timeout of &lt;code>Eventually&lt;/code> calls and cause flakes&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>

@@ -348,7 +348,89 @@ Please note that there is also the option to use a &lt;a href="https://gardener.
 &lt;p>Experience shows that the horizontal autoscaling of CoreDNS works for a variety of workloads. It does reach its limits if a cluster has a high amount of DNS requests, though. The cluster-proportional autoscaling approach allows to fine-tune the amount of CoreDNS replicas. It helps to scale in clusters of changing size. However, please keep in mind that you need to cater for the maximum amount of DNS requests as the replicas will not be adapted according to the workload, but only according to the cluster size (cores/nodes).&lt;/p>
 &lt;h2 id="trade-offs-in-conjunction-with-nodelocaldns">Trade-offs in conjunction with NodeLocalDNS&lt;/h2>
 &lt;p>Using a &lt;a href="https://gardener.cloud/docs/gardener/usage/node-local-dns/">node-local DNS cache&lt;/a> can mitigate a lot of the potential DNS related problems. It works fine with a DNS workload that can be handle through the cache and reduces the inter-node DNS communication. As &lt;a href="https://gardener.cloud/docs/gardener/usage/node-local-dns/">node-local DNS cache&lt;/a> reduces the amount of traffic being sent to the cluster&amp;rsquo;s CoreDNS replicas, it usually works fine with horizontally scaled CoreDNS. Nevertheless, it also works with CoreDNS scaled in a cluster-proportional approach. In this mode, though, it might make sense to adapt the default settings as the CoreDNS workload is likely significantly reduced.&lt;/p>
-&lt;p>Overall, you can view the DNS options on a scale. Horizontally scaled DNS provides a small amount of DNS servers. Especially for bigger clusters, a cluster-proportional approach will yield more CoreDNS instances and hence may yield a more balanced DNS solution. By adapting the settings you can further increase the amount of CoreDNS replicas. On the other end of the spectrum, a &lt;a href="https://gardener.cloud/docs/gardener/usage/node-local-dns/">node-local DNS cache&lt;/a> provides DNS on every node and allows to reduce the amount of (backend) CoreDNS instances regardless if they are horizontally or cluster-proportionally scaled.&lt;/p></description></item><item><title>Docs: Docker Shim Removal</title><link>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</guid><description>
+&lt;p>Overall, you can view the DNS options on a scale. Horizontally scaled DNS provides a small amount of DNS servers. Especially for bigger clusters, a cluster-proportional approach will yield more CoreDNS instances and hence may yield a more balanced DNS solution. By adapting the settings you can further increase the amount of CoreDNS replicas. On the other end of the spectrum, a &lt;a href="https://gardener.cloud/docs/gardener/usage/node-local-dns/">node-local DNS cache&lt;/a> provides DNS on every node and allows to reduce the amount of (backend) CoreDNS instances regardless if they are horizontally or cluster-proportionally scaled.&lt;/p></description></item><item><title>Docs: DNS Search Path Optimization</title><link>https://gardener.cloud/docs/gardener/usage/dns-search-path-optimization/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/dns-search-path-optimization/</guid><description>
+&lt;h1 id="dns-search-path-optimization">DNS Search Path Optimization&lt;/h1>
+&lt;h2 id="dns-search-path">DNS Search Path&lt;/h2>
+&lt;p>Using fully qualified names has some downsides, e.g. it may become harder to move deployments from one landscape to the
+next. It is far easier and simple to rely on short/local names, which may have different meaning depending on the context
+they are used in.&lt;/p>
+&lt;p>The DNS search path allows the usage of short/local names. It is an ordered list of DNS suffixes to append to short/local
+names to create a fully qualified name.&lt;/p>
+&lt;p>If a short/local name should be resolved each entry is appended to it one by one to check whether it can be resolved. The
+process stops when either the name could be resolved or the DNS search path ends. As the last step after trying the search
+path, the short/local name is attempted to be resolved on it own.&lt;/p>
+&lt;h2 id="dns-option-ndots">DNS Option &lt;code>ndots&lt;/code>&lt;/h2>
+&lt;p>As explained in the &lt;a href="#dns-search-path">section above&lt;/a>, the DNS search path is used for short/local names to create fully
+qualified names. The DNS option &lt;code>ndots&lt;/code> specifies how many dots (&lt;code>.&lt;/code>) a name needs to have to be considered fully qualified.
+For names with less than &lt;code>ndots&lt;/code> dots (&lt;code>.&lt;/code>), the &lt;a href="#dns-search-path">DNS search path&lt;/a> will be applied.&lt;/p>
+&lt;h2 id="dns-search-path-ndots-and-kubernetes">DNS Search Path, &lt;code>ndots&lt;/code> and Kubernetes&lt;/h2>
+&lt;p>Kubernetes tries to make it easy/convenient for developers to use name resolution. It provides several means to address a
+service, most notably by its name directly, using the namespace as suffix, utilizing &lt;code>&amp;lt;namespace&amp;gt;.svc&lt;/code> as suffix or as a
+fully qualified name as &lt;code>&amp;lt;service&amp;gt;.&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code> (assuming &lt;code>cluster.local&lt;/code> to be the cluster domain).&lt;/p>
+&lt;p>This is why the DNS search path is fairly long in Kubernetes, usually consisting of &lt;code>&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code>,
+&lt;code>svc.cluster.local&lt;/code>, &lt;code>cluster.local&lt;/code> and potentially some additional entries coming from the local network of the cluster.
+For various reasons, the default &lt;code>ndots&lt;/code> value in the context of Kubernetes is with &lt;code>5&lt;/code> also fairly large. See
+&lt;a href="https://github.com/kubernetes/kubernetes/issues/33554#issuecomment-266251056">this comment&lt;/a> for a more detailed description.&lt;/p>
+&lt;h2 id="dns-search-pathndots-problem-in-kubernetes">DNS Search Path/&lt;code>ndots&lt;/code> Problem in Kubernetes&lt;/h2>
+&lt;p>As the DNS search path is long and &lt;code>ndots&lt;/code> is large, a lot of DNS queries might traverse the DNS search path. This results
+in an explosion of DNS requests.&lt;/p>
+&lt;p>For example, consider the name resolution of the default kubernetes service &lt;code>kubernetes.default.svc.cluster.local&lt;/code>. As this
+name has only four dots it is not considered a fully qualified name according to the default &lt;code>ndots=5&lt;/code> setting. Therefore,
+the DNS search path is applied resulting in the following queries being created&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.some-namespace.svc.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.svc.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.network-domain&lt;/code>&lt;/li>
+&lt;li>&amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>In IPv4/IPv6 dual stack systems, the amount of DNS requests may even double as each name is resolved for IPv4 and IPv6.&lt;/p>
+&lt;h2 id="general-workaroundsmitigations">General Workarounds/Mitigations&lt;/h2>
+&lt;p>Kubernetes provides the capability to set the DNS options for each pod (see
+&lt;a href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config">Pod DNS config&lt;/a> for details).
+However, this has to be applied for every pod (doing name resolution) to resolve the problem. A mutating webhook may be
+useful in this regard. Unfortunately, the DNS requirements may be different depending on the workload. Therefore, a general
+solution may difficult to impossible.&lt;/p>
+&lt;p>Another approach is to use always fully qualified names and append a dot (&lt;code>.&lt;/code>) to the name to prevent the name resolution
+system from using the DNS search path. This might be somewhat counterintuitive as most developers are not used to the
+trailing dot (&lt;code>.&lt;/code>). Furthermore, it makes moving to different landscapes more difficult/error-prone.&lt;/p>
+&lt;h2 id="gardener-specific-workaroundsmitigations">Gardener specific Workarounds/Mitigations&lt;/h2>
+&lt;p>Gardener allows users to &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/custom-dns.md">customize their DNS configuration&lt;/a>. CoreDNS allows several approaches to deal with
+the requests generated by the DNS search path. &lt;a href="https://coredns.io/plugins/cache/">Caching&lt;/a> is possible as well as
+&lt;a href="https://coredns.io/plugins/rewrite/">query rewriting&lt;/a>. There are also several other &lt;a href="https://coredns.io/plugins/">plugins&lt;/a>
+available, which may mitigate the situation.&lt;/p>
+&lt;h2 id="gardener-dns-query-rewriting">Gardener DNS Query Rewriting&lt;/h2>
+&lt;p>As explained &lt;a href="#dns-search-path-ndots-and-kubernetes">above&lt;/a>, the application of the DNS search path may lead to the undesired
+creation of DNS requests. Especially with the default setting of &lt;code>ndots=5&lt;/code>, seemingly fully qualified names pointing to
+services in the cluster may trigger the DNS search path application.&lt;/p>
+&lt;p>Gardener allows to automatically rewrite some obviously incorrect DNS names, which stem from application of the DNS search
+path, to the most likely desired name. The feature can be enabled by setting the Gardenlet feature gate &lt;code>CoreDNSQueryRewriting&lt;/code> to &lt;code>true&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CoreDNSQueryRewriting: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In case the feature is enabled in the Gardenlet it can be disabled per shoot cluster by setting the annotation
+&lt;code>alpha.featuregates.shoot.gardener.cloud/core-dns-rewriting-disabled&lt;/code> to any value.&lt;/p>
+&lt;p>This will automatically rewrite requests like &lt;code>service.namespace.svc.cluster.local.other-namespace.svc.cluster.local&lt;/code> to
+&lt;code>service.namespace.svc.cluster.local&lt;/code>. The same holds true for &lt;code>service.namespace.svc.other-namespace.svc.cluster.local&lt;/code>,
+which will also be rewritten to &lt;code>service.namespace.svc.cluster.local&lt;/code>.&lt;/p>
+&lt;p>In case applications also target services for name resolution, which are outside of the cluster and have less than &lt;code>ndots&lt;/code> dots,
+it might be helpful to prevent search path application for them as well. One way to achieve it is by adding them to the
+&lt;code>commonSuffixes&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> systemComponents:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> coreDNS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rewriting:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonSuffixes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - github.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>DNS requests containing a common suffix and ending in &lt;code>&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code> are assumed to be incorrect application of the
+DNS search path. Therefore, they are rewritten to everything ending in the common suffix. For example, &lt;code>www.gardener.cloud.namespace.svc.cluster.local&lt;/code> would be rewritten to &lt;code>www.gardener.cloud&lt;/code>.&lt;/p>
+&lt;p>Please note that the common suffixes should be long enough and include enough dots (&lt;code>.&lt;/code>) to prevent random overlap with
+other DNS queries. For example, it would be a bad idea to simply put &lt;code>com&lt;/code> on the list of common suffixes as there may be
+services/namespaces, which have &lt;code>com&lt;/code> as part of their name. The effect would be seemingly random DNS requests. Gardener
+enforces at least two dots (&lt;code>.&lt;/code>) in the common suffixes.&lt;/p></description></item><item><title>Docs: Docker Shim Removal</title><link>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</guid><description>
 &lt;h1 id="kubernetes-dockershim-removal">Kubernetes dockershim removal&lt;/h1>
 &lt;h2 id="whats-happening">What&amp;rsquo;s happening?&lt;/h2>
 &lt;p>With Kubernetes v1.20 the built-in dockershim &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#dockershim-deprecation">was deprecated&lt;/a> and is scheduled to be &lt;a href="https://github.com/kubernetes/enhancements/issues/2221">removed with v1.24&lt;/a>.

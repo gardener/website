@@ -387,11 +387,14 @@ Today, the only component deployed by the AWS extension is the &lt;code>cloud-co
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cloudControllerManager:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CustomResourceValidation: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> useCustomRouteController: &lt;span style="color:#00f">true&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>storage:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> managedDefaultClass: &lt;span style="color:#00f">false&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>cloudControllerManager.featureGates&lt;/code> contains a map of explicitly enabled or disabled feature gates.
 For production usage it&amp;rsquo;s not recommend to use this field at all as you can enable alpha features or disable beta/stable features, potentially impacting the cluster stability.
 If you don&amp;rsquo;t want to configure anything for the &lt;code>cloudControllerManager&lt;/code> simply omit the key in the YAML specification.&lt;/p>
+&lt;p>The &lt;code>cloudControllerManager.useCustomRouteController&lt;/code> controls if the &lt;a href="https://github.com/gardener/aws-custom-route-controller">custom routes controller&lt;/a> should be enabled.
+If enabled, it will add routes to the pod CIDRs for all nodes in the route tables for all zones.&lt;/p>
 &lt;p>The &lt;code>storage.managedDefaultClass&lt;/code> controls if the &lt;code>default&lt;/code> storage / volume snapshot classes are marked as default by Gardener. Set it to &lt;code>false&lt;/code> to &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/">mark another storage / volume snapshot class as default&lt;/a> without Gardener overwriting this change. If unset, this field defaults to &lt;code>true&lt;/code>.&lt;/p>
 &lt;h2 id="workerconfig">&lt;code>WorkerConfig&lt;/code>&lt;/h2>
 &lt;p>The AWS extension supports encryption for volumes plus support for additional data volumes per machine.
@@ -424,9 +427,11 @@ It can be provided in &lt;code>.spec.provider.workers[].providerConfig&lt;/code>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: WorkerConfig
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>volume:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iops: 10000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> throughput: 200
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dataVolumes:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: kubelet-dir
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iops: 12345
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> throughput: 150
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapshotID: snap-1234
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>iamInstanceProfile: &lt;span style="color:#008000"># (specify either ARN or name)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-profile
@@ -440,6 +445,7 @@ It can be provided in &lt;code>.spec.provider.workers[].providerConfig&lt;/code>
 For &lt;code>io1&lt;/code> and &lt;code>gp3&lt;/code> volume type, this represents the number of IOPS that are provisioned for the volume.
 For &lt;code>gp2&lt;/code> volume type, this represents the baseline performance of the volume and the rate at which the volume accumulates I/O credits for bursting. For more information about General Purpose SSD baseline performance, I/O credits, IOPS range and bursting, see Amazon EBS Volume Types (&lt;a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html">http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html&lt;/a>) in the Amazon Elastic Compute Cloud User Guide.&lt;br>
 Constraint: IOPS should be a positive value. Validation of IOPS (i.e. whether it is allowed and is in the specified range for a particular volume type) is done on aws side.&lt;/p>
+&lt;p>The &lt;code>volume.throughput&lt;/code> is the throughput that the volume supports, in &lt;code>MiB/s&lt;/code>. As of &lt;code>16th Aug 2022&lt;/code>, this parameter is valid only for &lt;code>gp3&lt;/code> volume types and will return an error from the provider side if specified for other volume types. Its current range of throughput is from &lt;code>125MiB/s&lt;/code> to &lt;code>1000 MiB/s&lt;/code>. To know more about throughput and its range, see the official AWS documentation &lt;a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html">here&lt;/a>.&lt;/p>
 &lt;p>The &lt;code>.dataVolumes&lt;/code> can optionally contain configurations for the data volumes stated in the &lt;code>Shoot&lt;/code> specification in the &lt;code>.spec.provider.workers[].dataVolumes&lt;/code> list.
 The &lt;code>.name&lt;/code> must match to the name of the data volume in the shoot.
 It is also possible to provide a snapshot ID. It allows to &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-restoring-volume.html">restore the data volume from an existing snapshot&lt;/a>.&lt;/p>

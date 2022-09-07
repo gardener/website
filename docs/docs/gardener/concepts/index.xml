@@ -1239,7 +1239,30 @@ This is the default location where client libraries expect to find the tokens an
 &lt;p>Overall, this webhook is used to inject projected service account tokens into pods running in the Shoot and the Seed cluster.
 Hence, it is served from the Seed GRM and each Shoot GRM.
 Please find an overview below for pods deployed in the Shoot cluster:&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/resource-manager-projected-token-shoot-to-shoot-apiserver_4fdaf3.jpg" alt="image">&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/resource-manager-projected-token-shoot-to-shoot-apiserver_4fdaf3.jpg" alt="image">&lt;/p>
+&lt;h3 id="pod-zone-affinity">Pod Zone Affinity&lt;/h3>
+&lt;p>When this webhook is activated and namespaces are annotated with &lt;code>control-plane.shoot.gardener.cloud/enforce-zone&lt;/code> then it automatically adds a &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity">pod affinity&lt;/a> to all &lt;code>Pod&lt;/code>s created in these namespaces:&lt;/p>
+&lt;pre tabindex="0">&lt;code>spec:
+affinity:
+podAffinity:
+requiredDuringSchedulingIgnoredDuringExecution:
+- labelSelector: {}
+topologyKey: topology.kubernetes.io/zone
+&lt;/code>&lt;/pre>&lt;p>In addition, if the annotation key &lt;code>control-plane.shoot.gardener.cloud/enforce-zone&lt;/code> has a value &lt;code>&amp;lt;zone-value&amp;gt;&lt;/code>, i.e. zone assigned, this information is added as part of a node affinity.&lt;/p>
+&lt;pre tabindex="0">&lt;code>spec:
+affinity:
+nodeAffinity:
+requiredDuringSchedulingIgnoredDuringExecution:
+nodeSelectorTerms:
+- matchExpressions:
+- key: topology.kubernetes.io/zone
+operator: In
+values:
+- &amp;lt;zone-value&amp;gt;
+&lt;/code>&lt;/pre>&lt;p>Those terms let pods within a namespace being scheduled to nodes residing in the very same zone which is either randomly picked, or to a very specific zone.
+In addition, the webhook removes any (anti-)affinities with &lt;code>topology.kubernetes.io/zone&lt;/code> because they potentially contradict the above shown configuration.
+Gardener uses this webhook to schedule control-plane pods within a single zone on a multi-zonal seed (seed with worker nodes across zones).
+The goal is to reduce cross zonal network traffic within the seed with this approach.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
 &lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>

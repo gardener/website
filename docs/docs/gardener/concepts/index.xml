@@ -320,6 +320,12 @@ The &lt;code>Bastion&lt;/code> controller is responsible for deleting expired or
 Clients like &lt;code>gardenctl&lt;/code> are advised to not re-use &lt;code>Bastion&lt;/code>s whose deletion timestamp has been set already.&lt;/p>
 &lt;p>Refer to &lt;a href="https://gardener.cloud/docs/gardener/proposals/15-manage-bastions-and-ssh-key-pair-rotation/">GEP-15&lt;/a> for more information on the lifecycle of
 &lt;code>Bastion&lt;/code> resources.&lt;/p>
+&lt;h3 id="certificatesigningrequest-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercertificatesigningrequest">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/certificatesigningrequest">&lt;code>CertificateSigningRequest&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>After the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a> gets deployed on the Seed cluster it needs to establish itself as a trusted party to communicate with the Gardener API server. It runs through a bootstrap flow similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">kubelet bootstrap&lt;/a> process.&lt;/p>
+&lt;p>On startup the gardenlet uses a &lt;code>kubeconfig&lt;/code> with a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap token&lt;/a> which authenticates it as being part of the &lt;code>system:bootstrappers&lt;/code> group. This kubeconfig is used to create a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">&lt;code>CertificateSigningRequest&lt;/code>&lt;/a> (CSR) against the Gardener API server.&lt;/p>
+&lt;p>The controller in &lt;code>gardener-controller-manager&lt;/code> checks whether the &lt;code>CertificateSigningRequest&lt;/code> has the expected organisation, common name and usages which the gardenlet would request.&lt;/p>
+&lt;p>It only auto-approves the CSR if the client making the request is allowed to &amp;ldquo;create&amp;rdquo; the
+&lt;code>certificatesigningrequests/seedclient&lt;/code> subresource. Clients with the &lt;code>system:bootstrappers&lt;/code> group are bound to the &lt;code>gardener.cloud:system:seed-bootstrapper&lt;/code> &lt;code>ClusterRole&lt;/code>, hence, they have such privileges. As the bootstrap kubeconfig for the gardenlet contains a bootstrap token which is authenticated as being part of the &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/controlplane/charts/application/templates/clusterrolebinding-seed-bootstrapper.yaml">&lt;code>systems:bootstrappers&lt;/code> group&lt;/a>, its created CSR gets auto-approved.&lt;/p>
 &lt;h3 id="cloudprofile-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercloudprofile">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/cloudprofile">&lt;code>CloudProfile&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>CloudProfile&lt;/code>s are essential when it comes to reconciling &lt;code>Shoot&lt;/code>s since they contain constraints (like valid machine types, Kubernetes versions, or machine images) and sometimes also some global configuration for the respective environment (typically via provider-specific configuration in &lt;code>.spec.providerConfig&lt;/code>).&lt;/p>
 &lt;p>Consequently, to ensure that &lt;code>CloudProfile&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>CloudProfile&lt;/code> anymore.&lt;/p>
@@ -349,6 +355,21 @@ In case no related &lt;code>ControllerInstallation&lt;/code> is present, it remo
 &lt;p>This loop also watches the &lt;code>Seed&lt;/code> object and adds finalizers to it at creation.
 If a &lt;code>.metadata.deletionTimestamp&lt;/code> is set for the seed then the controller checks for existing &lt;code>ControllerInstallation&lt;/code> objects which reference this seed.
 If no such objects exist then it removes the finalizer and allows the deletion.&lt;/p>
+&lt;h3 id="event-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerevent">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/event">&lt;code>Event&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>With the Gardener Event Controller you can prolong the lifespan of events related to Shoot clusters.
+This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
+&lt;p>All events in K8s are deleted after a configurable time-to-live (controlled via a &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/">kube-apiserver argument&lt;/a> called &lt;code>--event-ttl&lt;/code> (defaulting to 1 hour)).
+The need to prolong the time-to-live for Shoot cluster events frequently arises when debugging customer issues on live systems.
+This controller leaves events involving Shoots untouched while deleting all other events after a configured time.
+In order to activate it, provide the following configuration:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>concurrentSyncs&lt;/code>: The amount of goroutines scheduled for reconciling events.&lt;/li>
+&lt;li>&lt;code>ttlNonShootEvents&lt;/code>: When an event reaches this time-to-live it gets deleted unless it is a Shoot-related event (defaults to &lt;code>1h&lt;/code>, equivalent to the &lt;code>event-ttl&lt;/code> default).&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>⚠️ In addition, you should also configure the &lt;code>--event-ttl&lt;/code> for the kube-apiserver to define an upper-limit of how long Shoot-related events should be stored.
+The &lt;code>--event-ttl&lt;/code> should be larger than the &lt;code>ttlNonShootEvents&lt;/code> or this controller will have no effect.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="exposureclass-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerexposureclass">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/exposureclass">&lt;code>ExposureClass&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>ExposureClass&lt;/code> abstracts the ability to expose a Shoot clusters control plane in certain network environments (e.g. corporate networks, DMZ, internet) on all Seeds or a subset of the Seeds. For more &lt;a href="https://gardener.cloud/docs/gardener/usage/exposureclasses/">refer&lt;/a>.&lt;/p>
 &lt;p>Consequently, to ensure that &lt;code>ExposureClass&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>ExposureClass&lt;/code> anymore.&lt;/p>
@@ -424,42 +445,46 @@ After some time the &lt;code>.status.staleAutoDeleteTimestamp&lt;/code> will be 
 &lt;h4 id="activity-reconciler">&amp;ldquo;Activity&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>Since the other two reconcilers are unable to actively monitor the relevant objects that are used in a &lt;code>Project&lt;/code> (&lt;code>Shoot&lt;/code>, &lt;code>Secret&lt;/code>, etc.), there could be a situation where the user creates and deletes objects in a short period of time. In that case the &lt;code>Stale Project Reconciler&lt;/code> could not see that there was any activity on that project and it will still mark it as a &lt;code>Stale&lt;/code>, even though it is actively used.&lt;/p>
 &lt;p>The &lt;code>Project Activity Reconciler&lt;/code> is implemented to take care of such cases. An event handler will notify the reconciler for any acitivity and then it will update the &lt;code>status.lastActivityTimestamp&lt;/code>. This update will also trigger the &lt;code>Stale Project Reconciler&lt;/code>.&lt;/p>
-&lt;h3 id="event-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerevent">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/event">Event Controller&lt;/a>&lt;/h3>
-&lt;p>With the Gardener Event Controller you can prolong the lifespan of events related to Shoot clusters.
-This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
-&lt;p>All events in K8s are deleted after a configurable time-to-live (controlled via a &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/">kube-apiserver argument&lt;/a> called &lt;code>--event-ttl&lt;/code> (defaulting to 1 hour)).
-The need to prolong the time-to-live for Shoot cluster events frequently arises when debugging customer issues on live systems.
-This controller leaves events involving Shoots untouched while deleting all other events after a configured time.
-In order to activate it, provide the following configuration:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>concurrentSyncs&lt;/code>: The amount of goroutines scheduled for reconciling events.&lt;/li>
-&lt;li>&lt;code>ttlNonShootEvents&lt;/code>: When an event reaches this time-to-live it gets deleted unless it is a Shoot-related event (defaults to &lt;code>1h&lt;/code>, equivalent to the &lt;code>event-ttl&lt;/code> default).&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>⚠️ In addition, you should also configure the &lt;code>--event-ttl&lt;/code> for the kube-apiserver to define an upper-limit of how long Shoot-related events should be stored.
-The &lt;code>--event-ttl&lt;/code> should be larger than the &lt;code>ttlNonShootEvents&lt;/code> or this controller will have no effect.&lt;/p>
-&lt;/blockquote>
 &lt;h3 id="secretbinding-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollersecretbinding">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/secretbinding">&lt;code>SecretBinding&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>SecretBinding&lt;/code>s reference &lt;code>Secret&lt;/code>s and &lt;code>Quota&lt;/code>s and are themselves referenced by &lt;code>Shoot&lt;/code>s.
 The controller adds finalizers to the referenced objects to ensure they don&amp;rsquo;t get deleted while still being referenced.
 Similarly, to ensure that &lt;code>SecretBinding&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>SecretBinding&lt;/code> anymore.&lt;/p>
 &lt;p>Referenced &lt;code>Secret&lt;/code>s will also be labeled with &lt;code>provider.shoot.gardener.cloud/&amp;lt;type&amp;gt;=true&lt;/code> where &lt;code>&amp;lt;type&amp;gt;&lt;/code> is the value of the &lt;code>.provider.type&lt;/code> of the &lt;code>SecretBinding&lt;/code>.
 Also, all referenced &lt;code>Secret&lt;/code>s as well as &lt;code>Quota&lt;/code>s will be labeled with &lt;code>reference.gardener.cloud/secretbinding=true&lt;/code> to allow easily filtering for objects referenced by &lt;code>SecretBinding&lt;/code>s.&lt;/p>
-&lt;h3 id="shoot-reference-controller">Shoot Reference Controller&lt;/h3>
-&lt;p>Shoot objects may specify references to further objects in the Garden cluster which are required for certain features.
-For example, users can configure various DNS providers via &lt;code>.spec.dns.providers&lt;/code> and usually need to refer to a corresponding &lt;code>secret&lt;/code> with valid DNS provider credentials inside.
+&lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;h4 id="conditions-reconciler">&amp;ldquo;Conditions&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>In case the reconciled &lt;code>Shoot&lt;/code> is registered via a &lt;code>ManagedSeed&lt;/code> as a seed cluster, this reconciler merges the conditions in the respective &lt;code>Seed&lt;/code>&amp;rsquo;s &lt;code>.status.conditions&lt;/code> into the &lt;code>.status.conditions&lt;/code> of the &lt;code>Shoot&lt;/code>.
+This is to provide a holistic view on the status of the registered seed cluster by just looking at the &lt;code>Shoot&lt;/code> resource.&lt;/p>
+&lt;h4 id="hibernation-reconciler">&amp;ldquo;Hibernation&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for hibernating or awakening shoot clusters based on the schedules defined in their &lt;code>.spec.hibernation.schedules&lt;/code>.
+It ignores &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#last-operation">failed &lt;code>Shoot&lt;/code>s&lt;/a> and those marked for deletion.&lt;/p>
+&lt;h4 id="maintenance-reconciler">&amp;ldquo;Maintenance&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for maintaining shoot clusters based on the time window defined in their &lt;code>.spec.maintenance.timeWindow&lt;/code>.
+It might auto-update the Kubernetes version or the operating system versions specified in the worker pools (&lt;code>.spec.provider.workers&lt;/code>).
+It could also add some operation or task annotations, read more &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/">here&lt;/a>.&lt;/p>
+&lt;h4 id="quota-reconciler">&amp;ldquo;Quota&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler might auto-delete shoot clusters in case their referenced &lt;code>SecretBinding&lt;/code> is itself referencing a &lt;code>Quota&lt;/code> with &lt;code>.spec.clusterLifetimeDays != nil&lt;/code>.
+If the shoot cluster is older than the configured lifetime then it gets deleted.
+It maintains the expiration time of the &lt;code>Shoot&lt;/code> in the value of the &lt;code>shoot.gardener.cloud/expiration-timestamp&lt;/code> annotation.
+This annotation might be overridden, however only by at most twice the value of the &lt;code>.spec.clusterLifetimeDays&lt;/code>.&lt;/p>
+&lt;h4 id="reference-reconciler">&amp;ldquo;Reference&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>Shoot objects may specify references to other objects in the Garden cluster which are required for certain features.
+For example, users can configure various DNS providers via &lt;code>.spec.dns.providers&lt;/code> and usually need to refer to a corresponding &lt;code>Secret&lt;/code> with valid DNS provider credentials inside.
 Such objects need a special protection against deletion requests as long as they are still being referenced by one or multiple shoots.&lt;/p>
-&lt;p>Therefore, the Shoot Reference Controller scans shoot clusters for referenced objects and adds the finalizer &lt;code>gardener.cloud/reference-protection&lt;/code> to their &lt;code>.metadata.finalizers&lt;/code> list.
-The scanned shoot also gets this finalizer to enable a proper garbage collection in case the Gardener-Controller-Manager is offline at the moment of an incoming deletion request.
-When an object is not actively referenced anymore because the shoot specification has changed or all related shoots were deleted (are in deletion), the controller will remove the added finalizer again, so that the object can safely be deleted or garbage collected.&lt;/p>
-&lt;p>The Shoot Reference Controller inspects the following references:&lt;/p>
+&lt;p>Therefore, this reconciler checks &lt;code>Shoot&lt;/code>s for referenced objects and adds the finalizer &lt;code>gardener.cloud/reference-protection&lt;/code> to their &lt;code>.metadata.finalizers&lt;/code> list.
+The reconciled &lt;code>Shoot&lt;/code> also gets this finalizer to enable a proper garbage collection in case the &lt;code>gardener-controller-manager&lt;/code> is offline at the moment of an incoming deletion request.
+When an object is not actively referenced anymore because the &lt;code>Shoot&lt;/code> specification has changed or all related shoots were deleted (are in deletion), the controller will remove the added finalizer again so that the object can safely be deleted or garbage collected.&lt;/p>
+&lt;p>This reconciler inspects the following references:&lt;/p>
 &lt;ul>
 &lt;li>DNS provider secrets (&lt;code>.spec.dns.provider&lt;/code>)&lt;/li>
 &lt;li>Audit policy configmaps (&lt;code>.spec.kubernetes.kubeAPIServer.auditConfig.auditPolicy.configMapRef&lt;/code>)&lt;/li>
 &lt;/ul>
 &lt;p>Further checks might be added in the future.&lt;/p>
-&lt;h3 id="shoot-retry-controller">Shoot Retry Controller&lt;/h3>
-&lt;p>The Shoot Retry Controller is responsible for retrying certain failed Shoots. Currently the controller retries only failed Shoots with error code &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>.&lt;/p>
+&lt;h4 id="retry-reconciler">&amp;ldquo;Retry&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for retrying certain failed &lt;code>Shoot&lt;/code>s.
+Currently, the reconciler retries only failed &lt;code>Shoot&lt;/code>s with error code &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#error-codes">this document&lt;/a> for more details.&lt;/p>
+&lt;h4 id="status-label-reconciler">&amp;ldquo;Status Label&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for maintaining the &lt;code>shoot.gardener.cloud/status&lt;/code> label on &lt;code>Shoot&lt;/code>s, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#status-label">this document&lt;/a> for more details.&lt;/p>
 &lt;h3 id="seed-controller">Seed Controller&lt;/h3>
 &lt;p>The Seed controller in the &lt;code>gardener-controller-manager&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
 &lt;h4 id="main-reconciler-2">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
@@ -503,13 +528,7 @@ which are renewed regularly by the Gardenlet.&lt;/p>
 &lt;li>Additionally, conditions and constraints of all &lt;code>Shoot&lt;/code> resources scheduled on the affected seed are set to &lt;code>Unknown&lt;/code> as well
 because a striking Gardenlet won&amp;rsquo;t be able to maintain these conditions any more.&lt;/li>
 &lt;li>If the gardenlet&amp;rsquo;s client certificate has expired (identified based on the &lt;code>.status.clientCertificateExpirationTimestamp&lt;/code> field in the &lt;code>Seed&lt;/code> resource) and if it is managed by a &lt;code>ManagedSeed&lt;/code> then this will be triggered for a reconciliation. This will trigger the bootstrapping process again and allows gardenlets to obtain a fresh client certificate.&lt;/li>
-&lt;/ol>
-&lt;h3 id="certificatesigningrequest-controller">&amp;ldquo;CertificateSigningRequest&amp;rdquo; controller&lt;/h3>
-&lt;p>After the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a> gets deployed on the Seed cluster it needs to establish itself as a trusted party to communicate with the Gardener API server. It runs through a bootstrap flow similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">kubelet bootstrap&lt;/a> process.&lt;/p>
-&lt;p>On startup the gardenlet uses a &lt;code>kubeconfig&lt;/code> with a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap token&lt;/a> which authenticates it as being part of the &lt;code>system:bootstrappers&lt;/code> group. This kubeconfig is used to create a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">&lt;code>CertificateSigningRequest&lt;/code>&lt;/a> (CSR) against the Gardener API server.&lt;/p>
-&lt;p>The controller in &lt;code>gardener-controller-manager&lt;/code> checks whether the &lt;code>CertificateSigningRequest&lt;/code> has the expected organisation, common name and usages which the gardenlet would request.&lt;/p>
-&lt;p>It only auto-approves the CSR if the client making the request is allowed to &amp;ldquo;create&amp;rdquo; the
-&lt;code>certificatesigningrequests/seedclient&lt;/code> subresource. Clients with the &lt;code>system:bootstrappers&lt;/code> group are bound to the &lt;code>gardener.cloud:system:seed-bootstrapper&lt;/code> &lt;code>ClusterRole&lt;/code>, hence, they have such privileges. As the bootstrap kubeconfig for the gardenlet contains a bootstrap token which is authenticated as being part of the &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/controlplane/charts/application/templates/clusterrolebinding-seed-bootstrapper.yaml">&lt;code>systems:bootstrappers&lt;/code> group&lt;/a>, its created CSR gets auto-approved.&lt;/p></description></item><item><title>Docs: Etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
 &lt;h1 id="etcd---key-value-store-for-kubernetes">etcd - Key-Value Store for Kubernetes&lt;/h1>
 &lt;p>&lt;a href="https://etcd.io/">etcd&lt;/a> is a strongly consistent key-value store and the most prevalent choice for the Kubernetes
 persistence layer. All API cluster objects like &lt;code>Pod&lt;/code>s, &lt;code>Deployment&lt;/code>s, &lt;code>Secret&lt;/code>s, etc. are stored in &lt;code>etcd&lt;/code> which

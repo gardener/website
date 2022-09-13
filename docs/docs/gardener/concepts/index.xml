@@ -454,6 +454,54 @@ The controller adds finalizers to the referenced objects to ensure they don&amp;
 Similarly, to ensure that &lt;code>SecretBinding&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>SecretBinding&lt;/code> anymore.&lt;/p>
 &lt;p>Referenced &lt;code>Secret&lt;/code>s will also be labeled with &lt;code>provider.shoot.gardener.cloud/&amp;lt;type&amp;gt;=true&lt;/code> where &lt;code>&amp;lt;type&amp;gt;&lt;/code> is the value of the &lt;code>.provider.type&lt;/code> of the &lt;code>SecretBinding&lt;/code>.
 Also, all referenced &lt;code>Secret&lt;/code>s as well as &lt;code>Quota&lt;/code>s will be labeled with &lt;code>reference.gardener.cloud/secretbinding=true&lt;/code> to allow easily filtering for objects referenced by &lt;code>SecretBinding&lt;/code>s.&lt;/p>
+&lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The Seed controller in the &lt;code>gardener-controller-manager&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconciler-2">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciliation loop takes care about seed related operations in the Garden cluster. When a new &lt;code>Seed&lt;/code> object is created
+the reconciler creates a new &lt;code>Namespace&lt;/code> in the garden cluster &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code>. &lt;code>Namespaces&lt;/code> dedicated to single
+seed clusters allow us to segregate access permissions i.e., a &lt;code>gardenlet&lt;/code> must not have permissions to access objects in
+all &lt;code>Namespaces&lt;/code> in the Garden cluster.
+There are objects in a Garden environment which are created once by the operator e.g., default domain secret,
+alerting credentials, and required for operations happening in the &lt;code>gardenlet&lt;/code>. Therefore, we not only need a seed specific
+&lt;code>Namespace&lt;/code> but also a copy of these &amp;ldquo;shared&amp;rdquo; objects.&lt;/p>
+&lt;p>The &amp;ldquo;main&amp;rdquo; reconciler takes care about this replication:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Kind&lt;/th>
+&lt;th style="text-align:center">Namespace&lt;/th>
+&lt;th style="text-align:center">Label Selector&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">Secret&lt;/td>
+&lt;td style="text-align:center">garden&lt;/td>
+&lt;td style="text-align:center">gardener.cloud/role&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h4 id="backup-buckets-check-reconciler">&amp;ldquo;Backup Buckets Check&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>Every time a &lt;code>BackupBucket&lt;/code> object is created or updated, the referenced &lt;code>Seed&lt;/code> object is enqueued for reconciliation.
+It&amp;rsquo;s the reconciler&amp;rsquo;s task to check the &lt;code>status&lt;/code> subresource of all existing &lt;code>BackupBucket&lt;/code>s that reference this &lt;code>Seed&lt;/code>.
+If at least one &lt;code>BackupBucket&lt;/code> has &lt;code>.status.lastError != nil&lt;/code>, the &lt;code>BackupBucketsReady&lt;/code> condition on the &lt;code>Seed&lt;/code> will be set to &lt;code>False&lt;/code>, and consequently the &lt;code>Seed&lt;/code> is considered as &lt;code>NotReady&lt;/code>.
+If the &lt;code>SeedBackupBucketsCheckControllerConfiguration&lt;/code> (which is part of &lt;code>gardener-controller-manager&lt;/code>s component configuration) contains a &lt;code>conditionThreshold&lt;/code> for the &lt;code>BackupBucketsReady&lt;/code>, the condition will instead first be set to &lt;code>Progressing&lt;/code> and eventually to &lt;code>False&lt;/code> once the &lt;code>conditionThreshold&lt;/code> expires, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-controller-manager.yaml">the example config file&lt;/a> for details.
+Once the &lt;code>BackupBucket&lt;/code> is healthy again, the seed will be re-queued and the condition will turn &lt;code>true&lt;/code>.&lt;/p>
+&lt;h4 id="extensions-check-reconciler">&amp;ldquo;Extensions Check&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler reconciles &lt;code>Seed&lt;/code> objects and checks whether all &lt;code>ControllerInstallation&lt;/code>s referencing them are in a healthy state.
+Concretely, all three conditions &lt;code>Valid&lt;/code>, &lt;code>Installed&lt;/code>, and &lt;code>Healthy&lt;/code> must have status &lt;code>True&lt;/code> and the &lt;code>Progressing&lt;/code> condition must have status &lt;code>False&lt;/code>.
+Based on this check, it maintains the &lt;code>ExtensionsReady&lt;/code> condition in the respective &lt;code>Seed&lt;/code>&amp;rsquo;s &lt;code>.status.conditions&lt;/code> list.&lt;/p>
+&lt;h4 id="lifecycle-reconciler">&amp;ldquo;Lifecycle&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>The &amp;ldquo;Lifecycle&amp;rdquo; reconciler processes &lt;code>Seed&lt;/code> objects which are enqueued every 10 seconds in order to check if the responsible
+&lt;code>gardenlet&lt;/code> is still responding and operable. Therefore, it checks renewals via &lt;code>Lease&lt;/code> objects of the seed in the garden cluster
+which are renewed regularly by the &lt;code>gardenlet&lt;/code>.&lt;/p>
+&lt;p>In case a &lt;code>Lease&lt;/code> is not renewed for the configured amount in &lt;code>config.controllers.seed.monitorPeriod.duration&lt;/code>:&lt;/p>
+&lt;ol>
+&lt;li>The reconciler assumes that the &lt;code>gardenlet&lt;/code> stopped operating and updates the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code>.&lt;/li>
+&lt;li>Additionally, conditions and constraints of all &lt;code>Shoot&lt;/code> resources scheduled on the affected seed are set to &lt;code>Unknown&lt;/code> as well
+because a striking &lt;code>gardenlet&lt;/code> won&amp;rsquo;t be able to maintain these conditions any more.&lt;/li>
+&lt;li>If the gardenlet&amp;rsquo;s client certificate has expired (identified based on the &lt;code>.status.clientCertificateExpirationTimestamp&lt;/code> field in the &lt;code>Seed&lt;/code> resource) and if it is managed by a &lt;code>ManagedSeed&lt;/code> then this will be triggered for a reconciliation. This will trigger the bootstrapping process again and allows gardenlets to obtain a fresh client certificate.&lt;/li>
+&lt;/ol>
 &lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;h4 id="conditions-reconciler">&amp;ldquo;Conditions&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>In case the reconciled &lt;code>Shoot&lt;/code> is registered via a &lt;code>ManagedSeed&lt;/code> as a seed cluster, this reconciler merges the conditions in the respective &lt;code>Seed&lt;/code>&amp;rsquo;s &lt;code>.status.conditions&lt;/code> into the &lt;code>.status.conditions&lt;/code> of the &lt;code>Shoot&lt;/code>.
@@ -487,51 +535,7 @@ When an object is not actively referenced anymore because the &lt;code>Shoot&lt;
 &lt;p>This reconciler is responsible for retrying certain failed &lt;code>Shoot&lt;/code>s.
 Currently, the reconciler retries only failed &lt;code>Shoot&lt;/code>s with error code &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#error-codes">this document&lt;/a> for more details.&lt;/p>
 &lt;h4 id="status-label-reconciler">&amp;ldquo;Status Label&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciler is responsible for maintaining the &lt;code>shoot.gardener.cloud/status&lt;/code> label on &lt;code>Shoot&lt;/code>s, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#status-label">this document&lt;/a> for more details.&lt;/p>
-&lt;h3 id="seed-controller">Seed Controller&lt;/h3>
-&lt;p>The Seed controller in the &lt;code>gardener-controller-manager&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconciler-2">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciliation loop takes care about seed related operations in the Garden cluster. When a new &lt;code>Seed&lt;/code> object is created
-the reconciler creates a new &lt;code>Namespace&lt;/code> in the garden cluster &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code>. &lt;code>Namespaces&lt;/code> dedicated to single
-seed clusters allow us to segregate access permissions i.e., a Gardenlet must not have permissions to access objects in
-all &lt;code>Namespaces&lt;/code> in the Garden cluster.
-There are objects in a Garden environment which are created once by the operator e.g., default domain secret,
-alerting credentials, and required for operations happening in the Gardenlet. Therefore, we not only need a seed specific
-&lt;code>Namespace&lt;/code> but also a copy of these &amp;ldquo;shared&amp;rdquo; objects.&lt;/p>
-&lt;p>The &amp;ldquo;main&amp;rdquo; reconciler takes care about this replication:&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th style="text-align:center">Kind&lt;/th>
-&lt;th style="text-align:center">Namespace&lt;/th>
-&lt;th style="text-align:center">Label Selector&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td style="text-align:center">Secret&lt;/td>
-&lt;td style="text-align:center">garden&lt;/td>
-&lt;td style="text-align:center">gardener.cloud/role&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;h4 id="backup-buckets-check-reconciler">&amp;ldquo;Backup Buckets Check&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>Every time a &lt;code>BackupBucket&lt;/code> object is created or updated, the referenced &lt;code>Seed&lt;/code> object is enqueued for reconciliation.
-It&amp;rsquo;s the reconciler&amp;rsquo;s task to check the &lt;code>status&lt;/code> subresource of all existing &lt;code>BackupBuckets&lt;/code> that belong to this seed.
-If at least one &lt;code>BackupBucket&lt;/code> has &lt;code>.status.lastError&lt;/code>, the seed condition &lt;code>BackupBucketsReady&lt;/code> will turn &lt;code>false&lt;/code> and
-consequently the seed is considered as &lt;code>NotReady&lt;/code>. If the &lt;code>SeedBackupBucketsCheckControllerConfiguration&lt;/code>, which is part of &lt;code>gardener-controller-manager&lt;/code>s &lt;code>ControllerManagerControllerConfiguration&lt;/code>, contains a &lt;code>conditionThreshold&lt;/code> for the &lt;code>BackupBucketsReady&lt;/code>, the condition will instead first be set to &lt;code>progressing&lt;/code> and eventually to &lt;code>false&lt;/code> once the &lt;code>conditionThreshold&lt;/code> expires, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-controller-manager.yaml">the example config file&lt;/a> for details. Once the &lt;code>BackupBucket&lt;/code> is healthy again, the seed will be re-queued
-and the condition will turn &lt;code>true&lt;/code>.&lt;/p>
-&lt;h4 id="lifecycle-reconciler">&amp;ldquo;Lifecycle&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>The &amp;ldquo;Lifecycle&amp;rdquo; reconciler processes &lt;code>Seed&lt;/code> objects which are enqueued every 10 seconds in order to check if the responsible
-Gardenlet is still responding and operable. Therefore, it checks renewals via &lt;code>Lease&lt;/code> objects of the seed in the garden cluster
-which are renewed regularly by the Gardenlet.&lt;/p>
-&lt;p>In case a &lt;code>Lease&lt;/code> is not renewed for the configured amount in &lt;code>config.controllers.seed.monitorPeriod.duration&lt;/code>:&lt;/p>
-&lt;ol>
-&lt;li>The reconciler assumes that the Gardenlet stopped operating and updates the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code>.&lt;/li>
-&lt;li>Additionally, conditions and constraints of all &lt;code>Shoot&lt;/code> resources scheduled on the affected seed are set to &lt;code>Unknown&lt;/code> as well
-because a striking Gardenlet won&amp;rsquo;t be able to maintain these conditions any more.&lt;/li>
-&lt;li>If the gardenlet&amp;rsquo;s client certificate has expired (identified based on the &lt;code>.status.clientCertificateExpirationTimestamp&lt;/code> field in the &lt;code>Seed&lt;/code> resource) and if it is managed by a &lt;code>ManagedSeed&lt;/code> then this will be triggered for a reconciliation. This will trigger the bootstrapping process again and allows gardenlets to obtain a fresh client certificate.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
+&lt;p>This reconciler is responsible for maintaining the &lt;code>shoot.gardener.cloud/status&lt;/code> label on &lt;code>Shoot&lt;/code>s, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#status-label">this document&lt;/a> for more details.&lt;/p></description></item><item><title>Docs: Etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
 &lt;h1 id="etcd---key-value-store-for-kubernetes">etcd - Key-Value Store for Kubernetes&lt;/h1>
 &lt;p>&lt;a href="https://etcd.io/">etcd&lt;/a> is a strongly consistent key-value store and the most prevalent choice for the Kubernetes
 persistence layer. All API cluster objects like &lt;code>Pod&lt;/code>s, &lt;code>Deployment&lt;/code>s, &lt;code>Secret&lt;/code>s, etc. are stored in &lt;code>etcd&lt;/code> which

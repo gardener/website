@@ -1300,7 +1300,24 @@ values:
 &lt;/code>&lt;/pre>&lt;p>Those terms let pods within a namespace being scheduled to nodes residing in the very same zone which is either randomly picked, or to a very specific zone.
 In addition, the webhook removes any (anti-)affinities with &lt;code>topology.kubernetes.io/zone&lt;/code> because they potentially contradict the above shown configuration.
 Gardener uses this webhook to schedule control-plane pods within a single zone on a multi-zonal seed (seed with worker nodes across zones).
-The goal is to reduce cross zonal network traffic within the seed with this approach.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+The goal is to reduce cross zonal network traffic within the seed with this approach.&lt;/p>
+&lt;h3 id="pod-topology-spread-constraints">Pod Topology Spread Constraints&lt;/h3>
+&lt;p>When this webhook is enabled then it mimics the &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraint-definition">topologyKey feature&lt;/a> for &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints">Topology Spread Constraints (TSC)&lt;/a> on the label &lt;code>pod-template-hash&lt;/code>.
+Concretely, when a pod is labelled with &lt;code>pod-template-hash&lt;/code> the handler of this webhook extends any topology spread constraint in the pod:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pod-template-hash: 123abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labelSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pod-template-hash: 123abc &lt;span style="color:#008000"># added by webhook&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The procedure circumvents a &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215">known limitation&lt;/a> with TSCs which leads to imbalanced deployments after rolling updates.
+Gardener enables this webhook to schedule pods of deployments across nodes and zones.&lt;/p>
+&lt;p>Please note, the &lt;code>gardener-resource-manager&lt;/code> itself as well as pods labelled with &lt;code>topology-spread-constraints.resources.gardener.cloud/skip&lt;/code> are excluded from any mutations.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
 &lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>

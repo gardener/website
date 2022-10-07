@@ -165,11 +165,6 @@ However, it also has some special behaviours for certain resources:&lt;/p>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>DELETE&lt;/code> operations for &lt;code>Seed&lt;/code>s.
 Rejects the deletion if &lt;code>Shoot&lt;/code>(s) reference the seed cluster.&lt;/p>
-&lt;h2 id="shootbinding">&lt;code>ShootBinding&lt;/code>&lt;/h2>
-&lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
-&lt;p>This admission controller reacts on &lt;code>UPDATE&lt;/code> operation for &lt;code>Binding&lt;/code> subresource of &lt;code>Shoot&lt;/code>s.
-It checks for various scheduling constraints for the &lt;code>Seed&lt;/code> in the &lt;code>spec.seedName&lt;/code>.
-It rejects the update if &lt;code>SeedChange&lt;/code> feature gate is disabled and the &lt;code>Shoot&lt;/code> is already assigned to a &lt;code>Seed&lt;/code>.&lt;/p>
 &lt;h2 id="shootdns">&lt;code>ShootDNS&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>Shoot&lt;/code>s.
@@ -761,7 +756,7 @@ the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-life
 the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
 As a consequence, the &lt;code>gardener-scheduler&lt;/code> doesn’t consider this seed cluster for newly created shoot clusters anymore.&lt;/p>
 &lt;h3 id="healthz-endpoint">&lt;code>/healthz&lt;/code> Endpoint&lt;/h3>
-&lt;p>The gardenlet includes an HTTPS server that serves a &lt;code>/healthz&lt;/code> endpoint.
+&lt;p>The gardenlet includes an HTTP server that serves a &lt;code>/healthz&lt;/code> endpoint.
 It’s used as a liveness probe in the &lt;code>Deployment&lt;/code> of the gardenlet.
 If the gardenlet fails to renew its lease
 then the endpoint returns &lt;code>500 Internal Server Error&lt;/code>, otherwise it returns &lt;code>200 OK&lt;/code>.&lt;/p>
@@ -774,7 +769,6 @@ However, the Gardenlet is designed to withstand such connection outages and
 retries until the connection is reestablished.&lt;/p>
 &lt;h2 id="control-loops">Control Loops&lt;/h2>
 &lt;p>The gardenlet consists out of several controllers which are now described in more detail.&lt;/p>
-&lt;p>⚠️ This section is not necessarily complete and might be under construction.&lt;/p>
 &lt;h3 id="backupentry-controller">&lt;code>BackupEntry&lt;/code> Controller&lt;/h3>
 &lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
 Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
@@ -790,6 +784,35 @@ Afterwards, the finalizer of the &lt;code>core.gardener.cloud/v1beta1.BackupEntr
 For example, if you set it to &lt;code>48&lt;/code>, then the &lt;code>BackupEntry&lt;/code>s for deleted &lt;code>Shoot&lt;/code>s will only be deleted &lt;code>48&lt;/code> hours after the &lt;code>Shoot&lt;/code> was deleted.&lt;/p>
 &lt;p>Additionally, you can limit the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_purposes/">shoot purposes&lt;/a> for which this applies by setting &lt;code>.controllers.backupEntry.deletionGracePeriodShootPurposes[]&lt;/code>.
 For example, if you set it to &lt;code>[production]&lt;/code> then only the &lt;code>BackupEntry&lt;/code>s for &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose=production&lt;/code> will be deleted after the configured grace period. All others will be deleted immediately after the &lt;code>Shoot&lt;/code> deletion.&lt;/p>
+&lt;h3 id="controllerinstallation-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation">&lt;code>ControllerInstallation&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>ControllerInstallation&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ControllerInstallation&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconciler">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for &lt;code>ControllerInstallation&lt;/code>s referencing a &lt;code>ControllerDeployment&lt;/code> whose &lt;code>type=helm&lt;/code>.
+It is responsible for unpacking the Helm chart tarball in the &lt;code>ControllerDeployment&lt;/code>s &lt;code>.providerConfig.chart&lt;/code> field and deploying the rendered resources to the seed cluster.
+The Helm chart values in &lt;code>.providerConfig.values&lt;/code> will be used and extended with some information about the Gardener environment and the seed cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: &amp;lt;gardenlet-version&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-garden-cluster&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> identity: &amp;lt;seed-name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-seed-cluster&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations: &amp;lt;seed-annotations&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels: &amp;lt;seed-labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec: &amp;lt;seed-specification&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As of today, there are a few more fields in &lt;code>.gardener.seed&lt;/code>, but it is recommended to use the &lt;code>.gardener.seed.spec&lt;/code> if the Helm chart needs more information about the seed configuration.&lt;/p>
+&lt;p>The rendered chart will be deployed via a &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
+It is labeled with &lt;code>controllerinstallation-name=&amp;lt;name&amp;gt;&lt;/code> so that one can easily find the owning &lt;code>ControllerInstallation&lt;/code> for an existing &lt;code>ManagedResource&lt;/code>.&lt;/p>
+&lt;p>The reconciler maintains the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> and sets it to &lt;code>False&lt;/code> if the rendering or deployment fails.&lt;/p>
+&lt;h4 id="care-reconciler">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler reconciles &lt;code>ControllerInstallation&lt;/code> objects and checks whether they are in a healthy state.
+It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.&lt;/p>
+&lt;ul>
+&lt;li>If the &lt;code>ResourcesApplied&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code> then the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;li>If the &lt;code>ResourcesHealthy&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code> then the &lt;code>Healthy&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;li>If the &lt;code>ResourcesProgressing&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code> then the &lt;code>Progressing&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>A &lt;code>ControllerInstallation&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if &lt;code>Applied=Healthy=true&lt;/code> and &lt;code>Progressing=False&lt;/code>.&lt;/p>
 &lt;h2 id="managed-seeds">Managed Seeds&lt;/h2>
 &lt;p>Gardener users can use shoot clusters as seed clusters, so-called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;),
 by creating &lt;code>ManagedSeed&lt;/code> resources.
@@ -816,9 +839,11 @@ With v1, this stays the same, but you now have to deploy the gardenlet Helm char
 into all of your seeds (if they aren’t managed, as mentioned earlier).&lt;/p>
 &lt;p>More information: &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/">Deploy a Gardenlet&lt;/a> for all instructions.&lt;/p>
 &lt;h2 id="related-links">Related Links&lt;/h2>
-&lt;p>&lt;a href="https://github.com/gardener/documentation/wiki/Architecture">Gardener Architecture&lt;/a>&lt;/p>
-&lt;p>&lt;a href="https://github.com/gardener/gardener/issues/356">Issue #356: Implement Gardener Scheduler&lt;/a>&lt;/p>
-&lt;p>&lt;a href="https://github.com/gardener/gardener/pull/2309">PR #2309: Add /healthz endpoint for Gardenlet&lt;/a>&lt;/p></description></item><item><title>Docs: Network Policies</title><link>https://gardener.cloud/docs/gardener/concepts/network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/network_policies/</guid><description>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/gardener/documentation/wiki/Architecture">Gardener Architecture&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/issues/356">#356: Implement Gardener Scheduler&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/pull/2309">#2309: Add /healthz endpoint for Gardenlet&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Network Policies</title><link>https://gardener.cloud/docs/gardener/concepts/network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/network_policies/</guid><description>
 &lt;h1 id="network-policies-in-gardener">Network Policies in Gardener&lt;/h1>
 &lt;p>As &lt;code>Seed&lt;/code> clusters can host the &lt;a href="https://kubernetes.io/docs/concepts/#kubernetes-control-plane">Kubernetes control planes&lt;/a> of many &lt;code>Shoot&lt;/code> clusters, it is necessary to isolate the control planes from each other for security reasons.
 Besides deploying each control plane in its own namespace, Gardener creates &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">network policies&lt;/a> to also isolate the networks.

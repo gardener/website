@@ -1264,6 +1264,30 @@ By default, the tokens are issued to expire after 12 hours. The expiration time 
 to talk to the Shoot API Server.
 Please see the graphic below:&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/resource-manager-projected-token-controlplane-to-shoot-apiserver_da4cda.jpg" alt="image">&lt;/p>
+&lt;h3 id="kubelet-server-certificatesigningrequest-approver">Kubelet Server &lt;code>CertificateSigningRequest&lt;/code> Approver&lt;/h3>
+&lt;p>Gardener configures the kubelets such that they request two certificates via the &lt;code>CertificateSigningRequest&lt;/code> API:&lt;/p>
+&lt;ol>
+&lt;li>client certificate for communicating with the &lt;code>kube-apiserver&lt;/code>&lt;/li>
+&lt;li>server certificate for serving its HTTPS server&lt;/li>
+&lt;/ol>
+&lt;p>For client certificates, the &lt;code>kubernetes.io/kube-apiserver-client-kubelet&lt;/code> signer is used (see &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/#kubernetes-signers">this document&lt;/a> for more details).
+The &lt;code>kube-controller-manager&lt;/code>&amp;rsquo;s &lt;code>csrapprover&lt;/code> controller is responsible for auto-approving such &lt;code>CertificateSigningRequest&lt;/code>s so that the respective certificates can be issued.&lt;/p>
+&lt;p>For server certificates, the &lt;code>kubernetes.io/kubelet-serving&lt;/code> signer is used.
+Unfortunately, the &lt;code>kube-controller-manager&lt;/code> is not able to auto-approve such &lt;code>CertificateSigningRequest&lt;/code>s (see &lt;a href="https://github.com/kubernetes/kubernetes/issues/73356">kubernetes/kubernetes#73356&lt;/a> for details).&lt;/p>
+&lt;p>That&amp;rsquo;s the motivation for having this controller as part of &lt;code>gardener-resource-manager&lt;/code>.
+It watches &lt;code>CertificateSigningRequest&lt;/code>s with the &lt;code>kubernetes.io/kubelet-serving&lt;/code> signer and auto-approves them when all the following conditions are met:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>.spec.username&lt;/code> is prefixed with &lt;code>system:node:&lt;/code>.&lt;/li>
+&lt;li>There must be at least one DNS name or IP address as part of the certificate SANs.&lt;/li>
+&lt;li>The common name in the CSR must match the &lt;code>.spec.username&lt;/code>.&lt;/li>
+&lt;li>The organization in the CSR must only contain &lt;code>system:nodes&lt;/code>.&lt;/li>
+&lt;li>There must be a &lt;code>Node&lt;/code> object with the same name in the shoot cluster.&lt;/li>
+&lt;li>There must be exactly one &lt;code>Machine&lt;/code> for the node in the seed cluster.&lt;/li>
+&lt;li>The DNS names part of the SANs must be equal to all &lt;code>.status.addresses[]&lt;/code> of type &lt;code>Hostname&lt;/code> in the &lt;code>Node&lt;/code>.&lt;/li>
+&lt;li>The IP addresses part of the SANs must be equal to all &lt;code>.status.addresses[]&lt;/code> of type &lt;code>InternalIP&lt;/code> in the &lt;code>Node&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>If one of these requirements is violated the &lt;code>CertificateSigningRequest&lt;/code> will be denied.
+Otherwise, once approved the &lt;code>kube-controller-manager&lt;/code>&amp;rsquo;s &lt;code>csrsigner&lt;/code> controller will issue the requested certificate.&lt;/p>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;h3 id="auto-mounting-projected-serviceaccount-tokens">Auto-Mounting Projected &lt;code>ServiceAccount&lt;/code> Tokens&lt;/h3>
 &lt;p>When this webhook is activated then it automatically injects projected &lt;code>ServiceAccount&lt;/code> token volumes into &lt;code>Pod&lt;/code>s and all its containers if all of the following preconditions are fulfilled:&lt;/p>

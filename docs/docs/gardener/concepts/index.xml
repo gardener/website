@@ -368,6 +368,42 @@ The &lt;code>--event-ttl&lt;/code> should be larger than the &lt;code>ttlNonShoo
 &lt;h3 id="exposureclass-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerexposureclass">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/exposureclass">&lt;code>ExposureClass&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>ExposureClass&lt;/code> abstracts the ability to expose a Shoot clusters control plane in certain network environments (e.g. corporate networks, DMZ, internet) on all Seeds or a subset of the Seeds. For more &lt;a href="https://gardener.cloud/docs/gardener/usage/exposureclasses/">refer&lt;/a>.&lt;/p>
 &lt;p>Consequently, to ensure that &lt;code>ExposureClass&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>ExposureClass&lt;/code> anymore.&lt;/p>
+&lt;h3 id="managedseedset-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollermanagedseedset">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/managedseedset">&lt;code>ManagedSeedSet&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>&lt;code>ManagedSeedSet&lt;/code> objects maintain a stable set of replicas of &lt;code>ManagedSeed&lt;/code>s, i.e. they guarantee the availability of a specified number of identical &lt;code>ManagedSeed&lt;/code>s on an equal number of identical &lt;code>Shoot&lt;/code>s.
+&lt;code>ManagedSeedSet&lt;/code> controller creates and deletes &lt;code>ManagedSeed&lt;/code>s and &lt;code>Shoot&lt;/code>s in response to changes to the replicas and selector fields. For more info refer to the &lt;a href="https://gardener.cloud/docs/gardener/proposals/13-automated-seed-management/#managedseedsets">&lt;code>ManagedSeedSet&lt;/code> proposal document&lt;/a>.&lt;/p>
+&lt;ol>
+&lt;li>The reconciler first gets all the replicas of the given &lt;code>ManagedSeedSet&lt;/code> in the &lt;code>ManagedSeedSet&lt;/code>&amp;rsquo;s namespace and with the matching selector. Each replica is a struct that contains a &lt;code>ManagedSeed&lt;/code>, its corresponding &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> objects.&lt;/li>
+&lt;li>Then the pending replica is retrieved if it exists.&lt;/li>
+&lt;li>Next it determines the ready, postponed and deletable replica.
+&lt;ul>
+&lt;li>A replica is considered &lt;code>ready&lt;/code> when a &lt;code>Seed&lt;/code> owned by a &lt;code>ManagedSeed&lt;/code> has been registered either directly or by deploying &lt;code>gardenlet&lt;/code> into a &lt;code>Shoot&lt;/code>, the &lt;code>Seed&lt;/code> is &lt;code>Ready&lt;/code> and the &lt;code>Shoot&lt;/code>&amp;rsquo;s status is &lt;code>Healthy&lt;/code>.&lt;/li>
+&lt;li>If a replica is not ready and it is not pending, i.e. it is not specified in the &lt;code>ManagedSeed&lt;/code>&amp;rsquo;s &lt;code>status.pendingReplica&lt;/code> field, then it is added to the &lt;code>postponed&lt;/code> replicas.&lt;/li>
+&lt;li>A replica is deletable if it has no scheduled &lt;code>Shoot&lt;/code>s and replica&amp;rsquo;s &lt;code>Shoot&lt;/code> and &lt;code>ManagedSeed&lt;/code> do not have the &lt;code>seedmanagement.gardener.cloud/protect-from-deletion&lt;/code> annotation.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Finally, it checks the actual and target replica counts. If the actual count is less than the target count, the controller scales up the replicas by creating new replicas to match the desired target count. If the actual count is more than the target, the controller deletes replicas to match the desired count. Before scale-out or scale-in, the controller first reconciles the pending replica (there can always only be one) and makes sure the replica is ready before moving on to the next one.
+&lt;ul>
+&lt;li>&lt;code>Scale-out&lt;/code>(actual count &amp;lt; target count)
+&lt;ul>
+&lt;li>During the scale-out phase, the controller first creates the &lt;code>Shoot&lt;/code> object from the &lt;code>ManagedSeedSet&lt;/code>&amp;rsquo;s &lt;code>spec.shootTemplate&lt;/code> field and adds the replica to the &lt;code>status.pendingReplica&lt;/code> of the &lt;code>ManagedSeedSet&lt;/code>.&lt;/li>
+&lt;li>For the subsequent reconciliation steps, the controller makes sure that the pending replica is ready before proceeding to the next replica. Once the &lt;code>Shoot&lt;/code> is created successfully, the &lt;code>ManagedSeed&lt;/code> object is created from the &lt;code>ManagedSeedSet&lt;/code>&amp;rsquo;s &lt;code>spec.template&lt;/code>. The &lt;code>ManagedSeed&lt;/code> object is reconciled by the &lt;code>ManagedSeed&lt;/code> controller and a &lt;code>Seed&lt;/code> object is created for the replica. Once the replica&amp;rsquo;s &lt;code>Seed&lt;/code> becomes ready and the &lt;code>Shoot&lt;/code> becomes healthy, the replica also becomes ready.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>Scale-in&lt;/code>(actual count &amp;gt; target count)
+&lt;ul>
+&lt;li>During the scale-in phase, the controller first determines the replica that can be deleted. From the deletable replicas, it chooses the one with the lowest priority and deletes it. Priority is determined in the following order:
+&lt;ul>
+&lt;li>First, compare replica statuses. Replicas with &amp;ldquo;less advanced&amp;rdquo; status are considered lower priority. For example, a replica with &lt;code>StatusShootReconciling&lt;/code> status has a lower value than a replica with &lt;code>StatusShootReconciled&lt;/code> status. Hence, in this case, replica with &lt;code>StatusShootReconciling&lt;/code> status will have lower priority and will be considered for deletion.&lt;/li>
+&lt;li>Then, the replicas are compared with the readiness of their &lt;code>Seed&lt;/code>s. Replicas with non-ready &lt;code>Seed&lt;/code>s are considered lower priority.&lt;/li>
+&lt;li>Then, the replicas are compared with the health statuses of their &lt;code>Shoot&lt;/code>s. Replicas with &amp;ldquo;worse&amp;rdquo; statuses are considered lower priority.&lt;/li>
+&lt;li>Finally, the replica ordinals are compared. Replicas with lower ordinals are considered lower priority.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
 &lt;h3 id="quota-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerquota">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/quota">&lt;code>Quota&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>Quota&lt;/code> object limits the resources consumed by shoot clusters either per provider secret or per project/namespace.&lt;/p>
 &lt;p>Consequently, to ensure that &lt;code>Quota&lt;/code>s in-use are always present in the system until the last &lt;code>SecretBinding&lt;/code> that references them gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>SecretBinding&lt;/code> referencing the &lt;code>Quota&lt;/code> anymore.&lt;/p>

@@ -41,11 +41,20 @@
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Adapt the path to your kubeconfig file for the garden cluster&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=~/relative/path/to/kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Fetch cluster-identity of garden cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>CLUSTER_IDENTITY=&lt;span style="color:#00f">$(&lt;/span>kubectl -n kube-system get configmap cluster-identity -ojsonpath={.data.cluster-identity}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 1 : Fetch cluster-identity of garden cluster from the configmap&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>kubectl -n kube-system get configmap cluster-identity -ojsonpath={.data.cluster-identity}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># OR&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 2 : If you don&amp;#39;t have access to the kube-system namespace in the garden cluster, the garden cluster-identity can also be extracted from every shoot&amp;#39;s yaml&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>project=&lt;span style="color:#a31515">&amp;#34;your-project-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to your project name&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot=&lt;span style="color:#a31515">&amp;#34;your-shoot-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to any shoot&amp;#39;s name in your project&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Simply copy/paste the following lines&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ns=&lt;span style="color:#00f">$(&lt;/span>kubectl get project $project -ojsonpath={.spec.namespace}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>prefix=&lt;span style="color:#a31515">&amp;#34;shoot--&lt;/span>$project&lt;span style="color:#a31515">--&lt;/span>$shoot&lt;span style="color:#a31515">-&amp;#34;&lt;/span>&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.metadata.uid}&lt;span style="color:#00f">)&lt;/span>&lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>identity_status=&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.status.clusterIdentity}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>echo &lt;span style="color:#a31515">${&lt;/span>identity_status#&lt;span style="color:#a31515">&amp;#34;&lt;/span>$prefix&lt;span style="color:#a31515">&amp;#34;&lt;/span>&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#00f">)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Configure garden cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl config set-garden $CLUSTER_IDENTITY --kubeconfig $KUBECONFIG
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl config set-garden $cluster_identity --kubeconfig $KUBECONFIG
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command will create or update a garden with the provided identity and kubeconfig path of your garden cluster.&lt;/p>
 &lt;h3 id="example-config">Example Config&lt;/h3>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardens:

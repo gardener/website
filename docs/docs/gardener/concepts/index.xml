@@ -786,7 +786,7 @@ the gardenlet is using &lt;code>Lease&lt;/code> objects for heart beats of the s
 Every two seconds, the gardenlet checks that the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code>
 endpoint returns HTTP status code 200.
 If that is the case, the gardenlet renews the lease in the Garden cluster in the &lt;code>gardener-system-seed-lease&lt;/code> namespace and updates
-the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource(s).&lt;/p>
+the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource, see also &lt;a href="#lease-reconciler">this section&lt;/a>.&lt;/p>
 &lt;p>Similarly to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
 the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-lifecycle-controller&lt;/code> that sets
 the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
@@ -848,13 +848,49 @@ It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>Mana
 &lt;li>If the &lt;code>ResourcesHealthy&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code> then the &lt;code>Healthy&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
 &lt;li>If the &lt;code>ResourcesProgressing&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code> then the &lt;code>Progressing&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
 &lt;/ul>
-&lt;p>A &lt;code>ControllerInstallation&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if &lt;code>Applied=Healthy=true&lt;/code> and &lt;code>Progressing=False&lt;/code>.&lt;/p>
+&lt;p>A &lt;code>ControllerInstallation&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if &lt;code>Applied=Healthy=True&lt;/code> and &lt;code>Progressing=False&lt;/code>.&lt;/p>
 &lt;h4 id="required-reconciler">&amp;ldquo;Required&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>This reconciler watches all resources in the &lt;code>extensions.gardener.cloud&lt;/code> API group in the seed cluster.
 It is responsible for maintaining the &lt;code>Required&lt;/code> condition on &lt;code>ControllerInstallation&lt;/code>s.
 Concretely, when there is at least one extension resource in the seed cluster a &lt;code>ControllerInstallation&lt;/code> is responsible for, then the status of the &lt;code>Required&lt;/code> condition will be &lt;code>True&lt;/code>.
 If there are no extension resources anymore, its status will be &lt;code>False&lt;/code>.&lt;/p>
 &lt;p>This condition is taken into account by the &lt;code>ControllerRegistration&lt;/code> controller part of &lt;code>gardener-controller-manager&lt;/code> when it computes which extensions have to deployed to which seed cluster, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#controllerregistration-controller">this document&lt;/a> for more details.&lt;/p>
+&lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>Seed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconciler-1">&amp;ldquo;Main Reconciler&amp;rdquo;&lt;/h4>
+&lt;p>This reconciler is responsible for managing the seed&amp;rsquo;s system components.
+Those comprise CA certificates, the various &lt;code>CustomResourceDefinition&lt;/code>s, the logging and monitoring stacks, and few central components like &lt;code>gardener-resource-manager&lt;/code>, &lt;code>etcd-druid&lt;/code>, &lt;code>istio&lt;/code>, etc.&lt;/p>
+&lt;p>The reconciler also deploys a &lt;code>BackupBucket&lt;/code> resource in the garden cluster in case the &lt;code>Seed'&lt;/code>s &lt;code>.spec.backup&lt;/code> is set.
+It also checks whether the seed cluster&amp;rsquo;s Kubernetes version is at least the &lt;a href="https://gardener.cloud/docs/gardener/usage/supported_k8s_versions/#seed-cluster-versions">minimum supported version&lt;/a> and errors in case this constraint is not met.&lt;/p>
+&lt;p>This reconciler maintains the &lt;code>Bootstrapped&lt;/code> condition, i.e. it sets it&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>Progressing&lt;/code> before it executes its reconciliation flow,&lt;/li>
+&lt;li>to &lt;code>False&lt;/code> in case an error occurs,&lt;/li>
+&lt;li>to &lt;code>True&lt;/code> in case the reconciliation succeeded.&lt;/li>
+&lt;/ul>
+&lt;h4 id="care-reconciler-1">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler checks whether the seed system components (deployed by the &amp;ldquo;main&amp;rdquo; reconciler) are healthy.
+It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
+A &lt;code>ManagedResource&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if the conditions &lt;code>ResourcesApplied=ResourcesHealthy=True&lt;/code> and &lt;code>ResourcesProgressing=False&lt;/code>.&lt;/p>
+&lt;p>If all &lt;code>ManagedResource&lt;/code>s are healthy then the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition of the &lt;code>Seed&lt;/code> will be set to &lt;code>True&lt;/code>.
+Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
+&lt;p>If at least one &lt;code>ManagedResource&lt;/code> is unhealthy and there is threshold configuration for the conditions (in &lt;code>.controllers.seedCare.conditionThresholds&lt;/code>) then the status of the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition will be set&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
+&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does exceed the configured threshold duration.&lt;/li>
+&lt;/ul>
+&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
+Only if the unhealthiness persists for at least the configured threshold duration then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h4 id="lease-reconciler">&amp;ldquo;Lease&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler checks whether the connection to the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint works.
+If this succeeds then it renews a &lt;code>Lease&lt;/code> resource in the garden cluster&amp;rsquo;s &lt;code>gardener-system-seed-lease&lt;/code> namespace.
+This indicates a heartbeat to the external world, and internally the &lt;code>gardenlet&lt;/code> sets its health status to &lt;code>true&lt;/code>.
+In addition, the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status&lt;/code> of the &lt;code>Seed&lt;/code> is set to &lt;code>True&lt;/code>.
+The whole process is similar to what the &lt;code>kubelet&lt;/code> does to report heartbeats for its &lt;code>Node&lt;/code> resource and its &lt;code>KubeletReady&lt;/code> condition, see also &lt;a href="#heartbeats">this section&lt;/a>.&lt;/p>
+&lt;p>If the connection to the &lt;code>/healthz&lt;/code> endpoint or the update of the &lt;code>Lease&lt;/code> fails then the internal health status of &lt;code>gardenlet&lt;/code> is set to &lt;code>false&lt;/code>.
+Also, this internal health status is set to &lt;code>false&lt;/code> automatically after some time in case the controller gets stuck for whatever reason.
+This internal health status is available via the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint and is used for the &lt;code>livenessProbe&lt;/code> in the &lt;code>gardenlet&lt;/code> pod.&lt;/p>
 &lt;h3 id="shootstate-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootstate">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shootstate">&lt;code>ShootState&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>ShootState&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles resources containing information that have to be synced to the &lt;code>ShootState&lt;/code>.
 This information is used when a &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">control plane migration&lt;/a> is performed.&lt;/p>

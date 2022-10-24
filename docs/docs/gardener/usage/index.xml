@@ -711,6 +711,28 @@ Consequently, existing/bring-your-own Istio deployments will no longer be suppor
 &lt;li>One Loki Statefulset in the &lt;code>garden&lt;/code> namespace which contains logs for the seed cluster and one per shoot namespace which contains logs for shoot&amp;rsquo;s controlplane.&lt;/li>
 &lt;li>One Grafana Deployment in &lt;code>garden&lt;/code> namespace and two Deployments per shoot namespace (one exposed to the end users and one for the operators). Grafana is the UI component used in the logging stack.&lt;/li>
 &lt;/ul>
+&lt;h3 id="container-logs-rotation-and-retention">Container Logs rotation and retention&lt;/h3>
+&lt;p>Container &lt;a href="https://kubernetes.io/docs/concepts/cluster-administration/logging/#log-rotation">log rotation&lt;/a> in Kubernetes describes a subtile but important implementation detail depending on the type of the used high-level container runtime. When the used container runtime is not CRI compliant (such as &lt;code>dockershim&lt;/code>) then the &lt;code>kubelet&lt;/code> does not provide any rotation or retention implementations, hence leaving those aspects to the downstream components. When the used container runtime is CRI compliant (such as &lt;code>containerd&lt;/code>) then the &lt;code>kubelet&lt;/code> provides the necessary implementation with two configuration options:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>ContainerLogMaxSize&lt;/code> for rotation&lt;/li>
+&lt;li>&lt;code>ContainerLogMaxFiles&lt;/code> for retention.&lt;/li>
+&lt;/ul>
+&lt;h4 id="docker-container-runtime">Docker container runtime&lt;/h4>
+&lt;p>In this case, the log rotation and retention is implemented by a &lt;code>logrotate&lt;/code> service provisioned by Gardener which rotates logs once &lt;code>100M&lt;/code> size is reached. Logs are compressed on daily basis and retained for a maximum period of &lt;code>14d&lt;/code>.&lt;/p>
+&lt;h4 id="containerd-runtime">ContainerD runtime&lt;/h4>
+&lt;p>In this case, it is possible to configure the &lt;code>containerLogMaxSize&lt;/code> and &lt;code>containerLogMaxFiles&lt;/code> fields in the Shoot specification. Both fields are optional and if nothing is specified then the &lt;code>kubelet&lt;/code> rotates on the same size &lt;code>100M&lt;/code> as in the &lt;code>docker&lt;/code> container runtime. Those fields are part of provider&amp;rsquo;s workers definition. Here is an example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - cri:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: containerd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubelet:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># accepted values are of resource.Quantity&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerLogMaxSize: 150Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerLogMaxFiles: 10
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The values of the &lt;code>containerLogMaxSize&lt;/code> and &lt;code>containerLogMaxFiles&lt;/code> fields need to be considered with care since container log files claim disk space from the host. On the opposite side, log rotations on too small sizes may result in frequent rotations which can be missed by other components (log shippers) observing these rotations.&lt;/p>
+&lt;p>In the majority of the cases, the defaults shall do just. Custom configuration might be of use under rare conditions.&lt;/p>
 &lt;h3 id="extension-of-the-logging-stack">Extension of the logging stack&lt;/h3>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/shoot-node-logging-architecture_23c018.png" alt="">
 The logging stack is extended to scrape logs from the systemd services of each shoots&amp;rsquo; nodes and from all Gardener components in the shoot &lt;code>kube-system&lt;/code> namespace. These logs are exposed only to the Gardener operators.&lt;/p>

@@ -1326,49 +1326,7 @@ For proper functioning of Gardener, &lt;code>kube-system&lt;/code> namespace wil
 &lt;p>If this field is set to &lt;code>true&lt;/code> then all authenticated users can use the &amp;ldquo;gardener.privileged&amp;rdquo; &lt;code>PodSecurityPolicy&lt;/code>, allowing full unrestricted access to Pod features. However, the &lt;code>PodSecurityPolicy&lt;/code> admission plugin is removed in Kubernetes &lt;code>v1.25&lt;/code> and &lt;code>PodSecurity&lt;/code> has taken its place as its successor. Therefore, this field doesn&amp;rsquo;t have any relevance in versions &lt;code>&amp;gt;= v1.25&lt;/code> anymore. If you need to set a default pod admission level for your cluster, follow &lt;a href="#admission-configuration-for-the-podsecurity-admission-plugin">this documentation&lt;/a>.&lt;/p>
 &lt;blockquote>
 &lt;p>Note: You should remove this field from the &lt;code>Shoot&lt;/code> spec for &lt;code>v1.24&lt;/code> clusters after migrating to the new &lt;code>PodSecurity&lt;/code> admission controller, before upgrading your cluster to &lt;code>v1.25&lt;/code>.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Project Namespace Access</title><link>https://gardener.cloud/docs/gardener/usage/project_namespace_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/project_namespace_access/</guid><description>
-&lt;h1 id="project-namespace-access">Project Namespace Access&lt;/h1>
-&lt;h2 id="service-account-manager">Service Account Manager&lt;/h2>
-&lt;p>With Gardener &lt;code>v1.47&lt;/code> a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically with Kubernetes &lt;code>v1.24+&lt;/code>.&lt;/p>
-&lt;h3 id="create-a-service-account">Create a Service Account&lt;/h3>
-&lt;p>Once given the &lt;code>serviceaccountmanager&lt;/code> role a user can create/update/delete &lt;code>ServiceAccount&lt;/code>s in the project namespace. In order to create a &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo; run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
-&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc create sa robot-user
-&lt;/code>&lt;/pre>&lt;h3 id="request-a-token-for-a-service-account">Request a token for a Service Account&lt;/h3>
-&lt;p>A token for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> can be requested via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">TokenRequest API&lt;/a> in several ways:&lt;/p>
-&lt;ul>
-&lt;li>using &lt;code>kubectl&lt;/code> &amp;gt;= v1.24&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n project-abc create token robot-user --duration=3600s
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>using &lt;code>kubectl&lt;/code> &amp;lt; v1.24&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f - --raw /api/v1/namespaces/project-abc/serviceaccounts/robot-user/token
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">{
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">}
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>directly calling the Kubernetes HTTP API&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>curl -X POST https://api.gardener/api/v1/namespaces/project-abc/serviceaccounts/robot-user/token &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Authorization: Bearer &amp;lt;auth-token&amp;gt;&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -d &lt;span style="color:#a31515">&amp;#39;{
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Mind that the returned token is not stored within the Kubernetes cluster, will be valid for &lt;code>3600&lt;/code> seconds and will be invalidated if the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> is deleted. Although &lt;code>expirationSeconds&lt;/code> can be modified depending on the needs, the returned token&amp;rsquo;s validity will not exceed the configured &lt;code>service-account-max-token-expiration&lt;/code> duration for the garden cluster. It is advised that the actual &lt;code>expirationTimestamp&lt;/code> is verified so that expectations are met. This can be done by asserting the &lt;code>expirationTimestamp&lt;/code> in the &lt;code>TokenRequestStatus&lt;/code> or the &lt;code>exp&lt;/code> claim in the token itself.&lt;/p>
-&lt;h3 id="delete-a-service-account">Delete a Service Account&lt;/h3>
-&lt;p>In order to delete the &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo; run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
-&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc delete sa robot-user
-&lt;/code>&lt;/pre>&lt;p>This will invalidate all existing tokens for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code>.&lt;/p></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/usage/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/projects/</guid><description>
+&lt;/blockquote></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/usage/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/projects/</guid><description>
 &lt;h1 id="projects">Projects&lt;/h1>
 &lt;p>The Gardener API server supports a cluster-scoped &lt;code>Project&lt;/code> resource which is used for data isolation between individual Gardener consumers. For example, each development team has its own project to manage its own shoot clusters.&lt;/p>
 &lt;p>Each &lt;code>Project&lt;/code> is backed by a Kubernetes &lt;code>Namespace&lt;/code> that contains the actual related Kubernetes resources like &lt;code>Secret&lt;/code>s or &lt;code>Shoot&lt;/code>s.&lt;/p>
@@ -1417,11 +1375,11 @@ Please note that the &lt;code>.spec.owner&lt;/code> field is deprecated and will
 Each project member must have at least one role (currently described in &lt;code>.spec.members[].role&lt;/code>, additional roles can be added to &lt;code>.spec.members[].roles[]&lt;/code>). The following roles exist:&lt;/p>
 &lt;ul>
 &lt;li>&lt;code>admin&lt;/code>: This allows to fully manage resources inside the project (e.g., secrets, shoots, configmaps, and similar). Mind that the &lt;code>admin&lt;/code> role has readonly access to service accounts.&lt;/li>
-&lt;li>&lt;code>serviceaccountmanager&lt;/code>: This allows to fully manage service accounts inside the project namespace and request tokens for them. The permissions of the created service accounts are instead managed by the &lt;code>admin&lt;/code> role. Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/project_namespace_access/">this document&lt;/a>.&lt;/li>
+&lt;li>&lt;code>serviceaccountmanager&lt;/code>: This allows to fully manage service accounts inside the project namespace and request tokens for them. The permissions of the created service accounts are instead managed by the &lt;code>admin&lt;/code> role. Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/service-account-manager/">Service Account Manager&lt;/a>.&lt;/li>
 &lt;li>&lt;code>uam&lt;/code>: This allows to add/modify/remove human users or groups to/from the project member list.&lt;/li>
 &lt;li>&lt;code>viewer&lt;/code>: This allows to read all resources inside the project except secrets.&lt;/li>
 &lt;li>&lt;code>owner&lt;/code>: This combines the &lt;code>admin&lt;/code>, &lt;code>uam&lt;/code> and &lt;code>serviceaccountmanager&lt;/code> roles.&lt;/li>
-&lt;li>Extension roles (prefixed with &lt;code>extension:&lt;/code>): Please refer to &lt;a href="https://gardener.cloud/docs/gardener/extensions/project-roles/">this document&lt;/a>.&lt;/li>
+&lt;li>Extension roles (prefixed with &lt;code>extension:&lt;/code>): Please refer to &lt;a href="https://gardener.cloud/docs/gardener/extensions/project-roles/">Extending Project Roles&lt;/a>.&lt;/li>
 &lt;/ul>
 &lt;p>The &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#project-controller">project controller&lt;/a> inside the Gardener Controller Manager is managing RBAC resources that grant the described privileges to the respective members.&lt;/p>
 &lt;p>There are three central &lt;code>ClusterRole&lt;/code>s &lt;code>gardener.cloud:system:project-member&lt;/code>, &lt;code>gardener.cloud:system:project-viewer&lt;/code> and &lt;code>gardener.cloud:system:project-serviceaccountmanager&lt;/code> that grant the permissions for namespaced resources (e.g., &lt;code>Secret&lt;/code>s, &lt;code>Shoot&lt;/code>s, &lt;code>ServiceAccount&lt;/code>s, etc.).
@@ -1487,7 +1445,7 @@ The owner can still grant the &lt;code>uam&lt;/code> role to other members if de
 For projects created before Gardener v1.8 the Gardener Controller Manager will migrate all projects to also assign the &lt;code>uam&lt;/code> role to all &lt;code>admin&lt;/code> members (to not break existing use-cases). The corresponding migration logic is present in Gardener Controller Manager from v1.8 to v1.13.
 The project owner can gradually remove these roles if desired.&lt;/p>
 &lt;h2 id="stale-projects">Stale Projects&lt;/h2>
-&lt;p>When a project is not actively used for some period of time the project is marked as &amp;ldquo;stale&amp;rdquo;. This is done by controller called &amp;ldquo;Stale Projects Reconciler&amp;rdquo;. Once the project is marked as stale there is a time frame in which if not used it will be deleted by that controller. More detailed information can be found &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#stale-projects-reconciler">here&lt;/a>.&lt;/p></description></item><item><title>Docs: Reversed VPN Tunnel</title><link>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</guid><description>
+&lt;p>When a project is not actively used for some period of time, it is marked as &amp;ldquo;stale&amp;rdquo;. This is done by a controller called &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#stale-projects-reconciler">&amp;ldquo;Stale Projects Reconciler&amp;rdquo;&lt;/a>. Once the project is marked as stale there is a time frame in which if not used it will be deleted by that controller.&lt;/p></description></item><item><title>Docs: Reversed VPN Tunnel</title><link>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</guid><description>
 &lt;h1 id="reversed-vpn-tunnel-setup-and-configuration">Reversed VPN Tunnel Setup and Configuration&lt;/h1>
 &lt;p>This is a short guide describing how to enable tunneling traffic from shoot cluster to seed cluster instead of the default &amp;ldquo;seed to shoot&amp;rdquo; direction.&lt;/p>
 &lt;h2 id="the-openvpn-default">The OpenVPN Default&lt;/h2>
@@ -1630,7 +1588,51 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;p>When a shoot is scheduled to a seed and actually reconciled, Gardener appoints the seed as the current &amp;ldquo;owner&amp;rdquo; of the shoot by creating a special &amp;ldquo;owner DNS record&amp;rdquo; and checking against it if the seed still owns the shoot in order to guard against &amp;ldquo;split brain scenario&amp;rdquo; during control plane migration, as described in &lt;a href="https://gardener.cloud/docs/gardener/proposals/17-shoot-control-plane-migration-bad-case/">GEP-17 Shoot Control Plane Migration &amp;ldquo;Bad Case&amp;rdquo; Scenario&lt;/a>.
 This mechanism relies on the DNS resolution of TXT DNS records being possible and highly reliable, since if the owner check fails the shoot will be effectively disabled for the duration of the failure.
 In environments where resolving TXT DNS records is either not possible or not considered reliable enough, it may be necessary to disable the owner check mechanism, in order to avoid shoots failing to reconcile or temporary outages due to transient DNS failures.
-By setting the &lt;code>.spec.settings.ownerChecks.enabled=false&lt;/code> (default is &lt;code>true&lt;/code>) the creation and checking of owner DNS records can be disabled for all shoots scheduled on this seed. Note that if owner checks are disabled, migrating shoots scheduled on this seed to other seeds should be considered unsafe, and in the future will be disabled as well.&lt;/p></description></item><item><title>Docs: Shoot Access</title><link>https://gardener.cloud/docs/gardener/usage/shoot_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_access/</guid><description>
+By setting the &lt;code>.spec.settings.ownerChecks.enabled=false&lt;/code> (default is &lt;code>true&lt;/code>) the creation and checking of owner DNS records can be disabled for all shoots scheduled on this seed. Note that if owner checks are disabled, migrating shoots scheduled on this seed to other seeds should be considered unsafe, and in the future will be disabled as well.&lt;/p></description></item><item><title>Docs: Service Account Manager</title><link>https://gardener.cloud/docs/gardener/usage/service-account-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/service-account-manager/</guid><description>
+&lt;h1 id="service-account-manager">Service Account Manager&lt;/h1>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>With Gardener &lt;code>v1.47&lt;/code> a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically with Kubernetes &lt;code>v1.24+&lt;/code>.&lt;/p>
+&lt;h2 id="actions">Actions&lt;/h2>
+&lt;p>Once assigned the &lt;code>serviceaccountmanager&lt;/code> role, a user can create/update/delete &lt;code>ServiceAccount&lt;/code>s in the project namespace.&lt;/p>
+&lt;h3 id="create-a-service-account">Create a Service Account&lt;/h3>
+&lt;p>In order to create a &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo;, run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc create sa robot-user
+&lt;/code>&lt;/pre>&lt;h3 id="request-a-token-for-a-service-account">Request a Token for a Service Account&lt;/h3>
+&lt;p>A token for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> can be requested via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">TokenRequest API&lt;/a> in several ways:&lt;/p>
+&lt;ul>
+&lt;li>using &lt;code>kubectl&lt;/code> &amp;gt;= v1.24&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n project-abc create token robot-user --duration=3600s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>using &lt;code>kubectl&lt;/code> &amp;lt; v1.24&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f - --raw /api/v1/namespaces/project-abc/serviceaccounts/robot-user/token
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">{
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">}
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>directly calling the Kubernetes HTTP API&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>curl -X POST https://api.gardener/api/v1/namespaces/project-abc/serviceaccounts/robot-user/token &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Authorization: Bearer &amp;lt;auth-token&amp;gt;&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -H &lt;span style="color:#a31515">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -d &lt;span style="color:#a31515">&amp;#39;{
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Mind that the returned token is not stored within the Kubernetes cluster, will be valid for &lt;code>3600&lt;/code> seconds, and will be invalidated if the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> is deleted. Although &lt;code>expirationSeconds&lt;/code> can be modified depending on the needs, the returned token&amp;rsquo;s validity will not exceed the configured &lt;code>service-account-max-token-expiration&lt;/code> duration for the garden cluster. It is advised that the actual &lt;code>expirationTimestamp&lt;/code> is verified so that expectations are met. This can be done by asserting the &lt;code>expirationTimestamp&lt;/code> in the &lt;code>TokenRequestStatus&lt;/code> or the &lt;code>exp&lt;/code> claim in the token itself.&lt;/p>
+&lt;h3 id="delete-a-service-account">Delete a Service Account&lt;/h3>
+&lt;p>In order to delete the &lt;code>ServiceAccount&lt;/code> named &amp;ldquo;robot-user&amp;rdquo;, run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc delete sa robot-user
+&lt;/code>&lt;/pre>&lt;p>This will invalidate all existing tokens for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code>.&lt;/p></description></item><item><title>Docs: Shoot Access</title><link>https://gardener.cloud/docs/gardener/usage/shoot_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_access/</guid><description>
 &lt;h1 id="accessing-shoot-clusters">Accessing Shoot Clusters&lt;/h1>
 &lt;p>After creation of a shoot cluster, end-users require a &lt;code>kubeconfig&lt;/code> to access it. There are several options available to get to such &lt;code>kubeconfig&lt;/code>.&lt;/p>
 &lt;h2 id="static-token-kubeconfig">Static Token Kubeconfig&lt;/h2>
@@ -1866,9 +1868,6 @@ This is the same certificate that is also contained in the &lt;code>kubeconfig&l
 &lt;/blockquote>
 &lt;p>All of the certificates are valid for 10 years.
 Since it requires adaptation for the consumers of the &lt;code>Shoot&lt;/code>, there is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the CA certificates.&lt;/strong>&lt;/p>
-&lt;blockquote>
-&lt;p>Note that the CA rotation can only be triggered if the &lt;code>ShootCARotation&lt;/code> feature gate is enabled.&lt;/p>
-&lt;/blockquote>
 &lt;p>The rotation happens in three stages (see also &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/">GEP-18&lt;/a> for the full details):&lt;/p>
 &lt;ul>
 &lt;li>In stage one, new CAs are created and added to the bundle (together with the old CAs). Client certificates are re-issued immediately.&lt;/li>
@@ -1966,9 +1965,6 @@ Those tokens are typically used by workload &lt;code>Pod&lt;/code>s running insi
 This also includes system components running in the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
 &lt;p>The token signing key has no expiration date.
 Since it might require adaptation for the consumers of the &lt;code>Shoot&lt;/code>, there is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the signing key.&lt;/strong>&lt;/p>
-&lt;blockquote>
-&lt;p>Note that the signing key rotation can only be triggered if the &lt;code>ShootSARotation&lt;/code> feature gate is enabled.&lt;/p>
-&lt;/blockquote>
 &lt;p>The rotation happens in three stages, similar to how the &lt;a href="#certificate-authorities">CA certificates&lt;/a> are rotated:&lt;/p>
 &lt;ul>
 &lt;li>In stage one, a new signing key is created and added to the bundle (together with the old signing key).&lt;/li>

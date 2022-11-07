@@ -227,28 +227,30 @@ kubeconfig for that Kubernetes cluster.&lt;/p>
 unnecessary outgoing traffic, move Grafana to a different network, lockdown unauthenticated endpoints.&lt;/p>
 &lt;h2 id="conclusion">Conclusion&lt;/h2>
 &lt;p>The three scenarios above show pitfalls with a Kubernetes setup. A lot of them were specific to the Kubernetes
-installation: different cloud providers or different configurations will show different weakness. Users should no longer be given access to Grafana.&lt;/p></description></item><item><title>Docs: Container Image not Pulled</title><link>https://gardener.cloud/docs/guides/applications/missing-registry-permission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/missing-registry-permission/</guid><description>
+installation: different cloud providers or different configurations will show different weakness. Users should no longer be given access to Grafana.&lt;/p></description></item><item><title>Docs: Container Image Not Pulled</title><link>https://gardener.cloud/docs/guides/applications/missing-registry-permission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/missing-registry-permission/</guid><description>
 &lt;h2 id="problem">Problem&lt;/h2>
-&lt;p>Two of the most common problems are specifying the wrong container image or trying to use
-private images without providing registry credentials.&lt;/p>
-&lt;p>&lt;strong>Note:&lt;/strong> There is no observable difference in Pod status between a missing image and incorrect registry permissions.
-In either case, Kubernetes will report an ErrImagePull status for the Pods. For this reason, this article deals with
-both scenarios.&lt;/p>
+&lt;p>Two of the most common causes of this problems are specifying the wrong container image or trying to use private images without providing registry credentials.&lt;/p>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+There is no observable difference in pod status between a missing image and incorrect registry permissions.
+In either case, Kubernetes will report an &lt;code>ErrImagePull&lt;/code> status for the pods. For this reason, this article deals with
+both scenarios.
+&lt;/div>
 &lt;h2 id="example">Example&lt;/h2>
-&lt;p>Let&amp;rsquo;s see an example. We&amp;rsquo;ll create a pod named &lt;em>fail&lt;/em> referencing a non-existent Docker image:&lt;/p>
+&lt;p>Let&amp;rsquo;s see an example. We&amp;rsquo;ll create a pod named &lt;em>fail&lt;/em>, referencing a non-existent Docker image:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>kubectl run -i --tty fail --image=tutum/curl:1.123456
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>the command prompt doesn&amp;rsquo;t return and you can press &lt;code>ctrl+c&lt;/code>&lt;/p>
-&lt;h2 id="error-analysis">Error analysis&lt;/h2>
-&lt;p>We can then inspect our Pods and see that we have one Pod with a status of &lt;strong>ErrImagePull&lt;/strong> or &lt;strong>ImagePullBackOff&lt;/strong>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command doesn&amp;rsquo;t return and you can terminate the process with &lt;code>Ctrl+C&lt;/code>.&lt;/p>
+&lt;h2 id="error-analysis">Error Analysis&lt;/h2>
+&lt;p>We can then inspect our pods and see that we have one pod with a status of &lt;strong>ErrImagePull&lt;/strong> or &lt;strong>ImagePullBackOff&lt;/strong>.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ (minikube) kubectl get pods
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME READY STATUS RESTARTS AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>client-5b65b6c866-cs4ch 1/1 Running 1 1m
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>fail-6667d7685d-7v6w8 0/1 ErrImagePull 0 &amp;lt;invalid&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>vuejs-578574b75f-5x98z 1/1 Running 0 1d
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ (minikube)
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For some additional information, we can &lt;code>describe&lt;/code> the failing Pod.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For some additional information, we can &lt;code>describe&lt;/code> the failing pod.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>kubectl describe pod fail-6667d7685d-7v6w8
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As you can see in the events section, your image can&amp;rsquo;t be pulled&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As you can see in the events section, your image can&amp;rsquo;t be pulled:&lt;/p>
 &lt;pre tabindex="0">&lt;code>Name: fail-6667d7685d-7v6w8
 Namespace: default
 Node: minikube/192.168.64.10
@@ -278,44 +280,37 @@ There are three primary candidates besides network connectivity issues:&lt;/p>
 &lt;/ul>
 &lt;p>If you don&amp;rsquo;t notice a typo in your image tag, then it&amp;rsquo;s time to test using your local machine. I usually start by
 running &lt;strong>docker pull on my local development machine&lt;/strong> with the exact same image tag. In this case, I would
-run &lt;code>docker pull tutum/curl:1.123456&lt;/code>&lt;/p>
-&lt;p>If this succeeds, then it probably means that Kubernetes doesn&amp;rsquo;t have correct permissions to pull that image.&lt;/p>
-&lt;p>Add the docker registry user/pwd to your cluster&lt;/p>
+run &lt;code>docker pull tutum/curl:1.123456&lt;/code>.&lt;/p>
+&lt;p>If this succeeds, then it probably means that Kubernetes doesn&amp;rsquo;t have the correct permissions to pull that image.&lt;/p>
+&lt;p>Add the docker registry user/pwd to your cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>kubectl create secret docker-registry dockersecret --docker-server=https://index.docker.io/v1/ --docker-username=&amp;lt;username&amp;gt; --docker-password=&amp;lt;password&amp;gt; --docker-email=&amp;lt;email&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the exact image tag fails, then I will test without an explicit image tag - &lt;code>docker pull tutum/curl&lt;/code> - which will attempt to pull the latest tag. If this succeeds, then that means
-the originally specified tag doesn&amp;rsquo;t exist. Go to the Docker registry and check which tags are available for this image.&lt;/p>
-&lt;p>If &lt;code>docker pull tutum/curl&lt;/code> (without an exact tag) fails, then we have a bigger problem -
-that image does not exist at all in our image registry.&lt;/p></description></item><item><title>Docs: Container Image not Updating</title><link>https://gardener.cloud/docs/guides/applications/image-pull-policy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/image-pull-policy/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the exact image tag fails, then I will test without an explicit image tag:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>docker pull tutum/curl
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command will attempt to pull the latest tag. If this succeeds, then that means the originally specified tag doesn&amp;rsquo;t exist. Go to the Docker registry and check which tags are available for this image.&lt;/p>
+&lt;p>If &lt;code>docker pull tutum/curl&lt;/code> (without an exact tag) fails, then we have a bigger problem - that image does not exist at all in our image registry.&lt;/p></description></item><item><title>Docs: Container Image Not Updating</title><link>https://gardener.cloud/docs/guides/applications/image-pull-policy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/image-pull-policy/</guid><description>
 &lt;h2 id="preface">Preface&lt;/h2>
-&lt;p>A container image should use a fixed tag or the content hash of the image. It should not use the tags &lt;strong>latest&lt;/strong>,
-&lt;strong>head&lt;/strong>, &lt;strong>canary&lt;/strong>, or other tags that are designed to be &lt;em>floating&lt;/em>.&lt;/p>
+&lt;p>A container image should use a fixed tag or the SHA of the image. It should not use the tags &lt;strong>latest&lt;/strong>, &lt;strong>head&lt;/strong>, &lt;strong>canary&lt;/strong>, or other tags that are designed to be &lt;em>floating&lt;/em>.&lt;/p>
 &lt;h2 id="problem">Problem&lt;/h2>
-&lt;p>Many Kubernetes users have run into this problem.
-The story goes something like this:&lt;/p>
+&lt;p>If you have encountered this issue, you have probably done something along the lines of:&lt;/p>
 &lt;ul>
-&lt;li>Deploy any image using an image tag (e.g. cp-enablement/awesomeapp:1.0)&lt;/li>
+&lt;li>Deploy anything using an image tag (e.g. &lt;code>cp-enablement/awesomeapp:1.0&lt;/code>)&lt;/li>
 &lt;li>Fix a bug in awesomeapp&lt;/li>
-&lt;li>Build a new image and push it with the &lt;strong>same tag&lt;/strong> (cp-enablement/awesomeapp:1.0)&lt;/li>
-&lt;li>Update your deployment&lt;/li>
+&lt;li>Build a new image and push it with the &lt;strong>same tag&lt;/strong> (&lt;code>cp-enablement/awesomeapp:1.0&lt;/code>)&lt;/li>
+&lt;li>Update the deployment&lt;/li>
 &lt;li>Realize that the bug is still present&lt;/li>
-&lt;li>Rinse and repeat steps 3 to 5 until you recognize this doesn&amp;rsquo;t work&lt;/li>
+&lt;li>Repeat steps 3-5 without any improvement&lt;/li>
 &lt;/ul>
 &lt;p>The problem relates to how Kubernetes decides whether to do a &lt;em>docker pull&lt;/em> when starting a container.
 Since we tagged our image as &lt;em>:1.0&lt;/em>, the default pull policy is &lt;strong>IfNotPresent&lt;/strong>. The Kubelet already has a local
-copy of cp-enablement/awesomeapp:1.0, hence it doesn&amp;rsquo;t attempt to do a docker pull. When the new Pods come up,
-they still use the old broken Docker image.&lt;/p>
-&lt;p>There are three ways to resolve this:&lt;/p>
-&lt;ul>
-&lt;li>&lt;del>Switch to using the tag :latest&lt;/del> (DO NOT DO THIS!)&lt;/li>
-&lt;li>Specify ImagePullPolicy: always (not recomended).&lt;/li>
-&lt;li>&lt;strong>Use unique tags (best practice)&lt;/strong>&lt;/li>
-&lt;/ul>
+copy of &lt;code>cp-enablement/awesomeapp:1.0&lt;/code>, so it doesn&amp;rsquo;t attempt to do a docker pull. When the new Pods come up,
+they&amp;rsquo;re still using the old broken Docker image.&lt;/p>
+&lt;p>There are a couple of ways to resolve this, with the recommended one being to &lt;strong>use unique tags&lt;/strong>.&lt;/p>
 &lt;h2 id="solution">Solution&lt;/h2>
-&lt;p>In the quest to automate myself out of a job, I created a bash script that runs anytime to create a new tag
-and push the build result to the registry.&lt;/p>
+&lt;p>In order to fix the problem, you can use the following bash script that runs anytime the deployment is updated to create a new tag
+and push it to the registry.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">#!/usr/bin/env bash
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Set the docker image name and the corresponding repository&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Set the docker image name and the coresponding repository&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Ensure that you change them in the deployment.yml as well.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># You must be logged in with docker login…&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
@@ -324,17 +319,19 @@ and push the build result to the registry.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>PROJECT=awesomeapp
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>REPOSITORY=cp-enablement
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># exit if any subcommand or pipeline returns a non-zero status.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># causes the shell to exit if any subcommand or pipeline returns a non-zero status.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>set -e
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># set debug mode&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#set -x&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>set -x
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build my nodeJS app&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>npm run build
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># get latest version IDs from the Docker.io registry and increment them&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># get the latest version ID from the Docker.io registry and increment them&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>VERSION=&lt;span style="color:#00f">$(&lt;/span>curl https://registry.hub.docker.com/v1/repositories/$REPOSITORY/$PROJECT/tags | sed -e &lt;span style="color:#a31515">&amp;#39;s/[][]//g&amp;#39;&lt;/span> -e &lt;span style="color:#a31515">&amp;#39;s/&amp;#34;//g&amp;#39;&lt;/span> -e &lt;span style="color:#a31515">&amp;#39;s/ //g&amp;#39;&lt;/span> | tr &lt;span style="color:#a31515">&amp;#39;}&amp;#39;&lt;/span> &lt;span style="color:#a31515">&amp;#39;\n&amp;#39;&lt;/span> | awk -F: &lt;span style="color:#a31515">&amp;#39;{print $3}&amp;#39;&lt;/span> | grep v| tail -n 1&lt;span style="color:#00f">)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>VERSION=&lt;span style="color:#a31515">${&lt;/span>VERSION:1&lt;span style="color:#a31515">}&lt;/span>
@@ -342,17 +339,9 @@ and push the build result to the registry.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>VERSION=&lt;span style="color:#a31515">&amp;#34;v&lt;/span>$VERSION&lt;span style="color:#a31515">&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a new docker image&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build the new docker image&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#39;&amp;gt;&amp;gt;&amp;gt; Building new image&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Due to a bug in Docker we need to analyse the log to find out if build passed (see https://github.com/dotcloud/docker/issues/1875)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>docker build --no-cache=true -t $REPOSITORY/$PROJECT:$VERSION . | tee /tmp/docker_build_result.log
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>RESULT=&lt;span style="color:#00f">$(&lt;/span>cat /tmp/docker_build_result.log | tail -n 1&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> [[ &lt;span style="color:#a31515">&amp;#34;&lt;/span>$RESULT&lt;span style="color:#a31515">&amp;#34;&lt;/span> != *Successfully* ]];
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">then&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exit -1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">fi&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#39;&amp;gt;&amp;gt;&amp;gt; Push new image&amp;#39;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>docker push $REPOSITORY/$PROJECT:$VERSION
@@ -598,16 +587,12 @@ if someone tampered with it in any way. &lt;strong>This solves the problem of tr
 &lt;p>In addition you should scan all images for known vulnerabilities, this can fill another book&lt;/p></description></item><item><title>Docs: Kubernetes Antipatterns</title><link>https://gardener.cloud/docs/guides/applications/antipattern/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/antipattern/</guid><description>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/howto-antipattern_e88da2.png" alt="antipattern">&lt;/p>
 &lt;p>This HowTo covers common kubernetes antipatterns that we have seen over the past months.&lt;/p>
-&lt;h2 id="running-as-root-user">Running as root user.&lt;/h2>
-&lt;p>Whenever possible, do not run containers as root user. One could be
-tempted to say that Kubernetes Pods and Node are well separated. Host and containers running on it
-share the same kernel. If a container is compromised, the root user in the container has full control over the
+&lt;h2 id="running-as-root-user">Running as Root User&lt;/h2>
+&lt;p>Whenever possible, do not run containers as root user. One could be tempted to say that Kubernetes pods and nodes are well separated. Host and containers running on it share the same kernel. If a container is compromised, the root user in the container has full control over the
 underlying node.&lt;/p>
 &lt;p>Watch the very good presentation by Liz Rice at the KubeCon 2018&lt;/p>
 &lt;iframe width="560" height="315" src="https://www.youtube.com/embed/ltrV-Qmh3oY" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>&lt;/iframe>
-&lt;p>Use &lt;code>RUN groupadd -r anygroup &amp;amp;&amp;amp; useradd -r -g anygroup myuser&lt;/code> to create a group
-and add a user to it. Use the &lt;code>USER&lt;/code> command to switch to this user. Note that you may also consider to provide
-&lt;a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user">an explicit UID/GID&lt;/a> if required.&lt;/p>
+&lt;p>Use &lt;code>RUN groupadd -r anygroup &amp;amp;&amp;amp; useradd -r -g anygroup myuser&lt;/code> to create a group and add a user to it. Use the &lt;code>USER&lt;/code> command to switch to this user. Note that you may also consider to provide &lt;a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user">an explicit UID/GID&lt;/a> if required.&lt;/p>
 &lt;p>For Example:&lt;/p>
 &lt;pre tabindex="0">&lt;code>ARG GF_UID=&amp;#34;500&amp;#34;
 ARG GF_GID=&amp;#34;500&amp;#34;
@@ -615,65 +600,35 @@ ARG GF_GID=&amp;#34;500&amp;#34;
 RUN groupadd -r -g $GF_GID appgroup &amp;amp;&amp;amp; \
 useradd appuser -r -u $GF_UID -g appgroup
 USER appuser
-&lt;/code>&lt;/pre>&lt;h2 id="store-data-or-logs-in-containers">Store data or logs in containers&lt;/h2>
-&lt;p>Containers are ideal for stateless applications
-and should be transient. This means that no data or logs should be stored in the
+&lt;/code>&lt;/pre>&lt;h2 id="store-data-or-logs-in-containers">Store Data or Logs in Containers&lt;/h2>
+&lt;p>Containers are ideal for stateless applications and should be transient. This means that no data or logs should be stored in the
 container, as they are lost when the container is closed. Use persistence volumes instead to persist data outside
 of containers. Using an &lt;a href="https://www.elastic.co/de/what-is/elk-stack">ELK stack&lt;/a> is another good option for storing and processing logs.&lt;/p>
-&lt;h2 id="using-pod-ip-addresses">Using pod IP addresses&lt;/h2>
-&lt;p>Each pod is assigned an IP address. It is necessary
-for pods to communicate with each other to build an application, e.g. an application
-must communicate with a database. Existing pods are terminated and new pods are
-constantly started. If you would rely on the IP address of a pod or container, you would need to update the application
-configuration constantly. This makes the application fragile. Create
-services instead. They provide a logical name that can be assigned independently of the
-varying number and IP addresses of containers. Services are the basic concept for load
-balancing within Kubernetes.&lt;/p>
-&lt;h2 id="more-than-one-process-in-a-container">More than one process in a container&lt;/h2>
-&lt;p>A docker file provides a &lt;code>CMD&lt;/code> and &lt;code>ENTRYPOINT&lt;/code> to
-start the image. &lt;code>CMD&lt;/code> is often used around a script that makes a configuration and then
-starts the container. Do not try to start multiple processes with this script. It is
-important to consider the separation of concerns when creating docker images. Running multiple processes in a single pod makes
-managing your containers, collecting logs and updating each process more difficult.
-You can split the image into multiple containers and manage them independently - even in one pod.
-Bear in mind that Kubernetes only monitors the process with PID=1. If more than
-one process is started within a container, then these no longer fall under the control of Kubernetes.&lt;/p>
-&lt;h2 id="creating-images-in-a-running-container">Creating images in a running container&lt;/h2>
-&lt;p>A new image can be created with the &lt;code>docker commit&lt;/code>
-command. This is useful if changes have been made to the container and you want to persist
-them for later error analysis. However, images created like this are not reproducible and
-completely worthless for a CI/CD environment. Furthermore, another developer cannot recognize
-which components the image contains. Instead, always make changes to the docker file, close
-existing containers and start a new container with the updated image.&lt;/p>
-&lt;h2 id="saving-passwords-in-docker-image--">Saving passwords in docker image 💀&lt;/h2>
-&lt;p>Do not save passwords in a Docker file. They are in plain
-text and are checked into a repository. That makes them completely vulnerable even if you are using
-a private repository like the Artifactory.
-Always use &lt;a href="https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure">Secrets or ConfigMaps&lt;/a>
-to provision passwords or inject them by mounting a persistent volume.&lt;/p>
-&lt;h2 id="using-the-latest-tag">Using the &amp;rsquo;latest&amp;rsquo; tag&lt;/h2>
-&lt;p>Starting an image with &lt;em>tomcat&lt;/em> is tempting. If no tags are specified, a container is
-started with the tomcat:latest image. This image may no longer be up to date and refers to an
-older version instead. Running a production application requires complete control of the environment
-with exact versions of the image. Make sure you always use a tag or even better the &lt;strong>sha256 hash&lt;/strong>
-of the image e.g. &lt;code>tomcat@sha256:c34ce3c1fcc0c7431e1392cc3abd0dfe2192ffea1898d5250f199d3ac8d8720f&lt;/code>.
-Why use the sha256 hash? Tags are not immutable and can be overwritten by a developer at any time. In this case
-you don&amp;rsquo;t have complete control over your image - which is bad.&lt;/p>
-&lt;h2 id="different-images-per-environment">Different images per environment&lt;/h2>
-&lt;p>Don&amp;rsquo;t create different images for development, testing, staging
-and production environments. The image should be the &lt;strong>source of truth&lt;/strong> and should only be created once
-and pushed to the repository. This image:tag should be used for different environments in the future.&lt;/p>
-&lt;h2 id="depend-on-start-order-of-pods">Depend on start order of pods&lt;/h2>
-&lt;p>Applications often depend on containers being started in a certain order.
-For example, a database container must be up and running before an application can connect to it. The application
-should be resilient to such changes, as the db pod can be unreachable or restarted at any time. The
-application container should be able to handle such situations without terminating or crashing.&lt;/p>
-&lt;h2 id="additional-anti-patterns-and-patterns">Additional anti-patterns and patterns&amp;hellip;&lt;/h2>
-&lt;p>In the community vast experience have been collected to improve stability and usability of Docker and Kubernetes.
-Refer to the following link for more information&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gravitational/workshop/blob/master/k8sprod.md">Kubernetes Production Patterns&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Namespace Isolation</title><link>https://gardener.cloud/docs/guides/applications/network-isolation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/network-isolation/</guid><description>
+&lt;h2 id="using-pod-ip-addresses">Using Pod IP Addresses&lt;/h2>
+&lt;p>Each pod is assigned an IP address. It is necessary for pods to communicate with each other to build an application, e.g. an application
+must communicate with a database. Existing pods are terminated and new pods are constantly started. If you would rely on the IP address of a pod or container, you would need to update the application configuration constantly. This makes the application fragile.&lt;/p>
+&lt;p>Create services instead. They provide a logical name that can be assigned independently of the varying number and IP addresses of containers. Services are the basic concept for load balancing within Kubernetes.&lt;/p>
+&lt;h2 id="more-than-one-process-in-a-container">More than One Process in a Container&lt;/h2>
+&lt;p>A docker file provides a &lt;code>CMD&lt;/code> and &lt;code>ENTRYPOINT&lt;/code> to start the image. &lt;code>CMD&lt;/code> is often used around a script that makes a configuration and then
+starts the container. Do not try to start multiple processes with this script. It is important to consider the separation of concerns when creating docker images. Running multiple processes in a single pod makes managing your containers, collecting logs and updating each process more difficult.&lt;/p>
+&lt;p>You can split the image into multiple containers and manage them independently - even in one pod. Bear in mind that Kubernetes only monitors the process with &lt;code>PID=1&lt;/code>. If more than one process is started within a container, then these no longer fall under the control of Kubernetes.&lt;/p>
+&lt;h2 id="creating-images-in-a-running-container">Creating Images in a Running Container&lt;/h2>
+&lt;p>A new image can be created with the &lt;code>docker commit&lt;/code> command. This is useful if changes have been made to the container and you want to persist them for later error analysis. However, images created like this are not reproducible and completely worthless for a CI/CD environment. Furthermore, another developer cannot recognize which components the image contains. Instead, always make changes to the docker file, close existing containers and start a new container with the updated image.&lt;/p>
+&lt;h2 id="saving-passwords-in-a-docker-image--">Saving Passwords in a docker Image 💀&lt;/h2>
+&lt;p>&lt;strong>Do not save passwords in a Docker file!&lt;/strong> They are in plain text and are checked into a repository. That makes them completely vulnerable even if you are using a private repository like the Artifactory.&lt;/p>
+&lt;p>Always use &lt;a href="https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure">Secrets or ConfigMaps&lt;/a> to provision passwords or inject them by mounting a persistent volume.&lt;/p>
+&lt;h2 id="using-the-latest-tag">Using the &amp;rsquo;latest&amp;rsquo; Tag&lt;/h2>
+&lt;p>Starting an image with &lt;em>tomcat&lt;/em> is tempting. If no tags are specified, a container is started with the &lt;code>tomcat:latest&lt;/code> image. This image may no longer be up to date and refer to an older version instead. Running a production application requires complete control of the environment with exact versions of the image.&lt;/p>
+&lt;p>Make sure you always use a tag or even better the &lt;strong>sha256 hash&lt;/strong> of the image e.g. &lt;code>tomcat@sha256:c34ce3c1fcc0c7431e1392cc3abd0dfe2192ffea1898d5250f199d3ac8d8720f&lt;/code>.&lt;/p>
+&lt;h3 id="why-use-the-sha256-hash">Why Use the sha256 Hash?&lt;/h3>
+&lt;p>Tags are not immutable and can be overwritten by a developer at any time. In this case you don&amp;rsquo;t have complete control over your image - which is bad.&lt;/p>
+&lt;h2 id="different-images-per-environment">Different Images per Environment&lt;/h2>
+&lt;p>Don&amp;rsquo;t create different images for development, testing, staging and production environments. The image should be the &lt;strong>source of truth&lt;/strong> and should only be created once and pushed to the repository. This &lt;code>image:tag&lt;/code> should be used for different environments in the future.&lt;/p>
+&lt;h2 id="depend-on-start-order-of-pods">Depend on Start Order of Pods&lt;/h2>
+&lt;p>Applications often depend on containers being started in a certain order. For example, a database container must be up and running before an application can connect to it. The application should be resilient to such changes, as the db pod can be unreachable or restarted at any time. The application container should be able to handle such situations without terminating or crashing.&lt;/p>
+&lt;h2 id="additional-anti-patterns-and-patterns">Additional Anti-Patterns and Patterns&amp;hellip;&lt;/h2>
+&lt;p>In the community, vast experience has been collected to improve the stability and usability of Docker and Kubernetes.&lt;/p>
+&lt;p>Refer to &lt;a href="https://github.com/gravitational/workshop/blob/master/k8sprod.md">Kubernetes Production Patterns&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: Namespace Isolation</title><link>https://gardener.cloud/docs/guides/applications/network-isolation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/network-isolation/</guid><description>
 &lt;p>&amp;hellip;or &lt;strong>DENY all traffic from other namespaces&lt;/strong>&lt;/p>
 &lt;p>You can configure a &lt;strong>NetworkPolicy&lt;/strong> to deny all the traffic from other namespaces while allowing all the traffic
 coming from the same namespace the pod was deployed into.&lt;/p>

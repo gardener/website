@@ -13,25 +13,26 @@ open another Terminal pane/window with the &lt;code>KUBECONFIG&lt;/code> environ
 &lt;h1 id="configure-a-shoot-cluster-alert-receiver">Configure a Shoot cluster alert receiver&lt;/h1>
 &lt;p>The receiver of the Shoot alerts can be configured from the &lt;code>.spec.monitoring.alerting.emailReceivers&lt;/code> section in the Shoot specification. The value of the field has to be a list of valid mail addresses.&lt;/p>
 &lt;p>The alerting for the Shoot clusters is handled by the Prometheus Alertmanager. The Alertmanager will be deployed next to the control plane when the &lt;code>Shoot&lt;/code> resource specifies &lt;code>.spec.monitoring.alerting.emailReceivers&lt;/code> and if a &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-alerting.yaml">SMTP secret&lt;/a> exists.&lt;/p>
-&lt;p>If the field gets removed then the Alertmanager will be also removed during the next reconcilation of the cluster. The opposite is also valid if the field is added to an existing cluster.&lt;/p></description></item><item><title>Docs: Create a Shoot Cluster into Existing AWS VPC</title><link>https://gardener.cloud/docs/guides/administer_shoots/create-shoot-into-existing-aws-vpc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/create-shoot-into-existing-aws-vpc/</guid><description>
-&lt;h1 id="create-a-shoot-cluster-into-existing-aws-vpc">Create a Shoot cluster into existing AWS VPC&lt;/h1>
-&lt;p>Gardener can create a new VPC, or use an existing one for your Shoot cluster. Depending on your needs you may want to create Shoot(s) into already created VPC.
-The tutorial describes how to create a Shoot cluster into existing AWS VPC. The steps are identical for Alicloud, Azure, and GCP. Please note that the existing VPC must be in the same region like the shoot cluster that you want to deploy into the VPC.&lt;/p>
+&lt;p>If the field gets removed then the Alertmanager will be also removed during the next reconcilation of the cluster. The opposite is also valid if the field is added to an existing cluster.&lt;/p></description></item><item><title>Docs: Create a Shoot Cluster into an Existing AWS VPC</title><link>https://gardener.cloud/docs/guides/administer_shoots/create-shoot-into-existing-aws-vpc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/create-shoot-into-existing-aws-vpc/</guid><description>
+&lt;h1 id="create-a-shoot-cluster-into-an-existing-aws-vpc">Create a Shoot Cluster into an Existing AWS VPC&lt;/h1>
+&lt;p>Gardener can create a new VPC, or use an existing one for your shoot cluster. Depending on your needs, you may want to create shoot(s) into an already created VPC.
+The tutorial describes how to create a shoot cluster into an existing AWS VPC. The steps are identical for Alicloud, Azure, and GCP. Please note that the existing VPC must be in the same region like the shoot cluster that you want to deploy into the VPC.&lt;/p>
 &lt;h2 id="tldr">TL;DR&lt;/h2>
-&lt;p>If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.cidr&lt;/code> is specified, Gardener will create a new VPC with the given CIDR block and respectively will delete it on Shoot deletion.&lt;br>
-If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.id&lt;/code> is specified, Gardener will use the existing VPC and respectively won&amp;rsquo;t delete it on Shoot deletion.&lt;/p>
-&lt;blockquote>
-&lt;p>It&amp;rsquo;s not recommended to create a Shoot cluster into VPC that is managed by Gardener (that is created for another Shoot cluster). In this case the deletion of the initial Shoot cluster will fail to delete the VPC because there will be resources attached to it.&lt;br>
-Gardener won&amp;rsquo;t delete any manually created (unmanaged) resources in your cloud provider account.&lt;/p>
-&lt;/blockquote>
-&lt;h2 id="1-configure-aws-cli">1. Configure AWS CLI&lt;/h2>
+&lt;p>If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.cidr&lt;/code> is specified, Gardener will create a new VPC with the given CIDR block and respectively will delete it on shoot deletion.&lt;br>
+If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.id&lt;/code> is specified, Gardener will use the existing VPC and respectively won&amp;rsquo;t delete it on shoot deletion.&lt;/p>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+&lt;p>It&amp;rsquo;s not recommended to create a shoot cluster into a VPC that is managed by Gardener (that is created for another shoot cluster). In this case the deletion of the initial shoot cluster will fail to delete the VPC because there will be resources attached to it.&lt;/p>
+&lt;p>Gardener won&amp;rsquo;t delete any manually created (unmanaged) resources in your cloud provider account.&lt;/p>
+&lt;/div>
+&lt;h2 id="1-configure-the-aws-cli">1. Configure the AWS CLI&lt;/h2>
 &lt;p>The &lt;code>aws configure&lt;/code> command is a convenient way to setup your AWS CLI. It will prompt you for your credentials and settings which will be used in the following AWS CLI invocations.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ aws configure
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>AWS Access Key ID [None]: &amp;lt;ACCESS_KEY_ID&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>AWS Secret Access Key [None]: &amp;lt;SECRET_ACCESS_KEY&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Default region name [None]: &amp;lt;DEFAULT_REGION&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Default output format [None]: &amp;lt;DEFAULT_OUTPUT_FORMAT&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="2-create-vpc">2. Create VPC&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="2-create-a-vpc">2. Create a VPC&lt;/h2>
 &lt;p>Create the VPC by running the following command:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ aws ec2 create-vpc --cidr-block &amp;lt;cidr-block&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
@@ -55,10 +56,10 @@ Gardener won&amp;rsquo;t delete any manually created (unmanaged) resources in yo
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#34;IsDefault&amp;#34;&lt;/span>: false
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener requires the VPC to have enabled &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-dns.html">DNS support&lt;/a>, i.e the attributes &lt;code>enableDnsSupport&lt;/code> and &lt;code>enableDnsHostnames&lt;/code> must be set to true. &lt;code>enableDnsSupport&lt;/code> attribute is enabled by default, &lt;code>enableDnsHostnames&lt;/code> - not. Set the &lt;code>enableDnsHostnames&lt;/code> attribute to true:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener requires the VPC to have enabled &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-dns.html">DNS support&lt;/a>, i.e the attributes &lt;code>enableDnsSupport&lt;/code> and &lt;code>enableDnsHostnames&lt;/code> must be set to &lt;em>true&lt;/em>. &lt;code>enableDnsSupport&lt;/code> attribute is enabled by default, &lt;code>enableDnsHostnames&lt;/code> - not. Set the &lt;code>enableDnsHostnames&lt;/code> attribute to &lt;em>true&lt;/em>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ aws ec2 modify-vpc-attribute --vpc-id vpc-ff7bbf86 --enable-dns-hostnames
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="3-create-internet-gateway">3. Create Internet Gateway&lt;/h2>
-&lt;p>Gardener also requires that an internet gateway is attached to the VPC. You can create one using:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="3-create-an-internet-gateway">3. Create an Internet Gateway&lt;/h2>
+&lt;p>Gardener also requires that an internet gateway is attached to the VPC. You can create one by using:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ aws ec2 create-internet-gateway
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#34;InternetGateway&amp;#34;&lt;/span>: {
@@ -70,7 +71,7 @@ Gardener won&amp;rsquo;t delete any manually created (unmanaged) resources in yo
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>and attach it to the VPC using:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ aws ec2 attach-internet-gateway --internet-gateway-id igw-c0a643a9 --vpc-id vpc-ff7bbf86
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="4-create-the-shoot">4. Create the Shoot&lt;/h2>
-&lt;p>Prepare your Shoot manifest (you could check the &lt;a href="https://github.com/gardener/gardener/tree/master/example">example manifests&lt;/a>). Please make sure that you choose the
+&lt;p>Prepare your shoot manifest (you could check the &lt;a href="https://github.com/gardener/gardener/tree/master/example">example manifests&lt;/a>). Please make sure that you choose the
 region in which you had created the VPC earlier (step 2). Also, put your VPC ID in the &lt;code>.spec.provider.infrastructureConfig.networks.vpc.id&lt;/code> field:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: &amp;lt;aws-region-of-vpc&amp;gt;
@@ -83,9 +84,9 @@ region in which you had created the VPC earlier (step 2). Also, put your VPC ID 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vpc:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: vpc-ff7bbf86
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Apply your Shoot manifest.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Apply your shoot manifest:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl apply -f your-shoot-aws.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Ensure that the Shoot cluster is properly created.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Ensure that the shoot cluster is properly created:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get shoot $SHOOT_NAME -n $SHOOT_NAMESPACE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE VERSION SEED DOMAIN OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;SHOOT_NAME&amp;gt; aws 1.15.0 aws &amp;lt;SHOOT_DOMAIN&amp;gt; Succeeded 100 True True True True 20m

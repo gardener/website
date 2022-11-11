@@ -327,40 +327,40 @@ $ kubectl get secret &amp;lt;shoot-name&amp;gt;.ssh-keypair -o json | jq -r .dat
 &lt;p>Kubernetes offers powerful options to get more details about startup or runtime failures of pods as e.g. described in
 &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging&lt;/a>
 or &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers&lt;/a>.&lt;/p>
-&lt;p>In order to identify pods with potential issus you could e.g. run &lt;code>kubectl get pods --all-namespaces | grep -iv Running &lt;/code> to filter
+&lt;p>In order to identify pods with potential issues you could e.g. run &lt;code>kubectl get pods --all-namespaces | grep -iv Running &lt;/code> to filter
 out the pods which are not in the state &lt;code>Running&lt;/code>. One of frequent error state is &lt;code>CrashLoopBackOff&lt;/code>, which tells that
-a pod crashes right after the start. Kubernetes then tries to restart the pod, but often the pod startup fails again.&lt;/p>
-&lt;p>&lt;strong>Here is a short list of possible reasons which might lead to a pod crash:&lt;/strong>&lt;/p>
+a pod crashes right after the start. Kubernetes then tries to restart the pod again, but often the pod startup fails again.&lt;/p>
+&lt;p>Here is a short list of possible reasons which might lead to a pod crash:&lt;/p>
 &lt;ol>
-&lt;li>error during image pull caused by e.g. wrong/missing secrets or wrong/missing image&lt;/li>
-&lt;li>the app runs in an error state caused e.g. by missing environmental variables (ConfigMaps) or secrets&lt;/li>
-&lt;li>liveness probe failed&lt;/li>
-&lt;li>too high resource consumption (memory and/or CPU) or too strict quota settings&lt;/li>
-&lt;li>persistent volumes can&amp;rsquo;t be created/mounted&lt;/li>
-&lt;li>the container image is not updated&lt;/li>
+&lt;li>Error during image pull caused by e.g. wrong/missing secrets or wrong/missing image&lt;/li>
+&lt;li>The app runs in an error state caused e.g. by missing environmental variables (ConfigMaps) or secrets&lt;/li>
+&lt;li>Liveness probe failed&lt;/li>
+&lt;li>Too high resource consumption (memory and/or CPU) or too strict quota settings&lt;/li>
+&lt;li>Persistent volumes can&amp;rsquo;t be created/mounted&lt;/li>
+&lt;li>The container image is not updated&lt;/li>
 &lt;/ol>
-&lt;p>Basically, the commands &lt;code>kubectl logs ...&lt;/code> and &lt;code>kubectl describe ...&lt;/code> with additional parameters are used to get more
+&lt;p>Basically, the commands &lt;code>kubectl logs ...&lt;/code> and &lt;code>kubectl describe ...&lt;/code> with different parameters are used to get more
 detailed information. By calling e.g. &lt;code>kubectl logs --help&lt;/code> you get more detailed information about the command and its
 parameters.&lt;/p>
 &lt;p>In the next sections you&amp;rsquo;ll find some basic approaches to get some ideas what went wrong.&lt;/p>
 &lt;p>Remarks:&lt;/p>
 &lt;ul>
-&lt;li>Even if the pods seem to be running as the status &lt;code>Running&lt;/code> indicates, a high counter of the &lt;code>Restarts&lt;/code> shows potential problems&lt;/li>
-&lt;li>There is as well an &lt;a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">interactive Tutorial Troubleshooting with Kubectl&lt;/a>
+&lt;li>Even if the pods seem to be running, as the status &lt;code>Running&lt;/code> indicates, a high counter of the &lt;code>Restarts&lt;/code> shows potential problems&lt;/li>
+&lt;li>You can get a good overview of the troubleshooting process with the interactive tutorial &lt;a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/explore-intro/">Troubleshooting with Kubectl&lt;/a>
 available which explains basic debugging activities&lt;/li>
-&lt;li>The examples below are deployed into the namespace &lt;code>default&lt;/code>. In case you want to change it use the optional
-parameter &lt;code>--namespace &amp;lt;your-namespace&amp;gt;&lt;/code> to select the target namespace. They require Kubernetes release ≥ &lt;em>1.8&lt;/em>.&lt;/li>
+&lt;li>The examples below are deployed into the namespace &lt;code>default&lt;/code>. In case you want to change it, use the optional
+parameter &lt;code>--namespace &amp;lt;your-namespace&amp;gt;&lt;/code> to select the target namespace. The examples require a Kubernetes release ≥ &lt;em>1.8&lt;/em>.&lt;/li>
 &lt;/ul>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;p>Your deployment was successful (no logical/syntactical errors in the manifest files), but the pod(s) aren&amp;rsquo;t running.&lt;/p>
-&lt;h2 id="error-caused-by-wrong-image-name">Error caused by wrong image name&lt;/h2>
+&lt;h2 id="error-caused-by-wrong-image-name">Error Caused by Wrong Image Name&lt;/h2>
 &lt;p>You run &lt;code>kubectl describe pod &amp;lt;your-pod&amp;gt; &amp;lt;your-namespace&amp;gt;&lt;/code> to get detailed information about the pod startup.&lt;/p>
 &lt;p>In the &lt;code>Events&lt;/code> section, you get an error message like &lt;code>Failed to pull image ...&lt;/code> and &lt;code>Reason: Failed&lt;/code>. The pod is
 in state &lt;code>ImagePullBackOff&lt;/code>.&lt;/p>
 &lt;p>The example below is based on &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/determine-reason-pod-failure/">demo in Kubernetes documentation&lt;/a>. In all examples the &lt;code>default&lt;/code> namespace is used.&lt;/p>
 &lt;p>First, cleanup with&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete pod termination-demo
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, create a resource based on the yaml content below&lt;/p>
+&lt;p>&lt;code>kubectl delete pod termination-demo&lt;/code>&lt;/p>
+&lt;p>Next, create a resource based on the yaml content below&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Pod
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -371,26 +371,25 @@ in state &lt;code>ImagePullBackOff&lt;/code>.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: debiann
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: [&lt;span style="color:#a31515">&amp;#34;/bin/sh&amp;#34;&lt;/span>]
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args: [&lt;span style="color:#a31515">&amp;#34;-c&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;sleep 10 &amp;amp;&amp;amp; echo Sleep expired &amp;gt; /dev/termination-log&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kubectl describe pod termination-demo&lt;/code> lists the following content in the &lt;code>Event&lt;/code> section&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>Events:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> FirstSeen LastSeen Count From SubObjectPath Type Reason Message
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> --------- -------- ----- ---- ------------- -------- ------ -------
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 2m 1 default-scheduler Normal Scheduled Successfully assigned termination-demo to ip-10-250-17-112.eu-west-1.compute.internal
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 2m 1 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Normal SuccessfulMountVolume MountVolume.SetUp succeeded &lt;span style="color:#00f">for&lt;/span> volume &lt;span style="color:#a31515">&amp;#34;default-token-sgccm&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Normal Pulling pulling image &lt;span style="color:#a31515">&amp;#34;debiann&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Warning Failed Failed to pull image &lt;span style="color:#a31515">&amp;#34;debiann&amp;#34;&lt;/span>: rpc error: code = Unknown desc = Error: image library/debiann:latest not found
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 54s 10 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Warning FailedSync Error syncing pod
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 2m 54s 6 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Normal BackOff Back-off pulling image &lt;span style="color:#a31515">&amp;#34;debiann&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The error message with &lt;code>Reason: Failed&lt;/code> tells that there is an error during pulling the image. A closer look at the
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>kubectl describe pod termination-demo&lt;/code> lists in the &lt;code>Event&lt;/code> section the content&lt;/p>
+&lt;pre tabindex="0">&lt;code>Events:
+FirstSeen LastSeen Count From SubObjectPath Type Reason Message
+--------- -------- ----- ---- ------------- -------- ------ -------
+2m 2m 1 default-scheduler Normal Scheduled Successfully assigned termination-demo to ip-10-250-17-112.eu-west-1.compute.internal
+2m 2m 1 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Normal SuccessfulMountVolume MountVolume.SetUp succeeded for volume &amp;#34;default-token-sgccm&amp;#34;
+2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Normal Pulling pulling image &amp;#34;debiann&amp;#34;
+2m 1m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Warning Failed Failed to pull image &amp;#34;debiann&amp;#34;: rpc error: code = Unknown desc = Error: image library/debiann:latest not found
+2m 54s 10 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Warning FailedSync Error syncing pod
+2m 54s 6 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Normal BackOff Back-off pulling image &amp;#34;debiann&amp;#34;
+&lt;/code>&lt;/pre>&lt;p>The error message with &lt;code>Reason: Failed&lt;/code> tells that there is an error during pulling the image. A closer look at the
 image name indicates a misspelling.&lt;/p>
-&lt;h2 id="app-runs-in-an-error-state-caused-by-missing-configmaps-or-secrets">App runs in an error state caused by missing ConfigMaps or Secrets&lt;/h2>
-&lt;p>This example illustrates the behavior in case of the app expecting environment variables but the corresponding
-Kubernetes artifacts are missing.&lt;/p>
-&lt;p>First, cleanup with&lt;/p>
+&lt;h2 id="the-app-runs-in-an-error-state-caused-eg-by-missing-environmental-variables-configmaps-or-secrets">The App Runs in an Error State Caused e.g. by Missing Environmental Variables (ConfigMaps) or Secrets&lt;/h2>
+&lt;p>This example illustrates the behavior in the case when the app expects environment variables but the corresponding Kubernetes artifacts are missing.&lt;/p>
+&lt;p>First, cleanup with:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kubectl delete deployment termination-demo
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete configmaps app-env
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, deploy this manifest&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, deploy the following manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1beta2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: termination-demo
@@ -412,8 +411,7 @@ Kubernetes artifacts are missing.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: [&lt;span style="color:#a31515">&amp;#34;/bin/sh&amp;#34;&lt;/span>]
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args: [&lt;span style="color:#a31515">&amp;#34;-c&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;sed \&amp;#34;s/foo/bar/\&amp;#34; &amp;lt; $MYFILE&amp;#34;&lt;/span>]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now, the command &lt;code>kubectl get pods&lt;/code> lists the pod &lt;code>termination-demo-xxx&lt;/code> in the state &lt;code>Error&lt;/code> or &lt;code>CrashLoopBackOff&lt;/code>.
-The command &lt;code>kubectl describe pod termination-demo-xxx&lt;/code> tells that there is no error during startup but gives no clue
-about what caused the crash.&lt;/p>
+The command &lt;code>kubectl describe pod termination-demo-xxx&lt;/code> tells you that there is no error during startup but gives no clue about what caused the crash.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>Events:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> FirstSeen LastSeen Count From SubObjectPath Type Reason Message
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> --------- -------- ----- ---- ------------- -------- ------ -------
@@ -425,11 +423,11 @@ about what caused the crash.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 19m 19m 4 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Normal Started Started container
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 19m 14m 24 kubelet, ip-10-250-17-112.eu-west-1.compute.internal spec.containers{termination-demo-container} Warning BackOff Back-off restarting failed container
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> 19m 4m 69 kubelet, ip-10-250-17-112.eu-west-1.compute.internal Warning FailedSync Error syncing pod
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command &lt;code>kubectl get logs termination-demo-xxx&lt;/code> gives access to the output, the application writes on stderr and
-stdout. In this case, you get an output like&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>/bin/sh: 1: cannot open : No such file
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>So you need to have a closer look at the application. In this case the environmental variable &lt;code>MYFILE&lt;/code>is missing. To fix this
-issue you could e.g. add a ConfigMap to your deployment as it is shown in the manifest listed below.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command &lt;code>kubectl get logs termination-demo-xxx&lt;/code> gives access to the output, the application writes on &lt;code>stderr&lt;/code> and
+&lt;code>stdout&lt;/code>. In this case, you should get an output similar to:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>/bin/sh: 1: cannot open : No such file
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>So you need to have a closer look at the application. In this case, the environmental variable &lt;code>MYFILE&lt;/code> is missing. To fix this
+issue, you could e.g. add a ConfigMap to your deployment as is shown in the manifest listed below.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -437,7 +435,7 @@ issue you could e.g. add a ConfigMap to your deployment as it is shown in the ma
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> MYFILE: &lt;span style="color:#a31515">&amp;#34;/etc/profile&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1beta2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: termination-demo
@@ -461,9 +459,9 @@ issue you could e.g. add a ConfigMap to your deployment as it is shown in the ma
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> envFrom:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - configMapRef:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: app-env
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that once you fix the error and re-run the scenario, you might still see the pod in &lt;code>CrashLoopBackOff&lt;/code> status.
-It is because the container finishes the command &lt;code>sed ...&lt;/code> and runs to completion. In order to keep the container in &lt;code>Running&lt;/code> status,
-a long running task is required, e.g.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that once you fix the error and re-run the scenario, you might still see the pod in a &lt;code>CrashLoopBackOff&lt;/code> status.
+It is because the container finishes the command &lt;code>sed ...&lt;/code> and runs to completion. In order to keep the container in a &lt;code>Running&lt;/code> status,
+a long running task is required, e.g.:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -472,7 +470,7 @@ a long running task is required, e.g.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> MYFILE: &lt;span style="color:#a31515">&amp;#34;/etc/profile&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> SLEEP: &lt;span style="color:#a31515">&amp;#34;5&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1beta2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: termination-demo
@@ -497,26 +495,26 @@ a long running task is required, e.g.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> envFrom:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - configMapRef:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: app-env
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="too-high-resource-consumption-or-too-strict-quota-settings">Too high resource consumption or too strict quota settings&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="too-high-resource-consumption-memory-andor-cpu-or-too-strict-quota-settings">Too High Resource Consumption (Memory and/or CPU) or Too Strict Quota Settings&lt;/h2>
 &lt;p>You can optionally specify the amount of memory and/or CPU your container gets during runtime. In case these settings are missing,
-the default requests settings are taken: CPU: 0m (in Milli CPU) and RAM: 0Gi which indicate no other limits than the
-ones of the node(s) itself. Find more details in &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and
-Limits for a Namespace&lt;/a>,&lt;/p>
+the default requests settings are taken: CPU: 0m (in Milli CPU) and RAM: 0Gi, which indicate no other limits other than the
+ones of the node(s) itself. For more details, e.g. about how to configure limits, see &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/memory-default-namespace/">Configure Default Memory Requests and
+Limits for a Namespace&lt;/a>.&lt;/p>
 &lt;p>In case your application needs more resources, Kubernetes distinguishes between &lt;code>requests&lt;/code> and &lt;code>limit&lt;/code> settings: &lt;code>requests&lt;/code>
 specify the guaranteed amount of resource, whereas &lt;code>limit&lt;/code> tells Kubernetes the maximum amount of resource the container might
 need. Mathematically both settings could be described by the relation &lt;code>0 &amp;lt;= requests &amp;lt;= limit&lt;/code>. For both settings you need to
-consider the total amount of resources the available nodes provide. For a detailed description of the concept see &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/resource-qos.md">Resource Quality of
+consider the total amount of resources your nodes provide. For a detailed description of the concept, see &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/resource-qos.md">Resource Quality of
 Service in Kubernetes&lt;/a>.&lt;/p>
-&lt;p>Use &lt;code>kubectl describe nodes&lt;/code> to get a first overview of the resource consumption of your cluster. Of special interest are the
+&lt;p>Use &lt;code>kubectl describe nodes&lt;/code> to get a first overview of the resource consumption in your cluster. Of special interest are the
 figures indicating the amount of CPU and Memory Requests at the bottom of the output.&lt;/p>
 &lt;p>The next example demonstrates what happens in case the CPU request is too high in order to be managed by your cluster.&lt;/p>
-&lt;p>First, cleanup with&lt;/p>
+&lt;p>First, cleanup with:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kubectl delete deployment termination-demo
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete configmaps app-env
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, adapt the &lt;code>cpu&lt;/code> in the yaml below to be slightly higher than the remaining cpu resources in your cluster and deploy
-this manifest. In this example &lt;code>600m&lt;/code> (milli CPUs) are requested in a Kubernetes system with a single 2 Core worker
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, adapt the &lt;code>cpu&lt;/code> below in the yaml below to be slightly higher than the remaining CPU resources in your cluster and deploy
+this manifest. In this example, &lt;code>600m&lt;/code> (milli CPUs) are requested in a Kubernetes system with a single 2 core worker
 node which results in an error message.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1beta2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: termination-demo
@@ -568,28 +566,24 @@ could be found by using the command &lt;code>kubectl describe pod termination-de
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Type Reason Age From Message
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ---- ------ ---- ---- -------
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Warning FailedScheduling 9s (x7 over 40s) default-scheduler 0/2 nodes are available: 2 Insufficient cpu.
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>More details in&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can find more details in:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">Managing Compute Resources for Containters&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/resource-qos.md">Resource Quality of Service in Kubernetes&lt;/a>&lt;/li>
 &lt;/ul>
-&lt;p>Remark:&lt;/p>
+&lt;p>Remarks:&lt;/p>
 &lt;ul>
 &lt;li>This example works similarly when specifying a too high request for memory&lt;/li>
-&lt;li>In case you configured an autoscaler range when creating your Kubernetes cluster another worker node will be started automatically if you didn&amp;rsquo;t reach the maximum number of worker nodes&lt;/li>
-&lt;li>If your app is running out of memory (the memory settings are too small), you typically find &lt;code>OOMKilled&lt;/code> (Out Of Memory) message in the &lt;code>Events&lt;/code> section fo the &lt;code>kubectl describe pod ...&lt;/code> output&lt;/li>
+&lt;li>In case you configured an autoscaler range when creating your Kubernetes cluster, another worker node will be spinned up automatically if you didn&amp;rsquo;t reach the maximum number of worker nodes&lt;/li>
+&lt;li>In case your app is running out of memory (the memory settings are too small), you will typically find an &lt;code>OOMKilled&lt;/code> (Out Of Memory) message in the &lt;code>Events&lt;/code> section of the &lt;code>kubectl describe pod ...&lt;/code> output&lt;/li>
 &lt;/ul>
-&lt;h2 id="why-was-the-container-image-not-updated">Why was the container image not updated?&lt;/h2>
-&lt;p>You applied a fix in your app, created a new container image and pushed it into your container repository. After
-redeploying your Kubernetes manifests you expected to get the updated app, but still the same bug is in the new
-deployment present.&lt;/p>
+&lt;h2 id="the-container-image-is-not-updated">The Container Image is Not Updated&lt;/h2>
+&lt;p>You applied a fix in your app, created a new container image and pushed it into your container repository. After redeploying your Kubernetes manifests, you expected to get the updated app, but the same bug is still in the new deployment present.&lt;/p>
 &lt;p>This behavior is related to how Kubernetes decides whether to pull a new docker image or to use the cached one.&lt;/p>
-&lt;p>In case you didn&amp;rsquo;t change the image tag, the default image policy &lt;em>IfNotPresent&lt;/em> tells Kubernetes to use the cached
-image (see &lt;a href="https://kubernetes.io/docs/concepts/containers/images/">Images&lt;/a>).&lt;/p>
-&lt;p>As a best practice you should not use the tag &lt;code>latest&lt;/code> and change the image tag whenever you changed anything in your
-image (see &lt;a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Configuration Best Practices&lt;/a>).&lt;/p>
-&lt;p>Find more details in &lt;a href="https://gardener.cloud/docs/guides/applications/image-pull-policy/">FAQ Container Image not updating&lt;/a>.&lt;/p>
-&lt;h2 id="links">Links&lt;/h2>
+&lt;p>In case you didn&amp;rsquo;t change the image tag, the default image policy &lt;em>IfNotPresent&lt;/em> tells Kubernetes to use the cached image (see &lt;a href="https://kubernetes.io/docs/concepts/containers/images/">Images&lt;/a>).&lt;/p>
+&lt;p>As a best practice, you should not use the tag &lt;code>latest&lt;/code> and change the image tag in case you changed anything in your image (see &lt;a href="https://kubernetes.io/docs/concepts/configuration/overview/#container-images">Configuration Best Practices&lt;/a>).&lt;/p>
+&lt;p>Please have a look at this FAQ &lt;a href="https://github.tools.sap/kubernetes/documentation/blob/master/website/documentation/015-tutorials/image-pull-policy/_index.md">Container Image Not Updating&lt;/a> for further details.&lt;/p>
+&lt;h2 id="related-links">Related Links&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-application-introspection/">Application Introspection and Debugging&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/">Debug Pods and Replication Controllers&lt;/a>&lt;/li>

@@ -227,7 +227,294 @@ working effectively inside the remote-local-setup pod.&lt;/p>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The port forward in the remote-local-setup pod to the respective component:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>k port-forward -n shoot--local--local deployment/grafana-operators 3000
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="further-reading">Further reading&lt;/h2>
-&lt;p>This setup makes use of the local provider extension. You can read more about it in &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">this document&lt;/a>.&lt;/p></description></item><item><title>Docs: Kubernetes Clients</title><link>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</guid><description>
+&lt;p>This setup makes use of the local provider extension. You can read more about it in &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">this document&lt;/a>.&lt;/p></description></item><item><title>Docs: High Availability</title><link>https://gardener.cloud/docs/gardener/development/high-availability/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/high-availability/</guid><description>
+&lt;h1 id="high-availability-of-deployed-components">High Availability Of Deployed Components&lt;/h1>
+&lt;p>&lt;code>gardenlet&lt;/code> and extension controllers are deploying components via &lt;code>Deployment&lt;/code>s, &lt;code>StatefulSet&lt;/code>s, etc. as part of the shoot control plane, or the seed or shoot system components.&lt;/p>
+&lt;p>Before we commence, all components should be generally equipped with &lt;code>PodDisruptionBudget&lt;/code>s with &lt;code>.spec.maxUnavailable=1&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxUnavailable: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Some of the above component deployments must be further tuned to improve fault tolerance / resilience of the service. This document outlines what needs to be done to achieve this goal.&lt;/p>
+&lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
+&lt;p>The worker nodes of seed clusters can be deployed to one or multiple availability zones.
+The &lt;code>Seed&lt;/code> specification allows to provide the information which zones are available:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-1a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-1b
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-1c
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Independent of the number of zones, seed system components like &lt;code>gardenlet&lt;/code> or extension controllers themselves, or others like &lt;code>etcd-druid&lt;/code>, &lt;code>dependency-watchdog&lt;/code>, etc. should always be running with multiple replicas.&lt;/p>
+&lt;p>Concretely, all seed system components should respect the following conventions:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>Replica Counts&lt;/strong>&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Component Type&lt;/th>
+&lt;th>&lt;code> &amp;lt; 3&lt;/code> Zones&lt;/th>
+&lt;th>&lt;code>&amp;gt;= 3&lt;/code> Zones&lt;/th>
+&lt;th>Comment&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Observability (Monitoring, Logging)&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>Downtimes accepted due to cost reasons&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Controllers&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>/&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(Webhook) Servers&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>/&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Apart from the above, there might be special cases where these rules do not apply, for example:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>istio-ingressgateway&lt;/code> is scaled horizontally, hence the above numbers are the minimum values.&lt;/li>
+&lt;li>&lt;code>nginx-ingress-controller&lt;/code> in the seed cluster is only used to advertise observability endpoints, hence it also only runs with &lt;code>1&lt;/code> replica at all times. In the future, this component might disappear in favor of the &lt;code>istio-ingressgateway&lt;/code> anyways.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Topology Spread Constraints&lt;/strong>&lt;/p>
+&lt;p>When the component has &lt;code>&amp;gt;= 2&lt;/code> replicas &amp;hellip;&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&amp;hellip; then it should also have a &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the nodes:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: kubernetes.io/hostname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: ScheduleAnyway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Hence, the node spread is done on best-effort basis only.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&amp;hellip; and the seed cluster has &lt;code>&amp;gt;= 2&lt;/code> zones, then the component should also have a second &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the zones:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>According to these conventions, even seed clusters with only one availability zone try to be highly available &amp;ldquo;as good as possible&amp;rdquo; by spreading the replicas across multiple nodes.
+Hence, while such seed clusters obviously cannot handle zone outages, they can at least handle node failures.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="shoot-clusters">Shoot Clusters&lt;/h2>
+&lt;p>The &lt;code>Shoot&lt;/code> specification allows configuring &amp;ldquo;high availability&amp;rdquo; as well as the failure tolerance type for the control plane components, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_high_availability/">this document&lt;/a> for details.&lt;/p>
+&lt;p>Regarding the seed cluster selection, the only constraint is that shoot clusters with failure tolerance type &lt;code>zone&lt;/code> are only allowed to run on seed clusters with at least three zones.
+All other shoot clusters (non-HA or those with failure tolerance type &lt;code>node&lt;/code>) can run on seed clusters with any number of zones.&lt;/p>
+&lt;h3 id="control-plane-components">Control Plane Components&lt;/h3>
+&lt;p>All control plane components should respect the following conventions:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>Replica Counts&lt;/strong>&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Component Type&lt;/th>
+&lt;th>w/o HA&lt;/th>
+&lt;th>w/ HA (&lt;code>node&lt;/code>)&lt;/th>
+&lt;th>w/ HA (&lt;code>zone&lt;/code>)&lt;/th>
+&lt;th>Comment&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Observability (Monitoring, Logging)&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>Downtimes accepted due to cost reasons&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Controllers&lt;/td>
+&lt;td>1&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>/&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(Webhook) Servers&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>/&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Apart from the above, there might be special cases where these rules do not apply, for example:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>etcd&lt;/code> is a server, though the most critical component of a cluster requiring a quorum to survive failures. Hence, it should have &lt;code>3&lt;/code> replicas even when the failure tolerance is &lt;code>node&lt;/code> only.&lt;/li>
+&lt;li>&lt;code>kube-apiserver&lt;/code> is scaled horizontally, hence the above numbers are the minimum values (even when the shoot cluster is not HA there might be multiple replicas).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Topology Spread Constraints&lt;/strong>&lt;/p>
+&lt;p>When the component has &lt;code>&amp;gt;= 2&lt;/code> replicas &amp;hellip;&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&amp;hellip; then it should also have a &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the nodes:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: kubernetes.io/hostname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: ScheduleAnyway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Hence, the node spread is done on best-effort basis only.&lt;/p>
+&lt;p>However, if the shoot cluster has defined a failure tolerance type, the &lt;code>whenUnsafisfiable&lt;/code> field should be set to &lt;code>DoNotSchedule&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&amp;hellip; and the failure tolerance type of the shoot cluster is &lt;code>zone&lt;/code>, then the component should also have a second &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the zones:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Node Affinity&lt;/strong>&lt;/p>
+&lt;p>The &lt;code>gardenlet&lt;/code> annotates the shoot namespace in the seed cluster with the &lt;code>high-availability-config.resources.gardener.cloud/zones&lt;/code> annotation.&lt;/p>
+&lt;ul>
+&lt;li>If the shoot cluster is non-HA or has failure tolerance type &lt;code>node&lt;/code> then the value will be always exactly one zone (e.g., &lt;code>high-availability-config.resources.gardener.cloud/zones=europe-1b&lt;/code>).&lt;/li>
+&lt;li>If the shoot cluster has failure tolerance type &lt;code>zone&lt;/code> then the value will always contain exactly three zones (e.g., &lt;code>high-availability-config.resources.gardener.cloud/zones=europe-1a,europe-1b,europe-1c&lt;/code>).&lt;/li>
+&lt;/ul>
+&lt;p>For backwards-compatibility, this annotation might contain multiple zones for shoot clusters created before &lt;code>gardener/gardener@v1.60&lt;/code> and not having failure tolerance type &lt;code>zone&lt;/code>.
+This is because their volumes might already exist in multiple zones, hence pinning them to only one zone would not work.&lt;/p>
+&lt;p>Hence, in case this annotation is present, the components should have the following node affinity:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> affinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeAffinity:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requiredDuringSchedulingIgnoredDuringExecution:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeSelectorTerms:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - matchExpressions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-1a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - ...&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is to ensure all pods are running in the same (set of) availability zone(s) such that cross-zone network traffic is avoided as much as possible (such traffic is typically charged by the underlying infrastructure provider).&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="system-components">System Components&lt;/h3>
+&lt;p>The availability of system components is independent of the control plane since they run on the shoot worker nodes while the control plane components run on the seed worker nodes (&lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">ref&lt;/a>).
+Hence, it only depends on the number of availability zones configured in the shoot worker pools via &lt;code>.spec.provider.workers[].zones&lt;/code>.
+Concretely, the highest number of zones of a worker pool with &lt;code>systemComponents.allow=true&lt;/code> is considered.&lt;/p>
+&lt;p>All system components should respect the following conventions:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>Replica Counts&lt;/strong>&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Component Type&lt;/th>
+&lt;th>&lt;code>1&lt;/code> or &lt;code>2&lt;/code> Zones&lt;/th>
+&lt;th>&lt;code>&amp;gt;= 3&lt;/code> Zones&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Controllers&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(Webhook) Servers&lt;/td>
+&lt;td>2&lt;/td>
+&lt;td>2&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Apart from the above, there might be special cases where these rules do not apply, for example:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>coredns&lt;/code> is scaled horizontally (today), hence the above numbers are the minimum values (possibly, scaling these components vertically may be more appropriate, but that&amp;rsquo;s unrelated to the HA subject matter).&lt;/li>
+&lt;li>Optional addons like &lt;code>nginx-ingress&lt;/code> or &lt;code>kubernetes-dashboard&lt;/code> are only provided on best-effort basis for evaluation purposes, hence they run with &lt;code>1&lt;/code> replica at all times.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Topology Spread Constraints&lt;/strong>&lt;/p>
+&lt;p>When the component has &lt;code>&amp;gt;= 2&lt;/code> replicas &amp;hellip;&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&amp;hellip; then it should also have a &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the nodes:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: kubernetes.io/hostname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: ScheduleAnyway
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Hence, the node spread is done on best-effort basis only.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&amp;hellip; and the cluster has &lt;code>&amp;gt;= 2&lt;/code> zones, then the component should also have a second &lt;code>topologySpreadConstraint&lt;/code> ensuring the replicas are spread over the zones:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologySpreadConstraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - maxSkew: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyKey: topology.kubernetes.io/zone
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> whenUnsatisfiable: DoNotSchedule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="convenient-application-of-these-rules">Convenient Application Of These Rules&lt;/h2>
+&lt;p>According to above scenarios and conventions, the &lt;code>replicas&lt;/code>, &lt;code>topologySpreadConstraints&lt;/code> or &lt;code>affinity&lt;/code> settings of the deployed components might need to be adapted.&lt;/p>
+&lt;p>In order to apply those conveniently and easily for developers, Gardener installs a mutating webhook into both seed and shoot clusters which reacts on &lt;code>Deployment&lt;/code>s and &lt;code>StatefulSet&lt;/code>s deployed to namespaces with the &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code> label set.&lt;/p>
+&lt;p>The only action developers have to do is labeling their &lt;code>components&lt;/code> with &lt;code>high-availability-config.resources.gardener.cloud/type&lt;/code> where the following two values are possible:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>controller&lt;/code>&lt;/li>
+&lt;li>&lt;code>server&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>You can read more about the webhook&amp;rsquo;s internals in &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#high-availability-config">this document&lt;/a>.&lt;/p>
+&lt;h2 id="gardenlet-internals">&lt;code>gardenlet&lt;/code> Internals&lt;/h2>
+&lt;p>Make sure you have read above document about the webhook internals before continuing reading this section.&lt;/p>
+&lt;h3 id="seed-controller">&lt;code>Seed&lt;/code> Controller&lt;/h3>
+&lt;p>The &lt;code>gardenlet&lt;/code> performs the following changes on all namespaces running seed system components:&lt;/p>
+&lt;ul>
+&lt;li>add label &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>.&lt;/li>
+&lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/zones=&amp;lt;zones&amp;gt;&lt;/code> where &lt;code>&amp;lt;zones&amp;gt;&lt;/code> is the list provided in &lt;code>.spec.provider.zones[]&lt;/code> in the &lt;code>Seed&lt;/code> specification.&lt;/li>
+&lt;/ul>
+&lt;p>Note that the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is not set, hence the node affinity would never be touched by the webhook.&lt;/p>
+&lt;h3 id="shoot-controller">&lt;code>Shoot&lt;/code> Controller&lt;/h3>
+&lt;h4 id="control-plane">Control Plane&lt;/h4>
+&lt;p>The &lt;code>gardenlet&lt;/code> performs the following changes on the namespace running the shoot control plane components:&lt;/p>
+&lt;ul>
+&lt;li>add label &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>. This makes the webhook mutate the replica count and the topology spread constraints.&lt;/li>
+&lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> with value equal to &lt;code>.spec.controlPlane.highAvailability.failureTolerance.type&lt;/code> (or &lt;code>&amp;quot;&amp;quot;&lt;/code>, if &lt;code>.spec.controlPlane.highAvailability=nil&lt;/code>). This makes the webhook mutate the node affinity according to the specified zone(s).&lt;/li>
+&lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/zones=&amp;lt;zones&amp;gt;&lt;/code> where &lt;code>&amp;lt;zones&amp;gt;&lt;/code> is a &amp;hellip;
+&lt;ul>
+&lt;li>&amp;hellip; random zone chosen from the &lt;code>.spec.provider.zones[]&lt;/code> list in the &lt;code>Seed&lt;/code> specification (always only one zone (even if there are multiple available in the seed cluster)) in case the &lt;code>Shoot&lt;/code> has no HA setting (i.e., &lt;code>spec.controlPlane.highAvailability=nil&lt;/code>) or when the &lt;code>Shoot&lt;/code> has HA setting with failure tolerance type &lt;code>node&lt;/code>.&lt;/li>
+&lt;li>&amp;hellip; list of three randomly chosen zones from the &lt;code>.spec.provider.zones[]&lt;/code> list in the &lt;code>Seed&lt;/code> specification in case the &lt;code>Shoot&lt;/code> has HA setting with failure tolerance type &lt;code>zone&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h4 id="system-components-1">System Components&lt;/h4>
+&lt;p>The &lt;code>gardenlet&lt;/code> performs the following changes on all namespaces running shoot system components:&lt;/p>
+&lt;ul>
+&lt;li>add label &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>. This makes the webhook mutate the replica count and the topology spread constraints.&lt;/li>
+&lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/zones=&amp;lt;zones&amp;gt;&lt;/code> where &lt;code>&amp;lt;zones&amp;gt;&lt;/code> is the merged list of zones provided in &lt;code>.zones[]&lt;/code> with &lt;code>systemComponents.allow=true&lt;/code> for all worker pools in &lt;code>.spec.provider.workers[]&lt;/code> in the &lt;code>Shoot&lt;/code> specification.&lt;/li>
+&lt;/ul>
+&lt;p>Note that the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is not set, hence the node affinity would never be touched by the webhook.&lt;/p></description></item><item><title>Docs: Kubernetes Clients</title><link>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</guid><description>
 &lt;h1 id="kubernetes-clients-in-gardener">Kubernetes Clients in Gardener&lt;/h1>
 &lt;p>This document aims at providing a general developer guideline on different aspects of using Kubernetes clients in a large-scale distributed system and project like Gardener.
 The points included here are not meant to be consulted as absolute rules, but rather as general rules of thumb, that allow developers to get a better feeling about certain gotchas and caveats.

@@ -956,7 +956,71 @@ As such, network policies are an important part of Gardener&amp;rsquo;s tenant i
 &lt;p>The aforementioned namespaces in the Seed contain a &lt;code>deny-all&lt;/code> network policy that &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#default-deny-all-ingress-and-all-egress-traffic">denies all ingress and egress traffic&lt;/a>.
 This &lt;a href="https://en.wikipedia.org/wiki/Secure_by_default">secure by default&lt;/a> setting requires pods to allow network traffic.
 This is done by pods having &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#networkpolicy-resource">labels matching to the selectors of the network policies&lt;/a> deployed by Gardener.&lt;/p>
-&lt;p>More details on the deployed network policies can be found in the &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/seed_network_policies.md">development&lt;/a> and &lt;a href="https://github.com/gardener/gardener/tree/master/docs/usage/shoot_network_policies.md">usage&lt;/a> sections.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
+&lt;p>More details on the deployed network policies can be found in the &lt;a href="https://github.com/gardener/gardener/tree/master/docs/development/seed_network_policies.md">development&lt;/a> and &lt;a href="https://github.com/gardener/gardener/tree/master/docs/usage/shoot_network_policies.md">usage&lt;/a> sections.&lt;/p></description></item><item><title>Docs: Operator</title><link>https://gardener.cloud/docs/gardener/concepts/operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/operator/</guid><description>
+&lt;h1 id="gardener-operator">Gardener Operator&lt;/h1>
+&lt;p>The &lt;code>gardener-operator&lt;/code> is meant to be responsible for the garden cluster environment.
+Without this component, users must deploy ETCD, the Gardener control plane, etc. manually and with separate mechanisms (not maintained in this repository).
+This is quite unfortunate since this requires separate tooling, processes, etc.
+A lot of production- and enterprise-grade features were built into Gardener for managing the seed and shoot clusters, so it makes sense to re-use them as much as possible also for the garden cluster.&lt;/p>
+&lt;p>&lt;strong>⚠️ Consider this component highly experimental and DO NOT use it in production.&lt;/strong>&lt;/p>
+&lt;h2 id="deployment">Deployment&lt;/h2>
+&lt;p>There is a &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/operator">Helm chart&lt;/a> which can be used to deploy the &lt;code>gardener-operator&lt;/code>.
+Once deployed and ready, you can create a &lt;code>Garden&lt;/code> resource.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ Similar to seed clusters, garden runtime clusters require a &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">VPA&lt;/a>.
+By default, &lt;code>gardener-operator&lt;/code> deploys the VPA components.
+However, when there already is a VPA available, then set &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=false&lt;/code> in the &lt;code>Garden&lt;/code> resource.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="using-garden-runtime-cluster-as-seed-cluster">Using Garden Runtime Cluster As Seed Cluster&lt;/h2>
+&lt;p>In production scenarios, you probably wouldn&amp;rsquo;t use the Kubernetes cluster running &lt;code>gardener-operator&lt;/code> and the Gardener control plane (called &amp;ldquo;runtime cluster&amp;rdquo;) as seed cluster at the same time.
+However, such setup is technically possible and might simplify certain situations (e.g., development, evaluation, &amp;hellip;).&lt;/p>
+&lt;p>If the runtime cluster is a seed cluster at the same time, &lt;a href="https://github.com/gardener/gardener/blob/master/docs/gardenlet.md">&lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code> controller&lt;/a> will not manage the components which were already deployed (and reconciled) by &lt;code>gardener-operator&lt;/code>.
+As of today, this applies to:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>gardener-resource-manager&lt;/code>&lt;/li>
+&lt;li>&lt;code>vpa-{admission-controller,recommender,updater}&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Those components are so-called &amp;ldquo;seed system components&amp;rdquo;.
+As they were already made available by &lt;code>gardener-operator&lt;/code>, the &lt;code>gardenlet&lt;/code> just skips them.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ There is no need to configure anything - the &lt;code>gardenlet&lt;/code> will automatically detect when its seed cluster is the garden runtime cluster at the same time.&lt;/p>
+&lt;/blockquote>
+&lt;p>⚠️ Note that such setup requires that you upgrade the versions of &lt;code>gardener-operator&lt;/code> and &lt;code>gardenlet&lt;/code> in lock-step.
+Otherwise, you might experience unexpected behaviour or issues with your seed or shoot clusters.&lt;/p>
+&lt;h2 id="local-development">Local Development&lt;/h2>
+&lt;p>The easiest setup is using a local &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster and the &lt;a href="https://skaffold.dev/">Skaffold&lt;/a> based approach to deploy the &lt;code>gardener-operator&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind-operator-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make operator-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># now you can create Garden resources, for example&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/20-garden.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively, you can run the e2e test&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make test-e2e-local-operator
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make operator-down
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-down
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Generally, any Kubernetes cluster can be used.
+An alternative approach is to start the process locally and manually deploy the &lt;code>CustomResourceDefinition&lt;/code> for the &lt;code>Garden&lt;/code> resources into the targeted cluster (potentially remote):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/10-crd-operator.gardener.cloud_gardens.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make KUBECONFIG=... start-operator
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># now you can create Garden resources, for example&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/20-garden.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively, you can run the e2e test&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make KUBECONFIG=... test-e2e-local-operator
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
+&lt;h3 id="control-loops">Control Loops&lt;/h3>
+&lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one controller which is now described in more detail.&lt;/p>
+&lt;h4 id="garden-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden">&lt;code>Garden&lt;/code> Controller&lt;/a>&lt;/h4>
+&lt;p>The reconciler first generates a general CA certificate which is valid for ~&lt;code>30d&lt;/code> and auto-rotated when 80% of its lifetime is reached.
+Afterwards, it brings up the so-called &amp;ldquo;garden system components&amp;rdquo;.
+The &lt;a href="https://github.com/gardener/gardener/blob/master/docs/resource-manager.md">&lt;code>gardener-resource-manager&lt;/code>&lt;/a> is deployed first since its &lt;code>ManagedResource&lt;/code> controller will be used to bring up the remainders.&lt;/p>
+&lt;p>Other system components are:&lt;/p>
+&lt;ul>
+&lt;li>garden system resources (&lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">&lt;code>PriorityClass&lt;/code>es&lt;/a> for the workload resources)&lt;/li>
+&lt;li>Vertical Pod Autoscaler (if enabled via &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=true&lt;/code> in the &lt;code>Garden&lt;/code>)&lt;/li>
+&lt;/ul>
+&lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
 &lt;h1 id="gardener-resource-manager">Gardener Resource Manager&lt;/h1>
 &lt;p>Initially, the &lt;code>gardener-resource-manager&lt;/code> was a project similar to the &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/addon-manager">kube-addon-manager&lt;/a>.
 It manages Kubernetes resources in a target cluster which means that it creates, updates, and deletes them.

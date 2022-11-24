@@ -7,8 +7,8 @@ It provides guidance for API changes to both (Gardener system in general or comp
 We are following the same approaches.&lt;/p>
 &lt;h2 id="gardener-api">Gardener API&lt;/h2>
 &lt;p>The Gardener API is defined in &lt;code>pkg/apis/{core,extensions,settings}&lt;/code> directories and is the main point of interaction with the system.
-It must be ensured that the API is always backwards-compatible.
-If fields shall be removed permanently from the API then a proper deprecation period must be adhered to so that end-users have enough time adapt their clients.&lt;/p>
+It must be ensured that the API is always backwards-compatible.&lt;/p>
+&lt;h4 id="changing-the-api">Changing the API&lt;/h4>
 &lt;p>&lt;strong>Checklist&lt;/strong> when changing the API:&lt;/p>
 &lt;ol>
 &lt;li>Modify the field(s) in the respective Golang files of all external and the internal version.
@@ -25,6 +25,23 @@ If fields shall be removed permanently from the API then a proper deprecation pe
 &lt;li>In most cases it makes sense to add/adapt the documentation for administrators/operators and/or end-users in the &lt;code>docs&lt;/code> folder to provide information on purpose and usage of the added/changed fields.&lt;/li>
 &lt;li>When opening the pull request then always add a release note so that end-users are becoming aware of the changes.&lt;/li>
 &lt;/ol>
+&lt;h4 id="removing-a-field">Removing a field&lt;/h4>
+&lt;p>If fields shall be removed permanently from the API then a proper deprecation period must be adhered to so that end-users have enough time adapt their clients. The followed process for removing a field is:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>The field in the external version(s) has to be commented out with appropriate doc string that the protobuf number of the corresponding field is reserved. Example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-diff" data-lang="diff">&lt;span style="display:flex;">&lt;span>- SeedTemplate *gardencorev1beta1.SeedTemplate `json:&amp;#34;seedTemplate,omitempty&amp;#34; protobuf:&amp;#34;bytes,2,opt,name=seedTemplate&amp;#34;`
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+ // SeedTemplate is tombstoned to show why 2 is reserved protobuf tag.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+ // SeedTemplate *gardencorev1beta1.SeedTemplate `json:&amp;#34;seedTemplate,omitempty&amp;#34; protobuf:&amp;#34;bytes,2,opt,name=seedTemplate&amp;#34;`
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The reasoning behind this is to prevent the same protobuf number to be used by a new field. Introducing a new field with the same protobuf number would be a breaking change for clients still using the old protobuf definitions that have the old field for the given protobuf number.
+The field in the internal version can be removed.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Unit test has to be added to make sure that a new field does not reuse the already reserved protobuf tag.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>Example of field removal can be found in &lt;a href="https://github.com/gardener/gardener/pull/6972">https://github.com/gardener/gardener/pull/6972&lt;/a>.&lt;/p>
 &lt;h2 id="component-configuration-apis">Component configuration APIs&lt;/h2>
 &lt;p>Most Gardener components have a component configuration that follows similar principles to the Gardener API.
 Those component configurations are defined in &lt;code>pkg/{controllermanager,gardenlet,scheduler},pkg/apis/config&lt;/code>.
@@ -1896,12 +1913,12 @@ Gardenlet manages the well-known &lt;code>PriorityClass&lt;/code>es listed in th
 &lt;tr>
 &lt;td>&lt;code>gardener-garden-system-300&lt;/code>&lt;/td>
 &lt;td>999999300&lt;/td>
-&lt;td>&lt;code>vpa-admission-controller&lt;/code>&lt;/td>
+&lt;td>&lt;code>vpa-admission-controller&lt;/code>, &lt;code>etcd-druid&lt;/code>&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>gardener-garden-system-200&lt;/code>&lt;/td>
 &lt;td>999999200&lt;/td>
-&lt;td>&lt;code>vpa-recommender&lt;/code>, &lt;code>vpa-updater&lt;/code>&lt;/td>
+&lt;td>&lt;code>vpa-recommender&lt;/code>, &lt;code>vpa-updater&lt;/code>, &lt;code>hvpa-controller&lt;/code>&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>gardener-garden-system-100&lt;/code>&lt;/td>
@@ -1929,7 +1946,7 @@ Gardenlet manages the well-known &lt;code>PriorityClass&lt;/code>es listed in th
 &lt;tr>
 &lt;td>&lt;code>gardener-system-900&lt;/code>&lt;/td>
 &lt;td>999998900&lt;/td>
-&lt;td>Extensions, &lt;code>gardener-seed-admission-controller&lt;/code>, &lt;code>reversed-vpn-auth-server&lt;/code>&lt;/td>
+&lt;td>Extensions, &lt;code>reversed-vpn-auth-server&lt;/code>&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>gardener-system-800&lt;/code>&lt;/td>
@@ -3236,7 +3253,6 @@ and their source code can be found under &lt;a href="https://github.com/gardener
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ ├── envtest
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ ├── resourcemanager
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ ├── scheduler
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ ├── seedadmissioncontroller
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ ├── shootmaintenance
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>│ └── ...
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>└── testmachinery # test machinery tests

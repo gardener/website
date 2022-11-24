@@ -990,6 +990,8 @@ As of today, this applies to:&lt;/p>
 &lt;ul>
 &lt;li>&lt;code>gardener-resource-manager&lt;/code>&lt;/li>
 &lt;li>&lt;code>vpa-{admission-controller,recommender,updater}&lt;/code>&lt;/li>
+&lt;li>&lt;code>hvpa-controller&lt;/code> (when &lt;code>HVPA&lt;/code> feature gate is enabled)&lt;/li>
+&lt;li>&lt;code>etcd-druid&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>Those components are so-called &amp;ldquo;seed system components&amp;rdquo;.
 As they were already made available by &lt;code>gardener-operator&lt;/code>, the &lt;code>gardenlet&lt;/code> just skips them.&lt;/p>
@@ -1030,6 +1032,8 @@ The &lt;a href="https://github.com/gardener/gardener/blob/master/docs/resource-m
 &lt;ul>
 &lt;li>garden system resources (&lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">&lt;code>PriorityClass&lt;/code>es&lt;/a> for the workload resources)&lt;/li>
 &lt;li>Vertical Pod Autoscaler (if enabled via &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=true&lt;/code> in the &lt;code>Garden&lt;/code>)&lt;/li>
+&lt;li>HVPA controller (when &lt;code>HVPA&lt;/code> feature gate is enabled)&lt;/li>
+&lt;li>ETCD Druid&lt;/li>
 &lt;/ul>
 &lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
 &lt;h1 id="gardener-resource-manager">Gardener Resource Manager&lt;/h1>
@@ -1473,7 +1477,8 @@ It watches &lt;code>CertificateSigningRequest&lt;/code>s with the &lt;code>kuber
 &lt;p>If one of these requirements is violated the &lt;code>CertificateSigningRequest&lt;/code> will be denied.
 Otherwise, once approved the &lt;code>kube-controller-manager&lt;/code>&amp;rsquo;s &lt;code>csrsigner&lt;/code> controller will issue the requested certificate.&lt;/p>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
-&lt;h3 id="high-availability-config">High Availability Config&lt;/h3>
+&lt;h3 id="mutating-webhooks">Mutating Webhooks&lt;/h3>
+&lt;h4 id="high-availability-config">High Availability Config&lt;/h4>
 &lt;p>This webhook is used to conveniently apply the configuration to make components deployed to seed or shoot clusters highly available.
 The details and scenarios are described in &lt;a href="https://gardener.cloud/docs/gardener/development/high-availability/">this document&lt;/a>.&lt;/p>
 &lt;p>The webhook reacts on creation/update of &lt;code>Deployment&lt;/code>s and &lt;code>StatefulSet&lt;/code>s in namespaces labeled with &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>.&lt;/p>
@@ -1563,7 +1568,7 @@ In case the number of replicas is larger than twice the number of zones then the
 &lt;p>Independent on the number of zones, when the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is set and NOT empty, then the &lt;code>whenUnsatisfiable&lt;/code> is set to &lt;code>DoNotSchedule&lt;/code> for the constraint with &lt;code>topologyKey=kubernetes.io/hostname&lt;/code> (which enforces the node-spread).&lt;/p>
 &lt;/li>
 &lt;/ol>
-&lt;h3 id="auto-mounting-projected-serviceaccount-tokens">Auto-Mounting Projected &lt;code>ServiceAccount&lt;/code> Tokens&lt;/h3>
+&lt;h4 id="auto-mounting-projected-serviceaccount-tokens">Auto-Mounting Projected &lt;code>ServiceAccount&lt;/code> Tokens&lt;/h4>
 &lt;p>When this webhook is activated then it automatically injects projected &lt;code>ServiceAccount&lt;/code> token volumes into &lt;code>Pod&lt;/code>s and all its containers if all of the following preconditions are fulfilled:&lt;/p>
 &lt;ol>
 &lt;li>The &lt;code>Pod&lt;/code> is NOT labeled with &lt;code>projected-token-mount.resources.gardener.cloud/skip=true&lt;/code>.&lt;/li>
@@ -1601,7 +1606,7 @@ This is the default location where client libraries expect to find the tokens an
 Hence, it is served from the Seed GRM and each Shoot GRM.
 Please find an overview below for pods deployed in the Shoot cluster:&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/resource-manager-projected-token-shoot-to-shoot-apiserver_4fdaf3.jpg" alt="image">&lt;/p>
-&lt;h3 id="pod-topology-spread-constraints">Pod Topology Spread Constraints&lt;/h3>
+&lt;h4 id="pod-topology-spread-constraints">Pod Topology Spread Constraints&lt;/h4>
 &lt;p>When this webhook is enabled then it mimics the &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraint-definition">topologyKey feature&lt;/a> for &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints">Topology Spread Constraints (TSC)&lt;/a> on the label &lt;code>pod-template-hash&lt;/code>.
 Concretely, when a pod is labelled with &lt;code>pod-template-hash&lt;/code> the handler of this webhook extends any topology spread constraint in the pod:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>metadata:
@@ -1617,7 +1622,21 @@ Concretely, when a pod is labelled with &lt;code>pod-template-hash&lt;/code> the
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pod-template-hash: 123abc &lt;span style="color:#008000"># added by webhook&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The procedure circumvents a &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215">known limitation&lt;/a> with TSCs which leads to imbalanced deployments after rolling updates.
 Gardener enables this webhook to schedule pods of deployments across nodes and zones.&lt;/p>
-&lt;p>Please note, the &lt;code>gardener-resource-manager&lt;/code> itself as well as pods labelled with &lt;code>topology-spread-constraints.resources.gardener.cloud/skip&lt;/code> are excluded from any mutations.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+&lt;p>Please note, the &lt;code>gardener-resource-manager&lt;/code> itself as well as pods labelled with &lt;code>topology-spread-constraints.resources.gardener.cloud/skip&lt;/code> are excluded from any mutations.&lt;/p>
+&lt;h3 id="validating-webhooks">Validating Webhooks&lt;/h3>
+&lt;h4 id="unconfirmed-deletion-prevention-for-custom-resources-and-definitions">Unconfirmed Deletion Prevention For Custom Resources And Definitions&lt;/h4>
+&lt;p>As part of Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">extensibility concepts&lt;/a>, a lot of &lt;code>CustomResourceDefinition&lt;/code>s are deployed to the seed clusters that serve as extension points for provider-specific controllers.
+For example, the &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">&lt;code>Infrastructure&lt;/code> CRD&lt;/a> triggers the provider extension to prepare the IaaS infrastructure of the underlying cloud provider for a to-be-created shoot cluster.
+Consequently, these extension CRDs have a lot of power and control large portions of the end-user&amp;rsquo;s shoot cluster.
+Accidental or undesired deletions of those resource can cause tremendous and hard-to-recover-from outages and should be prevented.&lt;/p>
+&lt;p>When this webhook is activated, it reacts for &lt;code>CustomResourceDefinition&lt;/code>s and most of the custom resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group.
+It also reacts for the &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> resources.&lt;/p>
+&lt;p>The webhook prevents &lt;code>DELETE&lt;/code> requests for those &lt;code>CustomResourceDefinition&lt;/code>s labeled with &lt;code>gardener.cloud/deletion-protected=true&lt;/code>, and for all mentioned custom resources if they were not previously annotated with the &lt;code>confirmation.gardener.cloud/deletion=true&lt;/code>.
+This prevents that undesired &lt;code>kubectl delete &amp;lt;...&amp;gt;&lt;/code> requests are accepted.&lt;/p>
+&lt;h4 id="extension-resource-validation">Extension Resource Validation&lt;/h4>
+&lt;p>When this webhook is activated, it reacts for most of the custom resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group.
+It also reacts for the &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> resources.&lt;/p>
+&lt;p>The webhook validates the resources specifications for &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> requests.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
 &lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>
@@ -1718,17 +1737,4 @@ a dedicated set of possible providers (&lt;code>*&lt;/code> means all provider t
 &lt;h2 id="current-limitation--future-plans">Current Limitation / Future Plans&lt;/h2>
 &lt;ul>
 &lt;li>Azure has unfortunately a geographically non-hierarchical naming pattern and does not start with the continent. This is the reason why we will exchange the implementation of the &lt;code>MinimalDistance&lt;/code> strategy with a more suitable one in the future.&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Seed Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/seed-admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/seed-admission-controller/</guid><description>
-&lt;h1 id="gardener-seed-admission-controller">Gardener Seed Admission Controller&lt;/h1>
-&lt;p>The Gardener Seed admission controller is deployed by the Gardenlet as part of its seed bootstrapping phase and, consequently, running in every seed cluster.
-It&amp;rsquo;s main purpose is to serve webhooks (validating or mutating) in order to admit or deny certain requests to the seed&amp;rsquo;s API server.&lt;/p>
-&lt;h2 id="what-is-it-doing-concretely">What is it doing concretely?&lt;/h2>
-&lt;h3 id="validating-webhooks">Validating Webhooks&lt;/h3>
-&lt;h4 id="unconfirmed-deletion-prevention">Unconfirmed Deletion Prevention&lt;/h4>
-&lt;p>As part of Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">extensibility concepts&lt;/a> a lot of &lt;code>CustomResourceDefinition&lt;/code>s are deployed to the seed clusters that serve as extension points for provider-specific controllers.
-For example, the &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">&lt;code>Infrastructure&lt;/code> CRD&lt;/a> triggers the provider extension to prepare the IaaS infrastructure of the underlying cloud provider for a to-be-created shoot cluster.
-Consequently, these extension CRDs have a lot of power and control large portions of the end-user&amp;rsquo;s shoot cluster.
-Accidental or undesired deletions of those resource can cause tremendous and hard-to-recover-from outages and should be prevented.&lt;/p>
-&lt;p>Together with the deployment of the Gardener seed admission controller a &lt;code>ValidatingWebhookConfiguration&lt;/code> for &lt;code>CustomResourceDefinitions&lt;/code> and most (custom) resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group is registered.
-It prevents &lt;code>DELETE&lt;/code> requests for those &lt;code>CustomResourceDefinitions&lt;/code> labeled with &lt;code>gardener.cloud/deletion-protected=true&lt;/code>, and for all mentioned custom resources if they were not previously annotated with the &lt;code>confirmation.gardener.cloud/deletion=true&lt;/code>.
-This prevents that undesired &lt;code>kubectl delete &amp;lt;...&amp;gt;&lt;/code> requests are accepted.&lt;/p></description></item></channel></rss>
+&lt;/ul></description></item></channel></rss>

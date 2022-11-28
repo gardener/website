@@ -247,12 +247,8 @@ working effectively inside the remote-local-setup pod.&lt;/p>
 &lt;p>This setup makes use of the local provider extension. You can read more about it in &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">this document&lt;/a>.&lt;/p></description></item><item><title>Docs: High Availability</title><link>https://gardener.cloud/docs/gardener/development/high-availability/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/high-availability/</guid><description>
 &lt;h1 id="high-availability-of-deployed-components">High Availability Of Deployed Components&lt;/h1>
 &lt;p>&lt;code>gardenlet&lt;/code> and extension controllers are deploying components via &lt;code>Deployment&lt;/code>s, &lt;code>StatefulSet&lt;/code>s, etc. as part of the shoot control plane, or the seed or shoot system components.&lt;/p>
-&lt;p>Before we commence, all components should be generally equipped with &lt;code>PodDisruptionBudget&lt;/code>s with &lt;code>.spec.maxUnavailable=1&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxUnavailable: 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Some of the above component deployments must be further tuned to improve fault tolerance / resilience of the service. This document outlines what needs to be done to achieve this goal.&lt;/p>
+&lt;p>Some of the above component deployments must be further tuned to improve fault tolerance / resilience of the service. This document outlines what needs to be done to achieve this goal.&lt;/p>
+&lt;p>Please be forwarded to &lt;a href="#convenient-application-of-these-rules">this section&lt;/a>, if you want to take a shortcut to the list of actions that require developers&amp;rsquo; attention.&lt;/p>
 &lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
 &lt;p>The worker nodes of seed clusters can be deployed to one or multiple availability zones.
 The &lt;code>Seed&lt;/code> specification allows to provide the information which zones are available:&lt;/p>
@@ -497,11 +493,27 @@ Concretely, the highest number of zones of a worker pool with &lt;code>systemCom
 &lt;h2 id="convenient-application-of-these-rules">Convenient Application Of These Rules&lt;/h2>
 &lt;p>According to above scenarios and conventions, the &lt;code>replicas&lt;/code>, &lt;code>topologySpreadConstraints&lt;/code> or &lt;code>affinity&lt;/code> settings of the deployed components might need to be adapted.&lt;/p>
 &lt;p>In order to apply those conveniently and easily for developers, Gardener installs a mutating webhook into both seed and shoot clusters which reacts on &lt;code>Deployment&lt;/code>s and &lt;code>StatefulSet&lt;/code>s deployed to namespaces with the &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code> label set.&lt;/p>
-&lt;p>The only action developers have to do is labeling their &lt;code>components&lt;/code> with &lt;code>high-availability-config.resources.gardener.cloud/type&lt;/code> where the following two values are possible:&lt;/p>
+&lt;p>&lt;strong>The following actions have to be taken by developers:&lt;/strong>&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Check if &lt;code>components&lt;/code> are prepared to run concurrently with multiple replicas, e.g. controllers usually use &lt;a href="https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/leaderelection">leader election&lt;/a> to achieve this.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>All components should be generally equipped with &lt;code>PodDisruptionBudget&lt;/code>s with &lt;code>.spec.maxUnavailable=1&lt;/code>:&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxUnavailable: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>Add label &lt;code>high-availability-config.resources.gardener.cloud/type&lt;/code> to &lt;code>deployment&lt;/code>s or &lt;code>statefulset&lt;/code>s where the following two values are possible:&lt;/li>
+&lt;/ol>
 &lt;ul>
 &lt;li>&lt;code>controller&lt;/code>&lt;/li>
 &lt;li>&lt;code>server&lt;/code>&lt;/li>
 &lt;/ul>
+&lt;p>Type &lt;code>server&lt;/code> is also preferred if a component is a controller and (webhook) server at the same time.&lt;/p>
 &lt;p>You can read more about the webhook&amp;rsquo;s internals in &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#high-availability-config">this document&lt;/a>.&lt;/p>
 &lt;h2 id="gardenlet-internals">&lt;code>gardenlet&lt;/code> Internals&lt;/h2>
 &lt;p>Make sure you have read above document about the webhook internals before continuing reading this section.&lt;/p>
@@ -897,7 +909,7 @@ Currently, it is not possible to run Gardener entirely isolated from any cloud p
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install go
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check &lt;a href="https://golang.org/doc/install">Go installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-kubectl">Installing kubectl&lt;/h2>
-&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.11.x&lt;/code>. On macOS run&lt;/p>
+&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.20.x&lt;/code>. On macOS run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install kubernetes-cli
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check the &lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">kubectl installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-helm">Installing helm&lt;/h2>
@@ -994,10 +1006,7 @@ You must create the &lt;code>garden&lt;/code> namespace and label it manually be
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To close the tunnels and remove the locally-running Docker containers, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make remote-garden-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>Note: The minimum K8S version of the remote cluster that can be used as Garden cluster is &lt;code>1.19.x&lt;/code>.&lt;/p>
-&lt;/blockquote>
-&lt;p>ℹ️ [Optional] If you want to use the remote Garden cluster setup with the &lt;code>SeedAuthorization&lt;/code> feature you have to adapt the &lt;code>kube-apiserver&lt;/code> process of your remote Garden cluster. To do this, perform the following steps after running &lt;code>make remote-garden-up&lt;/code>:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ [Optional] If you want to use the remote Garden cluster setup with the &lt;code>SeedAuthorization&lt;/code> feature you have to adapt the &lt;code>kube-apiserver&lt;/code> process of your remote Garden cluster. To do this, perform the following steps after running &lt;code>make remote-garden-up&lt;/code>:&lt;/p>
 &lt;ul>
 &lt;li>
 &lt;p>Create an &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/webhook/#configuration-file-format">authorization webhook configuration file&lt;/a> using the IP of the &lt;code>garden/quic-server&lt;/code> pod running in your remote Garden cluster and port 10444 that tunnels to your locally running &lt;code>gardener-admission-controller&lt;/code> process.&lt;/p>
@@ -1159,7 +1168,7 @@ Also, please refer to &lt;a href="https://gardener.cloud/docs/gardener/extension
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Gardenlet will now reconcile the Seed. Check the progess from time to time until it&amp;rsquo;s &lt;code>Ready&lt;/code>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get seed
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>seed-aws Ready aws eu-west-1 4m v1.11.0-dev v1.18.12
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>seed-aws Ready aws eu-west-1 4m v1.61.0-dev v1.24.8
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="7-create-a-shoot">7. Create a Shoot&lt;/h4>
 &lt;p>A Shoot requires a SecretBinding. The SecretBinding refers to a Secret that contains the cloud provider credentials. The Secret data keys are provider specific and you need to check the documentation of the provider to find out which data keys are expected (for example for AWS the related documentation can be found &lt;a href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-end-user/#provider-secret-data">here&lt;/a>). Adapt &lt;code>dev/70-secret-provider.yaml&lt;/code> and &lt;code>dev/80-secretbinding.yaml&lt;/code> and apply them.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/70-secret-provider.yaml

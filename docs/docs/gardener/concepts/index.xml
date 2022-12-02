@@ -293,10 +293,10 @@ Already existing &lt;code>Shoot&lt;/code>s will not be affected by this admissio
 &lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it became now possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy, if the community would be interested, to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
 &lt;h1 id="gardener-controller-manager">Gardener Controller Manager&lt;/h1>
 &lt;p>The &lt;code>gardener-controller-manager&lt;/code> (often refered to as &amp;ldquo;GCM&amp;rdquo;) is a component that runs next to the Gardener API server, similar to the Kubernetes Controller Manager.
-It runs several control loops that do not require talking to any seed or shoot cluster.
+It runs several controllers that do not require talking to any seed or shoot cluster.
 Also, as of today it exposes an HTTP server that is serving several health check endpoints and metrics.&lt;/p>
 &lt;p>This document explains the various functionalities of the &lt;code>gardener-controller-manager&lt;/code> and their purpose.&lt;/p>
-&lt;h2 id="control-loops">Control Loops&lt;/h2>
+&lt;h2 id="controllers">Controllers&lt;/h2>
 &lt;h3 id="bastion-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerbastion">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/bastion">&lt;code>Bastion&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>Bastion&lt;/code> resources have a limited lifetime which can be extended up to a certain amount by performing a heartbeat on them.
 The &lt;code>Bastion&lt;/code> controller is responsible for deleting expired or rotten &lt;code>Bastion&lt;/code>s.&lt;/p>
@@ -662,7 +662,7 @@ is scalable. Gardener achieves the same for cluster management by using a &lt;st
 as primary &amp;ldquo;agent&amp;rdquo; on every seed cluster, and is only responsible for shoot clusters
 located in its particular seed cluster:&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-similarities_ba8a1c.png" alt="Counterparts in the Gardener Architecture and the Kubernetes Architecture">&lt;/p>
-&lt;p>The &lt;code>gardener-controller-manager&lt;/code> has control loops to manage resources of the Gardener API. However, instead of letting the &lt;code>gardener-controller-manager&lt;/code> talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It&amp;rsquo;s up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed clusters.&lt;/p>
+&lt;p>The &lt;code>gardener-controller-manager&lt;/code> has controllers to manage resources of the Gardener API. However, instead of letting the &lt;code>gardener-controller-manager&lt;/code> talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It&amp;rsquo;s up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed clusters.&lt;/p>
 &lt;p>Reversing the control flow allows placing seed clusters or shoot clusters behind firewalls without the necessity of direct access via VPN tunnels anymore.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-detailed_6f3172.png" alt="Reversed Control Flow Using a Gardenlet">&lt;/p>
 &lt;h2 id="tls-bootstrapping">TLS Bootstrapping&lt;/h2>
@@ -774,7 +774,7 @@ in &lt;code>seedConfig&lt;/code> if it&amp;rsquo;s not present already.&lt;/p>
 &lt;p>In the component configuration for the gardenlet, it’s possible to define:&lt;/p>
 &lt;ul>
 &lt;li>settings for the Kubernetes clients interacting with the various clusters&lt;/li>
-&lt;li>settings for the control loops inside the gardenlet&lt;/li>
+&lt;li>settings for the controllers inside the gardenlet&lt;/li>
 &lt;li>settings for leader election and log levels, feature gates, and seed selection or seed configuration.&lt;/li>
 &lt;/ul>
 &lt;p>More information: &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Example Gardenlet Component Configuration&lt;/a>.&lt;/p>
@@ -802,7 +802,7 @@ It does &lt;em>not&lt;/em> show that the Gardener extension API server (with the
 is available.
 However, the Gardenlet is designed to withstand such connection outages and
 retries until the connection is reestablished.&lt;/p>
-&lt;h2 id="control-loops">Control Loops&lt;/h2>
+&lt;h2 id="controllers">Controllers&lt;/h2>
 &lt;p>The gardenlet consists out of several controllers which are now described in more detail.&lt;/p>
 &lt;h3 id="backupbucket-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupbucket">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupbucket">&lt;code>BackupBucket&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>BackupBucket&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of the &lt;code>Seed&lt;/code> the respective &lt;code>gardenlet&lt;/code> is responsible for.
@@ -810,7 +810,7 @@ A &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resource is create
 &lt;p>The controller adds finalizers to the &lt;code>BackupBucket&lt;/code> and the secret mentioned in the &lt;code>.spec.secretRef&lt;/code> of the &lt;code>BackupBucket&lt;/code>. The controller also copies this secret to the seed cluster. Additionally, it creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciles it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">this&lt;/a> for more details).
 The status from the reconciliation is reported in the &lt;code>.status.lastOperation&lt;/code> field. Once the extension resource is ready and the &lt;code>.status.generatedSecretRef&lt;/code> is set by the extension controller, &lt;code>gardenlet&lt;/code> copies the referenced secret to the &lt;code>garden&lt;/code> namespace in the garden cluster. An owner reference to the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is added to this secret.&lt;/p>
 &lt;p>If the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is deleted, the controller deletes the generated secret in the garden cluster and the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource in the seed cluster and it waits for the respective extension controller to remove its finalizers from the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code>. Then it deletes the secret in the seed cluster and finally removes the finalizers from the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> and the referred secret.&lt;/p>
-&lt;h3 id="backupentry-controller">&lt;code>BackupEntry&lt;/code> Controller&lt;/h3>
+&lt;h3 id="backupentry-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupentry">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupentry">&lt;code>BackupEntry&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
 Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
 &lt;h4 id="main-reconciler">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
@@ -918,6 +918,32 @@ Also, this internal health status is set to &lt;code>false&lt;/code> automatical
 This internal health status is available via the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint and is used for the &lt;code>livenessProbe&lt;/code> in the &lt;code>gardenlet&lt;/code> pod.&lt;/p>
 &lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>Shoot&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Shoot&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconciler-3">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
+&lt;p>This reconciler is responsible for managing all shoot cluster components and implements the core logic for creating, updating, hibernating, deleting, and migrating shoot clusters.
+It is also responsible for syncing the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> cluster&lt;/a> to the seed cluster before and after each successful shoot reconciliation.&lt;/p>
+&lt;p>The main reconciliation logic is performed in 3 different task flows dedicated to specific operation types:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>reconcile&lt;/code> (operations: create, reconcile, restore): this is the main flow responsible for creation and regular reconciliation of shoots. Hibernating a shoot also triggers this flow. It is also used for restoration of the shoot control plane on the new seed (second half of a &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>)&lt;/li>
+&lt;li>&lt;code>migrate&lt;/code>: this flow is triggered when &lt;code>spec.seedName&lt;/code> specifies a different seed than &lt;code>status.seedName&lt;/code>. It performs the first half of the &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>, i.e., a backup (&lt;code>migrate&lt;/code> operation) of all control plane components followed by a &amp;ldquo;shallow delete&amp;rdquo;.&lt;/li>
+&lt;li>&lt;code>delete&lt;/code>: this flow is triggered when the shoot&amp;rsquo;s &lt;code>deletionTimestamp&lt;/code> is set, i.e., when it is deleted.&lt;/li>
+&lt;/ul>
+&lt;p>Gardenlet takes special care to prevent unnecessary shoot reconciliations.
+This is important for several reasons, e.g., to not overload the seed API servers and to not exhaust infrastructure rate limits too fast.
+Gardenlet performs shoot reconciliations according to the following rules:&lt;/p>
+&lt;ul>
+&lt;li>If &lt;code>status.observedGeneration&lt;/code> is less than &lt;code>metadata.generation&lt;/code>: this is the case, e.g., when the spec was changed, a &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_operations/">manual reconciliation operation&lt;/a> was triggered, or the shoot was deleted.&lt;/li>
+&lt;li>If the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/">last operation&lt;/a> was not successful.&lt;/li>
+&lt;li>If the shoot is in a &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/">failed state&lt;/a>, gardenlet does not perform any reconciliation on the shoot (unless the retry operation was triggered). However, it syncs the &lt;code>Cluster&lt;/code> resource to the seed in order to inform extension controllers about the failed state.&lt;/li>
+&lt;li>Regular reconciliations are performed with every &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> (defaults to &lt;code>1h&lt;/code>).&lt;/li>
+&lt;li>Shoot reconciliations are not performed if the assigned seed cluster is not healthy or has not been reconciled by the current gardenlet version yet (determined by the &lt;code>Seed.status.gardener&lt;/code> section). This is done to make sure that shoots are reconciled with fully rolled out seed system components after a gardener upgrade. Otherwise, gardenlet might perform operations of the new version that doesn&amp;rsquo;t match the old version of the deployed seed system components, which might lead to unspecified behavior.&lt;/li>
+&lt;/ul>
+&lt;p>There are a few special cases that overwrite or confine how often and under which circumstances periodic shoot reconciliations are performed:&lt;/p>
+&lt;ul>
+&lt;li>In case, the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), the sync period for a shoot can be increased individually by setting the &lt;code>shoot.gardener.cloud/sync-period&lt;/code> annotation. This is always allowed for shoots in the &lt;code>garden&lt;/code> namespace. Shoots are not reconciled with a higher frequency than specified in &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code>.&lt;/li>
+&lt;li>In case, the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), shoots can be marked as &amp;ldquo;ignored&amp;rdquo; by setting the &lt;code>shoot.gardener.cloud/ignore&lt;/code> annotation. In this case, gardenlet does not perform any reconciliation for the shoot.&lt;/li>
+&lt;li>In case &lt;code>GardenletConfiguration.controllers.shoot.reconcileInMaintenanceOnly&lt;/code> is enabled (disabled by default), gardenlet performs regular shoot reconciliations only once in the respective maintenance time window (&lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> is ignored). Gardenlet randomly distributes shoot reconciliations over the maintenance time window to avoid high bursts of reconciliations (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/#cluster-reconciliation">this doc&lt;/a>).&lt;/li>
+&lt;li>In case &lt;code>Shoot.spec.maintenance.confineSpecUpdateRollout&lt;/code> is enabled (disabled by default), changes to the shoot specification are not rolled out immediately but only during the respective maintenance time window (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/">this doc&lt;/a>).&lt;/li>
+&lt;/ul>
 &lt;h4 id="migration-reconciler-1">&amp;ldquo;Migration&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>This reconciler is only active if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/#list-of-feature-gates">&lt;code>ForceRestore&lt;/code>&lt;/a> feature gate is enabled in the &lt;code>gardenlet&lt;/code> and if the &lt;code>Seed&lt;/code> has owner checks enabled (i.e., &lt;code>spec.setttings.ownerChecks.enabled=true&lt;/code>).
 It checks if the source &lt;code>Seed&lt;/code> also has owner checks enabled.
@@ -1034,7 +1060,7 @@ An alternative approach is to start the process locally and manually deploy the 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively, you can run the e2e test&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make KUBECONFIG=... test-e2e-local-operator
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
-&lt;h3 id="control-loops">Control Loops&lt;/h3>
+&lt;h3 id="controllers">Controllers&lt;/h3>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one controller which is now described in more detail.&lt;/p>
 &lt;h4 id="garden-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden">&lt;code>Garden&lt;/code> Controller&lt;/a>&lt;/h4>
 &lt;p>The reconciler first generates a general CA certificate which is valid for ~&lt;code>30d&lt;/code> and auto-rotated when 80% of its lifetime is reached.

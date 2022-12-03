@@ -4632,532 +4632,7 @@ Generating a load 100 put requests/second for 30 seconds duration by targeting e
 &lt;li>Follower &lt;code>etcd-main-1&lt;/code> to &lt;code>etcd-client&lt;/code> max egress is 222B/s.&lt;/li>
 &lt;li>watch lists the keys which are deleted, not values.&lt;/li>
 &lt;/ul>
-&lt;/details></description></item><item><title>Docs: Monitoring Stack - Migrating to the prometheus-operator</title><link>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/19-migrating-to-prometheus-operator/</guid><description>
-&lt;h1 id="gep-19-monitoring-stack---migrating-to-the-prometheus-operator">GEP-19: Monitoring Stack - Migrating to the prometheus-operator&lt;/h1>
-&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="#gep-19-monitoring-stack---migrating-to-the-prometheus-operator">GEP-19: Monitoring Stack - Migrating to the prometheus-operator&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#motivation">Motivation&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#proposal">Proposal&lt;/a>
-&lt;ul>
-&lt;li>&lt;a href="#api">API&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#prometheus-operator-crds">Prometheus Operator CRDs&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#shoot-monitoring">Shoot Monitoring&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#seed-monitoring">Seed Monitoring&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#byomc-bring-your-own-monitoring-configuration">BYOMC (Bring your own monitoring configuration)&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#grafana-sidecar">Grafana Sidecar&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#migration">Migration&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>&lt;a href="#alternatives">Alternatives&lt;/a>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h2 id="summary">Summary&lt;/h2>
-&lt;p>As Gardener has grown, the monitoring configuration has also evolved with it.
-Many components must be monitored and the configuration for these components
-must also be managed. This poses a challenge because the configuration is
-distributed across the Gardener project among different folders and even
-different repositories (for example extensions). While it is not possible to
-centralize the configuration, it is possible to improve the developer experience
-and improve the general stability of the monitoring. This can be done by
-introducing the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. This operator will make it easier for
-monitoring configuration to be discovered and picked up with the use of the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator#customresourcedefinitions">Custom Resources&lt;/a> provided by the prometheus-operator. These
-resources can also be directly referenced in Go and be deployed by their
-respective components, instead of creating &lt;code>.yaml&lt;/code> files in Go, or templating
-charts. With the addition of the prometheus-operator it should also be easier to
-add new features, such as Thanos.&lt;/p>
-&lt;h2 id="motivation">Motivation&lt;/h2>
-&lt;p>Simplify monitoring changes and extensions with the use of the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The current extension contract is described
-&lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/">here&lt;/a>. This document aims to define a new contract.&lt;/p>
-&lt;p>Make it easier to add new monitoring features and make new changes. For example,
-when using the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> components can bring their own monitoring
-configuration and specify exactly how they should be monitored without needing
-to add this configuration directly into Prometheus.&lt;/p>
-&lt;p>The prometheus-operator handles validation of monitoring configuration. It will
-be more difficult to give Prometheus invalid config.&lt;/p>
-&lt;h3 id="goals">Goals&lt;/h3>
-&lt;ul>
-&lt;li>
-&lt;p>Migrate from the current monitoring stack to the prometheus-operator.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Improve the monitoring extensibility and improve developer experience when
-adding or editing configuration. This includes the monitoring extensions in
-addition to core Gardener components.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Provide a clear direction on how monitoring resources should be managed.
-Currently, there are many ways that monitoring configuration is being deployed
-and this should be unified.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Improve how dashboards are discovered and provisioned for Grafana. Currently,
-all dashboards are appended into a single configmap. This can be an issue if
-the maximum configmap size of 1MiB is ever exceeded.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="non-goals">Non-Goals&lt;/h3>
-&lt;ul>
-&lt;li>
-&lt;p>Changes to the logging stack.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Feature parity between the current solution and the one proposed in this GEP.
-The new stack should provide similar monitoring coverage, but it will be very
-difficult to evaluate if there is feature parity. Perhaps some features will
-be missing, but others may be added.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;h2 id="proposal">Proposal&lt;/h2>
-&lt;p>Today, Gardener provides monitoring for shoot clusters (i.e. system components
-and the control plane) and for the seed cluster. The proposal is to migrate
-these monitoring stacks to use the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The proposal is lined
-out below:&lt;/p>
-&lt;h3 id="api">API&lt;/h3>
-&lt;p>Use the &lt;a href="https://github.com/prometheus-operator/prometheus-operator/tree/main/pkg/apis/monitoring">API&lt;/a> provided by the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and create Go structs.&lt;/p>
-&lt;h3 id="prometheus-operator-crds">Prometheus Operator CRDs&lt;/h3>
-&lt;p>Deploy the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and its CRDs. These components can be deployed
-via &lt;code>ManagedResources&lt;/code>. The operator itself and some other components outlined
-in the GEP will be deployed in a new namespace called &lt;code>monitoring&lt;/code>. The CRDs for
-the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and the operator itself can be found
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/bundle.yaml">here&lt;/a>. This step is a prerequisite for all other steps.&lt;/p>
-&lt;h3 id="shoot-monitoring">Shoot Monitoring&lt;/h3>
-&lt;p>Gardener will create a monitoring stack similar to the current one with the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> custom resources.&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>Most of the shoot monitoring is deployed via this
-&lt;a href="https://github.com/gardener/gardener/tree/master/charts/seed-monitoring/charts">chart&lt;/a>. The goal is to create a similar stack, but not
-necessarily with feature parity, using the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>An example Prometheus object that would be deployed in a shoot&amp;rsquo;s
-control plane.&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Prometheus
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: prometheus
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: prometheus
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enableAdminAPI: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logFormat: logfmt
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logLevel: info
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: image:tag
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paused: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portName: web
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> retention: 30d
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> routePrefix: /
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceAccountName: prometheus
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceMonitorNamespaceSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podMonitorNamespaceSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ruleNamespaceSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceMonitorSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podMonitorSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeClaimTemplate:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> accessModes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ReadWriteOnce
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage: 20Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: v2.35.0
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Contract between the shoot &lt;code>Prometheus&lt;/code> and its configuration.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>&lt;code>Prometheus&lt;/code> can discover &lt;code>*Monitors&lt;/code> in different namespaces and also
-by using labels.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>In some cases, specific configuration is required (e.g. specific
-configuration due to K8s versions). In this case, the configuration will
-also be deployed in the shoot&amp;rsquo;s namespace and Prometheus will also be able
-to discover this configuration.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Prometheus must also distinguish between &lt;code>*Monitors&lt;/code> relevant for shoot
-control plane and shoot targets. This can be done with a
-&lt;code>serviceMonitorSelector&lt;/code> and &lt;code>podMonitorSelector&lt;/code> where
-&lt;code>monitoring.gardener.cloud/monitoring-target=shoot-control-plane&lt;/code>. For a
-&lt;code>ServiceMonitor&lt;/code> it would look like this:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>serviceMonitorSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>In addition to a Prometheus, the configuration must also be created. To
-do this, each &lt;code>job&lt;/code> in the Prometheus configuration will need to be
-replaced with either a &lt;code>ServiceMonitor&lt;/code>, &lt;code>PodMonitor&lt;/code>, or &lt;code>Probe&lt;/code>. This
-&lt;code>ServiceMonitor&lt;/code> will be picked up by the Prometheus defined in the
-previous step. This &lt;code>ServiceMonitor&lt;/code> will scrape any
-service that has the label &lt;code>app=prometheus&lt;/code> on the port called &lt;code>metrics&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: prometheus-job
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: metrics
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: prometheus
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Prometheus needs to discover targets running in the shoot cluster.
-Normally, this is done by changing the &lt;code>api_server&lt;/code> field in the config
-(&lt;a href="https://github.com/gardener/gardener/blob/0f4d22270927e2aee8b821f858fb76162ccd8a86/charts/seed-monitoring/charts/core/charts/prometheus/templates/config.yaml#L311">example&lt;/a>). This is currently not possible with the
-prometheus-operator, but there is an open &lt;a href="https://github.com/prometheus-operator/prometheus-operator/issues/4828">issue&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Preferred approach: A second Prometheus can be created that is running
-in &lt;a href="https://prometheus.io/blog/2021/11/16/agent/">agent mode&lt;/a>. This Prometheus can also be deployed/managed by the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The agent Prometheus can be configured to use
-the API Server for the shoot cluster and use service discovery in the
-shoot. The metrics can then be written via remote write to the
-&amp;ldquo;normal&amp;rdquo; Prometheus or federated. This Prometheus will also discover
-configuration in the same way as the other Prometheus with 1
-difference. Instead of discovering configuration with the label
-&lt;code>monitoring.gardener.cloud/monitoring-target=shoot-control-plane&lt;/code> it will find configuration
-with the label &lt;code>monitoring.gardener.cloud/monitoring-target=shoot&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Alternative: Use &lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/additional-scrape-config.md">additional scrape config&lt;/a>. In this case, the
-Prometheus config snippet is put into a secret and the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> will append it to the config. The downside here is
-that it is only possible to have 1 &lt;code>additional-scrape-config&lt;/code> per
-Prometheus. This could be an issue if multiple components will need to
-use this.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Deploy an optional &lt;a href="https://github.com/gardener/gardener/tree/master/charts/seed-monitoring/charts/alertmanager">alertmanager&lt;/a> that is deployed
-whenever the end-user &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/#alerting-for-users">specifies&lt;/a> alerting.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Create an &lt;code>Alertmanager&lt;/code> resource&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Create the &lt;code>AlertmanagerConfig&lt;/code>&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Health checks - The gardenlet periodically checks the status of the
-Prometheus &lt;code>StatefulSet&lt;/code> among other components in the shoot care
-controller. The gardenlet knows which component to check based on labels.
-Since the gardenlet is no longer deploying the &lt;code>StatefulSet&lt;/code> directly and
-rather a &lt;code>Prometheus&lt;/code> resource, it does not know which labels are
-attached to the Prometheus &lt;code>StatefulSet&lt;/code>. However, the
-&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> will create &lt;code>StatefulSets&lt;/code> with the same labelset
-that the &lt;code>Prometheus&lt;/code> resource has. The gardenlet will be able to
-discover the &lt;code>StatefulSet&lt;/code> because it knows the labelset of the
-&lt;code>Prometheus&lt;/code> resource.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h3 id="seed-monitoring">Seed Monitoring&lt;/h3>
-&lt;p>There is a monitoring stack deployed for each seed cluster. A similar setup must
-also be provided using the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The steps for this are very
-similar to the shoot monitoring.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Replace the Prometheis and their configuration.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Replace the &lt;a href="https://github.com/gardener/gardener/blob/0f4d22270927e2aee8b821f858fb76162ccd8a86/charts/seed-bootstrap/templates/alertmanager/alertmanager.yaml">alertmanager&lt;/a> and its configuration.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="byomc-bring-your-own-monitoring-configuration">BYOMC (Bring your own monitoring configuration)&lt;/h3>
-&lt;ul>
-&lt;li>
-&lt;p>In general, components should bring their own monitoring configuration.
-Gardener currently does this for some components such as the
-&lt;a href="https://github.com/gardener/gardener/blob/eec37223cb90475ec3e023136a7d5ba28ad48f0d/pkg/operation/botanist/component/resourcemanager/monitoring.go">gardener-resource-manager&lt;/a>. This configuration is then appended to the
-existing Prometheus configuration. The goal is to replace the inline
-&lt;code>yaml&lt;/code> with &lt;code>PodMonitors&lt;/code> and/or &lt;code>ServiceMonitors&lt;/code> instead.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>If alerting rules or recording rules need to be created for a component,
-it can bring its own &lt;code>PrometheusRules&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The same thing can potentially be done for components such as
-kube-state-metrics which are still currently deployed via the
-[seed-bootstrap].&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>If an extension requires monitoring it must bring its own configuration in
-the form of &lt;code>PodMonitors&lt;/code>, &lt;code>ServiceMonitors&lt;/code> or &lt;code>PrometheusRules&lt;/code>.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Adding monitoring config to the control plane: In some scenarios
-extensions will add components to the controlplane that need to be
-monitored. An example of this is the provider-aws extension that
-deploys a &lt;code>cloud-controller-manager&lt;/code>. In the current setup, if an
-extension needs something to be monitored in the control plane, it
-brings its own configmap with Prometheus config. The configmap has the
-label &lt;code>extensions.gardener.cloud/configuration=monitoring&lt;/code> to specify
-that the config should be appended to the current Prometheus config.
-Below is an example of what this looks like for the cloud controller
-manager.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions.gardener.cloud/configuration: monitoring
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager-observability-config
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alerting_rules: |&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cloud-controller-manager.rules.yaml: |
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> groups:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: cloud-controller-manager.rules
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> rules:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - alert: CloudControllerManagerDown
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expr: absent(up{job=&amp;#34;cloud-controller-manager&amp;#34;} == 1)
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> for: 15m
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> labels:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> service: cloud-controller-manager
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> severity: critical
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: seed
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> visibility: all
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> description: All infrastruture specific operations cannot be completed (e.g. creating loadbalancers or persistent volumes).
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> summary: Cloud controller manager is down.&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedComponents: |&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> observedPods:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - podPrefix: cloud-controller-manager
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> isExposedToUser: true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scrape_config: |&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - job_name: cloud-controller-manager
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> scheme: https
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> tls_config:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> insecure_skip_verify: true
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> authorization:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: Bearer
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> credentials_file: /var/run/secrets/gardener.cloud/shoot/token/token
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> honor_labels: false
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kubernetes_sd_configs:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - role: endpoints
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespaces:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> names: [shoot--project--name]
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> relabel_configs:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - __meta_kubernetes_service_name
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - __meta_kubernetes_endpoint_port_name
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> action: keep
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: cloud-controller-manager;metrics
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> # common metrics
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - action: labelmap
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: __meta_kubernetes_service_label_(.+)
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels: [ __meta_kubernetes_pod_name ]
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> target_label: pod
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> metric_relabel_configs:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels: [ __name__ ]
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: ^(rest_client_requests_total|process_max_fds|process_open_fds)$
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> action: keep&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>This configmap will be split up into 2 separate resources. One for the
-&lt;code>alerting_rules&lt;/code> and another for the &lt;code>scrape_config&lt;/code>. The &lt;code>alerting_rules&lt;/code>
-should be converted into a &lt;code>PrometheusRules&lt;/code> object. Since the
-&lt;code>scrape_config&lt;/code> only has one &lt;code>job_name&lt;/code> we will only need one
-&lt;code>ServiceMonitor&lt;/code> or &lt;code>PodMonitor&lt;/code> for this. The following is an example of
-how this could be done. There are multiple ways to get the same results
-and this is just one example.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: metrics &lt;span style="color:#008000"># scrape the service port with name `metrics`&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> bearerTokenFile: /var/run/secrets/gardener.cloud/shoot/token/token &lt;span style="color:#008000"># could also be replaced with a secret&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metricRelabelings:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [ __name__ ]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(rest_client_requests_total|process_max_fds|process_open_fds)$
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: keep
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaceSelector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchNames:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: cloud-controller-manager &lt;span style="color:#008000"># discover any service with this label&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: PrometheusRule
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager-rules
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groups:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: cloud-controller-manager.rules
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - alert: CloudControllerManagerDown
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expr: absent(up{job=&amp;#34;cloud-controller-manager&amp;#34;} == 1)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> for: 15m
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service: cloud-controller-manager
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> severity: critical
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> visibility: all
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: All infrastruture specific operations cannot be completed (e.g. creating loadbalancers or persistent volumes).
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> summary: Cloud controller manager is down.
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Adding meta monitoring for the extensions: If the extensions need to be
-scraped for monitoring, the extensions must bring their own &lt;a href="https://github.com/prometheus-operator/prometheus-operator#customresourcedefinitions">Custom
-Resources&lt;/a>.&lt;/p>
-&lt;ul>
-&lt;li>Currently the contract between extensions and gardener is that
-anything that needs to be scraped must have the labels:
-&lt;code>prometheus.io/scrape=true&lt;/code> and &lt;code>prometheus.io/port=&amp;lt;port&amp;gt;&lt;/code>. This is
-defined &lt;a href="https://github.com/gardener/gardener/blob/201673c1f8a356a63b21505ca9c7f6efe725bd48/charts/seed-bootstrap/charts/monitoring/templates/config.yaml#L14-L36">here&lt;/a>. This is something that we can still
-support with a &lt;code>PodMonitor&lt;/code> that will scrape any pod in a specified
-namespace with these labels.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="grafana-sidecar">Grafana Sidecar&lt;/h3>
-&lt;p>Add a &lt;a href="https://github.com/kiwigrid/k8s-sidecar">sidecar&lt;/a> to Grafana that will pickup dashboards and provision them. Each dashboard gets its own configmap.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Grafana in the control plane&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Most dashboards provisioned by Grafana are the same for each shoot
-cluster. To avoid unnecessary duplication of configmaps, the dashboards
-could be added once in a single namespace. These &amp;ldquo;common&amp;rdquo; dashboards can
-then be discovered by each Grafana and provisioned.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>In some cases, dashboards are more &amp;ldquo;specific&amp;rdquo; because they are related to
-a certain Kubernetes version.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Contract between dashboards in configmaps and the Grafana sidecar.&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Label schema: &lt;code>monitoring.gardener.cloud/dashboard-{seed,shoot,shoot-user}=true&lt;/code>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Each common dashboard will be deployed in the &lt;code>monitoring&lt;/code> namespace
-as a configmap. If the dashboard should be provisioned by the user
-Grafana in a shoot cluster it should have the label
-&lt;code>monitoring.gardener.cloud/dashboard-shoot-user=true&lt;/code>. For dashboards
-that should be provisioned by the operator Grafana the label
-&lt;code>monitoring.gardener.cloud/dashboard-shoot=true&lt;/code> is required.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Each specific dashboard will be deployed in the shoot namespace. The
-configmap will use the same label scheme.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The Grafana &lt;a href="https://github.com/kiwigrid/k8s-sidecar">sidecar&lt;/a> must be &lt;a href="https://github.com/kiwigrid/k8s-sidecar#configuration-environment-variables">configured&lt;/a> with:&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> env:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: METHOD
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: WATCH
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: LABEL
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring.gardener.cloud/dashboard-shoot &lt;span style="color:#008000"># monitoring.gardener.cloud/dashboard-shoot-user for user Grafana&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: FOLDER
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /tmp/dashboards
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NAMESPACE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring,&amp;lt;shoot namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Grafana in the seed&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>There is also a Grafana deployed in the seed. This Grafana will be
-configured in a very similar way, except it will discover dashboards
-with a different label.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The seed Grafana can discover configmaps labeled with
-&lt;code>monitoring.gardener.cloud/dashboard-seed&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The sidecar will be configured in a similar way:&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> env:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: METHOD
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: WATCH
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: LABEL
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring.gardener.cloud/dashboard-seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: FOLDER
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /tmp/dashboards
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NAMESPACE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring,garden
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Dashboards can have multiple labels and be provisioned in a seed and/or shoot Grafana.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;h3 id="migration">Migration&lt;/h3>
-&lt;ol>
-&lt;li>Deploy the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and its custom resources.&lt;/li>
-&lt;li>Delete the old monitoring-stack.&lt;/li>
-&lt;li>Configure &lt;code>Prometheus&lt;/code> to &amp;ldquo;reuse&amp;rdquo; the &lt;code>pv&lt;/code> from the old Prometheus&amp;rsquo;s
-&lt;code>pvc&lt;/code>. An init container will be temporarily needed for this migration.
-This ensures that no data is lost and provides a clean migration.&lt;/li>
-&lt;li>Any extension or monitoring configuration that is not migrated to the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> right away will be collected and added to an &lt;code>additionalScrapeConfig&lt;/code>. Once all extensions and components have migrated, this can be dropped.&lt;/li>
-&lt;/ol>
-&lt;h2 id="alternatives">Alternatives&lt;/h2>
-&lt;ol>
-&lt;li>Continue using the current setup.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: New Core Gardener Cloud APIs</title><link>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</guid><description>
+&lt;/details></description></item><item><title>Docs: New Core Gardener Cloud APIs</title><link>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/04-new-core-gardener-cloud-apis/</guid><description>
 &lt;h1 id="new-coregardenercloudv1beta1-apis-required-to-extract-cloud-specificos-specific-knowledge-out-of-gardener-core">New &lt;code>core.gardener.cloud/v1beta1&lt;/code> APIs required to extract cloud-specific/OS-specific knowledge out of Gardener core&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>
@@ -5879,7 +5354,647 @@ This will allow us to add new roles without changing the API.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: EveryNodeReady
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &lt;span style="color:#a31515">&amp;#34;True&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: EveryNodeReady
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Reversed Cluster VPN</title><link>https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Observability Stack - Migrating to the prometheus-operator and fluent-bit operator</title><link>https://gardener.cloud/docs/gardener/proposals/19-migrating-observability-stack-to-operators/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/19-migrating-observability-stack-to-operators/</guid><description>
+&lt;h1 id="gep-19-observability-stack---migrating-to-the-prometheus-operator-and-fluent-bit-operator">GEP-19: Observability Stack - Migrating to the prometheus-operator and fluent-bit-operator&lt;/h1>
+&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="#gep-19-observability-stack---migrating-to-the-prometheus-operator-and-fluent-bit-operator">GEP-19: Observability Stack - Migrating to the prometheus-operator and fluent-bit operator&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#motivation">Motivation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#proposal">Proposal&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#api">API&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#prometheus-operator-crds">Prometheus Operator CRDs&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#shoot-monitoring">Shoot Monitoring&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#seed-monitoring">Seed Monitoring&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#byomc-bring-your-own-monitoring-configuration">BYOMC (Bring your own monitoring configuration)&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#grafana-sidecar">Grafana Sidecar&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#fluent-bit-operator-crds">Fluent-bit Operator CRDs&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#fluent-bit-filters-and-parsers">Fluent-bit filters and parsers&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#byolc-bring-your-own-logging-configuration">BYOLC (Bring your own logging configuration)&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#migration">Migration&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#alternatives">Alternatives&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="summary">Summary&lt;/h2>
+&lt;p>As Gardener has grown, the observability configurations have also evolved with it.
+Many components must be monitored and the configuration for these components
+must also be managed. This poses a challenge because the configuration is
+distributed across the Gardener project among different folders and even
+different repositories (for example extensions). While it is not possible to
+centralize the configuration, it is possible to improve the developer experience
+and improve the general stability of the monitoring and logging. This can be done by
+introducing kubernetes operators such as the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> for monitoring stack
+and &lt;a href="https://github.com/fluent/fluent-operator">fluent-bit-operator&lt;/a> for the logging stack.
+These operators will make it easier for monitoring and logging configurations to be discovered and picked up with the use of the respective custom resources:&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="https://github.com/prometheus-operator/prometheus-operator#customresourcedefinitions">Prometheus Custom Resources&lt;/a> provided by the prometheus-operator.&lt;/li>
+&lt;li>&lt;a href="https://github.com/fluent/fluent-operator/tree/master/apis/fluentbit/v1alpha2">Fluent-bit Custom Resources&lt;/a> provided by the fluent-bit-operator.&lt;/li>
+&lt;/ol>
+&lt;p>These resources can also be directly referenced in Go and be deployed by their
+respective components, instead of creating &lt;code>.yaml&lt;/code> files in Go, or templating
+charts. With the addition of the operators it should is easier to provide
+flexible deployment layouts of the components or even introduce new features,
+such as Thanos in the case of prometheus-operator&lt;/p>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>Simplify monitoring and logging updates and extensions with the use of the
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and &lt;a href="https://github.com/fluent/fluent-operator">fluent-bit-operator&lt;/a>. The current extension contract is described
+&lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/">here&lt;/a>. This document aims to define a new contract.&lt;/p>
+&lt;p>Make it easier to add new monitoring and logging features and make new changes. For example,
+when using the operators components can bring their own monitoring
+configuration and specify exactly how they should be monitored without needing
+to add this configuration directly into Prometheus. Or components can defined how their logs
+shall be parsed or enhanced before being indexed.&lt;/p>
+&lt;p>Both operators handles validation of the respective configurations. It will
+be more difficult to give Prometheus or Fluent-Bit apps an invalid config.&lt;/p>
+&lt;h3 id="goals">Goals&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>Migrate from the current monitoring stack to the prometheus-operator.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Improve the monitoring extensibility and improve developer experience when
+adding or editing configuration. This includes the monitoring extensions in
+addition to core Gardener components.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Provide a clear direction on how monitoring resources should be managed.
+Currently, there are many ways that monitoring configuration is being deployed
+and this should be unified.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Improve how dashboards are discovered and provisioned for Grafana. Currently,
+all dashboards are appended into a single configmap. This can be an issue if
+the maximum configmap size of 1MiB is ever exceeded.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Migrate the life-cycle of log shippers to an operator.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Introduce a stable, declarative API for defining filters and parsers for gardener
+core components and extensions.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Full match of the current log shippers configurations in gardener&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="non-goals">Non-Goals&lt;/h3>
+&lt;ul>
+&lt;li>Feature parity between the current solution and the one proposed in this GEP.
+The new stack should provide similar monitoring coverage, but it will be very
+difficult to evaluate if there is feature parity. Perhaps some features will
+be missing, but others may be added.&lt;/li>
+&lt;/ul>
+&lt;h2 id="proposal">Proposal&lt;/h2>
+&lt;p>Today, Gardener provides monitoring and logging for shoot clusters (i.e. system components
+and the control plane) and for the seed cluster. The proposal is to migrate
+these stacks to use the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and &lt;a href="https://github.com/fluent/fluent-operator">fluent-bit-operator&lt;/a>.
+The proposal is lined out below:&lt;/p>
+&lt;h3 id="api">API&lt;/h3>
+&lt;p>Use the &lt;a href="https://github.com/prometheus-operator/prometheus-operator/tree/main/pkg/apis/monitoring">API&lt;/a> provided by the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and create Go structs.&lt;/p>
+&lt;h3 id="prometheus-operator-crds">Prometheus Operator CRDs&lt;/h3>
+&lt;p>Deploy the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and its CRDs. These components can be deployed
+via &lt;code>ManagedResources&lt;/code>. The operator itself and some other components outlined
+in the GEP will be deployed in a new namespace called &lt;code>monitoring&lt;/code>. The CRDs for
+the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and the operator itself can be found
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/bundle.yaml">here&lt;/a>. This step is a prerequisite for all other steps.&lt;/p>
+&lt;h3 id="shoot-monitoring">Shoot Monitoring&lt;/h3>
+&lt;p>Gardener will create a monitoring stack similar to the current one with the
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> custom resources.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Most of the shoot monitoring is deployed via this
+&lt;a href="https://github.com/gardener/gardener/tree/master/charts/seed-monitoring/charts">chart&lt;/a>. The goal is to create a similar stack, but not
+necessarily with feature parity, using the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>An example Prometheus object that would be deployed in a shoot&amp;rsquo;s
+control plane.&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Prometheus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: prometheus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: prometheus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enableAdminAPI: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logFormat: logfmt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logLevel: info
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: image:tag
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> paused: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> portName: web
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> retention: 30d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> routePrefix: /
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceAccountName: prometheus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceMonitorNamespaceSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podMonitorNamespaceSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ruleNamespaceSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: kubernetes.io/metadata.name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: In
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceMonitorSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podMonitorSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeClaimTemplate:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> accessModes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ReadWriteOnce
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage: 20Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: v2.35.0
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Contract between the shoot &lt;code>Prometheus&lt;/code> and its configuration.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>Prometheus&lt;/code> can discover &lt;code>*Monitors&lt;/code> in different namespaces and also
+by using labels.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In some cases, specific configuration is required (e.g. specific
+configuration due to K8s versions). In this case, the configuration will
+also be deployed in the shoot&amp;rsquo;s namespace and Prometheus will also be able
+to discover this configuration.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Prometheus must also distinguish between &lt;code>*Monitors&lt;/code> relevant for shoot
+control plane and shoot targets. This can be done with a
+&lt;code>serviceMonitorSelector&lt;/code> and &lt;code>podMonitorSelector&lt;/code> where
+&lt;code>monitoring.gardener.cloud/monitoring-target=shoot-control-plane&lt;/code>. For a
+&lt;code>ServiceMonitor&lt;/code> it would look like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>serviceMonitorSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>In addition to a Prometheus, the configuration must also be created. To
+do this, each &lt;code>job&lt;/code> in the Prometheus configuration will need to be
+replaced with either a &lt;code>ServiceMonitor&lt;/code>, &lt;code>PodMonitor&lt;/code>, or &lt;code>Probe&lt;/code>. This
+&lt;code>ServiceMonitor&lt;/code> will be picked up by the Prometheus defined in the
+previous step. This &lt;code>ServiceMonitor&lt;/code> will scrape any
+service that has the label &lt;code>app=prometheus&lt;/code> on the port called &lt;code>metrics&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> monitoring.gardener.cloud/monitoring-target: shoot-control-plane
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: prometheus-job
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: metrics
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: prometheus
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Prometheus needs to discover targets running in the shoot cluster.
+Normally, this is done by changing the &lt;code>api_server&lt;/code> field in the config
+(&lt;a href="https://github.com/gardener/gardener/blob/0f4d22270927e2aee8b821f858fb76162ccd8a86/charts/seed-monitoring/charts/core/charts/prometheus/templates/config.yaml#L311">example&lt;/a>). This is currently not possible with the
+prometheus-operator, but there is an open &lt;a href="https://github.com/prometheus-operator/prometheus-operator/issues/4828">issue&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Preferred approach: A second Prometheus can be created that is running
+in &lt;a href="https://prometheus.io/blog/2021/11/16/agent/">agent mode&lt;/a>. This Prometheus can also be deployed/managed by the
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The agent Prometheus can be configured to use
+the API Server for the shoot cluster and use service discovery in the
+shoot. The metrics can then be written via remote write to the
+&amp;ldquo;normal&amp;rdquo; Prometheus or federated. This Prometheus will also discover
+configuration in the same way as the other Prometheus with 1
+difference. Instead of discovering configuration with the label
+&lt;code>monitoring.gardener.cloud/monitoring-target=shoot-control-plane&lt;/code> it will find configuration
+with the label &lt;code>monitoring.gardener.cloud/monitoring-target=shoot&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Alternative: Use &lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/additional-scrape-config.md">additional scrape config&lt;/a>. In this case, the
+Prometheus config snippet is put into a secret and the
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> will append it to the config. The downside here is
+that it is only possible to have 1 &lt;code>additional-scrape-config&lt;/code> per
+Prometheus. This could be an issue if multiple components will need to
+use this.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Deploy an optional &lt;a href="https://github.com/gardener/gardener/tree/master/charts/seed-monitoring/charts/alertmanager">alertmanager&lt;/a> that is deployed
+whenever the end-user &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/#alerting-for-users">specifies&lt;/a> alerting.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Create an &lt;code>Alertmanager&lt;/code> resource&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Create the &lt;code>AlertmanagerConfig&lt;/code>&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Health checks - The gardenlet periodically checks the status of the
+Prometheus &lt;code>StatefulSet&lt;/code> among other components in the shoot care
+controller. The gardenlet knows which component to check based on labels.
+Since the gardenlet is no longer deploying the &lt;code>StatefulSet&lt;/code> directly and
+rather a &lt;code>Prometheus&lt;/code> resource, it does not know which labels are
+attached to the Prometheus &lt;code>StatefulSet&lt;/code>. However, the
+&lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> will create &lt;code>StatefulSets&lt;/code> with the same labelset
+that the &lt;code>Prometheus&lt;/code> resource has. The gardenlet will be able to
+discover the &lt;code>StatefulSet&lt;/code> because it knows the labelset of the
+&lt;code>Prometheus&lt;/code> resource.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="seed-monitoring">Seed Monitoring&lt;/h3>
+&lt;p>There is a monitoring stack deployed for each seed cluster. A similar setup must
+also be provided using the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a>. The steps for this are very
+similar to the shoot monitoring.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Replace the Prometheis and their configuration.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Replace the &lt;a href="https://github.com/gardener/gardener/blob/0f4d22270927e2aee8b821f858fb76162ccd8a86/charts/seed-bootstrap/templates/alertmanager/alertmanager.yaml">alertmanager&lt;/a> and its configuration.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="byomc-bring-your-own-monitoring-configuration">BYOMC (Bring your own monitoring configuration)&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>In general, components should bring their own monitoring configuration.
+Gardener currently does this for some components such as the
+&lt;a href="https://github.com/gardener/gardener/blob/eec37223cb90475ec3e023136a7d5ba28ad48f0d/pkg/operation/botanist/component/resourcemanager/monitoring.go">gardener-resource-manager&lt;/a>. This configuration is then appended to the
+existing Prometheus configuration. The goal is to replace the inline
+&lt;code>yaml&lt;/code> with &lt;code>PodMonitors&lt;/code> and/or &lt;code>ServiceMonitors&lt;/code> instead.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If alerting rules or recording rules need to be created for a component,
+it can bring its own &lt;code>PrometheusRules&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The same thing can potentially be done for components such as
+kube-state-metrics which are still currently deployed via the
+[seed-bootstrap].&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If an extension requires monitoring it must bring its own configuration in
+the form of &lt;code>PodMonitors&lt;/code>, &lt;code>ServiceMonitors&lt;/code> or &lt;code>PrometheusRules&lt;/code>.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Adding monitoring config to the control plane: In some scenarios
+extensions will add components to the controlplane that need to be
+monitored. An example of this is the provider-aws extension that
+deploys a &lt;code>cloud-controller-manager&lt;/code>. In the current setup, if an
+extension needs something to be monitored in the control plane, it
+brings its own configmap with Prometheus config. The configmap has the
+label &lt;code>extensions.gardener.cloud/configuration=monitoring&lt;/code> to specify
+that the config should be appended to the current Prometheus config.
+Below is an example of what this looks like for the cloud controller
+manager.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions.gardener.cloud/configuration: monitoring
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager-observability-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alerting_rules: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cloud-controller-manager.rules.yaml: |
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> groups:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: cloud-controller-manager.rules
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> rules:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - alert: CloudControllerManagerDown
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expr: absent(up{job=&amp;#34;cloud-controller-manager&amp;#34;} == 1)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> for: 15m
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> labels:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> service: cloud-controller-manager
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> severity: critical
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: seed
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> visibility: all
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> description: All infrastruture specific operations cannot be completed (e.g. creating loadbalancers or persistent volumes).
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> summary: Cloud controller manager is down.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedComponents: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> observedPods:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - podPrefix: cloud-controller-manager
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> isExposedToUser: true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scrape_config: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - job_name: cloud-controller-manager
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> scheme: https
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> tls_config:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> insecure_skip_verify: true
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> authorization:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: Bearer
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> credentials_file: /var/run/secrets/gardener.cloud/shoot/token/token
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> honor_labels: false
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kubernetes_sd_configs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - role: endpoints
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespaces:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> names: [shoot--project--name]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> relabel_configs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - __meta_kubernetes_service_name
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - __meta_kubernetes_endpoint_port_name
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> action: keep
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: cloud-controller-manager;metrics
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> # common metrics
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - action: labelmap
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: __meta_kubernetes_service_label_(.+)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels: [ __meta_kubernetes_pod_name ]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> target_label: pod
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> metric_relabel_configs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - source_labels: [ __name__ ]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> regex: ^(rest_client_requests_total|process_max_fds|process_open_fds)$
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> action: keep&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>This configmap will be split up into 2 separate resources. One for the
+&lt;code>alerting_rules&lt;/code> and another for the &lt;code>scrape_config&lt;/code>. The &lt;code>alerting_rules&lt;/code>
+should be converted into a &lt;code>PrometheusRules&lt;/code> object. Since the
+&lt;code>scrape_config&lt;/code> only has one &lt;code>job_name&lt;/code> we will only need one
+&lt;code>ServiceMonitor&lt;/code> or &lt;code>PodMonitor&lt;/code> for this. The following is an example of
+how this could be done. There are multiple ways to get the same results
+and this is just one example.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: metrics &lt;span style="color:#008000"># scrape the service port with name `metrics`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> bearerTokenFile: /var/run/secrets/gardener.cloud/shoot/token/token &lt;span style="color:#008000"># could also be replaced with a secret&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [ __name__ ]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(rest_client_requests_total|process_max_fds|process_open_fds)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaceSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchNames:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: cloud-controller-manager &lt;span style="color:#008000"># discover any service with this label&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: PrometheusRule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cloud-controller-manager-rules
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groups:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: cloud-controller-manager.rules
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - alert: CloudControllerManagerDown
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expr: absent(up{job=&amp;#34;cloud-controller-manager&amp;#34;} == 1)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> for: 15m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service: cloud-controller-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> severity: critical
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> visibility: all
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: All infrastruture specific operations cannot be completed (e.g. creating loadbalancers or persistent volumes).
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> summary: Cloud controller manager is down.
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Adding meta monitoring for the extensions: If the extensions need to be
+scraped for monitoring, the extensions must bring their own &lt;a href="https://github.com/prometheus-operator/prometheus-operator#customresourcedefinitions">Custom
+Resources&lt;/a>.&lt;/p>
+&lt;ul>
+&lt;li>Currently the contract between extensions and gardener is that
+anything that needs to be scraped must have the labels:
+&lt;code>prometheus.io/scrape=true&lt;/code> and &lt;code>prometheus.io/port=&amp;lt;port&amp;gt;&lt;/code>. This is
+defined &lt;a href="https://github.com/gardener/gardener/blob/201673c1f8a356a63b21505ca9c7f6efe725bd48/charts/seed-bootstrap/charts/monitoring/templates/config.yaml#L14-L36">here&lt;/a>. This is something that we can still
+support with a &lt;code>PodMonitor&lt;/code> that will scrape any pod in a specified
+namespace with these labels.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="grafana-sidecar">Grafana Sidecar&lt;/h3>
+&lt;p>Add a &lt;a href="https://github.com/kiwigrid/k8s-sidecar">sidecar&lt;/a> to Grafana that will pickup dashboards and provision them. Each dashboard gets its own configmap.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Grafana in the control plane&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Most dashboards provisioned by Grafana are the same for each shoot
+cluster. To avoid unnecessary duplication of configmaps, the dashboards
+could be added once in a single namespace. These &amp;ldquo;common&amp;rdquo; dashboards can
+then be discovered by each Grafana and provisioned.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In some cases, dashboards are more &amp;ldquo;specific&amp;rdquo; because they are related to
+a certain Kubernetes version.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Contract between dashboards in configmaps and the Grafana sidecar.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Label schema: &lt;code>monitoring.gardener.cloud/dashboard-{seed,shoot,shoot-user}=true&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Each common dashboard will be deployed in the &lt;code>monitoring&lt;/code> namespace
+as a configmap. If the dashboard should be provisioned by the user
+Grafana in a shoot cluster it should have the label
+&lt;code>monitoring.gardener.cloud/dashboard-shoot-user=true&lt;/code>. For dashboards
+that should be provisioned by the operator Grafana the label
+&lt;code>monitoring.gardener.cloud/dashboard-shoot=true&lt;/code> is required.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Each specific dashboard will be deployed in the shoot namespace. The
+configmap will use the same label scheme.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The Grafana &lt;a href="https://github.com/kiwigrid/k8s-sidecar">sidecar&lt;/a> must be &lt;a href="https://github.com/kiwigrid/k8s-sidecar#configuration-environment-variables">configured&lt;/a> with:&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> env:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: METHOD
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: WATCH
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: LABEL
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring.gardener.cloud/dashboard-shoot &lt;span style="color:#008000"># monitoring.gardener.cloud/dashboard-shoot-user for user Grafana&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: FOLDER
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /tmp/dashboards
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NAMESPACE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring,&amp;lt;shoot namespace&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Grafana in the seed&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>There is also a Grafana deployed in the seed. This Grafana will be
+configured in a very similar way, except it will discover dashboards
+with a different label.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The seed Grafana can discover configmaps labeled with
+&lt;code>monitoring.gardener.cloud/dashboard-seed&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The sidecar will be configured in a similar way:&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> env:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: METHOD
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: WATCH
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: LABEL
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring.gardener.cloud/dashboard-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: FOLDER
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /tmp/dashboards
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NAMESPACE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: monitoring,garden
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Dashboards can have multiple labels and be provisioned in a seed and/or shoot Grafana.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="fluent-bit-operator-crds">Fluent-bit Operator CRDs&lt;/h3>
+&lt;p>The fluent-bit operator oversees two types for resources:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;code>FluentBit&lt;/code> resource defining the properties of the fluent-bit deamonset.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>ClusterInputs&lt;/code>, &lt;code>ClusterOutputs&lt;/code>, &lt;code>ClusterFilters&lt;/code> and &lt;code>ClusterParsers&lt;/code> defining the fluent-but app configuration.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>FluentBit&lt;/code> custom resource&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: FluentBit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: fluent-bit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app.kubernetes.io/name: fluent-bit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: kubesphere/fluent-bit:v1.9.9
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentBitConfigName: fluent-bit-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># workload properties&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeSelector: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tolerations: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> priorityClassName: &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># fluent-bit configurations&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># container runtime output path&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerLogRealPath: &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Recommended in case of input tail plugin&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># holds persisted events in fluent-bit supporting re-emitting&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> positionDB: {}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;a href="https://github.com/fluent/fluent-operator/blob/4b984f7c9440119ebacc2c31b8ec376bfd0d63c4/apis/fluentbit/v1alpha2/fluentbit_types.go#L31">fluent-bit-resource&lt;/a> carries the usual kubernetes workload properties,
+such as resource definitions, node selectors, pod/node affinity and so on. The sole purpose
+is to construct the &lt;a href="https://github.com/fluent/fluent-operator/blob/4b984f7c9440119ebacc2c31b8ec376bfd0d63c4/pkg/operator/daemonset.go#L13">fluent-bit-daemonset&lt;/a> spec managing the fluent-bit application instances
+on the cluster nodes.&lt;/p>
+&lt;p>The upstream project has been enhanced by Gardener and now it supports adding fluent-bit custom plugins.
+The latter is required by Gardener to mainting the custom &lt;code>ordering&lt;/code> plugin.
+In its current state, the fluent-bit operator can be used by Gardener &amp;ldquo;as is&amp;rdquo;. without the need of forking it.&lt;/p>
+&lt;h3 id="fluent-bit-filters-and-parsers">Fluent-bit filters and parsers&lt;/h3>
+&lt;p>The second major function of the fluent-bit operator is to compile a valid application configuration aggregating declarations supplied by fluent-bit custom resources such as ClusterFitlers, ClusterParsers and so on as shown by the example.&lt;/p>
+&lt;ol>
+&lt;li>Fluent-Bit Inputs, Outputs, Filters and Parsers&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterFluentBitConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: fluent-bit-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app.kubernetes.io/name: fluent-bit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> parsersFile: parsers.conf
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filterSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.fluent.io/enabled: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> parserSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.fluent.io/enabled: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterFilter
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: parser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.fluent.io/enabled: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match: &lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - parser:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> keyName: log
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> parser: my-regex
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterParser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-regex
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.fluent.io/enabled: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeKey: time
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeFormat: &lt;span style="color:#a31515">&amp;#34;%d/%b/%Y:%H:%M:%S %z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> types: &lt;span style="color:#a31515">&amp;#34;code:integer size:integer&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: &lt;span style="color:#a31515">&amp;#39;^(?&amp;lt;host&amp;gt;[^ ]*) [^ ]* (?&amp;lt;user&amp;gt;[^ ]*) \[(?&amp;lt;time&amp;gt;[^\]]*)\] &amp;#34;(?&amp;lt;method&amp;gt;\S+)(?: +(?&amp;lt;path&amp;gt;[^\&amp;#34;]*?)(?: +\S*)?)?&amp;#34; (?&amp;lt;code&amp;gt;[^ ]*) (?&amp;lt;size&amp;gt;[^ ]*)(?: &amp;#34;(?&amp;lt;referer&amp;gt;[^\&amp;#34;]*)&amp;#34; &amp;#34;(?&amp;lt;agent&amp;gt;[^\&amp;#34;]*)&amp;#34;)?$&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this example, we have a fluent bit &lt;a href="https://docs.fluentbit.io/manual/pipeline/filters/parser">filter-plugin&lt;/a> of type parser and the corresponding &lt;a href="https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression">regex-parser&lt;/a>. In the Gardener context, these configuration resources are supplied by the core components and extensions.&lt;/p>
+&lt;h3 id="byolc-bring-your-own-logging-configuration">BYOLC (Bring your own logging configuration)&lt;/h3>
+&lt;p>Since fluent-bit uses &lt;a href="https://docs.fluentbit.io/manual/pipeline/inputs/tail">input-tail&lt;/a> plugin and reads any container output under &lt;code>/var/log/pods&lt;/code> it processes logs outputs of all workloads. In this case, any workload may bring its own set of filters and parsers if needed using the declarative APIs supported by the operator.&lt;/p>
+&lt;h3 id="migration">Migration&lt;/h3>
+&lt;h4 id="prometheus-operator">Prometheus Operator&lt;/h4>
+&lt;ol>
+&lt;li>Deploy the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> and its custom resources.&lt;/li>
+&lt;li>Delete the old monitoring-stack.&lt;/li>
+&lt;li>Configure &lt;code>Prometheus&lt;/code> to &amp;ldquo;reuse&amp;rdquo; the &lt;code>pv&lt;/code> from the old Prometheus&amp;rsquo;s
+&lt;code>pvc&lt;/code>. An init container will be temporarily needed for this migration.
+This ensures that no data is lost and provides a clean migration.&lt;/li>
+&lt;li>Any extension or monitoring configuration that is not migrated to the &lt;a href="https://github.com/prometheus-operator/prometheus-operator">prometheus-operator&lt;/a> right away will be collected and added to an &lt;code>additionalScrapeConfig&lt;/code>. Once all extensions and components have migrated, this can be dropped.&lt;/li>
+&lt;/ol>
+&lt;h4 id="fluent-bit-operator">Fluent-bit Operator&lt;/h4>
+&lt;ol>
+&lt;li>Add fluent-bit operator CRDs in Gardener&lt;/li>
+&lt;li>Add &lt;code>ClusterFilters&lt;/code> and &lt;code>ClusterParsers&lt;/code> resources in all extensions which are deploying ConfigMap with label: &lt;code>extensions.gardener.cloud/configuration: logging&lt;/code>&lt;/li>
+&lt;li>Add the Fluent operator in Gardener in place of fluent-bit&lt;/li>
+&lt;/ol>
+&lt;h2 id="alternatives">Alternatives&lt;/h2>
+&lt;ol>
+&lt;li>Continue using the current setup.&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Reversed Cluster VPN</title><link>https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/</guid><description>
 &lt;h1 id="gep-14-reversed-cluster-vpn">GEP-14: Reversed Cluster VPN&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>

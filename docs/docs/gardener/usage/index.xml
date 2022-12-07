@@ -1460,7 +1460,38 @@ For more information on how this is achieved, please have a look at the followin
 In the dataplane of the cluster, the &lt;code>vpn-shoot&lt;/code> will establish the connection to the &lt;code>vpn-seed-server&lt;/code> indirectly using the SNI API Server endpoint as a http proxy. After the connection has been established requests from the &lt;code>kube-apiserver&lt;/code> will be handled by the tunnel.&lt;/p>
 &lt;blockquote>
 &lt;p>Please note this feature is still in Beta, so you might see instabilities every now and then.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Seed Bootstrapping</title><link>https://gardener.cloud/docs/gardener/usage/seed_bootstrapping/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/seed_bootstrapping/</guid><description>
+&lt;/blockquote>
+&lt;h2 id="high-availability-for-reversed-vpn-tunnel">High Availability for Reversed VPN Tunnel&lt;/h2>
+&lt;p>Shoots which define &lt;code>spec.controlPlane.highAvailability.failureTolerance: {node, zone}&lt;/code> get an HA control-plane including a
+highly available VPN connection by deploying redundant VPN servers and clients.&lt;/p>
+&lt;p>Please note that it is not possible to move an open connection to another VPN tunnel. Especially long-running
+commands like &lt;code>kubectl exec -it ...&lt;/code> or &lt;code>kubectl logs -f ...&lt;/code> will still break if the routing path must be switched
+because either VPN server or client are not reachable anymore. New request should be possible within seconds.&lt;/p>
+&lt;h3 id="ha-architecture-for-vpn">HA Architecture for VPN&lt;/h3>
+&lt;p>Establishing a connection from the VPN client on the shoot to the server in the control plane works nearly the same
+way as in the non-HA case. The only difference is that the VPN client targets one of two VPN servers, represented by two services
+&lt;code>vpn-seed-server-0&lt;/code> and &lt;code>vpn-seed-server-1&lt;/code> with endpoints in pods with the same name.
+The VPN tunnel is used by a &lt;code>kube-apiserver&lt;/code> to reach nodes, services, or pods in the shoot cluster.
+In the non-HA case, a kube-apiserver uses an HTTP proxy running as a side-car in the VPN server to address
+the shoot networks via the VPN tunnel and the &lt;code>vpn-shoot&lt;/code> acts as a router.
+In the HA case, the setup is more complicated. Instead of an HTTP proxy in the VPN server, the kube-apiserver has
+additional side-cars. One side-car for each VPN client to connect to the corresponding VPN server.
+On the shoot side, there are now two &lt;code>vpn-shoot&lt;/code> pods, each with two VPN clients for each VPN server.
+With this setup, there would be four possible routes, but only one can be used. Switching the route kills all
+open connections. Therefore, another layer is introduced: link aggregation, also named &lt;a href="https://www.kernel.org/doc/Documentation/networking/bonding.txt">bonding&lt;/a>.
+In Linux, you can create a network link by using several other links as slaves. Bonding is here used with
+active-backup mode. This means the traffic only goes through the active sublink and is only changed if the active one
+becomes unavailable. Switching happens in the bonding network driver without changing any routes. So with this layer,
+vpn-seed-server pods can be rolled without disrupting open connections.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/vpn-ha-architecture_2f71aa.png" alt="VPN HA Architecture">&lt;/p>
+&lt;p>With bonding, there are 2 possible routing paths, ensuring that there is at least one routing path intact even if
+one &lt;code>vpn-seed-server&lt;/code> pod and one &lt;code>vpn-shoot&lt;/code> pod are unavailable at the same time.&lt;/p>
+&lt;p>As it is not possible to use multi-path routing, one routing path must be configured explicitly.
+For this purpose, the &lt;code>path-controller&lt;/code> script is running in another side-car of the kube-apiserver pod.
+It pings all shoot-side VPN clients regularly every few seconds. If the active routing path is not responsive anymore,
+the routing is switched to the other responsive routing path.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/vpn-ha-routing-paths_aa0d8d.png" alt="Four possible routing paths">&lt;/p>
+&lt;p>For general information about HA control-plane see &lt;a href="https://gardener.cloud/docs/gardener/proposals/20-ha-control-planes/">GEP-20&lt;/a>.&lt;/p></description></item><item><title>Docs: Seed Bootstrapping</title><link>https://gardener.cloud/docs/gardener/usage/seed_bootstrapping/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/seed_bootstrapping/</guid><description>
 &lt;h1 id="seed-bootstrapping">Seed Bootstrapping&lt;/h1>
 &lt;p>Whenever the Gardenlet is responsible for a new &lt;code>Seed&lt;/code> resource its &amp;ldquo;seed controller&amp;rdquo; is being activated.
 One part of this controller&amp;rsquo;s reconciliation logic is deploying certain components into the &lt;code>garden&lt;/code> namespace of the seed cluster itself.

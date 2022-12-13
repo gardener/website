@@ -1853,7 +1853,110 @@ working effectively inside the remote-local-setup pod.&lt;/p>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The port forward in the remote-local-setup pod to the respective component:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>k port-forward -n shoot--local--local deployment/grafana-operators 3000
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="further-reading">Further reading&lt;/h2>
-&lt;p>This setup makes use of the local provider extension. You can read more about it in &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">this document&lt;/a>.&lt;/p></description></item><item><title>Docs: Image Vector</title><link>https://gardener.cloud/docs/gardener/deployment/image_vector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/image_vector/</guid><description>
+&lt;p>This setup makes use of the local provider extension. You can read more about it in &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">this document&lt;/a>.&lt;/p></description></item><item><title>Docs: Getting Started Locally With Extensions</title><link>https://gardener.cloud/docs/gardener/deployment/getting_started_locally_with_extensions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/getting_started_locally_with_extensions/</guid><description>
+&lt;h1 id="deploying-gardener-locally-and-enabling-provider-extensions">Deploying Gardener locally and enabling provider-extensions&lt;/h1>
+&lt;p>This document will walk you through deploying Gardener on your local machine and bootstrapping your own seed clusters on an existing Kubernetes cluster.
+It is supposed to run your local Gardener developments on a real infrastructure. For running Gardener only entirely local, please check the &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/">getting started locally&lt;/a> docs.
+If you encounter difficulties, please open an issue so that we can make this process easier.&lt;/p>
+&lt;p>Gardener runs in any Kubernetes cluster.
+In this guide, we will start a &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster which is used as garden cluster. Any Kubernetes cluster could be used as seed clusters in order to support provider extensions (please refer to the &lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">architecture overview&lt;/a>). This guide is tested for using Kubernetes Clusters provided by Gardener, AWS, Azure and GCP as seed so far.&lt;/p>
+&lt;p>Based on &lt;a href="https://skaffold.dev/">Skaffold&lt;/a>, the container images for all required components will be built and deployed into the clusters (via their &lt;a href="https://helm.sh/">Helm charts&lt;/a>).&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/getting_started_locally_with_extensions_41f6e9.png" alt="Architecture Diagram">&lt;/p>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;ul>
+&lt;li>Make sure that you have prepared your setup and checked out Gardener sources as described by the &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup/">Local Setup guide&lt;/a>.&lt;/li>
+&lt;li>Make sure your Docker daemon is up-to-date, up and running and has enough resources (at least &lt;code>8&lt;/code> CPUs and &lt;code>8Gi&lt;/code> memory; see &lt;a href="https://docs.docker.com/desktop/settings/mac/">here&lt;/a> how to configure the resources for Docker for Mac).
+&lt;blockquote>
+&lt;p>Additionally, please configure at least &lt;code>120Gi&lt;/code> of disk size for the Docker daemon.
+Tip: With &lt;code>docker system df&lt;/code> and &lt;code>docker system prune -a&lt;/code> you can clean up unused data.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>Make sure that you have access to a Kubernetes cluster you can use as a seed cluster in this setup.
+&lt;ul>
+&lt;li>The seed cluster requires at least 16 CPUs in total to run one shoot cluster&lt;/li>
+&lt;li>You could use any Kubernetes cluster for your seed cluster. However, using a Gardener shoot cluster for your seed simplifies some configuration steps.&lt;/li>
+&lt;li>When bootstrapping &lt;code>gardenlet&lt;/code> to the cluster your new seed will have the same provider type as the shoot cluster you use - an AWS shoot will become an AWS seed, an GCP shoot will become an GCP seed etc. (only relevant when using a Gardener shoot as seed).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="provide-infrastructure-credentials-and-configuration">Provide Infrastructure Credentials And Configuration&lt;/h2>
+&lt;p>As this setup is running on a real infrastructure, you have to provide credentials for DNS, the infrastructure and the kubeconfig for Gardener cluster you want to use as seed.&lt;/p>
+&lt;blockquote>
+&lt;p>There are &lt;code>.gitignore&lt;/code> entries for all files and directories which include credentials. Nevertheless, please double check and make sure that credentials are not commited.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="dns">DNS&lt;/h3>
+&lt;p>Gardener control plane requires DNS for default and internal domains. Thus, you have to configure a valid DNS provider for your setup.&lt;/p>
+&lt;p>Please maintain your DNS provider configuration and credentials at &lt;code>./example/provider-extensions/garden/controlplane/values.yaml&lt;/code>.&lt;/p>
+&lt;p>You can find a template for the file at &lt;code>./example/provider-extensions/garden/controlplane/values.yaml.tmpl&lt;/code>.&lt;/p>
+&lt;h3 id="infrastructure">Infrastructure&lt;/h3>
+&lt;p>Infrastructure secrets and the corresponding secret bindings should be maintained at:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>./example/provider-extensions/garden/project/credentials/infrastructure-secrets.yaml&lt;/code>&lt;/li>
+&lt;li>&lt;code>./example/provider-extensions/garden/project/credentials/secretbindings.yaml&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>There are templates with &lt;code>.tmpl&lt;/code> suffixes for the files in the same folder.&lt;/p>
+&lt;h3 id="seed-cluster-preparation">Seed Cluster Preparation&lt;/h3>
+&lt;p>The &lt;code>kubeconfig&lt;/code> of your Kubernetes cluster you would like to use as seed should be placed at &lt;code>./example/provider-extensions/seed/kubeconfig&lt;/code>.
+Additionally, please maintain the configuration of your seed in &lt;code>./example/provider-extensions/gardenlet/values.yaml&lt;/code>. It is automatically copied from &lt;code>values.yaml.tmpl&lt;/code> in the same directory when you run &lt;code>make gardener-extensions-up&lt;/code> for the first time. It also includes explanations of the properties you should set.&lt;/p>
+&lt;p>Using a Gardener cluster as seed simplifies the process, because some configuration options can be taken from &lt;code>shoot-info&lt;/code> and creating DNS entries and TLS certificates is automated.&lt;/p>
+&lt;p>However, you can use different Kubernetes clusters for your seed too and configure these things manually. Please configure the options of &lt;code>./example/provider-extensions/gardenlet/values.yaml&lt;/code> upfront. For configuring DNS and TLS certificates, &lt;code>make gardener-extensions-up&lt;/code> , which is explained later, will pause and tell you what to do.&lt;/p>
+&lt;h3 id="external-controllers">External Controllers&lt;/h3>
+&lt;p>You might plan to deploy and register external controllers for networking, operating system, providers, etc.. Please put &lt;code>ControllerDeployment&lt;/code>s and &lt;code>ControllerRegistration&lt;/code>s into &lt;code>./example/provider-extensions/garden/controllerregistrations&lt;/code> directory. The whole content of this folder will be applied to your KinD cluster.&lt;/p>
+&lt;h3 id="cloudprofiles">&lt;code>CloudProfile&lt;/code>s&lt;/h3>
+&lt;p>There are no demo &lt;code>CloudProfiles&lt;/code> yet. Thus, please copy &lt;code>CloudProfiles&lt;/code> from another landscape to &lt;code>./example/provider-extensions/garden/cloudprofiles&lt;/code> directory or create your own &lt;code>CloudProfiles&lt;/code> based on the &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">gardener examples&lt;/a>. Please check the GitHub repository of your desired provider-extension. Most of them include example &lt;code>CloudProfile&lt;/code>s. All files you place in this folder will be applied to your KinD cluster.&lt;/p>
+&lt;h2 id="setting-up-the-kind-cluster">Setting Up The KinD Cluster&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-extensions-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local&lt;/code> and stores the kubeconfig in the &lt;code>./example/gardener-local/kind/extensions/kubeconfig&lt;/code> file.&lt;/p>
+&lt;blockquote>
+&lt;p>It might be helpful to copy this file to &lt;code>$HOME/.kube/config&lt;/code> since you will need to target this KinD cluster multiple times.
+Alternatively, make sure to set your &lt;code>KUBECONFIG&lt;/code> environment variable to &lt;code>./example/gardener-local/kind/extensions/kubeconfig&lt;/code> for all future steps via &lt;code>export KUBECONFIG=$PWD/example/gardener-local/kind/extensions/kubeconfig&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;p>All following steps assume that you are using this kubeconfig.&lt;/p>
+&lt;p>Additionally, this command deploys a local container registry to the cluster as well as a few registry mirrors that are set up as a pull-through cache for all upstream registries Gardener uses by default.
+This is done to speed up image pulls across local clusters.
+The local registry can be accessed as &lt;code>localhost:5001&lt;/code> for pushing and pulling.
+The storage directories of the registries are mounted to your machine under &lt;code>dev/local-registry&lt;/code>.
+With this, mirrored images don&amp;rsquo;t have to be pulled again after recreating the cluster.&lt;/p>
+&lt;p>The command also deploys a default &lt;a href="https://github.com/projectcalico/calico">calico&lt;/a> installation as the cluster&amp;rsquo;s CNI implementation with &lt;code>NetworkPolicy&lt;/code> support (the default &lt;code>kindnet&lt;/code> CNI doesn&amp;rsquo;t provide &lt;code>NetworkPolicy&lt;/code> support).
+Furthermore, it deploys the &lt;a href="https://github.com/kubernetes-sigs/metrics-server">metrics-server&lt;/a> in order to support HPA and VPA on the seed cluster.&lt;/p>
+&lt;h2 id="setting-up-gardener-garden-on-kind-seed-on-gardener-cluster">Setting Up Gardener (Garden on KinD, Seed on Gardener Cluster)&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-extensions-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will first prepare the basic configuration of your KinD and Gardener clusters.
+Afterwards, the images for the Garden cluster are built and deployed into the KinD cluster.
+Finally, the images for the Seed cluster are built, pushed to a container registry on the Seed and the &lt;code>gardenlet&lt;/code> is started.&lt;/p>
+&lt;h2 id="pause-and-unpause-the-kind-cluster">Pause And Unpause The KinD Cluster&lt;/h2>
+&lt;p>The KinD cluster can be paused by stopping and keeping its docker container. This can be done by running:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-extensions-down
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When you run &lt;code>make kind-extensions-up&lt;/code> again, you will start the docker container with your previous Gardener configuration again.&lt;/p>
+&lt;p>This provides the option to switch off your local KinD cluster fast without leaving orphaned infrastructure elements behind.&lt;/p>
+&lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
+&lt;p>You can wait for the &lt;code>Seed&lt;/code> to be ready by running&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=gardenletready seed provider-extensions --timeout=5m
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>make kind-extensions-up&lt;/code> already includes such a check. However, it might be useful when you wake up your &lt;code>Seed&lt;/code> from hibernation or unpause you KinD cluster.&lt;/p>
+&lt;p>Alternatively, you can run &lt;code>kubectl get seed provider-extensions&lt;/code> and wait for the &lt;code>STATUS&lt;/code> to indicate readiness:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>provider-extensions Ready gcp europe-west1 111m v1.61.0-dev v1.24.7
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to create a first shoot cluster, please create your own &lt;code>Shoot&lt;/code> definition and apply it to your KinD cluster. &lt;code>gardener-scheduler&lt;/code> includes &lt;code>candidateDeterminationStrategy: MinimalDistance&lt;/code> configuration so you are able to run schedule &lt;code>Shoot&lt;/code>s of different providers on your &lt;code>Seed&lt;/code>.&lt;/p>
+&lt;p>You can wait for your &lt;code>Shoot&lt;/code>s to be ready by running &lt;code>kubectl -n garden-local get shoots&lt;/code> and wait for the &lt;code>LAST OPERATION&lt;/code> to reach &lt;code>100%&lt;/code>. The output depends on your &lt;code>Shoot&lt;/code> definition. This is an example output:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE PROVIDER REGION K8S VERSION HIBERNATION LAST OPERATION STATUS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>aws aws aws eu-west-1 1.24.3 Awake Create Processing (43%) healthy 84s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>aws-arm64 aws aws eu-west-1 1.24.3 Awake Create Processing (43%) healthy 65s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>azure az azure westeurope 1.24.2 Awake Create Processing (43%) healthy 57s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gcp gcp gcp europe-west1 1.24.3 Awake Create Processing (43%) healthy 94s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="accessing-the-shoot-cluster">Accessing The &lt;code>Shoot&lt;/code> Cluster&lt;/h3>
+&lt;p>Your shoot clusters will have a public DNS entries for their API servers, so that they are could be reached via the Internet via &lt;code>kubectl&lt;/code> after you created their &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;p>We encourage you to use the &lt;a href="https://gardener.cloud/docs/gardener/proposals/16-adminkubeconfig-subresource/">adminkubeconfig subresource&lt;/a> for accessing your shoot cluster. You find an example how to use it in our &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_access/#shootsadminkubeconfig-subresource">docs&lt;/a>.&lt;/p>
+&lt;h2 id="deleting-the-shoot-clusters">Deleting The &lt;code>Shoot&lt;/code> Clusters&lt;/h2>
+&lt;p>Before tearing down your environment you have to delete your shoot clusters. This is highly recommended because otherwise you would leave orphaned items on your infrastructure accounts.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/delete shoot &amp;lt;your-shoot&amp;gt; garden-local
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tear-down-the-gardener-environment">Tear Down The Gardener Environment&lt;/h2>
+&lt;p>Before you delete your local KinD cluster, you should shut down your &lt;code>Shoots&lt;/code> and &lt;code>Seed&lt;/code> in a clean way to avoid orphaned infrastructure elements in your projects.&lt;/p>
+&lt;p>Please ensure that your KinD and Seed clusters are online (not paused or hibernated) and run:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-extensions-down
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will delete all &lt;code>Shoots&lt;/code> first (this could take a couple of minutes), then uninstall &lt;code>gardenlet&lt;/code> from the Seed and the gardener components from the KinD. Finally, the additional components like container registry etc. are deleted from both clusters.&lt;/p>
+&lt;p>When this is done, you can securely delete your local KinD cluster by:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-extensions-clean
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Image Vector</title><link>https://gardener.cloud/docs/gardener/deployment/image_vector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/image_vector/</guid><description>
 &lt;h1 id="image-vector">Image Vector&lt;/h1>
 &lt;p>The Gardenlet is deploying several different container images into the seed and the shoot clusters.
 The image repositories and tags are defined in a &lt;a href="https://github.com/gardener/gardener/blob/master/charts/images.yaml">central image vector file&lt;/a>.

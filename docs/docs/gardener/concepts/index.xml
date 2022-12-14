@@ -1011,7 +1011,8 @@ A lot of production- and enterprise-grade features were built into Gardener for 
 &lt;p>&lt;strong>⚠️ Consider this component highly experimental and DO NOT use it in production.&lt;/strong>&lt;/p>
 &lt;h2 id="deployment">Deployment&lt;/h2>
 &lt;p>There is a &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/operator">Helm chart&lt;/a> which can be used to deploy the &lt;code>gardener-operator&lt;/code>.
-Once deployed and ready, you can create a &lt;code>Garden&lt;/code> resource.&lt;/p>
+Once deployed and ready, you can create a &lt;code>Garden&lt;/code> resource.
+Note that there can only be one &lt;code>Garden&lt;/code> resource per system at a time.&lt;/p>
 &lt;blockquote>
 &lt;p>ℹ️ Similar to seed clusters, garden runtime clusters require a &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">VPA&lt;/a>.
 By default, &lt;code>gardener-operator&lt;/code> deploys the VPA components.
@@ -1035,6 +1036,14 @@ As they were already made available by &lt;code>gardener-operator&lt;/code>, the
 &lt;/blockquote>
 &lt;p>⚠️ Note that such setup requires that you upgrade the versions of &lt;code>gardener-operator&lt;/code> and &lt;code>gardenlet&lt;/code> in lock-step.
 Otherwise, you might experience unexpected behaviour or issues with your seed or shoot clusters.&lt;/p>
+&lt;h2 id="credentials-rotation">Credentials Rotation&lt;/h2>
+&lt;p>The credentials rotation works in the same way like it does for &lt;code>Shoot&lt;/code> resources, i.e. there are &lt;code>gardener.cloud/operation&lt;/code> annotation values for starting or completing the rotation procedures.&lt;/p>
+&lt;p>For certificate authorities, &lt;code>gardener-operator&lt;/code> generates one which is automatically rotated roughly each month (&lt;code>ca-garden-runtime&lt;/code>) and several CAs which are &lt;strong>NOT&lt;/strong> automatically rotated but only on demand.&lt;/p>
+&lt;p>&lt;strong>🚨 Hence, it is the responsibility of the operator to regularly perform the credentials rotation.&lt;/strong>&lt;/p>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_credentials_rotation/#gardener-provided-credentials">this document&lt;/a> for more details. As of today, &lt;code>gardener-operator&lt;/code> only creates the following types of credentials (i.e., some sections of the document don&amp;rsquo;t apply for &lt;code>Garden&lt;/code>s and can be ignored):&lt;/p>
+&lt;ul>
+&lt;li>certificate authorities (and related server and client certificates)&lt;/li>
+&lt;/ul>
 &lt;h2 id="local-development">Local Development&lt;/h2>
 &lt;p>The easiest setup is using a local &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster and the &lt;a href="https://skaffold.dev/">Skaffold&lt;/a> based approach to deploy the &lt;code>gardener-operator&lt;/code>.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind-operator-up
@@ -1078,7 +1087,18 @@ The whole management works similar to how it works for &lt;code>Shoot&lt;/code>s
 &lt;li>&lt;code>virtual-garden-etcd-main&lt;/code>&lt;/li>
 &lt;li>&lt;code>virtual-garden-etcd-events&lt;/code>&lt;/li>
 &lt;/ul>
-&lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
+&lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p>
+&lt;h3 id="webhooks">Webhooks&lt;/h3>
+&lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
+&lt;h4 id="validation">Validation&lt;/h4>
+&lt;p>This webhook handler validates &lt;code>CREATE&lt;/code>/&lt;code>UPDATE&lt;/code>/&lt;code>DELETE&lt;/code> operations on &lt;code>Garden&lt;/code> resources.
+Simple validation is performed via &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation">standard CRD validation&lt;/a>.
+However, more advanced validation is hard to express via these means and is performed by this webhook handler.&lt;/p>
+&lt;p>Furthermore, for deletion requests, it is validated that the &lt;code>Garden&lt;/code> is annotated with a deletion confirmation annotation, namely &lt;code>confirmation.gardener.cloud/deletion=true&lt;/code>.
+Only if this annotation is present it allows the &lt;code>DELETE&lt;/code> operation to pass.
+This prevents users from accidental/undesired deletions.&lt;/p>
+&lt;p>Another validation is to check that there is only one &lt;code>Garden&lt;/code> resource at a time.
+It prevents creating a second &lt;code>Garden&lt;/code> when there is already one in the system.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
 &lt;h1 id="gardener-resource-manager">Gardener Resource Manager&lt;/h1>
 &lt;p>Initially, the &lt;code>gardener-resource-manager&lt;/code> was a project similar to the &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/addon-manager">kube-addon-manager&lt;/a>.
 It manages Kubernetes resources in a target cluster which means that it creates, updates, and deletes them.

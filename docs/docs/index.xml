@@ -11844,7 +11844,167 @@ Extension controllers can take whatever information they want out of it that mig
 &lt;p>Incidentally, Gardener influenced the Machine API in the Cluster API with its &lt;a href="https://github.com/gardener/machine-controller-manager">Machine Controller Manager&lt;/a> and was the &lt;a href="https://github.com/kubernetes-sigs/cluster-api/commit/00b1ead264aea6f88585559056c180771cce3815">first to adopt it&lt;/a>, see also &lt;a href="https://www.youtube.com/watch?v=Mtg8jygK3Hs">joint SIG Cluster Lifecycle KubeCon talk&lt;/a> where @hardikdr from our Gardener team in India spoke.&lt;/p>
 &lt;p>That means, we follow the &lt;a href="https://github.com/kubernetes-sigs/cluster-api#cluster-api">Cluster API&lt;/a> with great interest and are active members. It was completely overhauled from &lt;code>v1alpha1&lt;/code> to &lt;code>v1alpha2&lt;/code>. But because &lt;code>v1alpha2&lt;/code> made too many assumptions about the bring-up of masters and was enforcing master machine operations (see &lt;a href="https://cluster-api.sigs.k8s.io/user/concepts.html#control-plane">here&lt;/a>: “As of &lt;code>v1alpha2&lt;/code>, Machine-Based is the only control plane type that Cluster API supports”), services that managed their control planes differently like GKE or Gardener couldn&amp;rsquo;t adopt it (e.g. &lt;a href="https://cloud.google.com/anthos/gke/docs/on-prem/concepts/cluster-api">Google only supports &lt;code>v1alpha1&lt;/code>&lt;/a>). In 2020 &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience/">&lt;code>v1alpha3&lt;/code>&lt;/a> was introduced and made it possible (again) to integrate managed services like GKE or Gardener. The mapping from the Gardener API to the Cluster API is mostly syntactic.&lt;/p>
 &lt;p>To wrap it up, while the Cluster API knows about clusters, it doesn&amp;rsquo;t know about their make-up. With Gardener, we wanted to go beyond that and harmonize the make-up of the clusters themselves and make them homogeneous across all supported infrastructures. Gardener can therefore deliver homogeneous clusters with exactly the same configuration and behavior on all infrastructures (see also &lt;a href="https://k8s-testgrid.appspot.com/conformance-all">Gardener&amp;rsquo;s coverage in the official conformance test grid&lt;/a>).&lt;/p>
-&lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it became now possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy, if the community would be interested, to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: Concept Topic Structure</title><link>https://gardener.cloud/docs/contribute/20_documentation/40_style_guide/concept_template/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/contribute/20_documentation/40_style_guide/concept_template/</guid><description>
+&lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it became now possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy, if the community would be interested, to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: Component Checklist</title><link>https://gardener.cloud/docs/gardener/development/component-checklist/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/component-checklist/</guid><description>
+&lt;h1 id="checklist-for-adding-new-components">Checklist For Adding New Components&lt;/h1>
+&lt;p>Adding new components which run in garden, seed or shoot cluster is theoretically quite simple - we just need a &lt;code>Deployment&lt;/code> (or similar other workload resource), the respective container image and maybe a bit of configuration.
+In practice however, there are a couple of things to keep in mind in order to make the deployment production-ready.
+This document provides a checklist for them which you can walk through.&lt;/p>
+&lt;h2 id="general">General&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Avoid usage of Helm charts&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver">example&lt;/a>)&lt;/p>
+&lt;p>Nowadays, we use &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/interfaces.go">Golang components&lt;/a> instead of Helm charts for deploying components to a cluster.
+Please find a typical structure of such components &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L80-L97">here&lt;/a> (configuration values are typically managed in a &lt;code>Values&lt;/code> structure).
+There are a few exceptions (e.g., &lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/istio">Istio&lt;/a>) still using charts, however the default should be using a Golang-based implementation.
+For the exceptional cases, use Golang&amp;rsquo;s &lt;a href="https://pkg.go.dev/embed">embed&lt;/a> package to embed the Helm chart directory (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/istio/istiod.go#L51-L52">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/istio/istiod.go#L257-L273">example 2&lt;/a>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Choose the proper deployment way&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L210-L225">example 1 (direct application w/ client)&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L442-L484">example 2 (using &lt;code>ManagedResource&lt;/code>)&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubestatemetrics/kube_state_metrics.go#L116">example 3 (mixed scenario)&lt;/a>)&lt;/p>
+&lt;p>For historic reasons, resources related to shoot control plane components are applied directly with the client.
+All other resources (seed or shoot system components) are deployed via &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#managedresource-controller">Resource controller&lt;/a> (&lt;code>ManagedResource&lt;/code>s) since it performs health checks out-of-the-box and has a lot of other features (see its documentation for more information).
+Components which can run as both seed system component or shoot control plane component (e.g., VPA or &lt;code>kube-state-metrics&lt;/code>) can make use of &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/resourceconfig.go">these utility functions&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Do not hard-code container image references&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/charts/images.yaml#L130-L133">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/metricsserver.go#L28-L31">example 2&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L82-L83">example 3&lt;/a>)&lt;/p>
+&lt;p>We define all image references centrally in the &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/charts/images.yaml">&lt;code>charts/images.yaml&lt;/code>&lt;/a> file.
+Hence, the image references must not be hard-coded in the pod template spec but read from this so-called &lt;a href="https://gardener.cloud/docs/gardener/deployment/image_vector/">image vector&lt;/a> instead.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Use unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L181-L188">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L347">example 2&lt;/a>)&lt;/p>
+&lt;p>&lt;a href="https://kubernetes.io/docs/concepts/configuration/configmap/#configmap-immutable">Unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s&lt;/a> are immutable for modification and have a unique name.
+This has a couple of benefits, e.g. the &lt;code>kubelet&lt;/code> doesn&amp;rsquo;t watch these resources, and it is always clear which resource contains which data since it cannot be changed.
+As a consequence, unique/immutable &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code> are superior to checksum annotations on the pod templates.
+Stale/unused &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s are garbage-collected by &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#garbage-collector-for-immutable-configmapssecrets">GarbageCollector&lt;/a>.
+There are utility functions (see examples above) for using unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s in Golang components.
+It is essential to inject the annotations into the workload resource to make the garbage-collection work.&lt;br>
+Note that some &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s should not be unique (e.g., those containing monitoring or logging configuration).
+The reason is that the old revision stays in the cluster even if unused until the garbage-collector acts.
+During this time, they would be wrongly aggregated to the full configuration.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Manage certificates/secrets via &lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/utils/secrets/manager">secrets manager&lt;/a>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L100-L109">example&lt;/a>)&lt;/p>
+&lt;p>You should use the &lt;a href="https://gardener.cloud/docs/gardener/development/secrets_management/">secrets manager&lt;/a> for the management of any kind of credentials.
+This makes sure that credentials rotation works out-of-the-box without you requiring to think about it.
+Generally, do not use client certificates (see &lt;a href="#security">security section&lt;/a>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Consider hibernation when calculating replica count&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/kubescheduler.go#L36">example&lt;/a>)&lt;/p>
+&lt;p>Shoot clusters can be &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_hibernate/">hibernated&lt;/a> meaning that all control plane components in the shoot namespace in the seed cluster are scaled down to zero and all worker nodes are terminated.
+If your component runs in the seed cluster then you have to consider this case and provide the proper replica count.
+There is a utility function available (see example).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Ensure task dependencies are as precise as possible in shoot flows&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot/reconciler_reconcile.go#L508-L512">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot/reconciler_delete.go#L368-L372">example 2&lt;/a>)&lt;/p>
+&lt;p>Only define the minimum of needed dependency tasks in the &lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot">shoot reconciliation/deletion flows&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="security">Security&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Use a &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">dedicated &lt;code>ServiceAccount&lt;/code>&lt;/a> and disable auto-mount&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L145-L151">example&lt;/a>)&lt;/p>
+&lt;p>Components which need to talk to the API server of their runtime cluster must always use a dedicated &lt;code>ServiceAccount&lt;/code> (do not use &lt;code>default&lt;/code>) which &lt;code>automountServiceAccountToken&lt;/code> set to &lt;code>false&lt;/code>.
+This makes &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokeninvalidator">TokenInvalidator&lt;/a> invalidating the static token secret and its &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#auto-mounting-projected-serviceaccount-tokens">&lt;code>ProjectedTokenMount&lt;/code> webhook&lt;/a> injecting a projected token automatically.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Use shoot access tokens instead of a client certificates&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L227-L229">example&lt;/a>)&lt;/p>
+&lt;p>Components which need to talk to a target cluster different from their runtime cluster (e.g., running in seed cluster but talking to shoot) then the &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor">TokenRequestor&lt;/a> should be used to manage a so-called &amp;ldquo;shoot access token&amp;rdquo;.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define RBAC roles with minimal privileges&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L153-L223">example&lt;/a>)&lt;/p>
+&lt;p>The component&amp;rsquo;s &lt;code>ServiceAccount&lt;/code> (if exists) should have as little privileges as possible.
+Consequently, please define proper &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC roles&lt;/a> for it.
+This might include a combination of &lt;code>ClusterRole&lt;/code>s and &lt;code>Role&lt;/code>s.
+Please do not provide elevated privileges due to laziness (e.g., because there is already a &lt;code>ClusterRole&lt;/code> that can be extended vs. creating a &lt;code>Role&lt;/code> only when only access to a single namespace is needed).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Use &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">&lt;code>NetworkPolicy&lt;/code>s&lt;/a> to restrict network traffic&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/etcd/etcd.go#L293-L339">example&lt;/a>)&lt;/p>
+&lt;p>You should restrict both ingress and egress traffic to/from your component as much as possible to ensure that it only gets access to/from other components if really needed.
+Gardener provides a few default policies for typical usage scenarios, please see &lt;a href="https://gardener.cloud/docs/gardener/development/seed_network_policies/">this document for seed clusters&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_network_policies/">this document for shoot clusters&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Do not run components in privileged mode&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nodelocaldns/nodelocaldns.go#L329-L333">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nodelocaldns/nodelocaldns.go#L507">example 2&lt;/a>)&lt;/p>
+&lt;p>Avoid running components with &lt;code>privileged=true&lt;/code> and define the needed &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-capabilities-for-a-container">Linux capabilities&lt;/a> instead.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Choose the proper Seccomp profile&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nodelocaldns/nodelocaldns.go#L285-L287">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nginxingress/nginxingress.go#L427">example 2&lt;/a>)&lt;/p>
+&lt;p>The &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-seccomp-profile-for-a-container">Seccomp profile&lt;/a> will be defaulted by &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s SeccompProfile webhook which works well for the majority of components.
+However, in some special cases you might need to overwrite it.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define &lt;code>PodSecurityPolicy&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/vpnshoot/vpnshoot.go#L445-L516">example&lt;/a>)&lt;/p>
+&lt;p>&lt;code>PodSecurityPolicy&lt;/code>s are deprecated, however Gardener still supports shoot clusters with older Kubernetes versions (&lt;a href="https://gardener.cloud/docs/gardener/usage/supported_k8s_versions/">ref&lt;/a>).
+To make sure that such clusters can run with &lt;code>.spec.kubernetes.allowPrivilegedContainers=false&lt;/code>, you have to define proper &lt;code>PodSecurityPolicy&lt;/code>s.
+See also &lt;a href="https://gardener.cloud/docs/gardener/usage/pod-security/">this document&lt;/a> for more information.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="high-availability--stability">High Availability / Stability&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Specify the component type label for high availability&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L234">example&lt;/a>)&lt;/p>
+&lt;p>To support high-availability deployments, &lt;code>gardener-resource-manager&lt;/code>s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#high-availability-config">HighAvailabilityConfig&lt;/a> webhook injects the proper specification like replica or topology spread constraints.
+You only need to specify the type label, see also &lt;a href="https://gardener.cloud/docs/gardener/development/high-availability/">this document&lt;/a> for more information.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define a &lt;code>PodDisruptionBudget&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L398-L422">example&lt;/a>)&lt;/p>
+&lt;p>Closely related to high availability but also to stability in general: The definition of a &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/">&lt;code>PodDisruptionBudget&lt;/code>&lt;/a> with &lt;code>maxUnavailable=1&lt;/code> should be provided by default.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Choose the right &lt;code>PriorityClass&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L301">example&lt;/a>)&lt;/p>
+&lt;p>Each cluster runs many components with different priorities.
+Gardener provides a set of default &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass">&lt;code>PriorityClass&lt;/code>es&lt;/a>, see &lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">this document&lt;/a> for more information.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Consider defining liveness and readiness probes&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L335-L358">example&lt;/a>)&lt;/p>
+&lt;p>To ensure smooth rolling update behaviour, consider the definition of &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/">liveness and/or readiness probes&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="scalability">Scalability&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Provide resource requirements&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L359-L367">example&lt;/a>)&lt;/p>
+&lt;p>All components should have &lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits">resource requirements&lt;/a>.
+Generally, they should always request CPU and memory while only memory shall be limited (no CPU limits!).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define a &lt;code>VerticalPodAutoscaler&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L424-L460">example&lt;/a>)&lt;/p>
+&lt;p>We typically perform vertical auto-scaling via the VPA managed by the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Kubernetes community&lt;/a>.
+Each component should have a respective &lt;code>VerticalPodAutoscaler&lt;/code> which &amp;ldquo;min allowed&amp;rdquo; resources, &amp;ldquo;auto update mode&amp;rdquo;, and &amp;ldquo;requests only&amp;rdquo;-mode.
+VPA is always enabled in garden or seed clusters while it is optional for shoot clusters.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define a &lt;code>HorizontalPodAutoscaler&lt;/code> if needed&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/coredns/coredns.go#L689-L738">example&lt;/a>)&lt;/p>
+&lt;p>If your component is capable of scaling horizontally, the definition of a &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/">&lt;code>HorizontalPodAutoscaler&lt;/code>&lt;/a> should be considered.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="observability--operations-productivity">Observability / Operations Productivity&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Provide monitoring scrape config and alerting rules&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/coredns/monitoring.go">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/monitoring.go#L97">example 2&lt;/a>)&lt;/p>
+&lt;p>Components should provide scrape configuration and alerting rules for Prometheus/Alertmanager if appropriate.
+This should be done inside a dedicated &lt;code>monitoring.go&lt;/code> file.
+Extensions should follow &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#extensions-monitoring-integration">this document&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Provide logging parsers and filters&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/coredns/logging.go">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/seed/seed/reconciler_reconcile.go#L563">example 2&lt;/a>)&lt;/p>
+&lt;p>Components should provide parsers and filters for fluent-bit if appropriate.
+This should be done inside a dedicated &lt;code>logging.go&lt;/code> file.
+Extensions should follow &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#fluent-bit-log-parsers-and-filters">this document&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Set the &lt;code>revisionHistoryLimit&lt;/code> to &lt;code>2&lt;/code> for &lt;code>Deployment&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/metricsserver/metrics_server.go#L273">example&lt;/a>)&lt;/p>
+&lt;p>In order to allow easy inspection of two &lt;code>ReplicaSet&lt;/code>s to quickly find the changes that lead to a rolling update, the &lt;a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#revision-history-limit">revision history limit&lt;/a> should be set to &lt;code>2&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Define health checks&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/care/checker.go#L45-L71">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/care/seed_health.go#L46-L54">example 2&lt;/a>)&lt;/p>
+&lt;p>&lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#controllers">care controllers&lt;/a> regularly check the health status of system or control plane components.
+You need to enhance the lists of components to check if your component related to the seed system or shoot control plane (shoot system components are automatically checked via their respective &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#managedresource-controller">&lt;code>ManagedResource&lt;/code> conditions&lt;/a>), see examples above.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Configure automatic restarts in shoot maintenance time window&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/kubescheduler/kube_scheduler.go#L243">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/coredns.go#L90-L107">example 2&lt;/a>)&lt;/p>
+&lt;p>Gardener offers to restart components during the maintenance time window, see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/#restart-control-plane-controllers">this document&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/#restart-some-core-addons">this document&lt;/a>.
+You can consider adding the needed label to your control plane component to get this automatic restart (probably not needed for most components).&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Concept Topic Structure</title><link>https://gardener.cloud/docs/contribute/20_documentation/40_style_guide/concept_template/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/contribute/20_documentation/40_style_guide/concept_template/</guid><description>
 &lt;h1 id="concept-title">Concept Title&lt;/h1>
 &lt;p>(the topic title can also be placed in the frontmatter)&lt;/p>
 &lt;h2 id="overview">Overview&lt;/h2>
@@ -12076,38 +12236,4 @@ The same options are available also in the &lt;strong>Access&lt;/strong> section
 &lt;p>&lt;img src="https://gardener.cloud/__resources/panel_393a41.png" alt="image">&lt;/p>
 &lt;h2 id="seed-connectivity">Seed Connectivity&lt;/h2>
 &lt;p>In addition to the shoot connectivity, we also measure the seed connectivity. This means trying to reach the API Server from the seed via the external fully qualified domain name of the API server. The connectivity is also displayed in the above panel as the &lt;code>seed&lt;/code> line. Both &lt;code>seed&lt;/code> and &lt;code>shoot&lt;/code> connectivity are shown below.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/connectivity_b79584.png" alt="image">&lt;/p></description></item><item><title>Docs: ContainerRuntime</title><link>https://gardener.cloud/docs/gardener/extensions/containerruntime/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/containerruntime/</guid><description>
-&lt;h1 id="gardener-container-runtime-extension">Gardener Container Runtime Extension&lt;/h1>
-&lt;p>At the lowest layers of a Kubernetes node is the software that, among other things, starts and stops containers. It is called “Container Runtime”.
-The most widely known container runtime is Docker, but it is not alone in this space. In fact, the container runtime space has been rapidly evolving.&lt;/p>
-&lt;p>Kubernetes supports different container runtimes using Container Runtime Interface (CRI) – a plugin interface which enables kubelet to use a wide variety of container runtimes.&lt;/p>
-&lt;p>Gardener supports creation of Worker machines using CRI, more information can be found here: &lt;a href="https://gardener.cloud/docs/gardener/extensions/operatingsystemconfig/#cri-support">CRI Support&lt;/a>.&lt;/p>
-&lt;h2 id="motivation">Motivation&lt;/h2>
-&lt;p>Prior to the &lt;code>Container Runtime Extensibility&lt;/code> concept, Gardener used Docker as the only
-container runtime to use in shoot worker machines. Because of the wide variety of different container runtimes
-offers multiple important features (for example enhanced security concepts) it is important to enable end users to use other container runtimes as well.&lt;/p>
-&lt;h2 id="the-containerruntime-extension-resource">The &lt;code>ContainerRuntime&lt;/code> Extension Resource&lt;/h2>
-&lt;p>Here is what a typical &lt;code>ContainerRuntime&lt;/code> resource would look-like:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ContainerRuntime
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-container-runtime
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> binaryPath: /var/bin/containerruntimes
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gvisor
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workerPool:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: worker-ubuntu
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/pool: worker-ubuntu
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener deploys one &lt;code>ContainerRuntime&lt;/code> resource per worker pool per CRI.
-To exemplify this, consider a Shoot having two worker pools (&lt;code>worker-one&lt;/code>, &lt;code>worker-two&lt;/code>) using &lt;code>containerd&lt;/code> as the CRI as well as &lt;code>gvisor&lt;/code> and &lt;code>kata&lt;/code> as enabled container runtimes.
-Gardener would deploy four &lt;code>ContainerRuntime&lt;/code> resources. For &lt;code>worker-one&lt;/code>: one &lt;code>ContainerRuntime&lt;/code> for type &lt;code>gvisor&lt;/code> and one for type &lt;code>kata&lt;/code>. The same resource are being deployed for &lt;code>worker-two&lt;/code>.&lt;/p>
-&lt;h2 id="supporting-a-new-container-runtime-provider">Supporting a new Container Runtime Provider&lt;/h2>
-&lt;p>To add support for another container runtime (e.g., gvisor, kata-containers, etc.) a container runtime extension controller needs to be implemented. It should support Gardener&amp;rsquo;s supported CRI plugins.&lt;/p>
-&lt;p>The container runtime extension should install the necessary resources into the shoot cluster (e.g., &lt;code>RuntimeClass&lt;/code>es), and it should copy the runtime binaries to the relevant worker machines in path: &lt;code>spec.binaryPath&lt;/code>.
-Gardener labels the shoot nodes according to the CRI configured: &lt;code>worker.gardener.cloud/cri-name=&amp;lt;value&amp;gt;&lt;/code> (e.g &lt;code>worker.gardener.cloud/cri-name=containerd&lt;/code>) and multiple labels for each of the container runtimes configured for the shoot Worker machine:
-&lt;code>containerruntime.worker.gardener.cloud/&amp;lt;container-runtime-type-value&amp;gt;=true&lt;/code> (e.g &lt;code>containerruntime.worker.gardener.cloud/gvisor=true&lt;/code>).
-The way to install the binaries is by creating a daemon set which copies the binaries from an image in a docker registry to the relevant labeled Worker&amp;rsquo;s nodes (avoid downloading binaries from internet to also cater with isolated environments).&lt;/p>
-&lt;p>For additional reference, please have a look at the &lt;a href="https://github.com/gardener/gardener-extension-runtime-gvisor">runtime-gvsior&lt;/a> provider extension, which provides more information on how to configure the necessary charts as well as the actuators required to reconcile container runtime inside the &lt;code>Shoot&lt;/code> cluster to the desired state.&lt;/p></description></item></channel></rss>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/connectivity_b79584.png" alt="image">&lt;/p></description></item></channel></rss>

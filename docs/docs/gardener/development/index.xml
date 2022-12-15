@@ -3342,6 +3342,52 @@ This directory will contain all cluster component logs grouped by node.&lt;/p>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
+&lt;h2 id="gardener-upgrade-tests-using-provider-local">Gardener Upgrade Tests (using provider-local)&lt;/h2>
+&lt;p>Gardener upgrade tests setup a kind cluster and deploy Gardener version &lt;code>vX.X.X&lt;/code> before upgrading it to a given version &lt;code>vY.Y.Y&lt;/code>.&lt;/p>
+&lt;p>This allows verifying whether the current (unreleased) revision/branch (or a specific release) is compatible with the latest (or a specific other release). The &lt;code>GARDENER_PREVIOUS_RELEASE&lt;/code> and &lt;code>GARDENER_NEXT_RELEASE&lt;/code> environment variables are used to specify the respective versions.&lt;/p>
+&lt;p>This helps understanding what happens or how the system reacts when Gardener upgrades from versions &lt;code>vX.X.X&lt;/code> to &lt;code>vY.Y.Y&lt;/code> for existing shoots in different states (&lt;code>creation&lt;/code>/&lt;code>hibernation&lt;/code>/&lt;code>wakeup&lt;/code>/&lt;code>deletion&lt;/code>). Gardener upgrade tests also help qualifying releases for all flavors (&lt;strong>non-HA&lt;/strong> or &lt;strong>HA&lt;/strong> with failure tolerance &lt;code>node&lt;/code>/&lt;code>zone&lt;/code>).&lt;/p>
+&lt;p>Just like E2E tests, upgrade tests also use a &lt;a href="https://kind.sigs.k8s.io/">KinD cluster&lt;/a> and &lt;a href="https://skaffold.dev/">skaffold&lt;/a> for bootstrapping a full Gardener installation based on the current revision/branch, including &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">provider-local&lt;/a>.
+This allows running e2e tests in an isolated test environment, fully locally without any infrastructure interaction.
+The tests perform a set of operations on Shoot clusters, e.g. create, delete, hibernate and wake up.&lt;/p>
+&lt;p>Below is a sequence describing how the tests are performed.&lt;/p>
+&lt;ul>
+&lt;li>Create a &lt;code>kind&lt;/code> cluster.&lt;/li>
+&lt;li>Install Gardener version &lt;code>vX.X.X&lt;/code>.&lt;/li>
+&lt;li>Run gardener pre-upgrade tests which are labeled with &lt;code>pre-upgrade&lt;/code>.&lt;/li>
+&lt;li>Upgrade Gardener version from &lt;code>vX.X.X&lt;/code> to &lt;code>vY.Y.Y&lt;/code>.&lt;/li>
+&lt;li>Run gardener post-upgrade tests which are labeled with &lt;code>post-upgrade&lt;/code>&lt;/li>
+&lt;li>Tear down seed and kind cluster.&lt;/li>
+&lt;/ul>
+&lt;h3 id="how-to-run-upgrade-tests-between-two-gardener-releases">How to run upgrade tests between two Gardener releases&lt;/h3>
+&lt;p>Sometimes, we need to verify/qualify two Gardener releases when we upgrade from one version to another.&lt;br>
+This can performed by fetching the two Gardener versions from &lt;strong>&lt;a href="https://github.com/gardener/gardener/releases/latest">Github Gardener release page&lt;/a>&lt;/strong> and set appropriate env variables &lt;code>GARDENER_PREVIOUS_RELEASE&lt;/code>, &lt;code>GARDENER_NEXT_RELEASE&lt;/code>.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>&lt;code>GARDENER_PREVIOUS_RELEASE&lt;/code>&lt;/strong> &amp;ndash; This env variable refers to a source revision/branch (or a specific release) which has to be installed first and then upgraded to version &lt;strong>&lt;code>GARDENER_NEXT_RELEASE&lt;/code>&lt;/strong>. By default it fetches latest release version from &lt;strong>&lt;a href="https://github.com/gardener/gardener/releases/latest">Github Gardener release page&lt;/a>&lt;/strong>.&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>&lt;strong>&lt;code>GARDENER_NEXT_RELEASE&lt;/code>&lt;/strong> &amp;ndash; This env variable refers to the target revision/branch (or a specific release) to be upgraded to after successful installation of &lt;strong>&lt;code>GARDENER_PREVIOUS_RELEASE&lt;/code>&lt;/strong>. By default it considers local HEAD revision, builds code and installs gardener from current revision where gardener upgrade tests triggered.&lt;/p>
+&lt;/blockquote>
+&lt;ul>
+&lt;li>&lt;code>make ci-e2e-kind-upgrade GARDENER_PREVIOUS_RELEASE=v1.60.0 GARDENER_NEXT_RELEASE=v1.61.0&lt;/code>&lt;/li>
+&lt;li>&lt;code>make ci-e2e-kind-ha-single-zone-upgrade GARDENER_PREVIOUS_RELEASE=v1.60.0 GARDENER_NEXT_RELEASE=v1.61.0&lt;/code>&lt;/li>
+&lt;li>&lt;code>make ci-e2e-kind-ha-multi-zone-upgrade GARDENER_PREVIOUS_RELEASE=v1.60.0 GARDENER_NEXT_RELEASE=v1.61.0&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h3 id="purpose-of-upgrade-tests">Purpose of upgrade Tests&lt;/h3>
+&lt;ul>
+&lt;li>tests will ensure that shoot clusters reconciled with the previous version of Gardener work as expected even with the next Gardener version.&lt;/li>
+&lt;li>this will reproduce or catch actual issues faced by end users.&lt;/li>
+&lt;li>one of the test case ensures no downtime faced by end-users for shoots while upgrading Gardener if shoot&amp;rsquo;s control-plane is configured as HA.&lt;/li>
+&lt;/ul>
+&lt;h3 id="writing-upgrade-tests">Writing upgrade Tests&lt;/h3>
+&lt;ul>
+&lt;li>tests are divided into two parts and labeled with &lt;code>pre-upgrade&lt;/code> and &lt;code>post-upgrade&lt;/code> labels.&lt;/li>
+&lt;li>Example test case which ensures shoot which was &lt;code>hibernated&lt;/code> in previous gardener release should &lt;code>wakeup&lt;/code> as expected in next release.
+&lt;ul>
+&lt;li>Creating a shoot and hibernating a shoot is pre-upgrade test case which should be labeled &lt;code>pre-upgrade&lt;/code> label.&lt;/li>
+&lt;li>Then wakeup a shoot and delete a shoot is post-upgrade test case which should be labeled &lt;code>post-upgrade&lt;/code> label.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
 &lt;h2 id="test-machinery-tests">Test Machinery Tests&lt;/h2>
 &lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/development/testmachinery_tests/">Test Machinery Tests&lt;/a>.&lt;/p>
 &lt;h3 id="purpose-of-test-machinery-tests">Purpose of Test Machinery Tests&lt;/h3>

@@ -2170,6 +2170,11 @@ Now, Gardener commissions an external, provider-specific controller to take over
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: 0
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 8Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> node.kubernetes.io/role: node
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/cri-name: containerd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/pool: cpu-worker
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/system-components: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> userData: c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 20Gi
@@ -2191,6 +2196,11 @@ Also, as you can see, Gardener copies the output of the infrastructure creation 
 &lt;p>In the &lt;code>.spec.pools[]&lt;/code> field the desired worker pools are listed.
 In the above example, one pool with machine type &lt;code>m4.large&lt;/code> and &lt;code>min=3&lt;/code>, &lt;code>max=5&lt;/code> machines shall be spread over two availability zones (&lt;code>eu-west-1b&lt;/code>, &lt;code>eu-west-1c&lt;/code>).
 This information together with the infrastructure status must be used to determine the proper configuration for the machine classes.&lt;/p>
+&lt;p>The &lt;code>spec.pools[].labels&lt;/code> map contains all labels that should be added to all nodes of the corresponding worker pool.
+Gardener configures kubelet&amp;rsquo;s &lt;code>--node-labels&lt;/code> flag to contain all labels mentioned here.
+This makes sure that kubelet adds all user-specified and gardener-managed labels to the new &lt;code>Node&lt;/code> object when registering a new machine with the API server.
+Nevertheless, this is only effective when bootstrapping new nodes.
+The provider extension (respectively, machine-controller-manager) is still responsible for updating the labels of existing &lt;code>Nodes&lt;/code> when the worker specification changes.&lt;/p>
 &lt;p>The &lt;code>spec.pools[].nodeTemplate.capacity&lt;/code> field contains the resource information of the machine like &lt;code>cpu&lt;/code>, &lt;code>gpu&lt;/code> and &lt;code>memory&lt;/code>. This info is used by Cluster Autoscaler to generate &lt;code>nodeTemplate&lt;/code> during scaling the &lt;code>nodeGroup&lt;/code> from zero.&lt;/p>
 &lt;p>The &lt;code>spec.pools[].machineControllerManager&lt;/code> field allows to configure the settings for machine-controller-manager component. Providers must populate these settings on worker-pool to the related &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/machine_objects/machine-deployment.yaml#L30-L34">fields&lt;/a> in MachineDeployment.&lt;/p>
 &lt;p>When seeing such a resource your controller must make sure that it deploys the machine-controller-manager next to the control plane in the seed cluster.

@@ -683,7 +683,10 @@ Concretely, the highest number of zones of a worker pool with &lt;code>systemCom
 &lt;li>add label &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>.&lt;/li>
 &lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/zones=&amp;lt;zones&amp;gt;&lt;/code> where &lt;code>&amp;lt;zones&amp;gt;&lt;/code> is the list provided in &lt;code>.spec.provider.zones[]&lt;/code> in the &lt;code>Seed&lt;/code> specification.&lt;/li>
 &lt;/ul>
-&lt;p>Note that the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is not set, hence the node affinity would never be touched by the webhook.&lt;/p>
+&lt;p>Note that neither the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> nor the &lt;code>high-availability-config.resources.gardener.cloud/zone-pinning&lt;/code> annotations are set, hence the node affinity would never be touched by the webhook.&lt;/p>
+&lt;p>The only exception to this rule are the istio ingress gateway namespaces. This includes the default istio ingress gateway when SNI is enabled as well as analogous namespaces for exposure classes and zone-specific istio ingress gateways. Those namespaces
+will additionally be annotated with &lt;code>high-availability-config.resources.gardener.cloud/zone-pinning&lt;/code> set to &lt;code>true&lt;/code> resulting in the node affinities and the topology spread constraints being set. The replicas are not touched as the istio ingress gateways
+are scaled by a horizontal autoscaler instance.&lt;/p>
 &lt;h3 id="shoot-controller">&lt;code>Shoot&lt;/code> Controller&lt;/h3>
 &lt;h4 id="control-plane">Control Plane&lt;/h4>
 &lt;p>The &lt;code>gardenlet&lt;/code> performs the following changes on the namespace running the shoot control plane components:&lt;/p>
@@ -703,7 +706,7 @@ Concretely, the highest number of zones of a worker pool with &lt;code>systemCom
 &lt;li>add label &lt;code>high-availability-config.resources.gardener.cloud/consider=true&lt;/code>. This makes the webhook mutate the replica count and the topology spread constraints.&lt;/li>
 &lt;li>add annotation &lt;code>high-availability-config.resources.gardener.cloud/zones=&amp;lt;zones&amp;gt;&lt;/code> where &lt;code>&amp;lt;zones&amp;gt;&lt;/code> is the merged list of zones provided in &lt;code>.zones[]&lt;/code> with &lt;code>systemComponents.allow=true&lt;/code> for all worker pools in &lt;code>.spec.provider.workers[]&lt;/code> in the &lt;code>Shoot&lt;/code> specification.&lt;/li>
 &lt;/ul>
-&lt;p>Note that the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is not set, hence the node affinity would never be touched by the webhook.&lt;/p></description></item><item><title>Docs: Kubernetes Clients</title><link>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</guid><description>
+&lt;p>Note that neither the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> nor the &lt;code>high-availability-config.resources.gardener.cloud/zone-pinning&lt;/code> annotations are set, hence the node affinity would never be touched by the webhook.&lt;/p></description></item><item><title>Docs: Kubernetes Clients</title><link>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/kubernetes-clients/</guid><description>
 &lt;h1 id="kubernetes-clients-in-gardener">Kubernetes Clients in Gardener&lt;/h1>
 &lt;p>This document aims at providing a general developer guideline on different aspects of using Kubernetes clients in a large-scale distributed system and project like Gardener.
 The points included here are not meant to be consulted as absolute rules, but rather as general rules of thumb, that allow developers to get a better feeling about certain gotchas and caveats.
@@ -1489,11 +1492,11 @@ It inherits from the controller&amp;rsquo;s logger (i.e., is already named) and 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>results in&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>2021-12-16T09:35:59.099+0100 INFO controller.shoot Reconciling Shoot {&amp;#34;name&amp;#34;: &amp;#34;sunflower&amp;#34;, &amp;#34;namespace&amp;#34;: &amp;#34;garden-greenhouse&amp;#34;}
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The logger is injected by controller-runtime&amp;rsquo;s &lt;code>Controller&lt;/code> implementation and our &lt;code>controllerutils.CreateWorker&lt;/code> alike (if a logger is passed using &lt;code>controllerutils.WithLogger&lt;/code>). The logger returned by &lt;code>logf.FromContext&lt;/code> is never &lt;code>nil&lt;/code>. If the context doesn&amp;rsquo;t carry a logger, it falls back to the global logger (&lt;code>logf.Log&lt;/code>), which might discard logs if not configured, but is also never &lt;code>nil&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The logger is injected by controller-runtime&amp;rsquo;s &lt;code>Controller&lt;/code> implementation. The logger returned by &lt;code>logf.FromContext&lt;/code> is never &lt;code>nil&lt;/code>. If the context doesn&amp;rsquo;t carry a logger, it falls back to the global logger (&lt;code>logf.Log&lt;/code>), which might discard logs if not configured, but is also never &lt;code>nil&lt;/code>.&lt;/p>
 &lt;blockquote>
 &lt;p>⚠️ Make sure that you don&amp;rsquo;t overwrite the &lt;code>name&lt;/code> or &lt;code>namespace&lt;/code> value keys for such loggers, otherwise you will lose information about the reconciled object.&lt;/p>
 &lt;/blockquote>
-&lt;p>The controller implementation (controller-runtime / &lt;code>CreateWorker&lt;/code>) itself takes care of logging the error returned by reconcilers.
+&lt;p>The controller implementation (controller-runtime) itself takes care of logging the error returned by reconcilers.
 Hence, don&amp;rsquo;t log an error that you are returning.
 Generally, functions should not return an error, if they already logged it, because that means the error is already handled and not an error anymore.
 See &lt;a href="https://dave.cheney.net/2015/11/05/lets-talk-about-logging">Dave Cheney&amp;rsquo;s post&lt;/a> for more on this.&lt;/p>
@@ -1580,30 +1583,6 @@ It is initially set to a &lt;code>NullLogger&lt;/code> by default, which means a
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>logf.SetLogger(logger.MustNewZapLogger(logger.DebugLevel, logger.FormatJSON, zap.WriteTo(GinkgoWriter)))
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>log := logf.Log.WithName(&lt;span style="color:#a31515">&amp;#34;test&amp;#34;&lt;/span>)
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;h2 id="migration-from-logrus-to-logr">Migration from logrus to logr&lt;/h2>
-&lt;p>These points might be helpful when refactoring existing code during the migration period:&lt;/p>
-&lt;ul>
-&lt;li>For migrating an existing controller to logr:
-&lt;ul>
-&lt;li>Create a named logger (&lt;a href="https://github.com/gardener/gardener/blob/ce9d741798eac2df8c470190ab483aa4c5818ebf/pkg/controllermanager/controller/cloudprofile/cloudprofile.go#L63">example&lt;/a>).&lt;/li>
-&lt;li>Pass &lt;code>controllerutils.WithLogger&lt;/code> to &lt;code>CreateWorker&lt;/code> (&lt;a href="https://github.com/gardener/gardener/blob/ce9d741798eac2df8c470190ab483aa4c5818ebf/pkg/controllermanager/controller/cloudprofile/cloudprofile.go#L113">example&lt;/a>). This allows &lt;code>logf.FromContext&lt;/code> to be used in reconcilers.&lt;/li>
-&lt;li>Use &lt;code>logf.FromContext&lt;/code> in &lt;code>Reconcile&lt;/code> to retrieve the logr logger and use it from there on (&lt;a href="https://github.com/gardener/gardener/blob/ce9d741798eac2df8c470190ab483aa4c5818ebf/pkg/controllermanager/controller/cloudprofile/cloudprofile_control.go#L72">example&lt;/a>).&lt;/li>
-&lt;li>Make sure to follow the other guidelines mentioned above as well (see &lt;a href="#logging-in-controllers">Logging in Controllers&lt;/a>).&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Libraries might expect a different logging implementation than the component which uses it. E.g., a controller that already uses logr might want to use the &lt;code>flow&lt;/code> package which still uses logrus. In such cases:
-&lt;ul>
-&lt;li>You can consider refactoring the library along with the component itself, if feasible.&lt;/li>
-&lt;li>It is acceptable for the migration period to use a logger derived from the respective global logger (&lt;code>logger.Logger&lt;/code> or &lt;code>logf.Log&lt;/code>) and pass it to the library.
-However, please add a &lt;code>TODO&lt;/code> for cleaning it up later on, once the migration is completed. E.g.:
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// TODO: switch to logr once flow package is migrated
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>err := shootFlow.Run(flow.Opts{
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Logger: logger.Logger.WithFields(logrus.Fields{&lt;span style="color:#a31515">&amp;#34;logger&amp;#34;&lt;/span>: &lt;span style="color:#a31515">&amp;#34;controller.&amp;#34;&lt;/span> + ControllerName, &lt;span style="color:#a31515">&amp;#34;name&amp;#34;&lt;/span>: shoot.Name, &lt;span style="color:#a31515">&amp;#34;namespace&amp;#34;&lt;/span>: shoot.Namespace})
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>})
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ul>
-&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Monitoring Stack</title><link>https://gardener.cloud/docs/gardener/development/monitoring-stack/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/monitoring-stack/</guid><description>
 &lt;h1 id="extending-the-monitoring-stack">Extending the Monitoring Stack&lt;/h1>
 &lt;p>This document provides instructions to extend the Shoot cluster monitoring stack by integrating new scrape targets, alerts and dashboards.&lt;/p>

@@ -1206,7 +1206,7 @@ You must create the &lt;code>garden&lt;/code> namespace and label it manually be
 &lt;p>If your remote Garden cluster is a Gardener shoot, and you can access the seed on which this shoot is scheduled, you can automate the above steps by running the &lt;a href="https://github.com/gardener/gardener/blob/master/hack/local-development/remote-garden/enable-seed-authorizer">&lt;code>enable-seed-authorizer&lt;/code> script&lt;/a> and passing the kubeconfig of the seed cluster and the shoot namespace as parameters:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>hack/local-development/remote-garden/enable-seed-authorizer &amp;lt;seed kubeconfig&amp;gt; &amp;lt;namespace&amp;gt;
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>Note: The configuration changes introduced by this script result in a working &lt;code>SeedAuthorization&lt;/code> feature only on shoots for which the &lt;code>ReversedVPN&lt;/code> feature is not enabled. If the corresponding feature gate is enabled in &lt;code>gardenlet&lt;/code>, add the annotation &lt;code>alpha.featuregates.shoot.gardener.cloud/reversed-vpn: 'false'&lt;/code> to the remote Garden shoot to disable it for that particular shoot.&lt;/p>
+&lt;p>Note: This script is not working anymore, as the &lt;code>ReversedVPN&lt;/code> feature can&amp;rsquo;t be disabled. The annotation &lt;code>alpha.featuregates.shoot.gardener.cloud/reversed-vpn&lt;/code> on &lt;code>Shoot&lt;/code>s is no longer respected.&lt;/p>
 &lt;/blockquote>
 &lt;p>To prevent Gardener from reconciling the shoot and overwriting your changes, add the annotation &lt;code>shoot.gardener.cloud/ignore: 'true'&lt;/code> to the remote Garden shoot. Note that this annotation takes effect only if it is enabled via the &lt;code>constollers.shoot.respectSyncPeriodOverwrite: true&lt;/code> option in the &lt;code>gardenlet&lt;/code> configuration.&lt;/p>
 &lt;p>To disable the seed authorizer again, run the same script with &lt;code>-d&lt;/code> as a third parameter:&lt;/p>
@@ -2761,6 +2761,64 @@ This label is used by the &lt;code>Cleanup&lt;/code> function to select only tho
 The relevant information can be retrieved from the &lt;code>Cluster&lt;/code> resource under &lt;code>.spec.shoot.status.credentials.rotation.certificateAuthorities&lt;/code>.&lt;/li>
 &lt;li>Independent of the specific identity, secrets marked with the &lt;code>Persist&lt;/code> option are automatically saved in the &lt;code>ShootState&lt;/code> resource by gardenlet and are also restored by gardenlet on Control Plane Migration to the new Seed.&lt;/li>
 &lt;/ul>
+&lt;h2 id="migrating-existing-secrets-to-secretsmanager">Migrating Existing Secrets To SecretsManager&lt;/h2>
+&lt;p>If you already have existing secrets which were not created with &lt;code>SecretsManager&lt;/code> then you can (optionally) migrate them by labeling them with &lt;code>secrets-manager-use-data-for=&amp;lt;config-name&amp;gt;&lt;/code>.
+For example, if your &lt;code>SecretsManager&lt;/code> generates a &lt;code>CertificateConfigSecret&lt;/code> with name &lt;code>foo&lt;/code> like this&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>secret, err := k.secretsManager.Generate(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ctx,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;amp;secrets.CertificateSecretConfig{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name: &lt;span style="color:#a31515">&amp;#34;foo&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>and you already have an existing secret in your system whose data should be kept instead of regenerated, then labeling it with &lt;code>secrets-manager-use-data-for=foo&lt;/code> will instruct &lt;code>SecretsManager&lt;/code> accordingly.&lt;/p>
+&lt;p>&lt;strong>⚠️ Caveat: You have to make sure that the existing &lt;code>data&lt;/code> keys match with what &lt;code>SecretsManager&lt;/code> uses:&lt;/strong>&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Secret Type&lt;/th>
+&lt;th>Data Keys&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Basic Auth&lt;/td>
+&lt;td>&lt;code>basic_auth.csv&lt;/code>, &lt;code>username&lt;/code>, &lt;code>password&lt;/code>, &lt;code>auth&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>CA Certificate&lt;/td>
+&lt;td>&lt;code>ca.crt&lt;/code>, &lt;code>ca.key&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Non-CA Certificate&lt;/td>
+&lt;td>&lt;code>tls.crt&lt;/code>, &lt;code>tls.key&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Control Plane Secret&lt;/td>
+&lt;td>&lt;code>ca.crt&lt;/code>, &lt;code>username&lt;/code>, &lt;code>password&lt;/code>, &lt;code>token&lt;/code>, &lt;code>kubeconfig&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>ETCD Encryption Key&lt;/td>
+&lt;td>&lt;code>key&lt;/code>, &lt;code>secret&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Kubeconfig&lt;/td>
+&lt;td>&lt;code>kubeconfig&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>RSA Private Key&lt;/td>
+&lt;td>&lt;code>id_rsa&lt;/code>, &lt;code>id_rsa.pub&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Static Token&lt;/td>
+&lt;td>&lt;code>static_tokens.csv&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>VPN TLS Auth&lt;/td>
+&lt;td>&lt;code>vpn.tlsauth&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
 &lt;h2 id="implementation-details">Implementation Details&lt;/h2>
 &lt;p>The source of truth for the secrets manager is the list of &lt;code>Secret&lt;/code>s in the Kubernetes cluster it acts upon (typically, the seed cluster).
 The persisted secrets in the &lt;code>ShootState&lt;/code> are only used if and only if the shoot is in the &lt;code>Restore&lt;/code> phase - in this case all secrets are just synced to the seed cluster so that they can be picked up by the secrets manager.&lt;/p>

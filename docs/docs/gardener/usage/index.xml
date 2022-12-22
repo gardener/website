@@ -1437,37 +1437,18 @@ The project owner can gradually remove these roles if desired.&lt;/p>
 &lt;h2 id="stale-projects">Stale Projects&lt;/h2>
 &lt;p>When a project is not actively used for some period of time, it is marked as &amp;ldquo;stale&amp;rdquo;. This is done by a controller called &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#stale-projects-reconciler">&amp;ldquo;Stale Projects Reconciler&amp;rdquo;&lt;/a>. Once the project is marked as stale there is a time frame in which if not used it will be deleted by that controller.&lt;/p></description></item><item><title>Docs: Reversed VPN Tunnel</title><link>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/</guid><description>
 &lt;h1 id="reversed-vpn-tunnel-setup-and-configuration">Reversed VPN Tunnel Setup and Configuration&lt;/h1>
-&lt;p>This is a short guide describing how to enable tunneling traffic from shoot cluster to seed cluster instead of the default &amp;ldquo;seed to shoot&amp;rdquo; direction.&lt;/p>
-&lt;h2 id="the-openvpn-default">The OpenVPN Default&lt;/h2>
-&lt;p>By default, Gardener makes use of OpenVPN to connect the shoot controlplane running on the seed cluster to the dataplane
-running on the shoot worker nodes, usually in isolated networks. This is achieved by having a sidecar to certain control plane components such as the &lt;code>kube-apiserver&lt;/code> and &lt;code>prometheus&lt;/code>.&lt;/p>
-&lt;p>With a sidecar, all traffic directed to the cluster is intercepted by iptables rules and redirected
-to the tunnel endpoint in the shoot cluster deployed behind a cloud loadbalancer. This has the following disadvantages:&lt;/p>
-&lt;ul>
-&lt;li>Every shoot would require an additional loadbalancer, this accounts for additional overhead in terms of both costs and troubleshooting efforts.&lt;/li>
-&lt;li>Private access use-cases would not be possible without having a seed residing in the same private domain as a hard requirement. For example, have a look at &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/issues/56">this issue&lt;/a>&lt;/li>
-&lt;li>Providing a public endpoint to access components in the shoot poses a security risk.&lt;/li>
-&lt;/ul>
-&lt;p>This is how it looks like today with the OpenVPN solution:&lt;/p>
-&lt;p>&lt;code>APIServer | VPN-seed ---&amp;gt; internet ---&amp;gt; LB --&amp;gt; VPN-Shoot (4314) --&amp;gt; Pods | Nodes | Services&lt;/code>&lt;/p>
-&lt;h2 id="reversing-the-tunnel">Reversing the Tunnel&lt;/h2>
-&lt;p>To address the above issues, the tunnel can establishment direction can be reverted, i.e. instead of having the client reside in the seed,
-we deploy the client in the shoot and initiate the connection from there. This way, there is no need to deploy a special purpose
-loadbalancer for the sake of addressing the dataplane, in addition to saving costs, this is considered the more secure alternative.
+&lt;p>The Reversed VPN Tunnel is enabled by default.
+A highly available VPN connection is automatically deployed in all shoots that configure an HA control-plane.&lt;/p>
+&lt;h2 id="reversed-vpn-tunnel">Reversed VPN Tunnel&lt;/h2>
+&lt;p>In the first VPN solution, connection establishment was initiated by a VPN client in the seed cluster.
+Due to several issues with this solution, the tunnel establishment direction has been reverted.
+The client is deployed in the shoot and initiates the connection from there. This way, there is no need to deploy a special purpose
+loadbalancer for the sake of addressing the data-plane, in addition to saving costs, this is considered the more secure alternative.
 For more information on how this is achieved, please have a look at the following &lt;a href="https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/">GEP&lt;/a>.&lt;/p>
-&lt;p>How it should look like at the end:&lt;/p>
+&lt;p>Connection establishment with a reversed tunnel:&lt;/p>
 &lt;p>&lt;code>APIServer --&amp;gt; Envoy-Proxy | VPN-Seed-Server &amp;lt;-- Istio/Envoy-Proxy &amp;lt;-- SNI API Server Endpoint &amp;lt;-- LB (one for all clusters of a seed) &amp;lt;--- internet &amp;lt;--- VPN-Shoot-Client --&amp;gt; Pods | Nodes | Services&lt;/code>&lt;/p>
-&lt;h3 id="how-to-configure">How to Configure&lt;/h3>
-&lt;p>To enable the usage of the reversed vpn tunnel feature, either the Gardenlet &lt;code>ReversedVPN&lt;/code> feature-gate must be set to &lt;code>true&lt;/code> as shown below or the shoot must be annotated with &lt;code>&amp;quot;alpha.featuregates.shoot.gardener.cloud/reversed-vpn: true&amp;quot;&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>featureGates:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ReversedVPN: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please refer to the examples &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">here&lt;/a> for more information.&lt;/p>
-&lt;p>To disable the feature-gate the shoot must be annotated with &lt;code>&amp;quot;alpha.featuregates.shoot.gardener.cloud/reversed-vpn: false&amp;quot;&lt;/code>&lt;/p>
-&lt;p>Once the feature-gate is enabled, a &lt;code>vpn-seed-server&lt;/code> deployment will be added to the controlplane. The &lt;code>kube-apiserver&lt;/code> will be configured to connect to resources in the dataplane such as pods, services and nodes though the &lt;code>vpn-seed-service&lt;/code> via http proxy/connect protocol.
-In the dataplane of the cluster, the &lt;code>vpn-shoot&lt;/code> will establish the connection to the &lt;code>vpn-seed-server&lt;/code> indirectly using the SNI API Server endpoint as a http proxy. After the connection has been established requests from the &lt;code>kube-apiserver&lt;/code> will be handled by the tunnel.&lt;/p>
-&lt;blockquote>
-&lt;p>Please note this feature is still in Beta, so you might see instabilities every now and then.&lt;/p>
-&lt;/blockquote>
+&lt;p>The reversed VPN tunnel is always deployed.
+The feature gate &lt;code>ReversedVPN&lt;/code> is GA and will be removed in a future release.&lt;/p>
 &lt;h2 id="high-availability-for-reversed-vpn-tunnel">High Availability for Reversed VPN Tunnel&lt;/h2>
 &lt;p>Shoots which define &lt;code>spec.controlPlane.highAvailability.failureTolerance: {node, zone}&lt;/code> get an HA control-plane including a
 highly available VPN connection by deploying redundant VPN servers and clients.&lt;/p>

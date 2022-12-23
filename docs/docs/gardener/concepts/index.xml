@@ -1741,6 +1741,21 @@ Concretely, when a pod is labelled with &lt;code>pod-template-hash&lt;/code> the
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The procedure circumvents a &lt;a href="https://github.com/kubernetes/kubernetes/issues/98215">known limitation&lt;/a> with TSCs which leads to imbalanced deployments after rolling updates.
 Gardener enables this webhook to schedule pods of deployments across nodes and zones.&lt;/p>
 &lt;p>Please note, the &lt;code>gardener-resource-manager&lt;/code> itself as well as pods labelled with &lt;code>topology-spread-constraints.resources.gardener.cloud/skip&lt;/code> are excluded from any mutations.&lt;/p>
+&lt;h4 id="system-components-webhook">System Components Webhook&lt;/h4>
+&lt;p>If enabled, this webhook handles scheduling concerns for system components &lt;code>Pod&lt;/code>s (except those managed by &lt;code>DaemonSet&lt;/code>s).
+The following tasks are performed by this webhook:&lt;/p>
+&lt;ol>
+&lt;li>Add &lt;code>pod.spec.nodeSelector&lt;/code> as given in the webhook configuration.&lt;/li>
+&lt;li>Add &lt;code>pod.spec.tolerations&lt;/code> as given in the webhook configuration.&lt;/li>
+&lt;li>Add &lt;code>pod.spec.tolerations&lt;/code> for any existing nodes matching the node selector given in the webhook configuration. Known taints and tolerations used for &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions">taint based evictions&lt;/a> are disregarded.&lt;/li>
+&lt;/ol>
+&lt;p>Gardener enables this webhook for &lt;code>kube-system&lt;/code> and &lt;code>kubernetes-dashboard&lt;/code> namespaces in shoot clusters, selecting &lt;code>Pod&lt;/code>s being labelled with &lt;code>resources.gardener.cloud/managed-by: gardener&lt;/code>.
+It adds a configuration, so that &lt;code>Pod&lt;/code>s will get the &lt;code>worker.gardener.cloud/system-components: true&lt;/code> node selector (step 1) as well as tolerate any custom taint (step 2) that is added to system component worker nodes (&lt;code>shoot.spec.provider.workers[].systemComponents.allow: true&lt;/code>).
+In addition, the webhook merges these tolerations with the ones required for at that time available system component &lt;code>Node&lt;/code>s in the cluster (step 3).
+Both is required to ensure system component &lt;code>Pod&lt;/code>s can be &lt;em>scheduled&lt;/em> or &lt;em>executed&lt;/em> during an active shoot reconciliation that is happening due to any modifications to &lt;code>shoot.spec.provider.workers[].taints&lt;/code>, e.g. &lt;code>Pod&lt;/code>s must be scheduled while there are still &lt;code>Node&lt;/code>s not having the updated taint configuration.&lt;/p>
+&lt;blockquote>
+&lt;p>You can opt-out of this behaviour for &lt;code>Pod&lt;/code>s by labeling them with &lt;code>system-components-config.resources.gardener.cloud/skip=true&lt;/code>.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="validating-webhooks">Validating Webhooks&lt;/h3>
 &lt;h4 id="unconfirmed-deletion-prevention-for-custom-resources-and-definitions">Unconfirmed Deletion Prevention For Custom Resources And Definitions&lt;/h4>
 &lt;p>As part of Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">extensibility concepts&lt;/a>, a lot of &lt;code>CustomResourceDefinition&lt;/code>s are deployed to the seed clusters that serve as extension points for provider-specific controllers.

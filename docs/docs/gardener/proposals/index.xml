@@ -2,6 +2,8 @@
 &lt;h1 id="gardener-extensibility-and-extraction-of-cloud-specificos-specific-knowledge-308httpsgithubcomgardenergardenerissues308-262httpsgithubcomgardenergardenerissues262">Gardener extensibility and extraction of cloud-specific/OS-specific knowledge (&lt;a href="https://github.com/gardener/gardener/issues/308">#308&lt;/a>, &lt;a href="https://github.com/gardener/gardener/issues/262">#262&lt;/a>)&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>
+&lt;li>&lt;a href="#gardener-extensibility-and-extraction-of-cloud-specificos-specific-knowledge-308-262">Gardener extensibility and extraction of cloud-specific/OS-specific knowledge (#308, #262)&lt;/a>
+&lt;ul>
 &lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#motivation">Motivation&lt;/a>
@@ -38,6 +40,7 @@
 &lt;/li>
 &lt;li>&lt;a href="#gardenlet">Gardenlet&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#shoot-control-plane-movementmigration">Shoot control plane movement/migration&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#backupinfrastructure-migration">BackupInfrastructure migration&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>&lt;a href="#registration-of-external-controllers-at-gardener">Registration of external controllers at Gardener&lt;/a>&lt;/li>
@@ -50,6 +53,8 @@
 &lt;/ul>
 &lt;/li>
 &lt;li>&lt;a href="#alternatives">Alternatives&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;/ul>
 &lt;h2 id="summary">Summary&lt;/h2>
 &lt;p>Gardener has evolved to a large compound of packages containing lots of highly specific knowledge which makes it very hard to extend (supporting a new cloud provider, new OS, &amp;hellip;, or behave differently depending on the underlying infrastructure).&lt;/p>
@@ -226,7 +231,7 @@ With this approach it can validate, modify, or react on any resource created by 
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ The specifications for the other cloud providers Gardener already has an implementation for looks similar.&lt;/p>
 &lt;h3 id="crd-definitions-and-workflow-adaptation">CRD definitions and workflow adaptation&lt;/h3>
 &lt;p>In the following we are outlining the CRD definitions which define the API between Gardener and the dedicated controllers.
-After that we will take a look at the current &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/shoot_control_reconcile.go">reconciliation&lt;/a>/&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/shoot_control_delete.go">deletion&lt;/a> flow and describe how it would look like in case we would implement this proposal.&lt;/p>
+After that we will take a look at the current &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/shoot/reconciler_reconcile.go">reconciliation&lt;/a>/&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/shoot/reconciler_delete.go">deletion&lt;/a> flow and describe how it would look like in case we would implement this proposal.&lt;/p>
 &lt;h4 id="custom-resource-definitions">Custom resource definitions&lt;/h4>
 &lt;p>Every CRD has a &lt;code>.spec.type&lt;/code> field containing the respective instance of the dimension the CRD represents, e.g. the cloud provider, the DNS provider or the operation system name.
 Moreover, the &lt;code>.status&lt;/code> field must contain&lt;/p>
@@ -2207,7 +2212,7 @@ Reconciliation process by container runtime extension controllers:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> bootstrap: BootstrapToken
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mergeWithParent: &lt;span style="color:#00f">true&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="managedseed-controller">ManagedSeed Controller&lt;/h3>
-&lt;p>ManagedSeeds are reconciled by a new &lt;em>managed seed controller&lt;/em> in &lt;code>gardenlet&lt;/code>. Its implementation is very similar to the current &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/seed_registration_control.go">seed registration controller&lt;/a>, and in fact could be regarded as a refactoring of the latter, with the difference that it uses the &lt;code>ManagedSeed&lt;/code> resource rather than the &lt;code>use-as-seed&lt;/code> annotation on a Shoot. The &lt;code>gardenlet&lt;/code> only reconciles ManagedSeeds that refer to Shoots scheduled on Seeds the &lt;code>gardenlet&lt;/code> is responsible for.&lt;/p>
+&lt;p>ManagedSeeds are reconciled by a new &lt;em>managed seed controller&lt;/em> in &lt;code>gardenlet&lt;/code>. Its implementation is very similar to the current seed registration controller, and in fact could be regarded as a refactoring of the latter, with the difference that it uses the &lt;code>ManagedSeed&lt;/code> resource rather than the &lt;code>use-as-seed&lt;/code> annotation on a Shoot. The &lt;code>gardenlet&lt;/code> only reconciles ManagedSeeds that refer to Shoots scheduled on Seeds the &lt;code>gardenlet&lt;/code> is responsible for.&lt;/p>
 &lt;p>Once this controller is considered sufficiently stable, the current &lt;code>use-as-seed&lt;/code> annotation and the controller mentioned above should be marked as deprecated and eventually removed.&lt;/p>
 &lt;p>A &lt;code>ManagedSeed&lt;/code> that is in use by shoots cannot be deleted, unless the shoots are either deleted or moved to other seeds first. The managed seed controller ensures that this is the case by only allowing a ManagedSeed to be deleted if its Seed has been already deleted.&lt;/p>
 &lt;h3 id="managedseed-admission-plugins">ManagedSeed Admission Plugins&lt;/h3>
@@ -2470,6 +2475,9 @@ Reconciliation process by container runtime extension controllers:&lt;/p>
 &lt;h1 id="gep-15-bastion-management-and-ssh-key-pair-rotation">GEP-15: Bastion Management and SSH Key Pair Rotation&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>
+&lt;li>&lt;a href="#gep-15-bastion-management-and-ssh-key-pair-rotation">GEP-15: Bastion Management and SSH Key Pair Rotation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#motivation">Motivation&lt;/a>
 &lt;ul>
 &lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
@@ -2486,6 +2494,9 @@ Reconciliation process by container runtime extension controllers:&lt;/p>
 &lt;li>&lt;a href="#ssh-key-pair-rotation">SSH Key Pair Rotation&lt;/a>
 &lt;ul>
 &lt;li>&lt;a href="#rotation-proposal">Rotation Proposal&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#limitations">Limitations&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
@@ -2519,7 +2530,7 @@ The proposal, as outlined below, suggests to implement the necessary changes in 
 &lt;li>New &lt;code>operations.gardener.cloud&lt;/code> API Group&lt;/li>
 &lt;li>New resource type &lt;code>Bastion&lt;/code>, see &lt;a href="#resource-example">resource example&lt;/a> below&lt;/li>
 &lt;li>New Admission Webhooks for &lt;code>Bastion&lt;/code> resource&lt;/li>
-&lt;li>&lt;code>SeedAuthorizer&lt;/code>: The &lt;code>SeedAuthorizer&lt;/code> and dependency graph needs to be extended to consider the &lt;code>Bastion&lt;/code> resource &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/admissioncontroller/webhooks/auth/seed/graph">https://github.com/gardener/gardener/tree/master/pkg/admissioncontroller/webhooks/auth/seed/graph&lt;/a>&lt;/li>
+&lt;li>&lt;code>SeedAuthorizer&lt;/code>: The &lt;code>SeedAuthorizer&lt;/code> and dependency graph needs to be extended to consider the &lt;code>Bastion&lt;/code> resource &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/admissioncontroller/webhook/auth/seed/graph">https://github.com/gardener/gardener/tree/master/pkg/admissioncontroller/webhook/auth/seed/graph&lt;/a>&lt;/li>
 &lt;li>Is configured with &lt;code>timeToLive&lt;/code>, the time to add to the current time on each heartbeat&lt;/li>
 &lt;/ul>
 &lt;/li>

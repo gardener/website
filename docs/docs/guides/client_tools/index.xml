@@ -101,57 +101,131 @@ cluster.&lt;/p>
 &lt;p>Create a separate &lt;code>kubeconfig&lt;/code> for each user. One of the big advantages of this approach is that you can revoke them and control
 the permissions better. A limitation to single namespaces is also possible here.&lt;/p>
 &lt;p>The script creates a new &lt;code>ServiceAccount&lt;/code> with read privileges in the whole cluster (Secrets are excluded).
-To run the script, &lt;a href="https://stedolan.github.io/jq/">jq&lt;/a>, a lightweight and flexible command-line JSON processor, must
-be installed.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">#!/bin/bash
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> [[ -z &lt;span style="color:#a31515">&amp;#34;&lt;/span>$1&lt;span style="color:#a31515">&amp;#34;&lt;/span> ]] ;&lt;span style="color:#00f">then&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#a31515">&amp;#34;usage: &lt;/span>$0&lt;span style="color:#a31515"> &amp;lt;username&amp;gt;&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exit 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">fi&lt;/span>
+To run the script, &lt;a href="https://deno.land/">Deno&lt;/a>, a secure TypeScript runtime, must be installed.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-TypeScript" data-lang="TypeScript">&lt;span style="display:flex;">&lt;span>&lt;span style="">#&lt;/span>!&lt;span style="">/usr/bin/env -S deno run --allow-run&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>user=$1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create sa &lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>secret=&lt;span style="color:#00f">$(&lt;/span>kubectl get sa &lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span> -o json | jq -r .secrets[].name&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl get secret &lt;span style="color:#a31515">${&lt;/span>secret&lt;span style="color:#a31515">}&lt;/span> -o json | jq -r &lt;span style="color:#a31515">&amp;#39;.data[&amp;#34;ca.crt&amp;#34;]&amp;#39;&lt;/span> | base64 -D &amp;gt; ca.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">/*
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* This script create Kubernetes ServiceAccount and other required resource and print KUBECONFIG to console.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* Depending on your requirements you might want change clusterRoleBindingTemplate() function
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">*
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* In order to execute this script it&amp;#39;s required to install Deno.js https://deno.land/ (TypeScript &amp;amp; JavaScript runtime).
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* It&amp;#39;s single executable binary for the major OSs from the original author of the Node.js
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* example: deno run --allow-run kubeconfig-for-custom-user.ts d00001
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* example: deno run --allow-run kubeconfig-for-custom-user.ts d00001 --delete
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">*
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">* known issue: shebang does works under the Linux but not for Windows Linux Subsystem
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">*/&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>user_token=&lt;span style="color:#00f">$(&lt;/span>kubectl get secret &lt;span style="color:#a31515">${&lt;/span>secret&lt;span style="color:#a31515">}&lt;/span> -o json | jq -r &lt;span style="color:#a31515">&amp;#39;.data[&amp;#34;token&amp;#34;]&amp;#39;&lt;/span> | base64 -D&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>c=&lt;span style="color:#a31515">`&lt;/span>kubectl config current-context&lt;span style="color:#a31515">`&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_name=&lt;span style="color:#a31515">`&lt;/span>kubectl config get-contexts $c | awk &lt;span style="color:#a31515">&amp;#39;{print $3}&amp;#39;&lt;/span> | tail -n 1&lt;span style="color:#a31515">`&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>endpoint=&lt;span style="color:#a31515">`&lt;/span>kubectl config view -o jsonpath=&lt;span style="color:#a31515">&amp;#34;{.clusters[?(@.name == \&amp;#34;&lt;/span>&lt;span style="color:#a31515">${&lt;/span>cluster_name&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">\&amp;#34;)].cluster.server}&amp;#34;&lt;/span>&lt;span style="color:#a31515">`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">const&lt;/span> KUBECTL = &lt;span style="color:#a31515">&amp;#34;/usr/local/bin/kubectl&amp;#34;&lt;/span> &lt;span style="color:#008000">//or
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// const KUBECTL = &amp;#34;C:\\Program Files\\Docker\\Docker\\resources\\bin\\kubectl.exe&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">const&lt;/span> serviceAccName = Deno.args[0]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">const&lt;/span> deleteIt = Deno.args[1]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> (serviceAccName == &lt;span style="color:#00f">undefined&lt;/span> || serviceAccName == &lt;span style="color:#a31515">&amp;#34;--delete&amp;#34;&lt;/span> ) {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> console.log(&lt;span style="color:#a31515">&amp;#34;please provide username as an argument, for example: deno run --allow-run kubeconfig-for-custom-user.ts USER_NAME [--delete]&amp;#34;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Deno.exit(1)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Set up the config&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>KUBECONFIG=k8s-&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-conf kubectl config set-cluster &lt;span style="color:#a31515">${&lt;/span>cluster_name&lt;span style="color:#a31515">}&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --embed-certs=true &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --server=&lt;span style="color:#a31515">${&lt;/span>endpoint&lt;span style="color:#a31515">}&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --certificate-authority=./ca.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> (deleteIt == &lt;span style="color:#a31515">&amp;#34;--delete&amp;#34;&lt;/span>) {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;delete&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;serviceaccount&amp;#34;&lt;/span>, serviceAccName])
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;delete&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;secret&amp;#34;&lt;/span>, &lt;span style="color:#a31515">`&lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-secret`&lt;/span>])
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;delete&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;clusterrolebinding&amp;#34;&lt;/span>, &lt;span style="color:#a31515">`view-&lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-global`&lt;/span>])
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Deno.exit(0)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>KUBECONFIG=k8s-&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-conf kubectl config set-credentials &lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-&lt;span style="color:#a31515">${&lt;/span>cluster_name#cluster-&lt;span style="color:#a31515">}&lt;/span> --token=&lt;span style="color:#a31515">${&lt;/span>user_token&lt;span style="color:#a31515">}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>KUBECONFIG=k8s-&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-conf kubectl config set-context &lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-&lt;span style="color:#a31515">${&lt;/span>cluster_name#cluster-&lt;span style="color:#a31515">}&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --cluster=&lt;span style="color:#a31515">${&lt;/span>cluster_name&lt;span style="color:#a31515">}&lt;/span> &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --user=&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-&lt;span style="color:#a31515">${&lt;/span>cluster_name#cluster-&lt;span style="color:#a31515">}&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>KUBECONFIG=k8s-&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-conf kubectl config use-context &lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>-&lt;span style="color:#a31515">${&lt;/span>cluster_name#cluster-&lt;span style="color:#a31515">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">await&lt;/span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;create&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;serviceaccount&amp;#34;&lt;/span>, serviceAccName, &lt;span style="color:#a31515">&amp;#34;-o&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;json&amp;#34;&lt;/span>])
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">await&lt;/span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;create&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-o&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;json&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-f&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span>], secretYamlTemplate())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> secret = &lt;span style="color:#00f">await&lt;/span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;get&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;secret&amp;#34;&lt;/span>, &lt;span style="color:#a31515">`&lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-secret`&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-o&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;json&amp;#34;&lt;/span>])
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> caCRT = secret.data[&lt;span style="color:#a31515">&amp;#34;ca.crt&amp;#34;&lt;/span>];
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> userToken = atob(secret.data[&lt;span style="color:#a31515">&amp;#34;token&amp;#34;&lt;/span>]); &lt;span style="color:#008000">//decode base64
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> kubeConfig = &lt;span style="color:#00f">await&lt;/span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;config&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;view&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;--minify&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-o&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;json&amp;#34;&lt;/span>]);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> clusterApi = kubeConfig.clusters[0].cluster.server
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">let&lt;/span> clusterName = kubeConfig.clusters[0].name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">await&lt;/span> exec([KUBECTL, &lt;span style="color:#a31515">&amp;#34;create&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-o&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;json&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-f&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span>], clusterRoleBindingTemplate())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>console.log(kubeConfigTemplate(caCRT, userToken, clusterApi, clusterName, serviceAccName + &lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span> + clusterName))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">async&lt;/span> &lt;span style="color:#00f">function&lt;/span> exec(args: &lt;span style="color:#2b91af">string&lt;/span>[], stdInput?: &lt;span style="color:#2b91af">string&lt;/span>): Promise&amp;lt;Object&amp;gt; {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> console.log(&lt;span style="color:#a31515">&amp;#34;# &amp;#34;&lt;/span>+args.join(&lt;span style="color:#a31515">&amp;#34; &amp;#34;&lt;/span>))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">let&lt;/span> opt: &lt;span style="color:#2b91af">Deno.RunOptions&lt;/span> = {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cmd: &lt;span style="color:#2b91af">args&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stdout: &lt;span style="color:#a31515">&amp;#34;piped&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stderr: &lt;span style="color:#a31515">&amp;#34;piped&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stdin: &lt;span style="color:#a31515">&amp;#34;piped&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> };
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">const&lt;/span> p = Deno.run(opt);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> (stdInput != &lt;span style="color:#00f">undefined&lt;/span>) {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">await&lt;/span> p.stdin.write(&lt;span style="color:#00f">new&lt;/span> TextEncoder().encode(stdInput));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">await&lt;/span> p.stdin.close();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">const&lt;/span> status = &lt;span style="color:#00f">await&lt;/span> p.status()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">const&lt;/span> output = &lt;span style="color:#00f">await&lt;/span> p.output()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">const&lt;/span> stderrOutput = &lt;span style="color:#00f">await&lt;/span> p.stderrOutput()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> (status.code === 0) {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> JSON.parse(&lt;span style="color:#00f">new&lt;/span> TextDecoder().decode(output))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> } &lt;span style="color:#00f">else&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">let&lt;/span> error = &lt;span style="color:#00f">new&lt;/span> TextDecoder().decode(stderrOutput);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> &lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">function&lt;/span> clusterRoleBindingTemplate() {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> &lt;span style="color:#a31515">`
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: rbac.authorization.k8s.io/v1
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: ClusterRoleBinding
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: view-${user}-global
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: view-&lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-global
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">subjects:
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">- kind: ServiceAccount
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: ${user}
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: default
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">roleRef:
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kind: ClusterRole
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: view
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">function&lt;/span> secretYamlTemplate() {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> &lt;span style="color:#a31515">`
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Secret
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-secret
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kubernetes.io/service-account.name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>serviceAccName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">type: kubernetes.io/service-account-token`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#34;done! Test with: &amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#34;export KUBECONFIG=k8s-&lt;/span>&lt;span style="color:#a31515">${&lt;/span>user&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">-conf&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#34;kubectl get pods&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">function&lt;/span> kubeConfigTemplate(certificateAuthority: &lt;span style="color:#2b91af">string&lt;/span>, token: &lt;span style="color:#2b91af">string&lt;/span>, clusterApi: &lt;span style="color:#2b91af">string&lt;/span>, clusterName: &lt;span style="color:#2b91af">string&lt;/span>, username: &lt;span style="color:#2b91af">string&lt;/span>) {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> &lt;span style="color:#a31515">`
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">## KUBECONFIG generated on &lt;/span>&lt;span style="color:#a31515">${&lt;/span>&lt;span style="color:#00f">new&lt;/span> Date()&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">clusters:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">- cluster:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> certificate-authority-data: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>certificateAuthority&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> server: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>clusterApi&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>clusterName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">contexts:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">- context:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cluster: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>clusterName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> user: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>username&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>clusterName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">current-context: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>clusterName&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Config
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">preferences: {}
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">users:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">- name: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>username&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> user:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> token: &lt;/span>&lt;span style="color:#a31515">${&lt;/span>token&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If &lt;strong>edit&lt;/strong> or &lt;strong>admin&lt;/strong> rights are to be assigned, the &lt;code>ClusterRoleBinding&lt;/code> must be adapted in the &lt;code>roleRef&lt;/code> section
 with the roles listed below.&lt;/p>
 &lt;p>Furthermore, you can restrict this to a single namespace by not creating a &lt;code>ClusterRoleBinding&lt;/code> but only a &lt;code>RoleBinding&lt;/code>

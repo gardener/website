@@ -196,7 +196,42 @@ As an operator/administrator you have to configure some of them to make the syst
 &lt;p>As an end-user/stakeholder/customer you are using a Gardener landscape that has been setup for you by another team.
 You don&amp;rsquo;t need to care about how Gardener itself has to be configured or how it has to be deployed.
 Take a look at &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver/">this document&lt;/a> - it describes which resources are offered by Gardener.
-You may want to have a more detailed look for &lt;code>Project&lt;/code>s, &lt;code>SecretBinding&lt;/code>s, &lt;code>Shoot&lt;/code>s, and &lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s.&lt;/p></description></item><item><title>Docs: Control Plane Migration</title><link>https://gardener.cloud/docs/gardener/usage/control_plane_migration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/control_plane_migration/</guid><description>
+You may want to have a more detailed look for &lt;code>Project&lt;/code>s, &lt;code>SecretBinding&lt;/code>s, &lt;code>Shoot&lt;/code>s, and &lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s.&lt;/p></description></item><item><title>Docs: Control Plane Endpoints And Ports</title><link>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</guid><description>
+&lt;h1 id="endpoints-and-ports-of-a-shoot-control-plane">Endpoints and Ports of a Shoot Control-Plane&lt;/h1>
+&lt;p>With the &lt;a href="https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/">reversed VPN&lt;/a> tunnel, there are no endpoints with open ports in the shoot cluster required by gardener.
+In order to allow communication to the shoots control-plane in the seed cluster, there are endpoints shared by multiple shoots of a seed cluster.
+Depending on the configured zones or &lt;a href="https://gardener.cloud/docs/gardener/usage/exposureclasses/">exposure classes&lt;/a>, there are different endpoints in a seed cluster. The IP address(es) can be determined by a DNS query for the API Server URL.
+The main entry-point into the seed cluster is the load balancer of the Istio ingress-gateway service. Depending on the infrastructure provider, there can be one IP address per zone.&lt;/p>
+&lt;p>The load balancer of the Istio ingress-gateway service exposes the following TCP ports:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>443&lt;/strong> for requests to the shoot API Server. The request is dispatched according to the set TLS SNI extension.&lt;/li>
+&lt;li>&lt;strong>8443&lt;/strong> for requests to the shoot API Server via &lt;code>api-server-proxy&lt;/code>, dispatched based on the proxy protocol target, which is the IP address of &lt;code>kubernetes.default.svc.cluster.local&lt;/code> in the shoot.&lt;/li>
+&lt;li>&lt;strong>8132&lt;/strong> to establish the reversed VPN connection. It&amp;rsquo;s dispatched according to an HTTP header value.&lt;/li>
+&lt;/ul>
+&lt;h2 id="kube-apiserver-via-sni">&lt;code>kube-apiserver&lt;/code> via SNI&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/api-server-sni_feb16f.png" alt="kube-apiserver via SNI">&lt;/p>
+&lt;p>DNS entries for &lt;code>api.&amp;lt;external-domain&amp;gt;&lt;/code> and &lt;code>api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;&lt;/code> point to the load balancer of an Istio ingress-gateway service.
+The Kubernetes client sets the server name to &lt;code>api.&amp;lt;external-domain&amp;gt;&lt;/code> or &lt;code>api.&amp;lt;shoot&amp;gt;.&amp;lt;project&amp;gt;.&amp;lt;internal-domain&amp;gt;&lt;/code>.
+Based on SNI, the connection is forwarded to the respective API Server at TCP layer. There is no TLS termination at the Istio ingress-gateway.
+TLS termination happens on the shoots API Server. Traffic is end-to-end encrypted between the client and the API Server. The certificate authority and authentication are defined in the corresponding &lt;code>kubeconfig&lt;/code>.
+Details can be found in &lt;a href="https://gardener.cloud/docs/gardener/proposals/08-shoot-apiserver-via-sni/">GEP-08&lt;/a>.&lt;/p>
+&lt;h2 id="kube-apiserver-via-apiserver-proxy">&lt;code>kube-apiserver&lt;/code> via &lt;code>apiserver-proxy&lt;/code>&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/api-server-proxy_b419fc.png" alt="apiserver-proxy">&lt;/p>
+&lt;p>Inside the shoot cluster, the API Server can also be reached by the cluster internal name &lt;code>kubernetes.default.svc.cluster.local&lt;/code>.
+The pods &lt;code>apiserver-proxy&lt;/code> are deployed in the host network as daemonset and intercept connections to the Kubernetes service IP address.
+The destination address is changed to the cluster IP address of the service &lt;code>kube-apiserver.&amp;lt;shoot-namespace&amp;gt;.svc.cluster.local&lt;/code> in the seed cluster.
+The connections are forwarded via the &lt;a href="https://www.envoyproxy.io/docs/envoy/latest/configuration/listeners/listener_filters/proxy_protocol">HaProxy Proxy Protocol&lt;/a> to the Istio ingress-gateway in the seed cluster.
+The Istio ingress-gateway forwards the connection to the respective shoot API Server by it&amp;rsquo;s cluster IP address.
+As TLS termination happens at the API Server, the traffic is end-to-end encrypted the same way as with SNI.&lt;/p>
+&lt;p>Details can be found in &lt;a href="https://gardener.cloud/docs/gardener/proposals/11-apiserver-network-proxy/">GEP-11&lt;/a>.&lt;/p>
+&lt;h2 id="reversed-vpn-tunnel">Reversed VPN tunnel&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/reversed-vpn_e89ad6.png" alt="Reversed VPN">&lt;/p>
+&lt;p>As the API Server has to be able to connect to endpoints in the shoot cluster, a VPN connection is established.
+This VPN connection is initiated from a VPN client in the shoot cluster.
+The VPN client connects to the Istio ingress-gateway and is forwarded to the VPN server in the control-plane namespace of the shoot.
+Once the VPN tunnel between the VPN client in the shoot and the VPN server in the seed cluster is established, the API Server can connect to nodes,
+services and pods in the shoot cluster.&lt;/p>
+&lt;p>More details can be found in the &lt;a href="https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/">usage document&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/proposals/14-reversed-cluster-vpn/">GEP-14&lt;/a>.&lt;/p></description></item><item><title>Docs: Control Plane Migration</title><link>https://gardener.cloud/docs/gardener/usage/control_plane_migration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/control_plane_migration/</guid><description>
 &lt;h1 id="control-plane-migration">Control Plane Migration&lt;/h1>
 &lt;h2 id="preconditions">Preconditions&lt;/h2>
 &lt;p>To be able to use this feature, the &lt;code>SeedChange&lt;/code> feature gate has to be enabled on your &lt;code>gardener-apiserver&lt;/code>.&lt;/p>

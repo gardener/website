@@ -154,10 +154,6 @@ When the &lt;code>gardenlet&lt;/code> starts it scans the &lt;code>garden&lt;/co
 &lt;li>If you have multiple default domain secrets defined you can add a priority as an annotation (&lt;code>dns.gardener.cloud/domain-default-priority&lt;/code>) to select which domain should be used for new shoots while creation. The domain with the highest priority is selected while shoot creation. If there is no annotation defined the default priority is &lt;code>0&lt;/code>, also all non integer values are considered as priority &lt;code>0&lt;/code>.&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;/ul>
-&lt;p>⚠️ Please note that the mentioned domain secrets are only needed if you have at least one seed cluster that is not specifing &lt;code>.spec.settings.shootDNS.enabled=false&lt;/code>.
-Seeds with this taint don&amp;rsquo;t create any DNS records for shoots scheduled on it, hence, if you only have such seeds, you don&amp;rsquo;t need to create the domain secrets.&lt;/p>
-&lt;ul>
 &lt;li>
 &lt;p>&lt;strong>Alerting secrets&lt;/strong> (optional), contain the alerting configuration and credentials for the &lt;a href="https://prometheus.io/docs/alerting/alertmanager/">AlertManager&lt;/a> to send email alerts. It is also possible to configure the monitoring stack to send alerts to an AlertManager not deployed by Gardener to handle alerting. Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-alerting.yaml">this&lt;/a> for an example.&lt;/p>
 &lt;ul>
@@ -1597,13 +1593,7 @@ In this case, the scheduler simply ignores them as if they wouldn&amp;rsquo;t ex
 Shoots can still use the invisible seed but only by explicitly specifying the name in their &lt;code>.spec.seedName&lt;/code> field.&lt;/p>
 &lt;p>Seed clusters can be marked visible/invisible via the &lt;code>.spec.settings.scheduling.visible&lt;/code> field.
 It defaults to &lt;code>true&lt;/code>.&lt;/p>
-&lt;h2 id="shoot-dns">Shoot DNS&lt;/h2>
-&lt;p>Generally, the Gardenlet creates a few DNS records during the creation/reconciliation of a shoot cluster (see &lt;a href="https://gardener.cloud/docs/gardener/usage/configuration/">here&lt;/a>).
-However, some infrastructures don&amp;rsquo;t need/want this behaviour.
-Instead, they want to directly use the IP addresses/hostnames of load balancers.
-Another use-case is a local development setup where DNS is not needed for simplicity reasons.&lt;/p>
-&lt;p>By setting the &lt;code>.spec.settings.shootDNS.enabled&lt;/code> field this behavior can be controlled.&lt;/p>
-&lt;p>ℹ️ In previous Gardener versions (&amp;lt; 1.5) these settings were controlled via taint keys (&lt;code>seed.gardener.cloud/{disable-capacity-reservation,disable-dns,invisible}&lt;/code>).
+&lt;p>ℹ️ In previous Gardener versions (&amp;lt; 1.5) these settings were controlled via taint keys (&lt;code>seed.gardener.cloud/{disable-capacity-reservation,invisible}&lt;/code>).
 The taint keys are no longer supported and removed in version 1.12.
 The rationale behind it is the implementation of tolerations similar to Kubernetes tolerations.
 More information about it can be found in &lt;a href="https://github.com/gardener/gardener/issues/2193">#2193&lt;/a>.&lt;/p>
@@ -2090,7 +2080,17 @@ different zone.&lt;/li>
 &lt;p>NOTE: There will be a small downtime during the upgrade especially for etcd which will transition from a single node etcd cluster to a multi-node etcd cluster.&lt;/p>
 &lt;/blockquote>
 &lt;p>&lt;strong>Disallowed Transitions&lt;/strong>&lt;/p>
-&lt;p>If you have already set-up a HA shoot control plane with &lt;code>node&lt;/code> failure tolerance then an upgrade to &lt;code>zone&lt;/code> failure tolerance is currently not supported, mainly because already existing volumes are bound to the zone they were created in.&lt;/p></description></item><item><title>Docs: Shoot Info Configmap</title><link>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</guid><description>
+&lt;p>If you have already set-up an HA shoot control plane with &lt;code>node&lt;/code> failure tolerance, then an upgrade to &lt;code>zone&lt;/code> failure tolerance is currently not supported, mainly because already existing volumes are bound to the zone they were created in originally.&lt;/p>
+&lt;h2 id="zone-outage-situation">Zone Outage Situation&lt;/h2>
+&lt;p>An availability zone outage might lead to the requirement to change your cluster setup temporarily and on short notice, in order to compensate failures and shortages resulting from the outage.
+For instance, if the shoot cluster has worker nodes across three zones where one zone goes down, the computing power from these nodes is also gone during that time.
+Changing the worker pool (&lt;code>shoot.spec.provider.workers[]&lt;/code>) and infrastructure (&lt;code>shoot.spec.provider.infrastructureConfig&lt;/code>) configuration can eliminate this disbalance, having enough machines in healthy availability zones that can cope with the requests of your applications.&lt;/p>
+&lt;p>Gardener relies on a sophisticated reconciliation flow with several dependencies for which various flow steps wait for the &lt;em>readiness&lt;/em> of prior ones.
+During a zone outage, this can block the entire flow, e.g. because all three &lt;code>etcd&lt;/code> replicas can never be ready when a zone is down, and required changes mentioned above can never be accomplished.
+For this, a special one-off annotation &lt;code>shoot.gardener.cloud/skip-readiness&lt;/code> helps to skip any readiness checks in the flow.&lt;/p>
+&lt;blockquote>
+&lt;p>The &lt;code>shoot.gardener.cloud/skip-readiness&lt;/code> annotation serves as a last resort if reconciliation is stuck because of important changes during an AZ outage. Use it with caution, only in exceptional cases and after a case-by-case evaluation with your Gardener landscape administrator. If used together with other operations like Kubernetes version upgrades or credential rotation, the annotation may lead to a severe outage of your shoot control plane.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Shoot Info Configmap</title><link>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_info_configmap/</guid><description>
 &lt;h1 id="shoot-info-configmap">Shoot Info &lt;code>ConfigMap&lt;/code>&lt;/h1>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Gardenlet maintains a &lt;a href="https://kubernetes.io/docs/concepts/configuration/configmap/">ConfigMap&lt;/a> inside the Shoot cluster that contains information about the cluster itself. The ConfigMap is named &lt;code>shoot-info&lt;/code> and located in the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
@@ -2787,18 +2787,81 @@ Configuring the &lt;code>CloudProfile&lt;/code> in such a way, the Shoot&amp;rsq
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Supported K8s Versions</title><link>https://gardener.cloud/docs/gardener/usage/supported_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/supported_k8s_versions/</guid><description>
 &lt;h1 id="supported-kubernetes-versions">Supported Kubernetes Versions&lt;/h1>
-&lt;p>Currently, the Gardener supports the following Kubernetes versions:&lt;/p>
-&lt;h2 id="garden-cluster-version">Garden cluster version&lt;/h2>
-&lt;p>The minimum version of the garden cluster that can be used to run Gardener is &lt;strong>&lt;code>1.20.x&lt;/code>&lt;/strong>.&lt;/p>
-&lt;h2 id="seed-cluster-versions">Seed cluster versions&lt;/h2>
+&lt;p>Currently, Gardener supports the following Kubernetes versions:&lt;/p>
+&lt;h2 id="garden-clusters">Garden Clusters&lt;/h2>
+&lt;p>The minimum version of a garden cluster that can be used to run Gardener is &lt;strong>&lt;code>1.20.x&lt;/code>&lt;/strong>.&lt;/p>
+&lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
 &lt;p>The minimum version of a seed cluster that can be connected to Gardener is &lt;strong>&lt;code>1.20.x&lt;/code>&lt;/strong>.
 Please note that Gardener does not support &lt;strong>&lt;code>1.25&lt;/code>&lt;/strong> seeds yet.&lt;/p>
-&lt;h2 id="shoot-cluster-versions">Shoot cluster versions&lt;/h2>
+&lt;h2 id="shoot-clusters">Shoot Clusters&lt;/h2>
 &lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.20&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.25&lt;/code>&lt;/strong>.
 However, the concrete versions that can be used for shoot clusters depend on the installed provider extension.
 Consequently, please consult the documentation of your provider extension to see which Kubernetes versions are supported for shoot clusters.&lt;/p>
 &lt;blockquote>
 &lt;p>👨🏼‍💻 Developers note: &lt;a href="https://gardener.cloud/docs/gardener/development/new-kubernetes-version/">This document&lt;/a> explains what needs to be done in order to add support for a new Kubernetes version.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="support-timeline">Support Timeline&lt;/h2>
+&lt;p>The Kubernetes project maintains the most recent three minor releases and releases a new minor version every 4 months.
+This means that a release has patch support for approximately 1 year.
+See &lt;a href="https://kubernetes.io/releases/">this document&lt;/a> for the official upstream information.&lt;/p>
+&lt;p>In the past, the Gardener project did not have a policy regarding the number of supported Kubernetes versions at the same time.
+Beginning with 2023, a new policy has been introduced:&lt;/p>
+&lt;blockquote>
+&lt;p>The Gardener project supports the last four Kubernetes minor versions and drops support for the oldest minor version as soon as support for a new minor version has been introduced.&lt;/p>
+&lt;/blockquote>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Kubernetes Version&lt;/th>
+&lt;th>End of Life&lt;/th>
+&lt;th>Supported Since&lt;/th>
+&lt;th>Support Dropped After&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>1.20&lt;/td>
+&lt;td>2022-02-28&lt;/td>
+&lt;td>v1.15.0&lt;/td>
+&lt;td>2023-01-31&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>1.21&lt;/td>
+&lt;td>2022-06-28&lt;/td>
+&lt;td>v1.21.0&lt;/td>
+&lt;td>2023-02-28&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>1.22&lt;/td>
+&lt;td>2022-10-28&lt;/td>
+&lt;td>v1.31.0&lt;/td>
+&lt;td>2023-04-30&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>1.23&lt;/td>
+&lt;td>2023-02-28&lt;/td>
+&lt;td>v1.39.0&lt;/td>
+&lt;td>1.27 is supported (&amp;gt; 2023-04)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>1.24&lt;/td>
+&lt;td>2023-07-28&lt;/td>
+&lt;td>v1.48.0&lt;/td>
+&lt;td>1.28 is supported (&amp;gt; 2023-08)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>1.25&lt;/td>
+&lt;td>2023-10-28&lt;/td>
+&lt;td>v1.56.0&lt;/td>
+&lt;td>1.29 is supported (&amp;gt; 2023-12)&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>The three versions 1.20, 1.21, 1.22 (which all are officially out of maintenance already) are handled specially to allow users to adapt to this new policy.
+Beginning with 1.23, the support of the oldest version is dropped after the support of a new version was introduced.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ Note that this guideline only concerns the code of &lt;code>gardener/gardener&lt;/code> and is not related to the versions offered in &lt;code>CloudProfile&lt;/code>s.
+It is recommended to always only offer the last three minor versions with &lt;code>supported&lt;/code> classification in &lt;code>CloudProfile&lt;/code>s and deprecate the oldest version with an expiration date before a new minor Kubernetes version is released.&lt;/p>
 &lt;/blockquote></description></item><item><title>Docs: Tolerations</title><link>https://gardener.cloud/docs/gardener/usage/tolerations/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/tolerations/</guid><description>
 &lt;h1 id="taints-and-tolerations-for-seeds-and-shoots">Taints and Tolerations for &lt;code>Seed&lt;/code>s and &lt;code>Shoot&lt;/code>s&lt;/h1>
 &lt;p>Similar to &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/">taints and tolerations&lt;/a> for &lt;code>Node&lt;/code>s and &lt;code>Pod&lt;/code>s in Kubernetes, the &lt;code>Seed&lt;/code> resource supports specifying taints (&lt;code>.spec.taints&lt;/code>, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml#L48-L55">this example&lt;/a>) while the &lt;code>Shoot&lt;/code> resource supports specifying tolerations (&lt;code>.spec.tolerations&lt;/code>, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L268-L269">this example&lt;/a>).

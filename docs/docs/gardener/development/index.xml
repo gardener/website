@@ -26,7 +26,9 @@ It must be ensured that the API is always backwards-compatible.&lt;/p>
 &lt;li>When opening the pull request then always add a release note so that end-users are becoming aware of the changes.&lt;/li>
 &lt;/ol>
 &lt;h4 id="removing-a-field">Removing a field&lt;/h4>
-&lt;p>If fields shall be removed permanently from the API then a proper deprecation period must be adhered to so that end-users have enough time adapt their clients. The followed process for removing a field is:&lt;/p>
+&lt;p>If fields shall be removed permanently from the API, then a proper deprecation period must be adhered to so that end-users have enough time to adapt their clients.&lt;/p>
+&lt;p>Once the deprecation period is over, the field should be dropped from the API in a two-step process, i.e., in two release cycles. In the first step, all the usages in the code base should be dropped. In the second step, the field should be dropped from API. We need to follow this two-step process cause there can be the case where &lt;code>gardener-apiserver&lt;/code> is upgraded to a new version in which the field has been removed but other controllers are still on the old version of Gardener. This can lead to &lt;code>nil&lt;/code> pointer exceptions or other unexpected behaviour.&lt;/p>
+&lt;p>The steps for removing a field from the code base is:&lt;/p>
 &lt;ol>
 &lt;li>
 &lt;p>The field in the external version(s) has to be commented out with appropriate doc string that the protobuf number of the corresponding field is reserved. Example:&lt;/p>
@@ -1928,9 +1930,9 @@ While reading the change log, add the tasks (along with the respective PR in &lt
 &lt;/blockquote>
 &lt;h2 id="list-of-release-independent-tasks">List Of Release-Independent Tasks&lt;/h2>
 &lt;p>The following paragraphs describe recurring tasks that need to be performed for each new release.&lt;/p>
-&lt;h3 id="releasing-a-new-hyperkube-image">Releasing A New &lt;code>hyperkube&lt;/code> Image&lt;/h3>
+&lt;h3 id="make-sure-a-new-hyperkube-image-is-released">Make Sure A New &lt;code>hyperkube&lt;/code> Image Is Released&lt;/h3>
 &lt;p>The &lt;a href="https://github.com/gardener/hyperkube">&lt;code>gardener/hyperkube&lt;/code>&lt;/a> repository is used to release container images consisting of the &lt;code>kubectl&lt;/code> and &lt;code>kubelet&lt;/code> binaries.&lt;/p>
-&lt;p>Run the &lt;a href="https://github.com/gardener/hyperkube/blob/master/.ci/check-and-release">&lt;code>.ci/check-and-release&lt;/code>&lt;/a> script to automatically build the image (make sure Docker is running!), push the images to the GCR (make sure &lt;code>gcloud&lt;/code> is configured properly!) and publish the release on GitHub (make sure &lt;code>git&lt;/code> is configured properly!).&lt;/p>
+&lt;p>There is a CI/CD job that runs periodically and releases a new &lt;code>hyperkube&lt;/code> image when there is a new Kubernetes release. Before proceeding with the next steps, make sure that a new &lt;code>hyperkube&lt;/code> image is released for the corresponding new Kubernetes minor version. Make sure that container image is present in GCR.&lt;/p>
 &lt;h3 id="adapting-gardener">Adapting Gardener&lt;/h3>
 &lt;ul>
 &lt;li>Allow instantiation of a Kubernetes client for the new minor version and update the &lt;code>README.md&lt;/code>:
@@ -3377,7 +3379,7 @@ Generally, reproducing flakes in integration tests is easier when stress-testing
 &lt;li>use dedicated test resources for each test case
 &lt;ul>
 &lt;li>use &lt;code>GenerateName&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/health/health_test.go#L38-L48">example test&lt;/a>&lt;/li>
-&lt;li>alternatively, use a checksum of &lt;code>CurrentSpecReport().LeafNodeLocation.String()&lt;/code>: &lt;a href="https://github.com/gardener/gardener/blob/ee3e50387fc7e6298908242f59894a7ea6f91fa7/test/integration/resourcemanager/managedresource/resource_test.go#L61-L67">example test&lt;/a>&lt;/li>
+&lt;li>alternatively, use a checksum of a random UUID using &lt;code>uuid.NewUUID()&lt;/code> function: &lt;a href="https://github.com/gardener/gardener/blob/3840acaaf57955fd65330c83b2b2d5bdaad56179/test/integration/resourcemanager/tokeninvalidator/tokeninvalidator_suite_test.go#L71-L72">example test&lt;/a>&lt;/li>
 &lt;li>logging the created object names is generally a good idea to support debugging failing or flaky tests: &lt;a href="https://github.com/gardener/gardener/blob/50f92c5dc35160fe05da9002a79e7ce4a9cf3509/test/integration/controllermanager/cloudprofile/cloudprofile_test.go#L94-L96">example test&lt;/a>&lt;/li>
 &lt;li>always delete all resources after the test case (e.g., via &lt;code>DeferCleanup&lt;/code>) that were created for the test case&lt;/li>
 &lt;li>this avoids conflicts between test cases and cascading failures which distract from the actual root failures&lt;/li>

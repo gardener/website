@@ -276,13 +276,24 @@ In that case, the imports should be further restricted to disallow such problema
 In that case, please consider what additional dependencies it will pull in, when loosening existing restrictions.
 Also consider possible alternatives, like code restructurings or extracting shared code into dedicated packages for minimal impact on dependent projects.&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Getting Started Locally</title><link>https://gardener.cloud/docs/gardener/development/getting_started_locally/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/getting_started_locally/</guid><description>
-&lt;h1 id="running-gardener-locally">Running Gardener locally&lt;/h1>
+&lt;h1 id="developing-gardener-locally">Developing Gardener Locally&lt;/h1>
 &lt;p>This document will walk you through running Gardener on your local machine for development purposes.
 If you encounter difficulties, please open an issue so that we can make this process easier.&lt;/p>
 &lt;p>Gardener runs in any Kubernetes cluster.
 In this guide, we will start a &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster which is used as both garden and seed cluster (please refer to the &lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">architecture overview&lt;/a>) for simplicity.&lt;/p>
 &lt;p>The Gardener components, however, will be run as regular processes on your machine (hence, no container images are being built).&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/getting_started_locally_39a5b3.png" alt="Architecture Diagram">&lt;/p>
+&lt;h2 id="alternatives">Alternatives&lt;/h2>
+&lt;p>When developing Gardener on your local machine you might face several limitations:&lt;/p>
+&lt;ul>
+&lt;li>Your machine doesn&amp;rsquo;t have enough compute resources (see &lt;a href="#prerequisites">prerequisites&lt;/a>) for hosting a second seed cluster or multiple shoot clusters.&lt;/li>
+&lt;li>Developing Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/usage/ipv6/">IPv6 features&lt;/a> requires a Linux machine and native IPv6 connectivity to the internet, but you&amp;rsquo;re on macOS or don&amp;rsquo;t have IPv6 connectivity in your office environment or via your home ISP.&lt;/li>
+&lt;/ul>
+&lt;p>In these cases, you might want to check out one of the following options that run the setup described in this guide elsewhere for circumventing these limitations:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="#remote-local-setup">remote local setup&lt;/a>: develop on a remote pod for more compute resources&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener-community/dev-box-gcp">dev box on Google Cloud&lt;/a>: develop on a Google Cloud machine for more compute resource and/or simple IPv4/IPv6 dual-stack networking&lt;/li>
+&lt;/ul>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;ul>
 &lt;li>
@@ -1069,9 +1080,6 @@ That means that the Gardener runs outside a Kubernetes cluster which requires pr
 &lt;li>&lt;a href="#start-gardener-locally">Building and starting Gardener components locally&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#create-a-shoot">Using your local Gardener setup to create a Shoot&lt;/a>&lt;/li>
 &lt;/ul>
-&lt;h2 id="limitations-of-the-local-development-setup">Limitations of the Local Development Setup&lt;/h2>
-&lt;p>You can run Gardener (API server, controller manager, scheduler, gardenlet) against any local Kubernetes cluster, however, your seed and shoot clusters must be deployed to a cloud provider.
-Currently, it is not possible to run Gardener entirely isolated from any cloud provider. This means that to be able create Shoot clusters you need to register an external Seed cluster (e.g., one created in AWS).&lt;/p>
 &lt;h1 id="preparing-the-setup">Preparing the Setup&lt;/h1>
 &lt;h2 id="macos-only-installing-homebrew">[macOS only] Installing homebrew&lt;/h2>
 &lt;p>The copy-paste instructions in this guide are designed for macOS and use the package manager &lt;a href="https://brew.sh/">Homebrew&lt;/a>.&lt;/p>
@@ -1089,10 +1097,6 @@ Currently, it is not possible to run Gardener entirely isolated from any cloud p
 &lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.20.x&lt;/code>. On macOS run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install kubernetes-cli
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check the &lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">kubectl installation documentation&lt;/a>.&lt;/p>
-&lt;h2 id="installing-helm">Installing helm&lt;/h2>
-&lt;p>You also need the &lt;a href="https://github.com/kubernetes/helm">Helm&lt;/a> CLI. On macOS run&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install helm
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS please check the &lt;a href="https://helm.sh/docs/intro/install/">Helm installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-docker">Installing Docker&lt;/h2>
 &lt;p>You need to have docker installed and running. On macOS run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install --cask docker
@@ -1126,8 +1130,8 @@ Currently, it is not possible to run Gardener entirely isolated from any cloud p
 &lt;h1 id="start-gardener-locally">Start Gardener Locally&lt;/h1>
 &lt;h2 id="get-the-sources">Get the Sources&lt;/h2>
 &lt;p>Clone the repository from GitHub into your &lt;code>$GOPATH&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p $GOPATH/src/github.com/gardener
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd $GOPATH/src/github.com/gardener
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p &lt;span style="color:#00f">$(&lt;/span>go env GOPATH&lt;span style="color:#00f">)&lt;/span>/src/github.com/gardener
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd &lt;span style="color:#00f">$(&lt;/span>go env GOPATH&lt;span style="color:#00f">)&lt;/span>/src/github.com/gardener
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>git clone git@github.com:gardener/gardener.git
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd gardener
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>

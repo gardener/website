@@ -1672,6 +1672,7 @@ For example:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - Egress
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>A component that initiates the connection to &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;code>tcp/10250&lt;/code> port can now be labeled with &lt;code>networking.resources.gardener.cloud/to-gardener-resource-manager-tcp-10250=allowed&lt;/code>.
 That&amp;rsquo;s all this component needs to do - it does not need to create any &lt;code>NetworkPolicy&lt;/code>s itself.&lt;/p>
+&lt;h4 id="cross-namespace-communication">Cross-Namespace Communication&lt;/h4>
 &lt;p>Apart from this &amp;ldquo;simple&amp;rdquo; case where both communicating components run in the same namespace &lt;code>a&lt;/code>, there is also the cross-namespace communication case.
 With above example, let&amp;rsquo;s say there are components running in another namespace &lt;code>b&lt;/code>, and they would like to initiate the communication with &lt;code>gardener-resource-manager&lt;/code> in &lt;code>a&lt;/code>.
 To cover this scenario, the &lt;code>Service&lt;/code> can be annotated with &lt;code>networking.resources.gardener.cloud/namespace-selectors='[{&amp;quot;matchLabels&amp;quot;:{&amp;quot;kubernetes.io/metadata.name&amp;quot;:&amp;quot;b&amp;quot;}}]'&lt;/code>.&lt;/p>
@@ -1737,6 +1738,7 @@ To cover this scenario, the &lt;code>Service&lt;/code> can be annotated with &lt
 &lt;p>Obviously, this approach also works for namespace selectors different from &lt;code>kubernetes.io/metadata.name&lt;/code> to cover scenarios where the namespace name is not known upfront or where multiple namespaces with a similar label are relevant.
 The controller creates two dedicated policies for each namespace matching the selectors.&lt;/p>
 &lt;/blockquote>
+&lt;h4 id="service-targets-in-multiple-namespaces">&lt;code>Service&lt;/code> Targets In Multiple Namespaces&lt;/h4>
 &lt;p>Finally, let&amp;rsquo;s say there is a &lt;code>Service&lt;/code> called &lt;code>example&lt;/code> which exists in different namespaces whose names are not static (e.g., &lt;code>foo-1&lt;/code>, &lt;code>foo-2&lt;/code>, etc.), and a component in namespace &lt;code>bar&lt;/code> wants to initiate connections with all of them.&lt;/p>
 &lt;p>The &lt;code>example&lt;/code> &lt;code>Service&lt;/code>s in these namespaces can now be annotated with &lt;code>networking.resources.gardener.cloud/namespace-selectors='[{&amp;quot;matchLabels&amp;quot;:{&amp;quot;kubernetes.io/metadata.name&amp;quot;:&amp;quot;bar&amp;quot;}}]'&lt;/code>.
 As a consequence, the component in namespace &lt;code>bar&lt;/code> now needs to be labeled with &lt;code>networking.resources.gardener.cloud/to-foo-1-example-tcp-8080=allowed&lt;/code>, &lt;code>networking.resources.gardener.cloud/to-foo-2-example-tcp-8080=allowed&lt;/code>, etc.
@@ -1749,6 +1751,34 @@ Now the component in namespace &lt;code>bar&lt;/code> only needs this single lab
 &lt;p>Real-world examples for this scenario are the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> (which exists in all shoot namespaces), or the &lt;code>istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> (which exists in all &lt;code>istio-ingress*&lt;/code> namespaces).
 In both cases, the names of the namespaces are not statically known and depend on user input.&lt;/p>
 &lt;/blockquote>
+&lt;h4 id="ingress-from-everywhere">Ingress From Everywhere&lt;/h4>
+&lt;p>All above scenarios are about components initiating connections to some targets.
+However, some components also receive incoming traffic from sources outside the cluster.
+This traffic requires adequate ingress policies so that it can be allowed.&lt;/p>
+&lt;p>To cover this scenario, the &lt;code>Service&lt;/code> can be annotated with &lt;code>networking.resources.gardener.cloud/from-world-to-ports=[{&amp;quot;port&amp;quot;:&amp;quot;10250&amp;quot;,&amp;quot;protocol&amp;quot;:&amp;quot;TCP&amp;quot;}]&lt;/code>.
+As a result, the controller creates the following &lt;code>NetworkPolicy&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: NetworkPolicy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: ingress-to-gardener-resource-manager-from-world
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - from:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - namespaceSelector: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podSelector: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ipBlock:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cidr: 0.0.0.0/0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - port: 10250
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> protocol: TCP
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: gardener-resource-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> policyTypes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - Ingress
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The respective pods don&amp;rsquo;t need any additional labels.
+If the annotation&amp;rsquo;s value is empty (&lt;code>[]&lt;/code>) then all ports are allowed.&lt;/p>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;h3 id="mutating-webhooks">Mutating Webhooks&lt;/h3>
 &lt;h4 id="high-availability-config">High Availability Config&lt;/h4>

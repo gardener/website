@@ -3213,7 +3213,7 @@ Remember to unfocus specs before contributing code, otherwise your PR tests will
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>go test -c ./pkg/resourcemanager/controller/garbagecollector
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -p 16 ./pkg/resourcemanager/controller/garbagecollector/garbagecollector.test -ginkgo.focus &lt;span style="color:#a31515">&amp;#34;should delete the unused resources&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>stress -p 16 ./pkg/resourcemanager/controller/garbagecollector/garbagecollector.test -ginkgo.focus &lt;span style="color:#a31515">&amp;#34;should delete the unused resources&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5s: 1077 runs so far, 0 failures
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>10s: 2160 runs so far, 0 failures
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>stress&lt;/code> will output a path to a file containing the full failure message when a test run fails.&lt;/p>
@@ -3294,85 +3294,109 @@ Remember to unfocus specs before contributing code, otherwise your PR tests will
 &lt;/ul>
 &lt;h2 id="integration-tests-envtests">Integration Tests (envtests)&lt;/h2>
 &lt;p>Integration tests in Gardener use the &lt;code>sigs.k8s.io/controller-runtime/pkg/envtest&lt;/code> package.
-It sets up a temporary control plane (etcd + kube-apiserver) and runs the test against it.&lt;/p>
+It sets up a temporary control plane (etcd + kube-apiserver) and runs the test against it.
+The test suites start their individual &lt;code>envtest&lt;/code> environment before running the tested controller/webhook and executing test cases.
+Before exiting, the test suites tear down the temporary test environment.&lt;/p>
 &lt;p>Package &lt;code>github.com/gardener/gardener/pkg/envtest&lt;/code> augments the controller-runtime&amp;rsquo;s &lt;code>envtest&lt;/code> package by starting and registering &lt;code>gardener-apiserver&lt;/code>.
 This is used to test controllers that act on resources in the Gardener APIs (aggregated APIs).&lt;/p>
 &lt;p>Historically, &lt;a href="#test-machinery-tests">test machinery tests&lt;/a> have also been called &amp;ldquo;integration tests&amp;rdquo;.
 However, test machinery does not perform integration testing but rather executes a form of end-to-end tests against a real landscape.
 Hence, we tried to sharpen the terminology that we use to distinguish between &amp;ldquo;real&amp;rdquo; integration tests and test machinery tests but you might still find &amp;ldquo;integration tests&amp;rdquo; referring to test machinery tests in old issues or outdated documents.&lt;/p>
 &lt;h3 id="running-integration-tests">Running Integration Tests&lt;/h3>
-&lt;p>The &lt;code>test-integration&lt;/code> make rule prepares the environment automatically by downloading the respective binaries (if not yet present) and sets the necessary environment variables.&lt;/p>
+&lt;p>The &lt;code>test-integration&lt;/code> make rule prepares the environment automatically by downloading the respective binaries (if not yet present) and setting the necessary environment variables.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make test-integration
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you want to run a specific set of integration tests, you can also execute them using &lt;code>./hack/test-integration.sh&lt;/code> directly instead of using the &lt;code>test-integration&lt;/code> rule. Prior to execution, the &lt;code>PATH&lt;/code> environment variable needs to be set to also included the tools binary directory. For example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export PATH=&lt;span style="color:#a31515">&amp;#34;&lt;/span>$PATH&lt;span style="color:#a31515">:&lt;/span>$PWD&lt;span style="color:#a31515">/hack/tools/bin&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source ./hack/test-integration.env
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh ./test/integration/resourcemanager/tokenrequestor
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The script takes care of preparing the environment for you.
-If you want to execute the test suites directly via &lt;code>go test&lt;/code> or &lt;code>ginkgo&lt;/code>, you have to point the &lt;code>KUBEBUILDER_ASSETS&lt;/code> environment variable to the path that contains the etcd and kube-apiserver binaries. Alternatively, you can install the binaries to &lt;code>/usr/local/kubebuilder/bin&lt;/code>. Additionally the environment variables from &lt;code>hack/test-integration.env&lt;/code> should be sourced.&lt;/p>
+If you want to execute the test suites directly via &lt;code>go test&lt;/code> or &lt;code>ginkgo&lt;/code>, you have to point the &lt;code>KUBEBUILDER_ASSETS&lt;/code> environment variable to the path that contains the etcd and kube-apiserver binaries. Alternatively, you can install the binaries to &lt;code>/usr/local/kubebuilder/bin&lt;/code>. Additionally, the environment variables from &lt;code>hack/test-integration.env&lt;/code> should be sourced.&lt;/p>
 &lt;h3 id="debugging-integration-tests">Debugging Integration Tests&lt;/h3>
-&lt;p>You can configure envtest to use an existing cluster instead of starting a temporary control plane for your test.
-This can be helpful for debugging integration tests because you can easily inspect what is going on in your test cluster with &lt;code>kubectl&lt;/code>.&lt;/p>
-&lt;p>Run an &lt;code>envtest&lt;/code> suite (not using &lt;code>gardener-apiserver&lt;/code>) against an existing cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig
+&lt;p>You can configure &lt;code>envtest&lt;/code> to use an existing cluster or control plane instead of starting a temporary control plane that is torn down immediately after executing the test.
+This can be helpful for debugging integration tests because you can easily inspect what is going on in your test environment with &lt;code>kubectl&lt;/code>.&lt;/p>
+&lt;p>While you can use an existing cluster (e.g., &lt;code>kind&lt;/code>), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in &lt;code>envtest&lt;/code> test environments).
+Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.&lt;/p>
+&lt;p>You can use &lt;code>make start-envtest&lt;/code> to start an &lt;code>envtest&lt;/code> test environment that is managed separately from individual test suites.
+This allows you to keep the test environment running for as long as you want, and to debug integration tests by executing multiple test runs in parallel or inspecting test runs using &lt;code>kubectl&lt;/code>.
+When you are finished, just hit &lt;code>CTRL-C&lt;/code> for tearing down the test environment.
+The kubeconfig for the test environment is placed in &lt;code>dev/envtest-kubeconfig.yaml&lt;/code>.&lt;/p>
+&lt;p>&lt;code>make start-envtest&lt;/code> brings up an &lt;code>envtest&lt;/code> environment using the default configuration.
+If your test suite requires a different control plane configuration (e.g., disabled admission plugins or enabled feature gates), feel free to locally modify the configuration in &lt;a href="https://github.com/gardener/gardener/tree/master/test/start-envtest">&lt;code>test/start-envtest&lt;/code>&lt;/a> while debugging.&lt;/p>
+&lt;p>Run an &lt;code>envtest&lt;/code> suite (not using &lt;code>gardener-apiserver&lt;/code>) against an existing test environment:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-envtest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_CLUSTER=true
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run test with verbose output&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh -v ./test/integration/resourcemanager/health -ginkgo.v
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get managedresource -A -w
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>) against an existing gardener setup:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make dev-setup
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># you might need to disable some admission plugins in hack/local-development/start-apiserver&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># via --disable-admission-plugins depending on the test suite&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>) against an existing test environment:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># modify test/start-envtest to disable admission plugins and enable feature gates like in test suite...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-envtest ENVTEST_TYPE=gardener
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_GARDENER=true
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run test with verbose output&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./hack/test-integration.sh -v ./test/integration/controllermanager/bastion -ginkgo.v
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get bastion -A -w
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Similar to &lt;a href="#debugging-unit-tests">debugging unit tests&lt;/a>, the &lt;code>stress&lt;/code> tool can help hunting flakes in integration tests.
 Though, you might need to run less tests in parallel though (specified via &lt;code>-p&lt;/code>) and have a bit more patience.
-Generally, reproducing flakes in integration tests is easier when stress-testing against an existing cluster instead of starting temporary individual control planes per test run.&lt;/p>
+Generally, reproducing flakes in integration tests is easier when stress-testing against an existing test environment instead of starting temporary individual control planes per test run.&lt;/p>
 &lt;p>Stress-test an &lt;code>envtest&lt;/code> suite (not using &lt;code>gardener-apiserver&lt;/code>):&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo build ./test/integration/resourcemanager/health
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a cluster to run the test against&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a test environment to run the test against&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-envtest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_CLUSTER=true
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># use same timeout settings like in CI&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source ./hack/test-integration.env
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># switch to test package directory like `go test`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd ./test/integration/resourcemanager/health
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./test/integration/resourcemanager/health/health.test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./health.test
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Stress-test a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># modify test/start-envtest to disable admission plugins and enable feature gates like in test suite...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># build a test binary&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ginkgo build ./test/integration/controllermanager/bastion
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a cluster including gardener-apiserver to run the test against&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make dev-setup
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># you might need to disable some admission plugins in hack/local-development/start-apiserver&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># via --disable-admission-plugins depending on the test suite&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># especially the ResourceQuota plugin can quickly lead to test failures when stress-testing&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a test environment including gardener-apiserver to run the test against&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-envtest ENVTEST_TYPE=gardener
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># in another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/dev/envtest-kubeconfig.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export USE_EXISTING_GARDENER=true
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># use same timeout settings like in CI&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source ./hack/test-integration.env
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># switch to test package directory like `go test`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd ./test/integration/controllermanager/bastion
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test in parallel and report any failures&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./test/integration/controllermanager/bastion/bastion.test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>stress -ignore &lt;span style="color:#a31515">&amp;#34;unable to grab random port&amp;#34;&lt;/span> -p 16 ./bastion.test
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="purpose-of-integration-tests">Purpose of Integration Tests&lt;/h3>
 &lt;ul>

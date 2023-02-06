@@ -1751,6 +1751,18 @@ Now the component in namespace &lt;code>bar&lt;/code> only needs this single lab
 &lt;p>Real-world examples for this scenario are the &lt;code>kube-apiserver&lt;/code> &lt;code>Service&lt;/code> (which exists in all shoot namespaces), or the &lt;code>istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> (which exists in all &lt;code>istio-ingress*&lt;/code> namespaces).
 In both cases, the names of the namespaces are not statically known and depend on user input.&lt;/p>
 &lt;/blockquote>
+&lt;h4 id="overwriting-the-pod-selector-label">Overwriting The Pod Selector Label&lt;/h4>
+&lt;p>For a component which initiates the connection to many other components, it&amp;rsquo;s sometimes impractical to specify all the respective labels in its pod template.
+For example, let&amp;rsquo;s say a component &lt;code>foo&lt;/code> talks to &lt;code>bar{0..9}&lt;/code> on ports &lt;code>tcp/808{0..9}&lt;/code>.
+&lt;code>foo&lt;/code> would need to have the ten &lt;code>networking.resources.gardener.cloud/to-bar{0..9}-tcp-808{0..9}=allowed&lt;/code> labels.&lt;/p>
+&lt;p>As an alternative and to simplify this, it is also possible to annotate the targeted &lt;code>Service&lt;/code>s with &lt;code>networking.resources.gardener.cloud/from-policy-pod-selector-label=&amp;lt;some-alias&amp;gt;&lt;/code>.
+For our example, &lt;code>&amp;lt;some-alias&amp;gt;&lt;/code> could be &lt;code>all-bars&lt;/code>.&lt;/p>
+&lt;p>As a result, component &lt;code>foo&lt;/code> just needs to have the label &lt;code>networking.resources.gardener.cloud/to-all-bars=allowed&lt;/code> instead of all the other ten explicit labels.&lt;/p>
+&lt;p>⚠️ Note that this also requires to specify the list of allowed container ports since the pod selector label will no longer be specific for a dedicated service/port.
+For our example, the &lt;code>Service&lt;/code> for &lt;code>barX&lt;/code> with &lt;code>X&lt;/code> in &lt;code>{0..9}&lt;/code> needs to be annotated with &lt;code>networking.resources.gardener.cloud/from-policy-allowed-ports=[{&amp;quot;port&amp;quot;:808X,&amp;quot;protocol&amp;quot;:&amp;quot;TCP&amp;quot;}]&lt;/code> in addition.&lt;/p>
+&lt;blockquote>
+&lt;p>Real-world examples for this scenario are the &lt;code>Prometheis&lt;/code> in seed clusters which initiate the communication to a lot of components in order to scrape their metrics.&lt;/p>
+&lt;/blockquote>
 &lt;h4 id="ingress-from-everywhere">Ingress From Everywhere&lt;/h4>
 &lt;p>All above scenarios are about components initiating connections to some targets.
 However, some components also receive incoming traffic from sources outside the cluster.

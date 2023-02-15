@@ -466,9 +466,8 @@ path, to the most likely desired name. The feature can be enabled by setting the
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CoreDNSQueryRewriting: &lt;span style="color:#00f">true&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In case the feature is enabled in the Gardenlet it can be disabled per shoot cluster by setting the annotation
 &lt;code>alpha.featuregates.shoot.gardener.cloud/core-dns-rewriting-disabled&lt;/code> to any value.&lt;/p>
-&lt;p>This will automatically rewrite requests like &lt;code>service.namespace.svc.cluster.local.other-namespace.svc.cluster.local&lt;/code> to
-&lt;code>service.namespace.svc.cluster.local&lt;/code>. The same holds true for &lt;code>service.namespace.svc.other-namespace.svc.cluster.local&lt;/code>,
-which will also be rewritten to &lt;code>service.namespace.svc.cluster.local&lt;/code>.&lt;/p>
+&lt;p>This will automatically rewrite requests like &lt;code>service.namespace.svc.cluster.local.svc.cluster.local&lt;/code> to
+&lt;code>service.namespace.svc.cluster.local&lt;/code>.&lt;/p>
 &lt;p>In case applications also target services for name resolution, which are outside of the cluster and have less than &lt;code>ndots&lt;/code> dots,
 it might be helpful to prevent search path application for them as well. One way to achieve it is by adding them to the
 &lt;code>commonSuffixes&lt;/code>:&lt;/p>
@@ -480,14 +479,19 @@ it might be helpful to prevent search path application for them as well. One way
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rewriting:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonSuffixes:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - gardener.cloud
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - github.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - example.com
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>DNS requests containing a common suffix and ending in &lt;code>&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code> are assumed to be incorrect application of the
-DNS search path. Therefore, they are rewritten to everything ending in the common suffix. For example, &lt;code>www.gardener.cloud.namespace.svc.cluster.local&lt;/code> would be rewritten to &lt;code>www.gardener.cloud&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>DNS requests containing a common suffix and ending in &lt;code>.svc.cluster.local&lt;/code> are assumed to be incorrect application of the DNS
+search path. Therefore, they are rewritten to everything ending in the common suffix. For example, &lt;code>www.gardener.cloud.svc.cluster.local&lt;/code>
+would be rewritten to &lt;code>www.gardener.cloud&lt;/code>.&lt;/p>
 &lt;p>Please note that the common suffixes should be long enough and include enough dots (&lt;code>.&lt;/code>) to prevent random overlap with
 other DNS queries. For example, it would be a bad idea to simply put &lt;code>com&lt;/code> on the list of common suffixes as there may be
 services/namespaces, which have &lt;code>com&lt;/code> as part of their name. The effect would be seemingly random DNS requests. Gardener
-enforces at least two dots (&lt;code>.&lt;/code>) in the common suffixes.&lt;/p></description></item><item><title>Docs: Docker Shim Removal</title><link>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</guid><description>
+requires that common suffixes contain at least one dot (.) and adds a second dot at the beginning. For instance, a common
+suffix of &lt;code>example.com&lt;/code> in the configuration would match &lt;code>*.example.com&lt;/code>.&lt;/p>
+&lt;p>Since some clients verify the host in the response of a DNS query, the host must also be rewritten.
+For that reason we can&amp;rsquo;t rewrite a query for &lt;code>service.dst-namespace.svc.cluster.local.src-namespace.svc.cluster.local&lt;/code> or
+&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code> as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: Docker Shim Removal</title><link>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</guid><description>
 &lt;h1 id="kubernetes-dockershim-removal">Kubernetes dockershim removal&lt;/h1>
 &lt;h2 id="whats-happening">What&amp;rsquo;s happening?&lt;/h2>
 &lt;p>With Kubernetes v1.20 the built-in dockershim &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#dockershim-deprecation">was deprecated&lt;/a> and is scheduled to be &lt;a href="https://github.com/kubernetes/enhancements/issues/2221">removed with v1.24&lt;/a>.
@@ -1035,7 +1039,31 @@ maxLines: 5000
 &lt;p>The nginx-ingress addon should not be enabled for a Shoot referred by a ManagedSeed.&lt;/p>
 &lt;p>An Ingress controller is also a prerequisite for a Seed cluster. For a Seed cluster it is possible to enable Gardener managed Ingress controller or to deploy self-managed Ingress controller. There is also the nginx-ingress addon that can be enabled for a Shoot (using the Shoot spec). However, the Shoot nginx-ingress addon is in deprecated mode and it is not recommended for production clusters. Due to these reasons, the Gardener API server does not allow the Shoot nginx-ingress addon to be enabled for ManagedSeeds.&lt;/p>
 &lt;/li>
-&lt;/ol></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/usage/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-local-dns/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Node Readiness</title><link>https://gardener.cloud/docs/gardener/usage/node-readiness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-readiness/</guid><description>
+&lt;h1 id="readiness-of-shoot-worker-nodes">Readiness of Shoot Worker Nodes&lt;/h1>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>When registering new &lt;code>Nodes&lt;/code>, kubelet adds the &lt;code>node.kubernetes.io/not-ready&lt;/code> taint to prevent scheduling workload Pods to the &lt;code>Node&lt;/code> until the &lt;code>Ready&lt;/code> condition gets &lt;code>True&lt;/code>.
+However, the kubelet does not consider the readiness of node-critical Pods.
+Hence, the &lt;code>Ready&lt;/code> condition might get &lt;code>True&lt;/code> and the &lt;code>node.kubernetes.io/not-ready&lt;/code> taint might get removed, for example, before the CNI daemon Pod (e.g. &lt;code>calico-node&lt;/code>) has successfully placed the CNI binaries on the machine.&lt;/p>
+&lt;p>This problem has been discussed extensively in kubernetes, e.g., in &lt;a href="https://github.com/kubernetes/kubernetes/issues/75890">kubernetes/kubernetes#75890&lt;/a>.
+However, several proposals have been rejected because the problem can be solved by using the &lt;code>--register-with-taints&lt;/code> kubelet flag and dedicated controllers (&lt;a href="https://github.com/kubernetes/enhancements/pull/1003#issuecomment-619087019">ref&lt;/a>).&lt;/p>
+&lt;h2 id="implementation-in-gardener">Implementation in Gardener&lt;/h2>
+&lt;p>Gardener makes sure that workload Pods are only scheduled to &lt;code>Nodes&lt;/code> where all node-critical components required for running workload Pods are ready.
+For this, Gardener follows the proposed solution by the Kubernetes community and registers new &lt;code>Node&lt;/code> objects with the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> taint (effect &lt;code>NoSchedule&lt;/code>).
+gardener-resource-manager&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#node-controller">&lt;code>Node&lt;/code> controller&lt;/a> reacts on newly created &lt;code>Node&lt;/code> objects that have this taint.
+The controller removes the taint once all node-critical Pods are ready (determined by checking the Pods&amp;rsquo; &lt;code>Ready&lt;/code> conditions).&lt;/p>
+&lt;p>The &lt;code>Node&lt;/code> controller considers all &lt;code>DaemonSets&lt;/code> and &lt;code>Pods&lt;/code> with the label &lt;code>node.gardener.cloud/critical-component=true&lt;/code> as node-critical.
+If there are &lt;code>DaemonSets&lt;/code> that contain the &lt;code>node.gardener.cloud/critical-component=true&lt;/code> label in their metadata and in their Pod template, the &lt;code>Node&lt;/code> controller waits for corresponding daemon Pods to be scheduled and to get ready before removing the taint.&lt;/p>
+&lt;h2 id="marking-node-critical-components">Marking Node-Critical Components&lt;/h2>
+&lt;p>To make use of this feature, node-critical DaemonSets and Pods need to&lt;/p>
+&lt;ul>
+&lt;li>tolerate the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> &lt;code>NoSchedule&lt;/code> taint and&lt;/li>
+&lt;li>be labelled with &lt;code>node.gardener.cloud/critical-component=true&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>Gardener already marks components like kube-proxy, apiserver-proxy and node-local-dns as node-critical.
+Provider extensions mark components like csi-driver-node as node-critical.
+Network extensions mark components responsible for setting up CNI on worker Nodes (e.g. &lt;code>calico-node&lt;/code>) as node-critical.
+If shoot owners manage any additional node-critical components, they can make use of this feature as well.&lt;/p></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/usage/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-local-dns/</guid><description>
 &lt;h1 id="nodelocaldns-configuration">NodeLocalDNS Configuration&lt;/h1>
 &lt;p>This is a short guide describing how to enable DNS caching on the shoot cluster nodes.&lt;/p>
 &lt;h2 id="background">Background&lt;/h2>

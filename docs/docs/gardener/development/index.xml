@@ -394,14 +394,14 @@ After &lt;code>make kind-up IPFAMILY=ipv6&lt;/code>, check the network created b
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ The &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">&lt;code>provider-local&lt;/code>&lt;/a> is started with elevated privileges since it needs to manipulate your &lt;code>/etc/hosts&lt;/code> file to enable you accessing the created shoot clusters from your local machine, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/#dnsrecord">this&lt;/a> for more details.&lt;/p>
 &lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
 &lt;p>You can wait for the &lt;code>Seed&lt;/code> to become ready by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=gardenletready --for=condition=extensionsready --for=condition=bootstrapped seed local --timeout=5m
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh seed local GardenletReady Bootstrapped SeedSystemComponentsHealthy ExtensionsReady
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get seed local&lt;/code> and wait for the &lt;code>STATUS&lt;/code> to indicate readiness:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>local Ready local local 4m42s vX.Y.Z-dev v1.21.1
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to create a first shoot cluster, just run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/provider-local/shoot.yaml
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can wait for the &lt;code>Shoot&lt;/code> to be ready by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=apiserveravailable --for=condition=controlplanehealthy --for=condition=observabilitycomponentshealthy --for=condition=everynodeready --for=condition=systemcomponentshealthy shoot local -n garden-local --timeout=10m
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAMESPACE=garden-local ./hack/usage/wait-for.sh shoot local APIServerAvailable ControlPlaneHealthy ObservabilityComponentsHealthy EveryNodeReady SystemComponentsHealthy
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl -n garden-local get shoot local&lt;/code> and wait for the &lt;code>LAST OPERATION&lt;/code> to reach &lt;code>100%&lt;/code>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE PROVIDER REGION K8S VERSION HIBERNATION LAST OPERATION STATUS AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>local local local local 1.21.0 Awake Create Processing (43%) healthy 94s
@@ -2842,7 +2842,7 @@ Available &lt;code>GenerateOption&lt;/code>s:&lt;/p>
 &lt;/li>
 &lt;li>&lt;code>Persist()&lt;/code>: This marks the secret such that it gets persisted in the &lt;code>ShootState&lt;/code> resource in the garden cluster. Consequently, it should only be used for secrets related to a shoot cluster.&lt;/li>
 &lt;li>&lt;code>Rotate(rotationStrategy)&lt;/code>: This specifies the strategy in case this secret is to be rotated or regenerated (either &lt;code>InPlace&lt;/code> which immediately forgets about the old secret, or &lt;code>KeepOld&lt;/code> which keeps the old secret in the system).&lt;/li>
-&lt;li>&lt;code>IgnoreOldSecrets()&lt;/code>: This specifies that old secrets should not be considered and loaded (contrary to the default behavior). It should be used when old secrets are no longer important and can be &amp;ldquo;forgotten&amp;rdquo; (e.g. in &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">&amp;ldquo;phase 2&amp;rdquo; (&lt;code>t2&lt;/code>) of the CA certificate rotation&lt;/a>). Such old secrets will be deleted on &lt;code>Cleanup()&lt;/code>.&lt;/li>
+&lt;li>&lt;code>IgnoreOldSecrets()&lt;/code>: This specifies that old secrets should not be considered and loaded (contrary to the default behavior). It should be used when old secrets are no longer important and can be &amp;ldquo;forgotten&amp;rdquo; (e.g. in &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/18-shoot-CA-rotation.md#rotation-sequence-for-cluster-and-client-ca">&amp;ldquo;phase 2&amp;rdquo; (&lt;code>t2&lt;/code>) of the CA certificate rotation&lt;/a>). Such old secrets will be deleted on &lt;code>Cleanup()&lt;/code>.&lt;/li>
 &lt;li>&lt;code>IgnoreOldSecretsAfter(time.Duration)&lt;/code>: This specifies that old secrets should not be considered and loaded once a given duration after rotation has passed. It can be used to clean up old secrets after automatic rotation (e.g. the Seed cluster CA is automatically rotated when its validity will soon end and the old CA will be cleaned up 24 hours after triggering the rotation).&lt;/li>
 &lt;li>&lt;code>Validity(time.Duration)&lt;/code>: This specifies how long the secret should be valid. For certificate secret configurations, the manager will automatically deduce this information from the generated certificate.&lt;/li>
 &lt;/ul>
@@ -2893,7 +2893,7 @@ Automatic renewal of secrets happens when their validity approaches 80% or less 
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As explained above, this returns the bundle secret for the CA &lt;code>my-ca&lt;/code> which might potentially contain both the current and the old CA (in case of rotation/regeneration).&lt;/p>
 &lt;h3 id="certificate-signing">Certificate Signing&lt;/h3>
 &lt;p>By default, client certificates are always signed by the current CA while server certificate are signed by the old CA (if it exists).
-This is to ensure a smooth exchange of certificate during a CA rotation (typically has two phases, ref &lt;a href="https://gardener.cloud/docs/gardener/proposals/18-shoot-ca-rotation/#rotation-sequence-for-cluster-and-client-ca">GEP-18&lt;/a>):&lt;/p>
+This is to ensure a smooth exchange of certificate during a CA rotation (typically has two phases, ref &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/18-shoot-CA-rotation.md#rotation-sequence-for-cluster-and-client-ca">GEP-18&lt;/a>):&lt;/p>
 &lt;ul>
 &lt;li>Client certificates:
 &lt;ul>
@@ -3047,18 +3047,21 @@ allow-etcd app=etcd-statefulset,gardener.cloud/role=controlplane
 allow-kube-apiserver app=kubernetes,gardener.cloud/role=controlplane,role=apiserver
 &lt;/code>&lt;/pre>&lt;h3 id="network-policies-for-logging--monitoring">Network Policies for Logging &amp;amp; Monitoring&lt;/h3>
 &lt;p>Gardener currently introduces a logging stack based on &lt;a href="https://github.com/grafana/loki">Loki&lt;/a>. So this section is subject to change.
-For more information, see the &lt;a href="https://www.youtube.com/watch?v=345b8xCcB-U&amp;amp;t=1166s">Loki Gardener Community Meeting &lt;/a>.&lt;/p>
+For more information, see the &lt;a href="https://www.youtube.com/watch?v=345b8xCcB-U&amp;amp;t=1166s">Loki Gardener Community Meeting&lt;/a>.&lt;/p>
 &lt;p>These are the logging and monitoring related network policies:&lt;/p>
 &lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-allow-from-prometheus networking.gardener.cloud/from-prometheus=allowed
+allow-from-prometheus (deprecated!) networking.gardener.cloud/from-prometheus=allowed
 allow-grafana component=grafana,gardener.cloud/role=monitoring
 allow-prometheus app=prometheus,gardener.cloud/role=monitoring,role=monitoring
 allow-to-aggregate-prometheus networking.gardener.cloud/to-aggregate-prometheus=allowed
 allow-to-loki networking.gardener.cloud/to-loki=allowed
-&lt;/code>&lt;/pre>&lt;p>For instance, let&amp;rsquo;s take a look at the network policy &lt;code>from-prometheus&lt;/code>.
-As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus into the shoot namespace.
-Each pod that should be scraped for metrics must be labeled with &lt;code>networking.gardener.cloud/from-prometheus=allowed&lt;/code> to allow incoming network requests by the Prometheus pod.
-Most components of the Shoot cluster&amp;rsquo;s control plane expose metrics and are therefore labeled appropriately.&lt;/p>
+&lt;/code>&lt;/pre>&lt;p>As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus into the shoot namespace.
+Each pod that should be scraped for metrics must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-scrape-targets
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the Prometheus pod.
+For more information, take a look at &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#networkpolicy-controllerpkgresourcemanagercontrollernetworkpolicy">this document&lt;/a>.&lt;/p>
 &lt;h3 id="implications-for-gardener-extensions">Implications for Gardener Extensions&lt;/h3>
 &lt;p>Gardener extensions sometimes need to deploy additional components into the Shoot namespace in the Seed hosting the control plane.
 For example, the Gardener extension &lt;a href="https://github.com/gardener/gardener-extension-provider-aws">provider-aws&lt;/a> deploys the &lt;code>MachineControllerManager&lt;/code> into the Shoot namespace, that is ultimately responsible to create the VMs with the cloud provider AWS.&lt;/p>

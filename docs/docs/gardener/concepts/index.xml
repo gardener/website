@@ -208,7 +208,7 @@ It rejects the deletion if the &lt;code>Shoot&lt;/code> is referred to by a &lt;
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
 &lt;p>This admission controller reacts on &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> operations for &lt;code>ManagedSeeds&lt;/code>s.
 It validates certain configuration values in the specification against the referred &lt;code>Shoot&lt;/code>, for example Seed provider, network ranges, DNS domain, etc.
-Similarly to &lt;code>ShootValidator&lt;/code>, it performs validations that cannot be handled by the static API validation due to their dynamic nature.
+Similar to &lt;code>ShootValidator&lt;/code>, it performs validations that cannot be handled by the static API validation due to their dynamic nature.
 Additionally, it performs certain defaulting tasks, making sure that configuration values that are not specified are defaulted to the values of the referred &lt;code>Shoot&lt;/code>, for example Seed provider, network ranges, DNS domain, etc.&lt;/p>
 &lt;h2 id="managedseedshoot">&lt;code>ManagedSeedShoot&lt;/code>&lt;/h2>
 &lt;p>&lt;em>(enabled by default)&lt;/em>&lt;/p>
@@ -784,7 +784,7 @@ Every two seconds, the gardenlet checks that the seed cluster&amp;rsquo;s &lt;co
 endpoint returns HTTP status code 200.
 If that is the case, the gardenlet renews the lease in the Garden cluster in the &lt;code>gardener-system-seed-lease&lt;/code> namespace and updates
 the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource. For more information, see &lt;a href="#lease-reconciler">this section&lt;/a>.&lt;/p>
-&lt;p>Similarly to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
+&lt;p>Similar to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
 the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-lifecycle-controller&lt;/code> that sets
 the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
 As a consequence, the &lt;code>gardener-scheduler&lt;/code> doesn’t consider this seed cluster for newly created shoot clusters anymore.&lt;/p>
@@ -811,7 +811,6 @@ The status from the reconciliation is reported in the &lt;code>.status.lastOpera
 &lt;h3 id="backupentry-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupentry">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupentry">&lt;code>BackupEntry&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
 Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
-&lt;h4 id="main-reconciler">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">Contract: BackupEntry Resource&lt;/a> for more details).
 The status is populated in the &lt;code>.status.lastOperation&lt;/code> field.&lt;/p>
 &lt;p>The &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource has an owner reference pointing to the corresponding &lt;code>Shoot&lt;/code>.
@@ -825,15 +824,6 @@ Afterwards, the finalizer of the &lt;code>core.gardener.cloud/v1beta1.BackupEntr
 For example, if you set it to &lt;code>48&lt;/code>, then the &lt;code>BackupEntry&lt;/code>s for deleted &lt;code>Shoot&lt;/code>s will only be deleted &lt;code>48&lt;/code> hours after the &lt;code>Shoot&lt;/code> was deleted.&lt;/p>
 &lt;p>Additionally, you can limit the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_purposes/">shoot purposes&lt;/a> for which this applies by setting &lt;code>.controllers.backupEntry.deletionGracePeriodShootPurposes[]&lt;/code>.
 For example, if you set it to &lt;code>[production]&lt;/code> then only the &lt;code>BackupEntry&lt;/code>s for &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose=production&lt;/code> will be deleted after the configured grace period. All others will be deleted immediately after the &lt;code>Shoot&lt;/code> deletion.&lt;/p>
-&lt;h4 id="migration-reconciler">&amp;ldquo;Migration&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciler is only active if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/#list-of-feature-gates">&lt;code>ForceRestore&lt;/code>&lt;/a> feature gate is enabled in the &lt;code>gardenlet&lt;/code> and if the seed has owner checks enabled (i.e., &lt;code>spec.setttings.ownerChecks.enabled=true&lt;/code>).
-It checks if the source &lt;code>Seed&lt;/code> also has owner checks enabled. If not or if the &lt;code>BackupEntry&lt;/code> is being deleted, it sets the &lt;code>status.migrationStartTime&lt;/code> to &lt;code>nil&lt;/code>.
-The controller updates the status to force restoration in the following cases:&lt;/p>
-&lt;ol>
-&lt;li>If the &lt;code>BackupEntry&lt;/code> is annotated with &lt;code>shoot.gardener.cloud/force-restore=true&lt;/code>.&lt;/li>
-&lt;li>If the grace period for migration has elapsed (which is set in the &lt;code>BackupEntryMigrationControllerConfiguration&lt;/code> in the gardenlet&amp;rsquo;s component configuration).&lt;/li>
-&lt;li>If the last operation is &lt;code>Migrate&lt;/code> and if &lt;code>LastOperationStaleDuration&lt;/code> (which is also set in the &lt;code>BackupEntryMigrationControllerConfiguration&lt;/code> in the gardenlet&amp;rsquo;s component configuration) has passed since the &lt;code>lastUpdateTime&lt;/code> of the operation.&lt;/li>
-&lt;/ol>
 &lt;h3 id="bastion-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbastion">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/bastion">&lt;code>Bastion&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>Bastion&lt;/code> controller reconciles those &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.&lt;/p>
 &lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.Bastion&lt;/code> resource in the seed cluster in the shoot namespace with the same name as &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code>. Then it waits until the responsible extension controller has reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/bastion/">Contract: Bastion Resource&lt;/a> for more details). The status is populated in the &lt;code>.status.conditions&lt;/code> and &lt;code>.status.ingress&lt;/code> fields.&lt;/p>
@@ -841,7 +831,7 @@ The controller updates the status to force restoration in the following cases:&l
 Once this resource is gone, the finalizer of the &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resource is released, so it finally disappears from the system.&lt;/p>
 &lt;h3 id="controllerinstallation-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation">&lt;code>ControllerInstallation&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>ControllerInstallation&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ControllerInstallation&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconciler-1">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
+&lt;h4 id="main-reconciler">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>This reconciler is responsible for &lt;code>ControllerInstallation&lt;/code>s referencing a &lt;code>ControllerDeployment&lt;/code> whose &lt;code>type=helm&lt;/code>.
 It is responsible for unpacking the Helm chart tarball in the &lt;code>ControllerDeployment&lt;/code>s &lt;code>.providerConfig.chart&lt;/code> field and deploying the rendered resources to the seed cluster.
 The Helm chart values in &lt;code>.providerConfig.values&lt;/code> will be used and extended with some information about the Gardener environment and the seed cluster:&lt;/p>
@@ -880,7 +870,7 @@ If there are no extension resources anymore, its status will be &lt;code>False&l
 &lt;p>For more details about &lt;code>NetworkPolicy&lt;/code>s in Gardener, please see &lt;a href="https://gardener.cloud/docs/gardener/concepts/network_policies/">Network Policies in Gardener&lt;/a>.&lt;/p>
 &lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>Seed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconciler-2">&amp;ldquo;Main Reconciler&amp;rdquo;&lt;/h4>
+&lt;h4 id="main-reconciler-1">&amp;ldquo;Main Reconciler&amp;rdquo;&lt;/h4>
 &lt;p>This reconciler is responsible for managing the seed&amp;rsquo;s system components.
 Those comprise CA certificates, the various &lt;code>CustomResourceDefinition&lt;/code>s, the logging and monitoring stacks, and few central components like &lt;code>gardener-resource-manager&lt;/code>, &lt;code>etcd-druid&lt;/code>, &lt;code>istio&lt;/code>, etc.&lt;/p>
 &lt;p>The reconciler also deploys a &lt;code>BackupBucket&lt;/code> resource in the garden cluster in case the &lt;code>Seed'&lt;/code>s &lt;code>.spec.backup&lt;/code> is set.
@@ -916,7 +906,7 @@ Also, this internal health status is set to &lt;code>false&lt;/code> automatical
 This internal health status is available via the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint and is used for the &lt;code>livenessProbe&lt;/code> in the &lt;code>gardenlet&lt;/code> pod.&lt;/p>
 &lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>Shoot&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Shoot&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconciler-3">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
+&lt;h4 id="main-reconciler-2">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/h4>
 &lt;p>This reconciler is responsible for managing all shoot cluster components and implements the core logic for creating, updating, hibernating, deleting, and migrating shoot clusters.
 It is also responsible for syncing the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> cluster&lt;/a> to the seed cluster before and after each successful shoot reconciliation.&lt;/p>
 &lt;p>The main reconciliation logic is performed in 3 different task flows dedicated to specific operation types:&lt;/p>
@@ -950,8 +940,8 @@ The gardenlet performs shoot reconciliations according to the following rules:&l
 &lt;li>&lt;code>APIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the shoot&amp;rsquo;s &lt;code>kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
 &lt;li>&lt;code>ControlPlaneHealthy&lt;/code>: The control plane is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>kube-apiserver&lt;/code>,&lt;code>kube-controller-manager&lt;/code>), and &lt;code>Etcd&lt;/code>s (for example &lt;code>etcd-main&lt;/code>) exist and are healthy.&lt;/li>
 &lt;li>&lt;code>ObservabilityComponentsHealthy&lt;/code>: This condition is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>grafana&lt;/code>), &lt;code>StatefulSet&lt;/code>s (for example &lt;code>prometheus&lt;/code>,&lt;code>loki&lt;/code>), exist and are healthy.&lt;/li>
-&lt;li>&lt;code>EveryNodyReady&lt;/code>: The conditions of the worker nodes are checked (e.g., &lt;code>Ready&lt;/code>, &lt;code>MemoryPressure&lt;/code>, etc.). Also, it&amp;rsquo;s checked whether the Kubernetes version of the installed &lt;code>kubelet&lt;/code> matches the desired version specified in the &lt;code>Shoot&lt;/code> resource.&lt;/li>
-&lt;li>&lt;code>SystemComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s are checked (e.g. &lt;code>ResourcesApplied&lt;/code>, etc.). Also, it is verified whether the VPN tunnel connection is established (which is required for the &lt;code>kube-apiserver&lt;/code> to communicate with the worker nodes).&lt;/li>
+&lt;li>&lt;code>EveryNodyReady&lt;/code>: The conditions of the worker nodes are checked (e.g., &lt;code>Ready&lt;/code>, &lt;code>MemoryPressure&lt;/code>). Also, it&amp;rsquo;s checked whether the Kubernetes version of the installed &lt;code>kubelet&lt;/code> matches the desired version specified in the &lt;code>Shoot&lt;/code> resource.&lt;/li>
+&lt;li>&lt;code>SystemComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s are checked (e.g., &lt;code>ResourcesApplied&lt;/code>). Also, it is verified whether the VPN tunnel connection is established (which is required for the &lt;code>kube-apiserver&lt;/code> to communicate with the worker nodes).&lt;/li>
 &lt;/ul>
 &lt;p>Sometimes, &lt;code>ManagedResource&lt;/code>s can have both &lt;code>Healthy&lt;/code> and &lt;code>Progressing&lt;/code> conditions set to &lt;code>True&lt;/code> (e.g., when a &lt;code>DaemonSet&lt;/code> rolls out one-by-one on a large cluster with many nodes) while this is not reflected in the &lt;code>Shoot&lt;/code> status. In order to catch issues where the rollout gets stuck, one can set &lt;code>.controllers.shootCare.managedResourceProgressingThreshold&lt;/code> in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s component configuration. If the &lt;code>Progressing&lt;/code> condition is still &lt;code>True&lt;/code> for more than the configured duration, the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>Shoot&lt;/code> is set to &lt;code>False&lt;/code>, eventually.&lt;/p>
 &lt;p>Each condition can optionally also have error &lt;code>codes&lt;/code> in order to indicate which type of issue was detected (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/">Shoot Status&lt;/a> for more details).&lt;/p>
@@ -976,16 +966,6 @@ A pod is considered stale when:&lt;/p>
 &lt;li>it was terminated with reason starting with &lt;code>OutOf&lt;/code> (e.g., &lt;code>OutOfCpu&lt;/code>).&lt;/li>
 &lt;li>it is stuck in termination (i.e., if its &lt;code>deletionTimestamp&lt;/code> is more than &lt;code>5m&lt;/code> ago).&lt;/li>
 &lt;/ul>
-&lt;h4 id="migration-reconciler-1">&amp;ldquo;Migration&amp;rdquo; Reconciler&lt;/h4>
-&lt;p>This reconciler is only active if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/#list-of-feature-gates">&lt;code>ForceRestore&lt;/code>&lt;/a> feature gate is enabled in the &lt;code>gardenlet&lt;/code> and if the &lt;code>Seed&lt;/code> has owner checks enabled (i.e., &lt;code>spec.setttings.ownerChecks.enabled=true&lt;/code>).
-It checks if the source &lt;code>Seed&lt;/code> also has owner checks enabled.
-If not or if the &lt;code>Shoot&lt;/code> is being deleted, it sets the &lt;code>status.migrationStartTime&lt;/code> to &lt;code>nil&lt;/code>.
-The controller updates the status to force restoration in the following cases:&lt;/p>
-&lt;ol>
-&lt;li>If the &lt;code>Shoot&lt;/code> is annotated with &lt;code>shoot.gardener.cloud/force-restore=true&lt;/code>.&lt;/li>
-&lt;li>If the grace period for migration has elapsed (which is set in the &lt;code>ShootMigrationControllerConfiguration&lt;/code> in the gardenlet&amp;rsquo;s component configuration).&lt;/li>
-&lt;li>If the last operation is &lt;code>Migrate&lt;/code> and if &lt;code>LastOperationStaleDuration&lt;/code> (which is also set in the &lt;code>ShootMigrationControllerConfiguration&lt;/code> in the gardenlet&amp;rsquo;s component configuration) has passed since the &lt;code>lastUpdateTime&lt;/code> of the operation.&lt;/li>
-&lt;/ol>
 &lt;h3 id="shootstate-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootstate">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shootstate">&lt;code>ShootState&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>ShootState&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles resources containing information that has to be synced to the &lt;code>ShootState&lt;/code>.
 This information is used when a &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">control plane migration&lt;/a> is performed.&lt;/p>
@@ -1739,7 +1719,7 @@ To cover this scenario, the &lt;code>Service&lt;/code> can be annotated with &lt
 The controller creates two dedicated policies for each namespace matching the selectors.&lt;/p>
 &lt;/blockquote>
 &lt;h4 id="service-targets-in-multiple-namespaces">&lt;code>Service&lt;/code> Targets In Multiple Namespaces&lt;/h4>
-&lt;p>Finally, let&amp;rsquo;s say there is a &lt;code>Service&lt;/code> called &lt;code>example&lt;/code> which exists in different namespaces whose names are not static (e.g., &lt;code>foo-1&lt;/code>, &lt;code>foo-2&lt;/code>, etc.), and a component in namespace &lt;code>bar&lt;/code> wants to initiate connections with all of them.&lt;/p>
+&lt;p>Finally, let&amp;rsquo;s say there is a &lt;code>Service&lt;/code> called &lt;code>example&lt;/code> which exists in different namespaces whose names are not static (e.g., &lt;code>foo-1&lt;/code>, &lt;code>foo-2&lt;/code>), and a component in namespace &lt;code>bar&lt;/code> wants to initiate connections with all of them.&lt;/p>
 &lt;p>The &lt;code>example&lt;/code> &lt;code>Service&lt;/code>s in these namespaces can now be annotated with &lt;code>networking.resources.gardener.cloud/namespace-selectors='[{&amp;quot;matchLabels&amp;quot;:{&amp;quot;kubernetes.io/metadata.name&amp;quot;:&amp;quot;bar&amp;quot;}}]'&lt;/code>.
 As a consequence, the component in namespace &lt;code>bar&lt;/code> now needs to be labeled with &lt;code>networking.resources.gardener.cloud/to-foo-1-example-tcp-8080=allowed&lt;/code>, &lt;code>networking.resources.gardener.cloud/to-foo-2-example-tcp-8080=allowed&lt;/code>, etc.
 This approach does not work in practice, however, since the namespace names are neither static nor known upfront.&lt;/p>
@@ -2050,9 +2030,9 @@ The region does not matter, i.e., &lt;code>testing&lt;/code> shoots may also be 
 &lt;p>The &lt;code>shoots/binding&lt;/code> subresource is used to bind a &lt;code>Shoot&lt;/code> to a &lt;code>Seed&lt;/code>. On creation of a shoot cluster/s, the scheduler updates the binding automatically if an appropriate seed cluster is available.
 Only an operator with the necessary RBAC can update this binding manually. This can be done by changing the &lt;code>.spec.seedName&lt;/code> of the shoot. However, if a different seed is already assigned to the shoot, this will trigger a control-plane migration. For required steps, please see &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/#triggering-the-migration">Triggering the Migration&lt;/a>.&lt;/p>
 &lt;h2 id="specseedname-field-in-the-shoot-specification">&lt;code>spec.seedName&lt;/code> Field in the &lt;code>Shoot&lt;/code> Specification&lt;/h2>
-&lt;p>Similarly to the &lt;code>.spec.nodeName&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedName&lt;/code> field. If this field is set on creation, the shoot will be scheduled to this seed. However, this field can only be set by users having RBAC for the &lt;code>shoots/binding&lt;/code> subresource. If this field is not set, the &lt;code>scheduler&lt;/code> will assign a suitable seed automatically and populate this field with the seed name.&lt;/p>
+&lt;p>Similar to the &lt;code>.spec.nodeName&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedName&lt;/code> field. If this field is set on creation, the shoot will be scheduled to this seed. However, this field can only be set by users having RBAC for the &lt;code>shoots/binding&lt;/code> subresource. If this field is not set, the &lt;code>scheduler&lt;/code> will assign a suitable seed automatically and populate this field with the seed name.&lt;/p>
 &lt;h2 id="seedselector-field-in-the-shoot-specification">&lt;code>seedSelector&lt;/code> Field in the &lt;code>Shoot&lt;/code> Specification&lt;/h2>
-&lt;p>Similarly to the &lt;code>.spec.nodeSelector&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedSelector&lt;/code> field.
+&lt;p>Similar to the &lt;code>.spec.nodeSelector&lt;/code> field in &lt;code>Pod&lt;/code>s, the &lt;code>Shoot&lt;/code> specification has an optional &lt;code>.spec.seedSelector&lt;/code> field.
 It allows the user to provide a label selector that must match the labels of the &lt;code>Seed&lt;/code>s in order to be scheduled to one of them.
 The labels on the &lt;code>Seed&lt;/code>s are usually controlled by Gardener administrators/operators - end users cannot add arbitrary labels themselves.
 If provided, the Gardener Scheduler will only consider as &amp;ldquo;suitable&amp;rdquo; those seeds whose labels match those provided in the &lt;code>.spec.seedSelector&lt;/code> of the &lt;code>Shoot&lt;/code>.&lt;/p>

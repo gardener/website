@@ -222,10 +222,10 @@ You need to configure this information in the &lt;code>Seed&lt;/code> configurat
 Gardener uses this information to check that the shoot cluster isn’t created with overlapping CIDR ranges.&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>Every seed cluster needs an Ingress controller which distributes external requests to internal components like Grafana and Prometheus. Gardener supports two approaches to achieve this:&lt;/p>
+&lt;p>Every seed cluster needs an Ingress controller which distributes external requests to internal components like Grafana and Prometheus.
+For this, configure the following lines in your &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Seed resource&lt;/a>:&lt;/p>
 &lt;/li>
 &lt;/ul>
-&lt;p>a. Gardener managed Ingress controller and DNS records. For this, configure the following lines in your &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Seed resource&lt;/a>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
@@ -239,22 +239,7 @@ Gardener uses this information to check that the shoot cluster isn’t created w
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: nginx
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;some-optional-provider-specific-config-for-the-ingressController&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠ Please note that if you set &lt;code>.spec.ingress&lt;/code>, then &lt;code>.spec.dns.ingressDomain&lt;/code> must be &lt;code>nil&lt;/code>.&lt;/p>
-&lt;p>b. Self-managed DNS record and Ingress controller:&lt;/p>
-&lt;p>⚠️
-There should exist a DNS record &lt;code>*.ingress.&amp;lt;SEED-CLUSTER-DOMAIN&amp;gt;&lt;/code>, where &lt;code>&amp;lt;SEED-CLUSTER-DOMAIN&amp;gt;&lt;/code> is the value of the &lt;code>.dns.ingressDomain&lt;/code> field of &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">a Seed cluster resource&lt;/a> (or the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml#L84-L85">respective Gardenlet configuration&lt;/a>).&lt;/p>
-&lt;p>&lt;em>This is how it could be done for the Nginx ingress controller&lt;/em>&lt;/p>
-&lt;p>Deploy nginx into the &lt;code>kube-system&lt;/code> namespace in the Kubernetes cluster that should be registered as a &lt;code>Seed&lt;/code>.&lt;/p>
-&lt;p>Nginx will, on most cloud providers, create the service with type &lt;code>LoadBalancer&lt;/code> with an external IP.&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME TYPE CLUSTER-IP EXTERNAL-IP
-nginx-ingress-controller LoadBalancer 10.0.15.46 34.200.30.30
-&lt;/code>&lt;/pre>&lt;p>Create a wildcard &lt;code>A&lt;/code> record (e.g *.ingress.sweet-seed.&lt;my-domain>. IN A 34.200.30.30) with your DNS provider and point it to the external IP of the ingress service. This ingress domain is later required to register the &lt;code>Seed&lt;/code> cluster.&lt;/p>
-&lt;p>Please configure the ingress domain in the &lt;code>Seed&lt;/code> specification as follows:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingressDomain: ingress.sweet-seed.&amp;lt;my-domain&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠ Please note that if you set &lt;code>.spec.dns.ingressDomain&lt;/code>, then &lt;code>.spec.ingress&lt;/code> must be &lt;code>nil&lt;/code>.&lt;/p>
-&lt;h3 id="kubeconfig-for-the-seed-cluster">&lt;code>kubeconfig&lt;/code> for the Seed Cluster&lt;/h3>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="kubeconfig-for-the-seed-cluster">&lt;code>kubeconfig&lt;/code> for the Seed Cluster&lt;/h3>
 &lt;p>The &lt;code>kubeconfig&lt;/code> is required to deploy the gardenlet Helm chart to the seed cluster.
 The gardenlet requires certain privileges to be able to operate.
 These privileges are described in RBAC resources in the gardenlet Helm chart (see &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/gardenlet/templates">charts/gardener/gardenlet/templates&lt;/a>).
@@ -495,7 +480,15 @@ For all supported infrastructure providers, see &lt;a href="https://github.com/g
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: sweet-seed
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingressDomain: ingress.sweet-seed.&amp;lt;my-domain&amp;gt; &lt;span style="color:#008000"># see prerequisites&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;provider&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: ingress-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress: &lt;span style="color:#008000"># see prerequisites&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domain: ingress.dev.my-seed.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: nginx
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks: &lt;span style="color:#008000"># see prerequisites&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.240.0.0/16
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 100.244.0.0/16
@@ -581,7 +574,15 @@ Running a gardenlet outside of the cluster is mostly used for local development.
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: sweet-seed
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingressDomain: ingress.sweet-seed.&amp;lt;my-domain&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;provider&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: ingress-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress: &lt;span style="color:#008000"># see prerequisites&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domain: ingress.dev.my-seed.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: nginx
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.240.0.0/16
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 100.244.0.0/16

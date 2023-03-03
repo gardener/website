@@ -2536,28 +2536,40 @@ The rationale behind this constraint is that a Shoot can have &lt;code>Validatin
 For example, if a webhook has rules for &lt;code>CREATE/UPDATE&lt;/code> Pods or Nodes and &lt;code>failurePolicy=Fail&lt;/code>, the webhook will block joining &lt;code>Nodes&lt;/code> and creating critical system component Pods and thus block the entire wakeup operation, because the server backing the webhook is not running.&lt;/p>
 &lt;p>Even if the &lt;code>failurePolicy&lt;/code> is set to &lt;code>Ignore&lt;/code>, high timeouts (&lt;code>&amp;gt;15s&lt;/code>) can lead to blocking requests of control plane components.
 That&amp;rsquo;s because most control-plane API calls are made with a client-side timeout of &lt;code>30s&lt;/code>, so if a webhook has &lt;code>timeoutSeconds=30&lt;/code>
-the overall request might still fail as there is overhead in communication with the API server and potential other webhooks.
-Generally, it&amp;rsquo;s a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#timeouts">best pratice&lt;/a> to specify low timeouts in WebhookConfigs.
-Also, it&amp;rsquo;s a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#avoiding-operating-on-the-kube-system-namespace">best practice&lt;/a>
-to exclude the &lt;code>kube-system&lt;/code> namespace from webhooks to avoid blocking critical operations on the system components of the cluster.
-Shoot owners can do so by adding a &lt;code>namespaceSelector&lt;/code> similar to this one to their webhook configurations:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>namespaceSelector:
+the overall request might still fail as there is overhead in communication with the API server and potential other webhooks.&lt;/p>
+&lt;p>Generally, it&amp;rsquo;s &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#timeouts">best practice&lt;/a> to specify low timeouts in WebhookConfigs.&lt;/p>
+&lt;p>As an effort to correct this common problem, the webhook remediator has been created. This is enabled by setting &lt;code>.controllers.shootCare.webhookRemediatorEnabled=true&lt;/code> in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s configuration. This feature simply checks whether webhook configurations in shoot clusters match a set of rules described &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/operation/botanist/matchers/matcher.go">here&lt;/a>. If at least one of the rules matches, it will change set &lt;code>status=False&lt;/code> for the &lt;code>.status.constraints&lt;/code> of type &lt;code>HibernationPossible&lt;/code> and &lt;code>MaintenancePreconditionsSatisfied&lt;/code> in the &lt;code>Shoot&lt;/code> resource. In addition, the &lt;code>failurePolicy&lt;/code> in the affected webhook configurations will be set from &lt;code>Fail&lt;/code> to &lt;code>Ignore&lt;/code>. Gardenlet will also add an annotation to make it visible to end-users that their webhook configurations were mutated and should be fixed/adapted according to the rules and best practices.&lt;/p>
+&lt;p>In most cases, you can avoid this by simply excluding the &lt;code>kube-system&lt;/code> namespace from your webhook via the &lt;code>namespaceSelector&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: admissionregistration.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: MutatingWebhookConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>webhooks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my-webhook.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaceSelector:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: gardener.cloud/purpose
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: NotIn
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-system
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the Shoot still has webhooks with either &lt;code>failurePolicy={Fail,nil}&lt;/code> or &lt;code>failurePolicy=Ignore &amp;amp;&amp;amp; timeoutSeconds&amp;gt;15&lt;/code> that act on &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/operation/botanist/matchers/matcher.go#L60">critical resources&lt;/a> in the &lt;code>kube-system&lt;/code> namespace, Gardener will set the &lt;code>HibernationPossible&lt;/code> to &lt;code>False&lt;/code>, indicating that the Shoot can probably not be woken up again after hibernation without manual intervention of the Gardener Operator.
-&lt;code>gardener-apiserver&lt;/code> will prevent any Shoot with the &lt;code>HibernationPossible&lt;/code> constraint set to &lt;code>False&lt;/code> from being hibernated, that is via manual hibernation as well as scheduled hibernation.&lt;/p>
-&lt;blockquote>
-&lt;p>By setting &lt;code>.controllers.shootCare.webhookRemediatorEnabled=true&lt;/code> in the gardenlet configuration, the auto-remediation of webhooks not following the best practices can be turned on in the shoot clusters.
-Concretely, missing &lt;code>namespaceSelector&lt;/code>s or &lt;code>objectSelector&lt;/code>s will be added and too high &lt;code>timeoutSeconds&lt;/code> will be lowered.
-In some cases, the &lt;code>failurePolicy&lt;/code> will be set from &lt;code>Fail&lt;/code> to &lt;code>Ignore&lt;/code>.
-The gardenlet will also add an annotation to make it visible to end-users that their webhook configurations were mutated and should be fixed by them in the first place.
-Note that all of this is no perfect solution and is just done on a best effort basis.
-Only the owner of the webhook can know whether it indeed is problematic and configured correctly.&lt;/p>
-&lt;p>Webhooks labeled with &lt;code>remediation.webhook.shoot.gardener.cloud/exclude=true&lt;/code> will be excluded from auto-remediation.&lt;/p>
-&lt;/blockquote>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - operations: [&lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroups: [&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;v1&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;pods&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scope: &lt;span style="color:#a31515">&amp;#34;Namespaced&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>However, some other resources (some of them cluster-scoped) might still trigger the remediator, namely:&lt;/p>
+&lt;ul>
+&lt;li>endpoints&lt;/li>
+&lt;li>nodes&lt;/li>
+&lt;li>podsecuritypolicies&lt;/li>
+&lt;li>clusterroles&lt;/li>
+&lt;li>clusterrolebindings&lt;/li>
+&lt;li>customresourcedefinitions&lt;/li>
+&lt;li>apiservices&lt;/li>
+&lt;li>certificatesigningrequests&lt;/li>
+&lt;li>priorityclasses&lt;/li>
+&lt;/ul>
+&lt;p>If one of the above resources triggers the remediator, the preferred solution is to remove that particular resource from your webhook&amp;rsquo;s &lt;code>rules&lt;/code>. You can also use the &lt;code>objectSelector&lt;/code> to reduce the scope of webhook&amp;rsquo;s &lt;code>rules&lt;/code>. However, in special cases where a webhook is absolutely needed for the workload, it is possible to add the &lt;code>remediation.webhook.shoot.gardener.cloud/exclude=true&lt;/code> label to your webhook so that the remediator ignores it. This label &lt;strong>should not be used to silence an alert&lt;/strong>, but rather to confirm that a webhook won&amp;rsquo;t cause problems. Note that all of this is no perfect solution and just done on a best effort basis, and only the owner of the webhook can know whether it indeed is problematic and configured correctly.&lt;/p>
+&lt;p>You can also find more help from the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings">Kubernetes documentation&lt;/a>&lt;/p>
 &lt;p>&lt;strong>&lt;code>MaintenancePreconditionsSatisfied&lt;/code>&lt;/strong>:&lt;/p>
 &lt;p>This constraint indicates whether all preconditions for a safe maintenance operation are satisfied (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/">Shoot Maintenance&lt;/a> for more information about what happens during a shoot maintenance).
 As of today, the same checks as in the &lt;code>HibernationPossible&lt;/code> constraint are being performed (user-deployed webhooks that might interfere with potential rolling updates of shoot worker nodes).

@@ -1938,6 +1938,33 @@ Both is required to ensure system component &lt;code>Pod&lt;/code>s can be &lt;e
 &lt;blockquote>
 &lt;p>You can opt-out of this behaviour for &lt;code>Pod&lt;/code>s by labeling them with &lt;code>system-components-config.resources.gardener.cloud/skip=true&lt;/code>.&lt;/p>
 &lt;/blockquote>
+&lt;h4 id="endpointslice-hints">EndpointSlice Hints&lt;/h4>
+&lt;p>This webhook mutates &lt;a href="https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/">&lt;code>EndpointSlice&lt;/code>s&lt;/a>. For each endpoint in the EndpointSlice, it sets the endpoint&amp;rsquo;s hints to the endpoint&amp;rsquo;s zone.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: discovery.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EndpointSlice
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: example-hints
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- addresses:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;10.1.2.3&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ready: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostname: pod-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zone: zone-a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> forZones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: &lt;span style="color:#a31515">&amp;#34;zone-a&amp;#34;&lt;/span> &lt;span style="color:#008000"># added by webhook&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- addresses:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;10.1.2.4&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conditions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ready: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostname: pod-2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zone: zone-b
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> forZones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: &lt;span style="color:#a31515">&amp;#34;zone-b&amp;#34;&lt;/span> &lt;span style="color:#008000"># added by webhook&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The webhook aims to circumvent issues with the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature that currently does not allow to achieve a deterministic topology-aware traffic routing. For more details, see the following issue &lt;a href="https://github.com/kubernetes/kubernetes/issues/113731">kubernetes/kubernetes#113731&lt;/a> that describes drawbacks of the &lt;code>TopologyAwareHints&lt;/code> feature for our use case.
+If the above-mentioned issue gets resolved and there is a native support for deterministic topology-aware traffic routing in Kubernetes, then this webhook can be dropped in favor of the native Kubernetes feature.&lt;/p>
 &lt;h3 id="validating-webhooks">Validating Webhooks&lt;/h3>
 &lt;h4 id="unconfirmed-deletion-prevention-for-custom-resources-and-definitions">Unconfirmed Deletion Prevention For Custom Resources And Definitions&lt;/h4>
 &lt;p>As part of Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">extensibility concepts&lt;/a>, a lot of &lt;code>CustomResourceDefinition&lt;/code>s are deployed to the seed clusters that serve as extension points for provider-specific controllers.

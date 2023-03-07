@@ -1692,7 +1692,9 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;p>When a shoot is scheduled to a seed and actually reconciled, Gardener appoints the seed as the current &amp;ldquo;owner&amp;rdquo; of the shoot by creating a special &amp;ldquo;owner DNS record&amp;rdquo; and checking against it if the seed still owns the shoot in order to guard against &amp;ldquo;split brain scenario&amp;rdquo; during control plane migration, as described in &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/17-shoot-control-plane-migration-bad-case.md">GEP-17 Shoot Control Plane Migration &amp;ldquo;Bad Case&amp;rdquo; Scenario&lt;/a>.
 This mechanism relies on the DNS resolution of TXT DNS records being possible and highly reliable, since if the owner check fails, the shoot will be effectively disabled for the duration of the failure.
 In environments where resolving TXT DNS records is either not possible or not considered reliable enough, it may be necessary to disable the owner check mechanism, in order to avoid shoots failing to reconcile or temporary outages due to transient DNS failures.
-By setting the &lt;code>.spec.settings.ownerChecks.enabled=false&lt;/code> (default is &lt;code>true&lt;/code>), the creation and checking of owner DNS records can be disabled for all shoots scheduled on this seed. Note that if owner checks are disabled, migrating shoots scheduled on this seed to other seeds should be considered unsafe, and in the future will be disabled as well.&lt;/p></description></item><item><title>Docs: Service Account Manager</title><link>https://gardener.cloud/docs/gardener/usage/service-account-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/service-account-manager/</guid><description>
+By setting the &lt;code>.spec.settings.ownerChecks.enabled=false&lt;/code> (default is &lt;code>true&lt;/code>), the creation and checking of owner DNS records can be disabled for all shoots scheduled on this seed. Note that if owner checks are disabled, migrating shoots scheduled on this seed to other seeds should be considered unsafe, and in the future will be disabled as well.&lt;/p>
+&lt;h2 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h2>
+&lt;p>Refer to the &lt;a href="https://gardener.cloud/docs/gardener/usage/topology_aware_routing/">Topology-Aware Traffic Routing documentation&lt;/a> as this document contains the documentation for the topology-aware routing Seed setting.&lt;/p></description></item><item><title>Docs: Service Account Manager</title><link>https://gardener.cloud/docs/gardener/usage/service-account-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/service-account-manager/</guid><description>
 &lt;h1 id="service-account-manager">Service Account Manager&lt;/h1>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>With Gardener &lt;code>v1.47&lt;/code>, a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace, as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically with Kubernetes &lt;code>v1.24+&lt;/code>.&lt;/p>
@@ -2973,7 +2975,81 @@ The corresponding &lt;code>ShootTolerationRestriction&lt;/code> admission plugin
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - modify-spec-tolerations-whitelist
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - delete
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="defaults">Defaults&lt;/h3>
-&lt;p>If a shoot gets created, then the default tolerations specified in both the &lt;code>Project&lt;/code>&amp;rsquo;s &lt;code>.spec.tolerations.defaults&lt;/code> and the global default list in the &lt;code>ShootTolerationRestriction&lt;/code> admission plugin&amp;rsquo;s configuration will be added to the &lt;code>.spec.tolerations&lt;/code> of the &lt;code>Shoot&lt;/code> (unless it already specifies a certain key).&lt;/p></description></item><item><title>Docs: Trouble Shooting Guide</title><link>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</guid><description>
+&lt;p>If a shoot gets created, then the default tolerations specified in both the &lt;code>Project&lt;/code>&amp;rsquo;s &lt;code>.spec.tolerations.defaults&lt;/code> and the global default list in the &lt;code>ShootTolerationRestriction&lt;/code> admission plugin&amp;rsquo;s configuration will be added to the &lt;code>.spec.tolerations&lt;/code> of the &lt;code>Shoot&lt;/code> (unless it already specifies a certain key).&lt;/p></description></item><item><title>Docs: Topology Aware Routing</title><link>https://gardener.cloud/docs/gardener/usage/topology_aware_routing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/topology_aware_routing/</guid><description>
+&lt;h1 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h1>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>The enablement of &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_high_availability/">highly available shoot control-planes&lt;/a> requires multi-zone seed clusters. The topology-aware routing is introduced to reduce costs and to improve network performance by avoiding the cross availability zone traffic, if possible. The cross availability zone traffic is charged by the cloud providers and it comes with higher latency compared to the traffic within the same zone. The topology-aware routing feature enables topology-aware routing for &lt;code>Service&lt;/code>s deployed in the seed clusters. For the clients consuming these topology-aware services, &lt;code>kube-proxy&lt;/code> favors the endpoints which are located in the same zone where the traffic originated from. In this way, the cross availability zone traffic is avoided.&lt;/p>
+&lt;h2 id="how-it-works">How it works&lt;/h2>
+&lt;p>The topology-aware routing feature relies on the Kubernetes feature &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">&lt;code>TopologyAwareHints&lt;/code>&lt;/a>.&lt;/p>
+&lt;h5 id="endpointslice-hints-mutating-webhook">EndpointSlice Hints Mutating Webhook&lt;/h5>
+&lt;p>The component that is responsible for providing hints in the EndpointSlices resources is the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/">kube-controller-manager&lt;/a>, in particular this is the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">EndpointSlice controller&lt;/a>. However, there are several drawbacks with the TopologyAwareHints feature that don&amp;rsquo;t allow us to use it in its native way:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>The algorithm in the EndpointSlice controller is based on a CPU-balance heuristic. From the TopologyAwareHints documentation:&lt;/p>
+&lt;blockquote>
+&lt;p>The controller allocates a proportional amount of endpoints to each zone. This proportion is based on the allocatable CPU cores for nodes running in that zone. For example, if one zone had 2 CPU cores and another zone only had 1 CPU core, the controller would allocate twice as many endpoints to the zone with 2 CPU cores.&lt;/p>
+&lt;/blockquote>
+&lt;p>In case it is not possible to achieve a balanced distribution of the endpoints, as a safeguard mechanism the controller removes hints from the EndpointSlice resource.
+In our setup, the clients and the servers are well-known and usually the traffic a component receives does not depend on the zone&amp;rsquo;s allocatable CPU.
+Many components deployed by Gardener are scaled automatically by VPA. In case of an overload of a replica, the VPA should provide and apply enhanced CPU and memory resources. Additionally, Gardener uses the cluster-autoscaler to upscale/downscale Nodes dynamically. Hence, it is not possible to ensure a balanced allocatable CPU across the zones.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The TopologyAwareHints feature does not work at low-endpoint counts. It falls apart for a Service with less than 10 Endpoints.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Hints provided by the EndpointSlice controller are not deterministic. With cluster-autoscaler running and load increasing, hints can be removed in the next moment. There is no option to enforce the zone-level topology.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>For more details, see the following issue &lt;a href="https://github.com/kubernetes/kubernetes/issues/113731">kubernetes/kubernetes#113731&lt;/a>.&lt;/p>
+&lt;p>To circumvent these issues with the EndpointSlice controller, a mutating webhook in the gardener-resource-manager assigns hints to EndpointSlice resources. For each endpoint in the EndpointSlice, it sets the endpoint&amp;rsquo;s hints to the endpoint&amp;rsquo;s zone. The webhook overwrites the hints provided by the EndpointSlice controller in kube-controller-manager. For more details, see the &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#endpointslice-hints">webhook&amp;rsquo;s documentation&lt;/a>.&lt;/p>
+&lt;h5 id="kube-proxy">kube-proxy&lt;/h5>
+&lt;p>By default, with kube-proxy running in &lt;code>iptables&lt;/code> mode, traffic is distributed randomly across all endpoints, regardless of where it originates from. In a cluster with 3 zones, traffic is more likely to go to another zone than to stay in the current zone.
+With the topology-aware routing feature, kube-proxy filters the endpoints it routes to based on the hints in the EndpointSlice resource. In most of the cases, kube-proxy will prefer the endpoint(s) in the same zone. For more details, see the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#implementation-kube-proxy">Kubernetes documentation&lt;/a>.&lt;/p>
+&lt;h2 id="how-to-make-a-service-topology-aware">How to make a Service topology-aware?&lt;/h2>
+&lt;p>To make a Service topology-aware, the following annotation and label has to be added to the Service:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service.kubernetes.io/topology-aware-hints: &lt;span style="color:#a31515">&amp;#34;auto&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoint-slice-hints.resources.gardener.cloud/consider: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is needed for kube-proxy. One of the prerequisites on kube-proxy side for using topology-aware routing is the corresponding Service to be annotated with the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code>. For more details, see the following &lt;a href="https://github.com/kubernetes/kubernetes/blob/b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d/pkg/proxy/topology.go#L140-L186">kube-proxy function&lt;/a>.
+The &lt;code>endpoint-slice-hints.resources.gardener.cloud/consider=true&lt;/code> label is needed for gardener-resource-manager to prevent the EndpointSlice hints mutating webhook from selecting all EndpointSlice resources but only the ones that are labeled with the consider label.&lt;/p>
+&lt;p>The Gardener extensions can use this approach to make a Service they deploy topology-aware.&lt;/p>
+&lt;p>Prerequisites for making a Service topology-aware:&lt;/p>
+&lt;ol>
+&lt;li>The Pods backing the Service should be spread on most of the available zones. This constraint should be ensured with appropriate scheduling constraints (topology spread constraints, (anti-)affinity). Enabling the feature for a Service with a single backing Pod or Pods all located in the same zone does not lead to a benefit.&lt;/li>
+&lt;li>The component should be scaled up by &lt;code>VerticalPodAutoscaler&lt;/code>. In case of an overload (a large portion of the of the traffic is originating from a given zone), the &lt;code>VerticalPodAutoscaler&lt;/code> should provide better resource recommendations for the overloaded backing Pods.&lt;/li>
+&lt;li>Consider the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#constraints">&lt;code>TopologyAwareHints&lt;/code> constraints&lt;/a>.&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>Note: The topology-aware routing feature is considered as alpha feature. Use it only for evaluation purposes.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="topology-aware-services-in-the-seed-cluster">Topology-aware Services in the Seed cluster&lt;/h2>
+&lt;h5 id="etcd-main-client-and-etcd-events-client">etcd-main-client and etcd-events-client&lt;/h5>
+&lt;p>The &lt;code>etcd-main-client&lt;/code> and &lt;code>etcd-events-client&lt;/code> Services are topology-aware. They are consumed by the kube-apiserver.&lt;/p>
+&lt;h5 id="kube-apiserver">kube-apiserver&lt;/h5>
+&lt;p>The &lt;code>kube-apiserver&lt;/code> Service is topology-aware. It is consumed by the controllers running in the Shoot control plane.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: The &lt;code>istio-ingressgateway&lt;/code> component routes traffic in topology-aware manner - if possible, it routes traffic to the target &lt;code>kube-apiserver&lt;/code> Pods in the same zone. If there is no healthy &lt;code>kube-apiserver&lt;/code> Pod available in the same zone, the traffic is routed to any of the healthy Pods in the other zones. This behaviour is unconditionally enabled.&lt;/p>
+&lt;/blockquote>
+&lt;h5 id="gardener-resource-manager">gardener-resource-manager&lt;/h5>
+&lt;p>The &lt;code>gardener-resource-manager&lt;/code> Service that is part of the Shoot control plane is topology-aware. The resource-manager serves webhooks and the Service is consumed by the kube-apiserver for the webhook communication.&lt;/p>
+&lt;h5 id="vpa-webhook">vpa-webhook&lt;/h5>
+&lt;p>The &lt;code>vpa-webhook&lt;/code> Service that is part of the Shoot control plane is topology-aware. It is consumed by the kube-apiserver for the webhook communication.&lt;/p>
+&lt;h2 id="how-to-enable-the-topology-aware-routing">How to enable the topology-aware routing?&lt;/h2>
+&lt;p>The topology-aware routing functionality can be enabled in the Seed specification:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyAwareRouting:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The topology-aware routing setting can be only enabled for a Seed cluster with more than one zone.
+gardenlet enables topology-aware Services only for Shoot control planes with failure tolerance type &lt;code>zone&lt;/code> (&lt;code>.spec.controlPlane.highAvailability.failureTolerance.type=zone&lt;/code>). Control plane Pods of non-HA Shoots and HA Shoots with failure tolerance type &lt;code>node&lt;/code> are pinned to single zone. For more details, see &lt;a href="https://gardener.cloud/docs/gardener/development/high-availability/">High Availability Of Deployed Components&lt;/a>.&lt;/p>
+&lt;p>⚠️ For K8s &amp;lt; 1.24 clusters, the topology-aware routing setting requires the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature gate to be enabled for kube-apiserver, kube-controller-manager and kube-proxy. This is required because the &lt;code>TopologyAwareHints&lt;/code> feature gate is disabled by default in K8s &amp;lt; 1.24. When &lt;code>TopologyAwareHints&lt;/code> is disabled, the kube-apiserver does not allow anything to be persisted in the &lt;code>.endpoints[].hints&lt;/code> field in the EndpointSlice resource. Also, the kube-controller-manager removes the hints, hence kube-proxy is not using topology-aware routing.&lt;/p></description></item><item><title>Docs: Trouble Shooting Guide</title><link>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</guid><description>
 &lt;h1 id="troubleshooting-guide">Troubleshooting Guide&lt;/h1>
 &lt;h2 id="are-there-really-issues-that-cannot-be-fixed">Are there really issues that cannot be fixed?&lt;/h2>
 &lt;p>Well, of course not. With the continuous development of Gardener, over the time its architecture and API might have to be changed to reduce complexity and support more features. In this process, developers are bound to keep the current Gardener version backward compatible with the last two releases. But maintaining backward compatibility is quite the complex and effortful task. So, to save the short term complex effort, it&amp;rsquo;s common practice in open source community to use workarounds or hacky solutions sometimes. This results in rare issues which are supposed to be resolved by human interaction across upgrades of the Gardener version.&lt;/p>
@@ -3042,33 +3118,4 @@ The corresponding &lt;code>ShootTolerationRestriction&lt;/code> admission plugin
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener copies the secret during the reconciliation of shoot clusters to the shoot namespace in the seed. Afterwards, the &lt;code>Ingress&lt;/code> resources in that namespace for the mentioned components will refer to the wildcard certificate.&lt;/p>
 &lt;h2 id="best-practice">Best Practice&lt;/h2>
 &lt;p>While it is possible to create the wildcard certificates manually and deploy them to seed clusters, it is recommended to let certificate management components do this job. Often, a seed cluster is also a shoot cluster at the same time (ManagedSeed) and might already provide a certificate service extension.
-Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item><item><title>Docs: Worker Pool K8s Versions</title><link>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/worker_pool_k8s_versions/</guid><description>
-&lt;h1 id="controlling-the-kubernetes-versions-for-specific-worker-pools">Controlling the Kubernetes Versions for Specific Worker Pools&lt;/h1>
-&lt;p>Since Gardener &lt;code>v1.36&lt;/code>, worker pools can have different Kubernetes versions specified than the control plane.&lt;/p>
-&lt;p>In earlier Gardener versions, all worker pools inherited the Kubernetes version of the control plane. Once the Kubernetes version of the control plane was modified, all worker pools have been updated as well (either by rolling the nodes in case of a minor version change, or in-place for patch version changes).&lt;/p>
-&lt;p>In order to gracefully perform Kubernetes upgrades (triggering a rolling update of the nodes) with workloads sensitive to restarts (e.g., those dealing with lots of data), it might be required to be able to gradually perform the upgrade process.
-In such cases, the Kubernetes version for the worker pools can be pinned (&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code>) while the control plane Kubernetes version (&lt;code>.spec.kubernetes.version&lt;/code>) is updated.
-This results in the nodes being untouched while the control plane is upgraded.
-Now a new worker pool (with the version equal to the control plane version) can be added.
-Administrators can then reschedule their workloads to the new worker pool according to their upgrade requirements and processes.&lt;/p>
-&lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.6
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.23.13
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data2
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>If &lt;code>.kubernetes.version&lt;/code> is not specified in a worker pool, then the Kubernetes version of the kubelet is inherited from the control plane (&lt;code>.spec.kubernetes.version&lt;/code>), i.e., in the above example, the &lt;code>data2&lt;/code> pool will use &lt;code>1.24.6&lt;/code>.&lt;/li>
-&lt;li>If &lt;code>.kubernetes.version&lt;/code> is specified in a worker pool, then it must meet the following constraints:
-&lt;ul>
-&lt;li>It must be at most two minor versions lower than the control plane version.&lt;/li>
-&lt;li>If it was not specified before, then no downgrade is possible (you cannot set it to &lt;code>1.23.13&lt;/code> while &lt;code>.spec.kubernetes.version&lt;/code> is already &lt;code>1.24.6&lt;/code>). The &amp;ldquo;two minor version skew&amp;rdquo; is only possible if the worker pool version is set to the control plane version and then the control plane was updated gradually by two minor versions.&lt;/li>
-&lt;li>If the version is removed from the worker pool, only one minor version difference is allowed to the control plane (you cannot upgrade a pool from version &lt;code>1.22.0&lt;/code> to &lt;code>1.24.0&lt;/code> in one go).&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;p>Automatic updates of Kubernetes versions (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_maintenance/#automatic-version-updates">Shoot Maintenance&lt;/a>) also apply to worker pool Kubernetes versions.&lt;/p></description></item></channel></rss>
+Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item></channel></rss>

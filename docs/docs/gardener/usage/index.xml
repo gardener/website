@@ -1078,14 +1078,26 @@ gardener-resource-manager&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/ga
 The controller removes the taint once all node-critical Pods are ready (determined by checking the Pods&amp;rsquo; &lt;code>Ready&lt;/code> conditions).&lt;/p>
 &lt;p>The &lt;code>Node&lt;/code> controller considers all &lt;code>DaemonSets&lt;/code> and &lt;code>Pods&lt;/code> with the label &lt;code>node.gardener.cloud/critical-component=true&lt;/code> as node-critical.
 If there are &lt;code>DaemonSets&lt;/code> that contain the &lt;code>node.gardener.cloud/critical-component=true&lt;/code> label in their metadata and in their Pod template, the &lt;code>Node&lt;/code> controller waits for corresponding daemon Pods to be scheduled and to get ready before removing the taint.&lt;/p>
+&lt;p>Additionally, the &lt;code>Node&lt;/code> controller checks for the readiness of &lt;code>csi-driver-node&lt;/code> components if a respective Pod indicates that it uses such a driver.
+This is achieved through a well-defined annotation prefix (&lt;code>node.gardener.cloud/wait-for-csi-node-&lt;/code>).
+For example, the &lt;code>csi-driver-node&lt;/code> Pod for Openstack Cinder is annotated with &lt;code>node.gardener.cloud/wait-for-csi-node-cinder=cinder.csi.openstack.org&lt;/code>.
+A key prefix is used instead of a &amp;ldquo;regular&amp;rdquo; annotation to allow for multiple CSI drivers being registered by one &lt;code>csi-driver-node&lt;/code> Pod.
+The annotation key&amp;rsquo;s suffix can be chosen arbitrarily (in this case &lt;code>cinder&lt;/code>) and the annotation value needs to match the actual driver name as specified in the &lt;code>CSINode&lt;/code> object.
+The &lt;code>Node&lt;/code> controller will verify that the used driver is properly registered in this object before removing the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> taint.
+Note that the &lt;code>csi-driver-node&lt;/code> Pod still needs to be labelled and tolerate the taint as described above to be considered in this additional check.&lt;/p>
 &lt;h2 id="marking-node-critical-components">Marking Node-Critical Components&lt;/h2>
 &lt;p>To make use of this feature, node-critical DaemonSets and Pods need to:&lt;/p>
 &lt;ul>
 &lt;li>Tolerate the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> &lt;code>NoSchedule&lt;/code> taint.&lt;/li>
 &lt;li>Be labelled with &lt;code>node.gardener.cloud/critical-component=true&lt;/code>.&lt;/li>
 &lt;/ul>
+&lt;p>&lt;code>csi-driver-node&lt;/code> Pods additionally need to:&lt;/p>
+&lt;ul>
+&lt;li>Be annotated with &lt;code>node.gardener.cloud/wait-for-csi-node-&amp;lt;name&amp;gt;=&amp;lt;full-driver-name&amp;gt;&lt;/code>.
+It&amp;rsquo;s required that these Pods fulfill the above criteria (label and toleration) as well.&lt;/li>
+&lt;/ul>
 &lt;p>Gardener already marks components like kube-proxy, apiserver-proxy and node-local-dns as node-critical.
-Provider extensions mark components like csi-driver-node as node-critical.
+Provider extensions mark components like csi-driver-node as node-critical and add the &lt;code>wait-for-csi-node&lt;/code> annotation.
 Network extensions mark components responsible for setting up CNI on worker Nodes (e.g., &lt;code>calico-node&lt;/code>) as node-critical.
 If shoot owners manage any additional node-critical components, they can make use of this feature as well.&lt;/p></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/usage/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-local-dns/</guid><description>
 &lt;h1 id="nodelocaldns-configuration">NodeLocalDNS Configuration&lt;/h1>
@@ -1406,7 +1418,7 @@ Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/custom-dn
 &lt;h2 id="speckubernetesallowprivilegedcontainers-in-the-shoot-spec">&lt;code>.spec.kubernetes.allowPrivilegedContainers&lt;/code> in the Shoot Spec&lt;/h2>
 &lt;p>If this field is set to &lt;code>true&lt;/code>, then all authenticated users can use the &amp;ldquo;gardener.privileged&amp;rdquo; &lt;code>PodSecurityPolicy&lt;/code>, allowing full unrestricted access to Pod features. However, the &lt;code>PodSecurityPolicy&lt;/code> admission plugin is removed in Kubernetes &lt;code>v1.25&lt;/code> and &lt;code>PodSecurity&lt;/code> has taken its place as its successor. Therefore, this field doesn&amp;rsquo;t have any relevance in versions &lt;code>&amp;gt;= v1.25&lt;/code> anymore. If you need to set a default pod admission level for your cluster, follow &lt;a href="#admission-configuration-for-the-podsecurity-admission-plugin">this documentation&lt;/a>.&lt;/p>
 &lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> You should remove this field from the &lt;code>Shoot&lt;/code> spec for &lt;code>v1.24&lt;/code> clusters after migrating to the new &lt;code>PodSecurity&lt;/code> admission controller, before upgrading your cluster to &lt;code>v1.25&lt;/code>.&lt;/p>
+&lt;p>&lt;strong>Note:&lt;/strong> You should remove this field from the &lt;code>Shoot&lt;/code> spec for &lt;code>v1.24&lt;/code> clusters only after migrating to the new &lt;code>PodSecurity&lt;/code> admission controller, i.e. after disabling the old &lt;code>PodSecurityPolicy&lt;/code> admission plugin (see &lt;a href="#migrating-from-podsecuritypolicys-to-podsecurity-admission-controller">Migrating from &lt;code>PodSecurityPolicy&lt;/code>s to PodSecurity Admission Controller&lt;/a>). Otherwise the field is defaulted by the Gardener API Server. This is intentional because if we allow the field to be removed when &lt;code>PodSecurityPolicy&lt;/code> admission plugin is active, the existing pods running in the cluster which need privileges can fail.&lt;/p>
 &lt;/blockquote></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/usage/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/projects/</guid><description>
 &lt;h1 id="projects">Projects&lt;/h1>
 &lt;p>The Gardener API server supports a cluster-scoped &lt;code>Project&lt;/code> resource which is used for data isolation between individual Gardener consumers. For example, each development team has its own project to manage its own shoot clusters.&lt;/p>

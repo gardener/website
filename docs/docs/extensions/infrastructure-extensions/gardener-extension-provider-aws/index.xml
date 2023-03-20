@@ -436,6 +436,9 @@ It can be provided in &lt;code>.spec.provider.workers[].providerConfig&lt;/code>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapshotID: snap-1234
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>iamInstanceProfile: &lt;span style="color:#008000"># (specify either ARN or name)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-profile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>instanceMetadataOptions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> httpTokens: required
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> httpPutResponseHopLimit: 2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># arn: my-instance-profile-arn&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>nodeTemplate: &lt;span style="color:#008000"># (to be specified only if the node capacity would be different from cloudprofile info during runtime)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> capacity:
@@ -452,6 +455,19 @@ The &lt;code>.name&lt;/code> must match to the name of the data volume in the sh
 It is also possible to provide a snapshot ID. It allows to &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-restoring-volume.html">restore the data volume from an existing snapshot&lt;/a>.&lt;/p>
 &lt;p>The &lt;code>iamInstanceProfile&lt;/code> section allows to specify the IAM instance profile name xor ARN that should be used for this worker pool.
 If not specified, a dedicated IAM instance profile created by the infrastructure controller is used (see above).&lt;/p>
+&lt;p>The &lt;code>instanceMetadataOptions&lt;/code> controls access to the instance metadata service (IMDS) for members of the worker. You can do the following operations:&lt;/p>
+&lt;ul>
+&lt;li>access IMDSv1 (default)&lt;/li>
+&lt;li>access IMDSv2 - &lt;code>httpPutResponseHopLimit &amp;gt;= 2&lt;/code>&lt;/li>
+&lt;li>access IMDSv2 only (restrict access to IMDSv1) - &lt;code>httpPutResponseHopLimit &amp;gt;=2&lt;/code>, &lt;code>httpTokens = &amp;quot;required&amp;quot;&lt;/code>&lt;/li>
+&lt;li>disable access to IMDS - &lt;code>httpTokens = &amp;quot;required&amp;quot;&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>Note: The accessibility of IMDS discussed in the previous point is referenced from the point of view of containers &lt;strong>NOT&lt;/strong> running in the host network.
+By default on host network IMDSv2 is already enabled (but not accessible from inside the pods).
+It is currently not possible to create a VM with complete restriction to the IMDS service. It is however possible to restrict access from inside the pods by setting &lt;code>httpTokens&lt;/code> to &lt;code>required&lt;/code> and not setting &lt;code>httpPutResponseHopLimit&lt;/code> (or setting it to 1).&lt;/p>
+&lt;/blockquote>
+&lt;p>You can find more information regarding the options in the &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-IMDS-new-instances.html">AWS documentation&lt;/a>.&lt;/p>
 &lt;h2 id="example-shoot-manifest-one-availability-zone">Example &lt;code>Shoot&lt;/code> manifest (one availability zone)&lt;/h2>
 &lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for one availability zone:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1

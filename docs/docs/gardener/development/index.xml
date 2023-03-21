@@ -139,7 +139,7 @@ Please do not provide elevated privileges due to laziness (e.g., because there i
 &lt;li>
 &lt;p>&lt;strong>Use &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">&lt;code>NetworkPolicy&lt;/code>s&lt;/a> to restrict network traffic&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/etcd/etcd.go#L293-L339">example&lt;/a>)&lt;/p>
 &lt;p>You should restrict both ingress and egress traffic to/from your component as much as possible to ensure that it only gets access to/from other components if really needed.
-Gardener provides a few default policies for typical usage scenarios. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/development/seed_network_policies/">Seed Network Policies&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_network_policies/">Shoot Network Policies&lt;/a>.&lt;/p>
+Gardener provides a few default policies for typical usage scenarios. For more information, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/network_policies.md">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/a> and &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_network_policies.md">Shoot Network Policies&lt;/a>.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>&lt;strong>Do not run components in privileged mode&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nodelocaldns/nodelocaldns.go#L329-L333">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/component/nodelocaldns/nodelocaldns.go#L507">example 2&lt;/a>)&lt;/p>
@@ -3008,95 +3008,7 @@ Consequently, they have a unique, deterministic name which is computed as follow
 &lt;li>For CA secrets, the name is just exactly the name specified in the configuration (e.g., &lt;code>ca&lt;/code>). This is for backwards-compatibility and will be dropped in a future release once all components depending on the static name have been adapted.&lt;/li>
 &lt;li>For all other secrets, the name specified in the configuration is used as prefix followed by an 8-digit hash. This hash is computed out of the checksum of the secret configuration and the checksum of the certificate of the signing CA (only for certificate configurations).&lt;/li>
 &lt;/ul>
-&lt;p>In all cases, the name of the secrets is suffixed with a 5-digit hash computed out of the time when the rotation for this secret was last started.&lt;/p></description></item><item><title>Docs: Seed Network Policies</title><link>https://gardener.cloud/docs/gardener/development/seed_network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/seed_network_policies/</guid><description>
-&lt;h1 id="network-policies-in-the-seed-cluster">Network Policies in the Seed Cluster&lt;/h1>
-&lt;p>This document describes the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes network policies&lt;/a> deployed by Gardener into the Seed cluster.
-For network policies deployed into the Shoot &lt;code>kube-system&lt;/code> namespace, please see the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_network_policies/">usage section&lt;/a>.&lt;/p>
-&lt;p>Network policies deployed by Gardener have names and annotations describing their purpose, so this document only highlights a subset of the policies in detail.&lt;/p>
-&lt;h2 id="network-policies-in-the-shoot-namespace-in-the-seed">Network Policies in the Shoot Namespace in the Seed&lt;/h2>
-&lt;p>The network policies in the Shoot namespace in the Seed can roughly be grouped into policies required for the control plane components and policies required for logging &amp;amp; monitoring.&lt;/p>
-&lt;p>The network policy &lt;code>deny-all&lt;/code> plays a special role. This policy &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#default-deny-all-ingress-and-all-egress-traffic">denies all ingress and egress traffic&lt;/a> from each pod in the Shoot namespace.
-So per default, a pod running in the control plane cannot talk to any other pod in the whole Seed cluster.
-This means the pod needs to have labels matching to appropriate network policies allowing it to talk to exactly the components required to execute its desired functionality.
-&lt;a href="#implications-for-gardener-extensions">This has also implications for Gardener extensions&lt;/a> that need to deploy additional components into the &lt;code>Shoot's&lt;/code> control plane.&lt;/p>
-&lt;h3 id="network-policies-for-control-plane-components">Network Policies for Control Plane Components&lt;/h3>
-&lt;p>This section highlights a selection of network policies that exist in the Shoot namespace in the Seed cluster.
-In general, the control plane components serve different purposes and thus need access to different pods and network ranges.&lt;/p>
-&lt;p>In contrast to other network policies, the policy &lt;code>allow-to-shoot-networks&lt;/code> is tailored to the individual Shoot cluster,
-because it is based on the network configuration in the Shoot manifest.
-It allows pods with the label &lt;code>networking.gardener.cloud/to-shoot-networks=allowed&lt;/code> to access pods in the Shoot pod,
-service and node CIDR range. This is used by the Shoot API Server and the Prometheus pods to communicate over VPN/proxy with pods in the Shoot cluster.
-This network policy is only useful if reversed vpn is disabled, as otherwise the vpn-seed-server pod in the control plane is the only pod with layer 3 routing to the shoot network.&lt;/p>
-&lt;p>The policy &lt;code>allow-to-blocked-cidrs&lt;/code> allows pods with the label &lt;code>networking.gardener.cloud/to-blocked-cidrs=allowed&lt;/code> to access IPs that are explicitly blocked for all control planes in a Seed cluster (configurable via &lt;code>spec.networks.blockCIDRS&lt;/code>).
-This is used for instance to block the cloud provider&amp;rsquo;s metadata service.&lt;/p>
-&lt;p>Another network policy to be highlighted is &lt;code>allow-to-runtime-apiserver&lt;/code>.
-Some components need access to the Seed API Server. This can be allowed by labeling the pod with &lt;code>networking.gardener.cloud/to-runtime-apiserver=allowed&lt;/code>.
-This policy allows exactly the IPs of the &lt;code>kube-apiserver&lt;/code> of the Seed.
-While all other policies have a static set of permissions (do not change during the lifecycle of the Shoot), the policy &lt;code>allow-to-runtime-apiserver&lt;/code> is reconciled to reflect the endpoints in the &lt;code>default&lt;/code> namespace.
-This is required because endpoint IPs are not necessarily stable (think of scaling the Seed API Server pods or hibernating the Seed cluster (acting as a managed seed) in a local development environment).&lt;/p>
-&lt;p>Furthermore, the following network policies exist in the Shoot namespace.
-These policies are the same for every Shoot control plane.&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-# Pods that need to access the Shoot API server. Used by all Kubernetes control plane components.
-# deprecated. Use networking.resources.gardener.cloud/to-kube-apiserver-tcp-443=allowed instead
-allow-to-shoot-apiserver networking.gardener.cloud/to-shoot-apiserver=allowed
-# allows access to kube-dns/core-dns pods for DNS queries
-allow-to-dns networking.gardener.cloud/to-dns=allowed
-# allows access to private IP address ranges
-allow-to-private-networks networking.gardener.cloud/to-private-networks=allowed
-# allows access to all but private IP address ranges
-allow-to-public-networks networking.gardener.cloud/to-public-networks=allowed
-# allows Ingress to etcd pods from the Shoot&amp;#39;s Kubernetes API Server
-allow-etcd app=etcd-statefulset,gardener.cloud/role=controlplane
-# used by the Shoot API server to allows ingress from pods labeled
-# with&amp;#39;networking.gardener.cloud/to-shoot-apiserver=allowed&amp;#39;, from Prometheus, and allows Egress to etcd pods
-allow-kube-apiserver app=kubernetes,gardener.cloud/role=controlplane,role=apiserver
-&lt;/code>&lt;/pre>&lt;h3 id="network-policies-for-logging--monitoring">Network Policies for Logging &amp;amp; Monitoring&lt;/h3>
-&lt;p>Gardener currently introduces a logging stack based on &lt;a href="https://github.com/grafana/loki">Loki&lt;/a>. So this section is subject to change.
-For more information, see the &lt;a href="https://www.youtube.com/watch?v=345b8xCcB-U&amp;amp;t=1166s">Loki Gardener Community Meeting&lt;/a>.&lt;/p>
-&lt;p>These are the logging and monitoring related network policies:&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-allow-from-prometheus (deprecated!) networking.gardener.cloud/from-prometheus=allowed
-allow-grafana component=grafana,gardener.cloud/role=monitoring
-allow-prometheus app=prometheus,gardener.cloud/role=monitoring,role=monitoring
-allow-to-aggregate-prometheus networking.gardener.cloud/to-aggregate-prometheus=allowed
-allow-to-loki networking.gardener.cloud/to-loki=allowed
-&lt;/code>&lt;/pre>&lt;p>As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus into the shoot namespace.
-Each pod that should be scraped for metrics must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-scrape-targets
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the Prometheus pod.
-For more information, take a look at &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#networkpolicy-controllerpkgresourcemanagercontrollernetworkpolicy">this document&lt;/a>.&lt;/p>
-&lt;h3 id="implications-for-gardener-extensions">Implications for Gardener Extensions&lt;/h3>
-&lt;p>Gardener extensions sometimes need to deploy additional components into the Shoot namespace in the Seed hosting the control plane.
-For example, the Gardener extension &lt;a href="https://github.com/gardener/gardener-extension-provider-aws">provider-aws&lt;/a> deploys the &lt;code>MachineControllerManager&lt;/code> into the Shoot namespace, that is ultimately responsible to create the VMs with the cloud provider AWS.&lt;/p>
-&lt;p>Every Shoot namespace in the Seed contains the network policy &lt;code>deny-all&lt;/code>.
-This requires a pod deployed by a Gardener extension to have labels from network policies that exist in the Shoot namespace, that allow the required network ranges.&lt;/p>
-&lt;p>Additionally, extensions could also deploy their own network policies. This is used e.g by the Gardener extension &lt;a href="https://github.com/gardener/gardener-extension-provider-aws">provider-aws&lt;/a>
-to serve &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">Admission Webhooks&lt;/a> for the Shoot API server that need to be reachable from within the Shoot namespace.&lt;/p>
-&lt;p>The pod can use an arbitrary combination of network policies.&lt;/p>
-&lt;h2 id="network-policies-in-the-garden-namespace">Network Policies in the &lt;code>garden&lt;/code> Namespace&lt;/h2>
-&lt;p>The network policies in the &lt;code>garden&lt;/code> namespace are, with a few exceptions (e.g Kubernetes control plane specific policies), the same as in the Shoot namespaces.
-For your reference, these are all the deployed network policies.&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-allow-fluentbit app=fluent-bit,gardener.cloud/role=logging,role=logging
-allow-from-aggregate-prometheus networking.gardener.cloud/from-aggregate-prometheus=allowed
-allow-to-aggregate-prometheus networking.gardener.cloud/to-aggregate-prometheus=allowed
-allow-to-all-shoot-apiservers networking.gardener.cloud/to-all-shoot-apiservers=allowed
-allow-to-blocked-cidrs networking.gardener.cloud/to-blocked-cidrs=allowed
-allow-to-dns networking.gardener.cloud/to-dns=allowed
-allow-to-loki networking.gardener.cloud/to-loki=allowed
-allow-to-private-networks networking.gardener.cloud/to-private-networks=allowed
-allow-to-public-networks networking.gardener.cloud/to-public-networks=allowed
-allow-to-runtime-apiserver networking.gardener.cloud/to-runtime-apiserver=allowed
-&lt;/code>&lt;/pre>&lt;p>This section describes the network policies that are unique to the &lt;code>garden&lt;/code> namespace.&lt;/p>
-&lt;p>The network policy &lt;code>allow-to-all-shoot-apiservers&lt;/code> allows pods to access every &lt;code>Shoot&lt;/code> API server in the &lt;code>Seed&lt;/code>.
-This is, for instance, used by the &lt;a href="https://github.com/gardener/dependency-watchdog">dependency watchdog&lt;/a> to regularly check
-the health of all the Shoot API servers.&lt;/p>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#monitoring">Gardener deploys a central Prometheus instance&lt;/a> in the &lt;code>garden&lt;/code> namespace that fetches metrics and data from all seed cluster nodes and all seed cluster pods.
-The network policies &lt;code>allow-to-aggregate-prometheus&lt;/code> and &lt;code>allow-from-aggregate-prometheus&lt;/code> allow traffic from and to this Prometheus instance.&lt;/p>
-&lt;p>Worth mentioning is, that the network policy &lt;code>allow-to-shoot-networks&lt;/code> does not exist in the &lt;code>garden&lt;/code> namespace. This is to forbid Gardener system components to talk to workload deployed in the Shoot VPC.&lt;/p></description></item><item><title>Docs: Testing</title><link>https://gardener.cloud/docs/gardener/development/testing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/testing/</guid><description>
+&lt;p>In all cases, the name of the secrets is suffixed with a 5-digit hash computed out of the time when the rotation for this secret was last started.&lt;/p></description></item><item><title>Docs: Testing</title><link>https://gardener.cloud/docs/gardener/development/testing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/testing/</guid><description>
 &lt;h1 id="testing-strategy-and-developer-guideline">Testing Strategy and Developer Guideline&lt;/h1>
 &lt;p>This document walks you through:&lt;/p>
 &lt;ul>

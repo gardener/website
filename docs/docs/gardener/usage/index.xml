@@ -1063,7 +1063,113 @@ maxLines: 5000
 &lt;p>The nginx-ingress addon should not be enabled for a Shoot referred by a ManagedSeed.&lt;/p>
 &lt;p>An Ingress controller is also a prerequisite for a Seed cluster. For a Seed cluster, it is possible to enable Gardener managed Ingress controller or to deploy self-managed Ingress controller. There is also the nginx-ingress addon that can be enabled for a Shoot (using the Shoot spec). However, the Shoot nginx-ingress addon is in deprecated mode and it is not recommended for production clusters. Due to these reasons, the Gardener API server does not allow the Shoot nginx-ingress addon to be enabled for ManagedSeeds.&lt;/p>
 &lt;/li>
-&lt;/ol></description></item><item><title>Docs: Node Readiness</title><link>https://gardener.cloud/docs/gardener/usage/node-readiness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-readiness/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Network Policies</title><link>https://gardener.cloud/docs/gardener/usage/network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/network_policies/</guid><description>
+&lt;h1 id="networkpolicys-in-garden-seed-shoot-clusters">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/h1>
+&lt;p>This document describes which &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes &lt;code>NetworkPolicy&lt;/code>s&lt;/a> deployed by Gardener into the various clusters.&lt;/p>
+&lt;h2 id="garden-cluster">Garden Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardener-operator&lt;/code> and &lt;code>gardener-resource-manager&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>N/A (in development)&lt;/p>
+&lt;h2 id="seed-cluster">Seed Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code> and &lt;code>gardener-resource-manager&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>The &lt;code>gardenlet&lt;/code> runs a &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#networkpolicy-controllerpkggardenletcontrollernetworkpolicy">&lt;code>NetworkPolicy&lt;/code> controller&lt;/a> which is responsible for the following namespaces:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>garden&lt;/code>&lt;/li>
+&lt;li>&lt;code>istio-system&lt;/code>&lt;/li>
+&lt;li>&lt;code>istio-ingress-*&lt;/code>&lt;/li>
+&lt;li>&lt;code>shoot-*&lt;/code>&lt;/li>
+&lt;li>&lt;code>extension-*&lt;/code> (only when the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/">&lt;code>FullNetworkPoliciesInRuntimeCluster&lt;/code> feature gate&lt;/a> is enabled)&lt;/li>
+&lt;/ul>
+&lt;p>It deploys the following so-called &amp;ldquo;general &lt;code>NetworkPolicy&lt;/code>s&amp;rdquo;:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Name&lt;/th>
+&lt;th>Purpose&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>deny-all&lt;/code>&lt;/td>
+&lt;td>&lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#default-deny-all-ingress-and-all-egress-traffic">Denies all ingress and egress traffic&lt;/a> for all pods in this namespace. Hence, all traffic must be explicitly allowed.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-dns&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-dns=allowed&lt;/code> to DNS pods running in the &lt;code>kube-sytem&lt;/code> namespace. In practice, most of the pods performing network egress traffic need this label.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-runtime-apiserver&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-runtime-apiserver=allowed&lt;/code> to the API server of the runtime cluster.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-blocked-cidrs&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-blocked-cidrs=allowed&lt;/code> to explicitly blocked addresses configured by human operators (configured via &lt;code>.spec.networking.blockedCIDRs&lt;/code> in the &lt;code>Seed&lt;/code>). For instance, this can be used to block the cloud provider&amp;rsquo;s metadata service.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-public-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/allow-to-public-networks=allowed&lt;/code> to all public network IPs, except for private networks (RFC1918), carrier-grade NAT (RFC6598), and explicitly blocked addresses configured by human operators for all pods labeled with &lt;code>networking.gardener.cloud/to-public-networks=allowed&lt;/code>. In practice, this blocks egress traffic to all networks in the cluster and only allows egress traffic to public IPv4 addresses.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-private-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/allow-to-private-networks=allowed&lt;/code> to the private networks (RFC1918) and carrier-grade NAT (RFC6598) except for cluster-specific networks (configured via &lt;code>.spec.networks&lt;/code> in the &lt;code>Seed&lt;/code>).&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-shoot-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-shoot-networks=allowed&lt;/code> to IPv4 blocks belonging to the shoot networks (configured via &lt;code>.spec.networking&lt;/code> in the &lt;code>Shoot&lt;/code>). In practice, this should be used by components which use VPN tunnel to communicate to pods in the shoot cluster. Note that this policy only exists in &lt;code>shoot-*&lt;/code> namespaces.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Apart from those, the &lt;code>gardenlet&lt;/code> also enables the &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#networkpolicy-controllerpkgresourcemanagercontrollernetworkpolicy">&lt;code>NetworkPolicy&lt;/code> controller of &lt;code>gardener-resource-manager&lt;/code>&lt;/a>.
+Please find more information in the linked document.
+In summary, most of the pods that initiate connections with other pods will have labels with &lt;code>networking.resources.gardener.cloud/&lt;/code> prefixes.
+This way, they leverage the automatically created &lt;code>NetworkPolicy&lt;/code>s by the controller.
+As a result, in most cases no special/custom-crafted &lt;code>NetworkPolicy&lt;/code>s must be created anymore.&lt;/p>
+&lt;h3 id="logging--monitoring">Logging &amp;amp; Monitoring&lt;/h3>
+&lt;h4 id="seed-system-namespaces">Seed System Namespaces&lt;/h4>
+&lt;p>As part of the seed reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys various Prometheus instances into the &lt;code>garden&lt;/code> namespace.
+See also &lt;a href="https://gardener.cloud/docs/gardener/development/monitoring-stack/">this document&lt;/a> for more information.
+Each pod that should be scraped for metrics by these instances must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-seed-scrape-targets
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is not running in the &lt;code>garden&lt;/code> namespace, the &lt;code>Service&lt;/code> needs these annotations in addition:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;kubernetes.io/metadata.name&amp;#34;:&amp;#34;garden&amp;#34;}}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is running in an &lt;code>extension-*&lt;/code> namespace, the &lt;code>Service&lt;/code> needs this annotation in addition:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/pod-label-selector-namespace-alias: extensions
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the respective Prometheus pods.&lt;/p>
+&lt;h4 id="shoot-namespaces">Shoot Namespaces&lt;/h4>
+&lt;p>As part of the shoot reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys a shoot-specific Prometheus into the shoot namespace.
+Each pod that should be scraped for metrics must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-scrape-targets
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the Prometheus pod.&lt;/p>
+&lt;h2 id="shoot-cluster">Shoot Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>For shoot clusters, the concepts mentioned above don&amp;rsquo;t apply and are not enabled.
+Instead, &lt;code>gardenlet&lt;/code> only deploys a few &amp;ldquo;custom&amp;rdquo; &lt;code>NetworkPolicy&lt;/code>s for the shoot system components running in the &lt;code>kube-system&lt;/code> namespace.
+All other namespaces in the shoot cluster do not contain network policies deployed by &lt;code>gardenlet&lt;/code>.&lt;/p>
+&lt;p>As a best practice, every pod deployed into the &lt;code>kube-system&lt;/code> namespace should use appropriate &lt;code>NetworkPolicy&lt;/code> in order to only allow &lt;strong>required&lt;/strong> network traffic.
+Therefore, pods should have labels matching to the selectors of the available network policies.&lt;/p>
+&lt;p>&lt;code>gardenlet&lt;/code> deploys the following &lt;code>NetworkPolicy&lt;/code>s:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>NAME POD-SELECTOR
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-dns k8s-app in (kube-dns)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-from-seed networking.gardener.cloud/from-seed=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-dns networking.gardener.cloud/to-dns=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-apiserver networking.gardener.cloud/to-apiserver=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-from-nginx app=nginx-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-kubelet networking.gardener.cloud/to-kubelet=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-public-networks networking.gardener.cloud/to-public-networks=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-vpn app=vpn-shoot
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that a &lt;code>deny-all&lt;/code> policy will not be created by &lt;code>gardenlet&lt;/code>.
+Shoot owners can create it manually if needed/desired.
+Above listed &lt;code>NetworkPolicy&lt;/code>s ensure that the traffic for the shoot system components is allowed in case such &lt;code>deny-all&lt;/code> policies is created.&lt;/p>
+&lt;h2 id="implications-for-gardener-extensions">Implications for Gardener Extensions&lt;/h2>
+&lt;p>Gardener extensions sometimes need to deploy additional components into the shoot namespace in the seed cluster hosting the control plane.
+For example, the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws">&lt;code>gardener-extension-provider-aws&lt;/code>&lt;/a> deploys the &lt;code>cloud-controller-manager&lt;/code> into the shoot namespace.
+In most cases, such pods require network policy labels to allow the traffic they are initiating.&lt;/p>
+&lt;p>For components deployed in the &lt;code>kube-system&lt;/code> namespace of the shoots (e.g., CNI plugins or CSI drivers, etc.), custom &lt;code>NetworkPolicy&lt;/code>s might be required to ensure the respective components can still communicate in case the user creates a &lt;code>deny-all&lt;/code> policy.&lt;/p></description></item><item><title>Docs: Node Readiness</title><link>https://gardener.cloud/docs/gardener/usage/node-readiness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/node-readiness/</guid><description>
 &lt;h1 id="readiness-of-shoot-worker-nodes">Readiness of Shoot Worker Nodes&lt;/h1>
 &lt;h2 id="background">Background&lt;/h2>
 &lt;p>When registering new &lt;code>Nodes&lt;/code>, kubelet adds the &lt;code>node.kubernetes.io/not-ready&lt;/code> taint to prevent scheduling workload Pods to the &lt;code>Node&lt;/code> until the &lt;code>Ready&lt;/code> condition gets &lt;code>True&lt;/code>.
@@ -2578,28 +2684,7 @@ Gardener, for example, takes this precautionary measure for &lt;code>kube-contro
 &lt;h3 id="restart-some-core-addons">Restart Some Core Addons&lt;/h3>
 &lt;p>Gardener operators can make Gardener restart some core addons (at the moment only CoreDNS) during a shoot maintenance.&lt;/p>
 &lt;p>CoreDNS benefits from this feature as it automatically solve problems with clients stuck to single replica of the deployment and thus overloading it.
-Please note that these are exceptional cases but they are observed from time to time.&lt;/p></description></item><item><title>Docs: Shoot Network Policies</title><link>https://gardener.cloud/docs/gardener/usage/shoot_network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_network_policies/</guid><description>
-&lt;h2 id="network-policies-in-the-shoot-cluster">Network Policies in the Shoot Cluster&lt;/h2>
-&lt;p>In addition to deploying network policies &lt;a href="https://gardener.cloud/docs/gardener/development/seed_network_policies/">into the Seed&lt;/a>,
-Gardener deploys network policies into the &lt;code>kube-system&lt;/code> namespace of the Shoot.
-These network policies are used by Shoot system components (that are not part of the control plane).
-Other namespaces in the Shoot do not contain network policies deployed by Gardener.&lt;/p>
-&lt;p>As a best practice, every pod deployed into the &lt;code>kube-system&lt;/code> namespace should use appropriate network policies in order to only allow &lt;strong>required&lt;/strong> network traffic.
-Therefore, pods should have labels matching to the selectors of the available network policies.&lt;/p>
-&lt;p>Gardener deploys the following network policies:&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-gardener.cloud--allow-dns k8s-app in (kube-dns)
-gardener.cloud--allow-from-seed networking.gardener.cloud/from-seed=allowed
-gardener.cloud--allow-to-apiserver networking.gardener.cloud/to-apiserver=allowed
-gardener.cloud--allow-to-dns networking.gardener.cloud/to-dns=allowed
-gardener.cloud--allow-to-from-nginx app=nginx-ingress
-gardener.cloud--allow-to-kubelet networking.gardener.cloud/to-kubelet=allowed
-gardener.cloud--allow-to-public-networks networking.gardener.cloud/to-public-networks=allowed
-gardener.cloud--allow-vpn app=vpn-shoot
-&lt;/code>&lt;/pre>&lt;p>Additionally, there can be network policies deployed by Gardener extensions such as &lt;a href="https://github.com/gardener/gardener-extension-networking-calico">extension-calico&lt;/a>.&lt;/p>
-&lt;pre tabindex="0">&lt;code>NAME POD-SELECTOR
-gardener.cloud--allow-from-calico-node k8s-app=calico-typha
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Shoot Networking</title><link>https://gardener.cloud/docs/gardener/usage/shoot_networking/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_networking/</guid><description>
+Please note that these are exceptional cases but they are observed from time to time.&lt;/p></description></item><item><title>Docs: Shoot Networking</title><link>https://gardener.cloud/docs/gardener/usage/shoot_networking/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_networking/</guid><description>
 &lt;h1 id="shoot-networking">Shoot Networking&lt;/h1>
 &lt;p>This document contains network related information for Shoot clusters.&lt;/p>
 &lt;h2 id="pod-network">Pod Network&lt;/h2>

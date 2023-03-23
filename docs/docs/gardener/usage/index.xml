@@ -1702,15 +1702,16 @@ Gardener is using it for two purposes:&lt;/p>
 &lt;li>Fast recovery times for crash-looping pods when depending pods are again available.&lt;/li>
 &lt;/ol>
 &lt;p>For the sake of separating these concerns, two instances of the DWD are deployed by the seed controller.&lt;/p>
-&lt;h3 id="probe">Probe&lt;/h3>
-&lt;p>The &lt;code>dependency-watchdog-probe&lt;/code> deployment is responsible for above mentioned first point.&lt;/p>
+&lt;h3 id="prober">Prober&lt;/h3>
+&lt;p>The &lt;code>dependency-watchdog-prober&lt;/code> deployment is responsible for above-mentioned first point.&lt;/p>
 &lt;p>The &lt;code>kube-apiserver&lt;/code> of shoot clusters is exposed via a load balancer, usually with an attached public IP, which serves as the main entry point when it comes to interaction with the shoot cluster (e.g., via &lt;code>kubectl&lt;/code>).
 While end-users are talking to their clusters via this load balancer, other control plane components like the &lt;code>kube-controller-manager&lt;/code> or &lt;code>kube-scheduler&lt;/code> run in the same namespace/same cluster, so they can communicate via the in-cluster &lt;code>Service&lt;/code> directly instead of using the detour with the load balancer.
 However, the worker nodes of shoot clusters run in isolated, distinct networks.
 This means that the &lt;code>kubelet&lt;/code>s and &lt;code>kube-proxy&lt;/code>s also have to talk to the control plane via the load balancer.&lt;/p>
 &lt;p>The &lt;code>kube-controller-manager&lt;/code> has a special control loop called &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/pkg/controller/nodelifecycle">&lt;code>nodelifecycle&lt;/code>&lt;/a> which will set the status of &lt;code>Node&lt;/code>s to &lt;code>NotReady&lt;/code> in case the kubelet stops to regularly renew its lease/to send its heartbeat.
 This will trigger other self-healing capabilities of Kubernetes, for example, the eviction of pods from such &amp;ldquo;unready&amp;rdquo; nodes to healthy nodes.
-Similarly, the &lt;code>cloud-controller-manager&lt;/code> has a control loop that will disconnect load balancers from &amp;ldquo;unready&amp;rdquo; nodes, i.e., such workload would no longer be accessible until moved to a healthy node.&lt;/p>
+Similarly, the &lt;code>cloud-controller-manager&lt;/code> has a control loop that will disconnect load balancers from &amp;ldquo;unready&amp;rdquo; nodes, i.e., such workload would no longer be accessible until moved to a healthy node.
+Furthermore, the &lt;code>machine-controller-manager&lt;/code> removes &amp;ldquo;unready&amp;rdquo; nodes after &lt;code>health-timeout&lt;/code> (default 10min).&lt;/p>
 &lt;p>While these are awesome Kubernetes features on their own, they have a dangerous drawback when applied in the context of Gardener&amp;rsquo;s architecture:
 When the &lt;code>kube-apiserver&lt;/code> load balancer fails for whatever reason, then the &lt;code>kubelet&lt;/code>s can&amp;rsquo;t talk to the &lt;code>kube-apiserver&lt;/code> to renew their lease anymore.
 After a minute or so the &lt;code>kube-controller-manager&lt;/code> will get the impression that all nodes have died and will mark them as &lt;code>NotReady&lt;/code>.
@@ -1718,11 +1719,11 @@ This will trigger above mentioned eviction as well as detachment of load balance
 As a result, the customer&amp;rsquo;s workload will go down and become unreachable.&lt;/p>
 &lt;p>This is exactly the situation that the DWD prevents:
 It regularly tries to talk to the &lt;code>kube-apiserver&lt;/code>s of the shoot clusters, once by using their load balancer, and once by talking via the in-cluster &lt;code>Service&lt;/code>.
-If it detects that the &lt;code>kube-apiserver&lt;/code> is reachable internally but not externally, it scales down the &lt;code>kube-controller-manager&lt;/code> to &lt;code>0&lt;/code>.
-This will prevent it from marking the shoot worker nodes as &amp;ldquo;unready&amp;rdquo;.
-As soon as the &lt;code>kube-apiserver&lt;/code> is reachable externally again, the &lt;code>kube-controller-manager&lt;/code> will be scaled up to &lt;code>1&lt;/code> again.&lt;/p>
-&lt;h3 id="endpoint">Endpoint&lt;/h3>
-&lt;p>The &lt;code>dependency-watchdog-endpoint&lt;/code> deployment is responsible for the above mentioned second point.&lt;/p>
+If it detects that the &lt;code>kube-apiserver&lt;/code> is reachable internally but not externally, it scales down &lt;code>machine-controller-manager&lt;/code>, &lt;code>cluster-autoscaler&lt;/code> (if enabled) and &lt;code>kube-controller-manager&lt;/code> to &lt;code>0&lt;/code>.
+This will prevent it from marking the shoot worker nodes as &amp;ldquo;unready&amp;rdquo;. This will also prevent the &lt;code>machine-controller-manager&lt;/code> from deleting potentially healthy nodes.
+As soon as the &lt;code>kube-apiserver&lt;/code> is reachable externally again, &lt;code>kube-controller-manager&lt;/code>, &lt;code>machine-controller-manager&lt;/code> and &lt;code>cluster-autoscaler&lt;/code> are restored to the state prior to scale-down.&lt;/p>
+&lt;h3 id="weeder">Weeder&lt;/h3>
+&lt;p>The &lt;code>dependency-watchdog-weeder&lt;/code> deployment is responsible for above mentioned second point.&lt;/p>
 &lt;p>Kubernetes is restarting failing pods with an exponentially increasing backoff time.
 While this is a great strategy to prevent system overloads, it has the disadvantage that the delay between restarts is increasing up to multiple minutes very fast.&lt;/p>
 &lt;p>In the Gardener context, we are deploying many components that are depending on other components.
@@ -1737,19 +1738,22 @@ These dependant pods are detected via a pre-configured label selector.&lt;/p>
 &lt;p>The &lt;code>Seed&lt;/code> resource offers a few settings that are used to control the behaviour of certain Gardener components.
 This document provides an overview over the available settings:&lt;/p>
 &lt;h2 id="dependency-watchdog">Dependency Watchdog&lt;/h2>
-&lt;p>gardenlet can deploy two instances of the &lt;a href="https://github.com/gardener/dependency-watchdog">dependency-watchdog&lt;/a> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
-One instance only activates the &lt;code>endpoint&lt;/code> controller, while the second instance only activates the &lt;code>probe&lt;/code> controller.&lt;/p>
-&lt;h3 id="endpoint-controller">Endpoint Controller&lt;/h3>
-&lt;p>The &lt;code>endpoint&lt;/code> controller helps to alleviate the delay where control plane components remain unavailable by finding the respective pods in CrashLoopBackoff status and restarting them once their dependants become ready and available again.
-For example, if &lt;code>etcd&lt;/code> goes down, then also &lt;code>kube-apiserver&lt;/code> goes down (and into a &lt;code>CrashLoopBackoff&lt;/code> state). If &lt;code>etcd&lt;/code> comes up again, then (without the &lt;code>endpoint&lt;/code> controller) it might take some time until &lt;code>kube-apiserver&lt;/code> gets restarted as well.&lt;/p>
+&lt;p>Gardenlet can deploy two instances of the &lt;a href="https://github.com/gardener/dependency-watchdog">dependency-watchdog&lt;/a> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
+One instance only activates the weeder while the second instance only activates the prober.&lt;/p>
+&lt;h3 id="weeder">Weeder&lt;/h3>
+&lt;p>The weeder helps to alleviate the delay where control plane components remain unavailable by finding the respective pods in &lt;code>CrashLoopBackoff&lt;/code> status and restarting them once their dependants become ready and available again.
+For example, if &lt;code>etcd&lt;/code> goes down then also &lt;code>kube-apiserver&lt;/code> goes down (and into a &lt;code>CrashLoopBackoff&lt;/code> state). If &lt;code>etcd&lt;/code> comes up again then (without the &lt;code>endpoint&lt;/code> controller) it might take some time until &lt;code>kube-apiserver&lt;/code> gets restarted as well.&lt;/p>
+&lt;p>⚠️ &lt;code>.spec.settings.dependencyWatchdog.endpoint.enabled&lt;/code> is deprecated and will be removed in a future version of Gardener. Use &lt;code>.spec.settings.dependencyWatchdog.weeder.enabled&lt;/code> instead.&lt;/p>
 &lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.endpoint.enabled&lt;/code> field.
 It defaults to &lt;code>true&lt;/code>.&lt;/p>
-&lt;h3 id="probe-controller">Probe Controller&lt;/h3>
+&lt;h3 id="prober">Prober&lt;/h3>
 &lt;p>The &lt;code>probe&lt;/code> controller scales down the &lt;code>kube-controller-manager&lt;/code> of shoot clusters in case their respective &lt;code>kube-apiserver&lt;/code> is not reachable via its external ingress.
 This is in order to avoid melt-down situations, since the &lt;code>kube-controller-manager&lt;/code> uses in-cluster communication when talking to the &lt;code>kube-apiserver&lt;/code>, i.e., it wouldn&amp;rsquo;t be affected if the external access to the &lt;code>kube-apiserver&lt;/code> is interrupted for whatever reason.
 The &lt;code>kubelet&lt;/code>s on the shoot worker nodes, however, would indeed be affected since they typically run in different networks and use the external ingress when talking to the &lt;code>kube-apiserver&lt;/code>.
 Hence, without scaling down &lt;code>kube-controller-manager&lt;/code>, the nodes might be marked as &lt;code>NotReady&lt;/code> and eventually replaced (since the &lt;code>kubelet&lt;/code>s cannot report their status anymore).
-To prevent such unnecessary turbulences, &lt;code>kube-controller-manager&lt;/code> is being scaled down until the external ingress becomes available again.&lt;/p>
+To prevent such unnecessary turbulences, &lt;code>kube-controller-manager&lt;/code> is being scaled down until the external ingress becomes available again. In addition, as a precautionary measure, &lt;code>machine-controller-manager&lt;/code> is also scaled down, along with &lt;code>cluster-autoscaler&lt;/code> which depends on
+&lt;code>machine-controller-manager&lt;/code>.&lt;/p>
+&lt;p>⚠️ &lt;code>.spec.settings.dependencyWatchdog.probe.enabled&lt;/code> is deprecated and will be removed in a future version of Gardener. Use &lt;code>.spec.settings.dependencyWatchdog.prober.enabled&lt;/code> instead.&lt;/p>
 &lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.probe.enabled&lt;/code> field.
 It defaults to &lt;code>true&lt;/code>.&lt;/p>
 &lt;h2 id="reserve-excess-capacity">Reserve Excess Capacity&lt;/h2>

@@ -162,7 +162,27 @@ To switch to a pure ebpf dataplane it is recommended to run without an overlay n
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeProxy:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="example-networkingconfig-manifest">Example &lt;code>NetworkingConfig&lt;/code> manifest&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="know-limitations-of-the-ebpf-dataplane">Know limitations of the EBPF Dataplane&lt;/h3>
+&lt;p>Please note that the default settings for calico&amp;rsquo;s ebpf dataplane may interfere with
+&lt;a href="https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-overview">accelerated networking in azure&lt;/a>
+rendering nodes with accelerated networking unusable in the network. The reason for this is that calico does not ignore
+the accelerated networking interface &lt;code>enP...&lt;/code> as it should, but applies its ebpf programs to it. A simple mitigation for
+this is to adapt the &lt;code>FelixConfiguration&lt;/code> &lt;code>default&lt;/code> and ensure that the &lt;code>bpfDataIfacePattern&lt;/code> does not include &lt;code>enP...&lt;/code>.
+Per default &lt;code>bpfDataIfacePattern&lt;/code> is not set. The default value for this option can be found
+&lt;a href="https://github.com/projectcalico/calico/blob/3f7fe4d290541bbdd73c97bdc89a29a29855a48a/felix/config/config_params.go#L180">here&lt;/a>.
+For example, you could apply the following change:&lt;/p>
+&lt;pre tabindex="0">&lt;code>$ kubectl edit felixconfiguration default
+...
+apiVersion: crd.projectcalico.org/v1
+kind: FelixConfiguration
+metadata:
+...
+name: default
+...
+spec:
+bpfDataIfacePattern: ^((en|wl|ww|sl|ib)[opsx].*|(eth|wlan|wwan).*|tunl0$|vxlan.calico$|wireguard.cali$|wg-v6.cali$)
+...
+&lt;/code>&lt;/pre>&lt;h2 id="example-networkingconfig-manifest">Example &lt;code>NetworkingConfig&lt;/code> manifest&lt;/h2>
 &lt;p>An example &lt;code>NetworkingConfig&lt;/code> for the Calico extension looks as follows:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: calico.networking.extensions.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: NetworkConfig

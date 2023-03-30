@@ -1040,7 +1040,7 @@ Otherwise, you might experience unexpected behaviour or issues with your seed or
 &lt;p>Please find an exemplary &lt;code>Garden&lt;/code> resource &lt;a href="https://github.com/gardener/gardener/blob/master/example/operator/20-garden.yaml">here&lt;/a>.&lt;/p>
 &lt;h3 id="settings-for-runtime-cluster">Settings For Runtime Cluster&lt;/h3>
 &lt;p>The &lt;code>Garden&lt;/code> resource offers a few settings that are used to control the behaviour of &lt;code>gardener-operator&lt;/code> in the runtime cluster.
-This section provides an overview over the available settings:&lt;/p>
+This section provides an overview over the available settings in &lt;code>.spec.runtimeCluster.settings&lt;/code>:&lt;/p>
 &lt;h4 id="load-balancer-services">Load Balancer Services&lt;/h4>
 &lt;p>&lt;code>gardener-operator&lt;/code> creates a Kubernetes &lt;code>Service&lt;/code> object of type &lt;code>LoadBalancer&lt;/code> in the runtime cluster.
 It is used for exposing the virtual garden control planes, namely the &lt;code>virtual-garden-kube-apiserver&lt;/code>.
@@ -1058,34 +1058,68 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;p>⚠️ In any case, there must be a VPA available for your runtime cluster.
 Using a runtime cluster without VPA is not supported.&lt;/p>
 &lt;h2 id="credentials-rotation">Credentials Rotation&lt;/h2>
-&lt;p>The credentials rotation works in the same way like it does for &lt;code>Shoot&lt;/code> resources, i.e. there are &lt;code>gardener.cloud/operation&lt;/code> annotation values for starting or completing the rotation procedures.&lt;/p>
+&lt;p>The credentials rotation works in the same way as it does for &lt;code>Shoot&lt;/code> resources, i.e. there are &lt;code>gardener.cloud/operation&lt;/code> annotation values for starting or completing the rotation procedures.&lt;/p>
 &lt;p>For certificate authorities, &lt;code>gardener-operator&lt;/code> generates one which is automatically rotated roughly each month (&lt;code>ca-garden-runtime&lt;/code>) and several CAs which are &lt;strong>NOT&lt;/strong> automatically rotated but only on demand.&lt;/p>
 &lt;p>&lt;strong>🚨 Hence, it is the responsibility of the operator to regularly perform the credentials rotation.&lt;/strong>&lt;/p>
 &lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_credentials_rotation/#gardener-provided-credentials">this document&lt;/a> for more details. As of today, &lt;code>gardener-operator&lt;/code> only creates the following types of credentials (i.e., some sections of the document don&amp;rsquo;t apply for &lt;code>Garden&lt;/code>s and can be ignored):&lt;/p>
 &lt;ul>
 &lt;li>certificate authorities (and related server and client certificates)&lt;/li>
+&lt;li>ETCD encryption key&lt;/li>
+&lt;li>&lt;code>ServiceAccount&lt;/code> token signing key&lt;/li>
 &lt;/ul>
+&lt;p>⚠️ Since &lt;code>kube-controller-manager&lt;/code> is not yet deployed by &lt;code>gardener-operator&lt;/code>, rotation of static &lt;code>ServiceAccount&lt;/code> secrets is not supported and must be performed manually after the &lt;code>Garden&lt;/code> has reached &lt;code>Prepared&lt;/code> phase before completing the rotation.&lt;/p>
+&lt;p>⚠️ Rotation of the static kubeconfig (which is enabled unconditionally) is not support for now.
+The reason is that it such static kubeconfig will be disabled without configuration option in the near future.
+Instead, we&amp;rsquo;ll implement an approach similar to the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>adminkubeconfig&lt;/code> subresource on &lt;code>Shoot&lt;/code>s&lt;/a> which can be used to retrieve a temporary kubeconfig for the virtual garden cluster.&lt;/p>
 &lt;h2 id="local-development">Local Development&lt;/h2>
 &lt;p>The easiest setup is using a local &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster and the &lt;a href="https://skaffold.dev/">Skaffold&lt;/a> based approach to deploy and develop the &lt;code>gardener-operator&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># prepare a kind cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-up
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># deploy gardener-operator&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># option 1: one-time build and deployment&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make operator-up
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># option 2: full dev loop, press any key to build and deploy new changes&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make operator-dev
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># now you can create Garden resources, for example&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/20-garden.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively, you can run the e2e test&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make test-e2e-local-operator
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># clean up&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make operator-down
+&lt;h3 id="setting-up-the-kind-cluster-runtime-cluster">Setting Up the KinD Cluster (runtime cluster)&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind-operator-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local&lt;/code> and stores the kubeconfig in the &lt;code>./example/gardener-local/kind/operator/kubeconfig&lt;/code> file.&lt;/p>
+&lt;blockquote>
+&lt;p>It might be helpful to copy this file to &lt;code>$HOME/.kube/config&lt;/code>, since you will need to target this KinD cluster multiple times.
+Alternatively, make sure to set your &lt;code>KUBECONFIG&lt;/code> environment variable to &lt;code>./example/gardener-local/kind/operator/kubeconfig&lt;/code> for all future steps via &lt;code>export KUBECONFIG=example/gardener-local/kind/operator/kubeconfig&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;p>All of the following steps assume that you are using this kubeconfig.&lt;/p>
+&lt;h3 id="setting-up-gardener-operator">Setting Up Gardener Operator&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will first build the base images (which might take a bit if you do it for the first time).
+Afterwards, the Gardener Operator resources will be deployed into the cluster.&lt;/p>
+&lt;h3 id="developing-gardener-operator-optional">Developing Gardener Operator (Optional)&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-dev
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is similar to &lt;code>make operator-up&lt;/code> but additionally starts a &lt;a href="https://skaffold.dev/docs/workflows/dev/">skaffold dev loop&lt;/a>.
+After the initial deployment, skaffold starts watching source files.
+Once it has detected changes, press any key to trigger a new build and deployment of the changed components.&lt;/p>
+&lt;h3 id="creating-a-garden">Creating a &lt;code>Garden&lt;/code>&lt;/h3>
+&lt;p>In order to create a garden, just run:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/operator/20-garden.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can wait for the &lt;code>Garden&lt;/code> to be ready by running:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh garden garden Reconciled
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get garden&lt;/code> and wait for the &lt;code>RECONCILED&lt;/code> status to reach &lt;code>True&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>NAME RECONCILED AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>garden Progressing 1s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(Optional): Instead of creating above &lt;code>Garden&lt;/code> resource manually, you could execute the e2e tests by running:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make test-e2e-local-operator
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="accessing-the-virtual-garden-cluster">Accessing the Virtual Garden Cluster&lt;/h4>
+&lt;p>⚠️ Please note that in this setup, the virtual garden cluster is not accessible by default when you download the kubeconfig and try to communicate with it.
+The reason is that your host most probably cannot resolve the DNS name of the cluster.
+Hence, if you want to access the virtual garden cluster, you have to run the following command which will extend your &lt;code>/etc/hosts&lt;/code> file with the required information to make the DNS names resolvable:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | sudo tee -a /etc/hosts
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"># Manually created to access local Gardener virtual garden cluster.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"># TODO: Remove this again when the virtual garden cluster access is no longer required.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">127.0.0.1 api.virtual-garden.local.gardener.cloud
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To access the virtual garden, you can acquire a &lt;code>kubeconfig&lt;/code> by&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl -n garden get secret -l name=user-kubeconfig -o jsonpath={..data.kubeconfig} | base64 -d &amp;gt; /tmp/virtual-garden-kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl --kubeconfig /tmp/virtual-garden-kubeconfig get namespaces
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="deleting-the-garden">Deleting the &lt;code>Garden&lt;/code>&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/delete garden garden
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="tear-down-the-gardener-operator-environment">Tear Down the Gardener Operator Environment&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-down
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Generally, any Kubernetes cluster can be used.
-An alternative approach is to start the process locally and manually deploy the &lt;code>CustomResourceDefinition&lt;/code> for the &lt;code>Garden&lt;/code> resources into the targeted cluster (potentially remote):&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="alternative-development-variant">Alternative Development Variant&lt;/h2>
+&lt;p>An alternative approach is to start the process locally and manually deploy the &lt;code>CustomResourceDefinition&lt;/code> for the &lt;code>Garden&lt;/code> resources into the targeted cluster (potentially remote):&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/10-crd-operator.gardener.cloud_gardens.yaml
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-operator KUBECONFIG=...
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
@@ -1114,6 +1148,7 @@ The whole management works similar to how it works for &lt;code>Shoot&lt;/code>s
 &lt;ul>
 &lt;li>&lt;code>virtual-garden-etcd-main&lt;/code>&lt;/li>
 &lt;li>&lt;code>virtual-garden-etcd-events&lt;/code>&lt;/li>
+&lt;li>&lt;code>virtual-garden-kube-apiserver&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>If the &lt;code>.spec.virtualCluster.controlPlane.highAvailability={}&lt;/code> is set then these components will be deployed in a &amp;ldquo;highly available&amp;rdquo; mode.
 For ETCD, this means that there will be 3 replicas each.
@@ -1122,8 +1157,15 @@ The &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https:/
 &lt;blockquote>
 &lt;p>If once set, removing &lt;code>.spec.virtualCluster.controlPlane.highAvailability&lt;/code> again is not supported.&lt;/p>
 &lt;/blockquote>
-&lt;p>The &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Deployment&lt;/code> (not yet managed by the operator) is exposed via a &lt;code>Service&lt;/code> of type &lt;code>LoadBalancer&lt;/code> with the same name.
+&lt;p>The &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Deployment&lt;/code> is exposed via a &lt;code>Service&lt;/code> of type &lt;code>LoadBalancer&lt;/code> with the same name.
 In the future, we might switch to exposing it via Istio, similar to how the &lt;code>kube-apiservers&lt;/code> of shoot clusters are exposed.&lt;/p>
+&lt;p>Similar to the &lt;code>Shoot&lt;/code> API, the version of the virtual garden cluster is controlled via &lt;code>.spec.virtualCluster.kubernetes.version&lt;/code>.
+Likewise, specific configuration for the control plane components can be provided in the same section, e.g. via &lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer&lt;/code> for the &lt;code>kube-apiserver&lt;/code>.&lt;/p>
+&lt;p>For the virtual cluster, it is essential to provide a DNS domain via &lt;code>.spec.virtualCluster.dns.domain&lt;/code>.
+&lt;strong>The respective DNS record is not managed by &lt;code>gardener-operator&lt;/code> and should be manually created and pointed to the load balancer IP of the &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Service&lt;/code>.&lt;/strong>
+The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and for configuring the &lt;code>--external-hostname&lt;/code> flag of the API server.&lt;/p>
+&lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
+This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p>
 &lt;h3 id="webhooks">Webhooks&lt;/h3>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
@@ -1135,7 +1177,11 @@ However, more advanced validation is hard to express via these means and is perf
 Only if this annotation is present it allows the &lt;code>DELETE&lt;/code> operation to pass.
 This prevents users from accidental/undesired deletions.&lt;/p>
 &lt;p>Another validation is to check that there is only one &lt;code>Garden&lt;/code> resource at a time.
-It prevents creating a second &lt;code>Garden&lt;/code> when there is already one in the system.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
+It prevents creating a second &lt;code>Garden&lt;/code> when there is already one in the system.&lt;/p>
+&lt;h4 id="defaulting">Defaulting&lt;/h4>
+&lt;p>This webhook handler mutates the &lt;code>Garden&lt;/code> resource on &lt;code>CREATE&lt;/code>/&lt;code>UPDATE&lt;/code>/&lt;code>DELETE&lt;/code> operations.
+Simple defaulting is performed via &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#defaulting">standard CRD defaulting&lt;/a>.
+However, more advanced defaulting is hard to express via these means and is performed by this webhook handler.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
 &lt;h1 id="gardener-resource-manager">Gardener Resource Manager&lt;/h1>
 &lt;p>Initially, the &lt;code>gardener-resource-manager&lt;/code> was a project similar to the &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/addon-manager">kube-addon-manager&lt;/a>.
 It manages Kubernetes resources in a target cluster which means that it creates, updates, and deletes them.

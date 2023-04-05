@@ -139,4 +139,313 @@ List(machineclass *MachineClassMeta, credentials, machineID string) (map[string]
 &lt;/ul>
 &lt;h3 id="example-implementation">Example implementation:&lt;/h3>
 &lt;p>Refer GRPC based implementation for AWS client:
-&lt;a href="https://github.com/ggaurav10/aws-driver-grpc">https://github.com/ggaurav10/aws-driver-grpc&lt;/a>&lt;/p></description></item></channel></rss>
+&lt;a href="https://github.com/ggaurav10/aws-driver-grpc">https://github.com/ggaurav10/aws-driver-grpc&lt;/a>&lt;/p></description></item><item><title>Docs: Hotupdate Instances</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/hotupdate-instances/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/docs/proposals/hotupdate-instances/</guid><description>
+&lt;h1 id="hot-update-virtualmachine-tags-without-triggering-a-rolling-update">Hot-Update VirtualMachine tags without triggering a rolling-update&lt;/h1>
+&lt;ul>
+&lt;li>&lt;a href="#hot-update-virtualmachine-tags-without-triggering-a-rolling-update">Hot-Update VirtualMachine tags without triggering a rolling-update&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#motivation">Motivation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#boundary-condition">Boundary Condition&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#what-is-available-today">What is available today?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#what-are-the-problems-with-the-current-approach">What are the problems with the current approach?&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#machineclass-update-and-its-impact">MachineClass Update and its impact&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#proposal">Proposal&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#shoot-yaml-changes">Shoot YAML changes&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#provider-specific-workerconfig-api-changes">Provider specific WorkerConfig API changes&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#gardener-provider-extension-changes">Gardener provider extension changes&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#driver-interface-changes">Driver interface changes&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#machine-class-reconciliation">Machine Class reconciliation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#overview">Overview&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#reconciliation-changes">Reconciliation Changes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/gardener/machine-controller-manager/issues/750">MCM Issue#750&lt;/a> There is a requirement to provide a way for consumers to add tags which can be hot-updated onto VMs. This requirement can be generalized to also offer a convenient way to specify tags which can be applied to VMs, NICs, Devices etc.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/gardener/machine-controller-manager/issues/635">MCM Issue#635&lt;/a> which in turn points to &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/issues/36#issuecomment-677530395">MCM-Provider-AWS Issue#36&lt;/a> - The issue hints at other fields like enable/disable &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#EIP_Disable_SrcDestCheck">source/destination checks for NAT instances&lt;/a> which needs to be hot-updated on network interfaces.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In GCP provider - &lt;code>instance.ServiceAccounts&lt;/code> can be updated without the need to roll-over the instance. &lt;a href="https://cloud.google.com/compute/docs/access/service-accounts">See&lt;/a>&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="boundary-condition">Boundary Condition&lt;/h2>
+&lt;p>All tags that are added via means other than MachineClass.ProviderSpec should be preserved as-is. Only updates done to tags in &lt;code>MachineClass.ProviderSpec&lt;/code> should be applied to the infra resources (VM/NIC/Disk).&lt;/p>
+&lt;h2 id="what-is-available-today">What is available today?&lt;/h2>
+&lt;p>WorkerPool configuration inside &lt;a href="https://github.com/gardener/gardener/blob/fb29d38e6615ed17d409a8271a285254d9dd00ad/example/90-shoot.yaml#L61-L62">shootYaml&lt;/a> provides a way to set labels. As per the &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#core.gardener.cloud/v1beta1.Worker">definition&lt;/a> these labels will be applied on &lt;code>Node&lt;/code> resources. Currently these labels are also passed to the VMs as tags. There is no distinction made between &lt;code>Node&lt;/code> labels and &lt;code>VM&lt;/code> tags.&lt;/p>
+&lt;p>&lt;code>MachineClass&lt;/code> has a field which holds &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/v1alpha1/machineclass_types.go#L54">provider specific configuration&lt;/a> and one such configuration is &lt;code>tags&lt;/code>. Gardener provider extensions updates the tags in &lt;code>MachineClass&lt;/code>.&lt;/p>
+&lt;ul>
+&lt;li>AWS provider extension directly passes the labels to the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/0a740eeca301320275d77d1c48d3c32d4ebcd7dd/pkg/controller/worker/machines.go#L158-L164">tag section&lt;/a> of machineClass.&lt;/li>
+&lt;li>Azure provider extension &lt;a href="https://github.com/gardener/gardener-extension-provider-azure/blob/b6424f0122e174863e783555aa0ad68700edd87b/pkg/controller/worker/machines.go#L371-L373">sanitizes&lt;/a> the woker pool labels and adds them as &lt;a href="https://github.com/gardener/gardener-extension-provider-azure/blob/b6424f0122e174863e783555aa0ad68700edd87b/pkg/controller/worker/machines.go#L187">tags in MachineClass&lt;/a>.&lt;/li>
+&lt;li>GCP provider extension &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/eb851f716e45336b486f3aaf46268859de2adecb/pkg/controller/worker/machines.go#L312-L315">sanitizes&lt;/a> them, and then sets them as &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/eb851f716e45336b486f3aaf46268859de2adecb/pkg/controller/worker/machines.go#L169">labels in the MachineClass&lt;/a>. In GCP tags only have keys and are currently &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/eb851f716e45336b486f3aaf46268859de2adecb/pkg/controller/worker/machines.go#L204-L207">hard coded&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;p>Let us look at an example of &lt;code>MachineClass.ProviderSpec&lt;/code> in AWS:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>providerSpec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ami: ami-02fe00c0afb75bbd3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tags:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#[section-1] pool lables added by gardener extension&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#########################################################&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes.io/arch: amd64
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.gardener.cloud/node-local-dns-enabled: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> node.kubernetes.io/role: node
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.garden.sapcloud.io/group: worker-ser234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/cri-name: containerd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/pool: worker-ser234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/system-components: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#[section-2] Tags defined in the gardener-extension-provider-aws&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">###########################################################&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes.io/cluster/cluster-full-name: &lt;span style="color:#a31515">&amp;#34;1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes.io/role/node: &lt;span style="color:#a31515">&amp;#34;1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#[section-3]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">###########################################################&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user-defined-key1: user-defined-val1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user-defined-key2: user-defined-val2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Refer &lt;a href="https://github.com/gardener/gardener/blob/c11c86ae07d8ea784f5c41362cd41800f06bb3ed/pkg/operation/botanist/component/extensions/worker/worker.go#L171-L197">src&lt;/a> for tags defined in &lt;code>section-1&lt;/code>.
+Refer &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/0a740eeca301320275d77d1c48d3c32d4ebcd7dd/pkg/controller/worker/machines.go#L158-L164">src&lt;/a> for tags defined in &lt;code>section-2&lt;/code>.
+Tags in &lt;code>section-3&lt;/code> are defined by the user.&lt;/p>
+&lt;/blockquote>
+&lt;p>Out of the above three tag categories, MCM depends &lt;code>section-2&lt;/code> tags (&lt;code>mandatory-tags&lt;/code>) for its &lt;code>orphan collection&lt;/code> and Driver&amp;rsquo;s &lt;code>DeleteMachine&lt;/code>and &lt;code>GetMachineStatus&lt;/code> to work.&lt;/p>
+&lt;p>&lt;code>ProviderSpec.Tags&lt;/code> are transported to the provider specific resources as follows:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Provider&lt;/th>
+&lt;th>Resources Tags are set on&lt;/th>
+&lt;th>Code Reference&lt;/th>
+&lt;th>Comment&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>AWS&lt;/td>
+&lt;td>Instance(VM), Volume, Network-Interface&lt;/td>
+&lt;td>&lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/v0.17.0/pkg/aws/core.go#L116-L129">aws-VM-Vol-NIC&lt;/a>&lt;/td>
+&lt;td>No distinction is made between tags set on VM, NIC or Volume&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Azure&lt;/td>
+&lt;td>Instance(VM), Network-Interface&lt;/td>
+&lt;td>&lt;a href="https://github.com/gardener/machine-controller-manager-provider-azure/blob/v0.10.0/pkg/azure/utils.go#L234">azure-VM-parameters&lt;/a> &amp;amp; &lt;a href="https://github.com/gardener/machine-controller-manager-provider-azure/blob/v0.10.0/pkg/azure/utils.go#L116">azureNIC-Parameters&lt;/a>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>GCP&lt;/td>
+&lt;td>Instance(VM), 1 tag: &lt;code>name&lt;/code> (denoting the name of the worker) is added to Disk&lt;/td>
+&lt;td>&lt;a href="https://github.com/gardener/machine-controller-manager-provider-gcp/blob/v0.14.0/pkg/gcp/machine_controller_util.go#L78-L80">gcp-VM&lt;/a> &amp;amp; &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp/blob/v1.28.1/pkg/controller/worker/machines.go#L291-L293">gcp-Disk&lt;/a>&lt;/td>
+&lt;td>In GCP key-value pairs are called &lt;code>labels&lt;/code> while &lt;code>network tags&lt;/code> have only keys&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>AliCloud&lt;/td>
+&lt;td>Instance(VM)&lt;/td>
+&lt;td>&lt;a href="https://github.com/gardener/machine-controller-manager-provider-alicloud/blob/master/pkg/spi/spi.go#L125-L129">aliCloud-VM&lt;/a>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="what-are-the-problems-with-the-current-approach">What are the problems with the current approach?&lt;/h2>
+&lt;p>There are a few shortcomings in the way tags/labels are handled:&lt;/p>
+&lt;ul>
+&lt;li>Tags can only be set at the time a machine is created.&lt;/li>
+&lt;li>There is no distinction made amongst tags/labels that are added to VM&amp;rsquo;s, disks or network interfaces. As stated above for AWS same set of tags are added to all. There is a limit defined on the number of tags/labels that can be associated to the devices (disks, VMs, NICs etc). Example: In AWS a max of &lt;a href="https://docs.aws.amazon.com/general/latest/gr/aws_tagging.html">50 user created tags are allowed&lt;/a>. Similar restrictions are applied on different resources across providers. Therefore adding all tags to all devices even if the subset of tags are not meant for that resource exhausts the total allowed tags/labels for that resource.&lt;/li>
+&lt;li>The only placeholder in shoot yaml as mentioned above is meant to only hold labels that should be applied on primarily on the &lt;a href="https://github.com/gardener/gardener/blob/v1.66.1/pkg/apis/core/v1beta1/types_shoot.go#L1315-L1317">Node&lt;/a> objects. So while you could use the node labels for &lt;a href="https://github.com/gardener/machine-controller-manager/issues/727">extended resources&lt;/a>, using it also for tags is not clean.&lt;/li>
+&lt;li>There is no provision in the shoot YAML today to add tags only to a subset of resources.&lt;/li>
+&lt;/ul>
+&lt;h3 id="machineclass-update-and-its-impact">MachineClass Update and its impact&lt;/h3>
+&lt;p>When &lt;a href="https://github.com/gardener/gardener/blob/v1.66.1/pkg/apis/core/types_shoot.go#L1042-L1043">Worker.ProviderConfig&lt;/a> is changed then a &lt;a href="https://github.com/gardener/gardener/blob/v1.66.1/extensions/pkg/controller/worker/machines.go#L146-L148">worker-hash&lt;/a> is computed which includes the raw &lt;code>ProviderConfig&lt;/code>. This hash value is then used as a suffix when constructing the name for a &lt;code>MachineClass&lt;/code>. See &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/pkg/controller/worker/machines.go#L190">aws-extension-provider&lt;/a> as an example. A change in the name of the &lt;code>MachineClass&lt;/code> will then in-turn trigger a rolling update of machines. Since &lt;code>tags&lt;/code> are provider specific and therefore will be part of &lt;code>ProviderConfig&lt;/code>, any update to them will result in a rolling-update of machines.&lt;/p>
+&lt;h2 id="proposal">Proposal&lt;/h2>
+&lt;h3 id="shoot-yaml-changes">Shoot YAML changes&lt;/h3>
+&lt;p>Provider specific configuration is set via &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L57-L58">providerConfig&lt;/a> section for each worker pool.&lt;/p>
+&lt;p>Example worker provider config (current):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: WorkerConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iops: 10000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dataVolumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: kubelet-dir
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapshotID: snap-13234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iamInstanceProfile: &lt;span style="color:#008000"># (specify either ARN or name)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-profile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> arn: my-instance-profile-arn
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is proposed that an additional field be added for &lt;code>tags&lt;/code> under &lt;code>providerConfig&lt;/code>. Proposed changed YAML:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: WorkerConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iops: 10000
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dataVolumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: kubelet-dir
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapshotID: snap-13234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iamInstanceProfile: &lt;span style="color:#008000"># (specify either ARN or name)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-profile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> arn: my-instance-profile-arn
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tags:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vm:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key1: val1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key2: val2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ..
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># for GCP network tags are just keys (there is no value associated to them). &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># What is shown below will work for AWS provider.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> network:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key3: val3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key4: val4
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Under &lt;code>tags&lt;/code> clear distinction is made between tags for VMs, Disks, network interface etc. Each provider has a different allowed-set of characters that it accepts as key names, has different limits on the tags that can be set on a resource (disk, NIC, VM etc.) and also has a different format (GCP network tags are only keys).&lt;/p>
+&lt;blockquote>
+&lt;p>TODO:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Check if worker.labels are getting added as tags on infra resources. We should continue to support it and double check that these should only be added to VMs and not to other resources.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Should we support users adding VM tags as node labels?&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/blockquote>
+&lt;h3 id="provider-specific-workerconfig-api-changes">Provider specific WorkerConfig API changes&lt;/h3>
+&lt;blockquote>
+&lt;p>Taking &lt;code>AWS&lt;/code> provider extension as an example to show the changes.&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/pkg/apis/aws/types_worker.go#L27-L38">WorkerConfig&lt;/a> will now have the following changes:&lt;/p>
+&lt;ol>
+&lt;li>A new field for tags will be introduced.&lt;/li>
+&lt;li>Additional metadata for struct fields will now be added via &lt;code>struct tags&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">type&lt;/span> WorkerConfig &lt;span style="color:#00f">struct&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metav1.TypeMeta
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Volume *Volume
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// .. all fields are not mentioned here.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> &lt;span style="color:#008000">// Tags are a collection of tags to be set on provider resources (e.g. VMs, Disks, Network Interfaces etc.)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Tags *Tags &lt;span style="color:#a31515">`hotupdatable:true`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// Tags is a placeholder for all tags that can be set/updated on VMs, Disks and Network Interfaces.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>&lt;span style="color:#00f">type&lt;/span> Tags &lt;span style="color:#00f">struct&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// VM tags set on the VM instances.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> VM &lt;span style="color:#00f">map&lt;/span>[&lt;span style="color:#2b91af">string&lt;/span>]&lt;span style="color:#2b91af">string&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// Network tags set on the network interfaces.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Network &lt;span style="color:#00f">map&lt;/span>[&lt;span style="color:#2b91af">string&lt;/span>]&lt;span style="color:#2b91af">string&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// Disk tags set on the volumes/disks.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Disk &lt;span style="color:#00f">map&lt;/span>[&lt;span style="color:#2b91af">string&lt;/span>]&lt;span style="color:#2b91af">string&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>There is a need to distinguish fields within &lt;code>ProviderSpec&lt;/code> (which is then mapped to the above &lt;code>WorkerConfig&lt;/code>) which can be updated without the need to change the hash suffix for &lt;code>MachineClass&lt;/code> and thus trigger a rolling update on machines.&lt;/p>
+&lt;p>To achieve that we propose to use &lt;strong>struct tag&lt;/strong> &lt;code>hotupdatable&lt;/code> whose value indicates if the field can be updated without the need to do a rolling update. To ensure backward compatibility, all fields which do not have this tag or have &lt;code>hotupdatable&lt;/code> set to &lt;code>false&lt;/code> will be considered as immutable and will require a rolling update to take affect.&lt;/p>
+&lt;h3 id="gardener-provider-extension-changes">Gardener provider extension changes&lt;/h3>
+&lt;blockquote>
+&lt;p>Taking AWS provider extension as an example. Following changes should be made to all gardener provider extensions&lt;/p>
+&lt;/blockquote>
+&lt;p>AWS Gardener Extension &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/v1.42.1/pkg/controller/worker/machines.go#L104-L107">generates machine config&lt;/a> using worker pool configuration. As part of that it also computes the &lt;code>workerPoolHash&lt;/code> which is then used to create the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/pkg/controller/worker/machines.go#L193">name of the MachineClass&lt;/a>.&lt;/p>
+&lt;p>Currently &lt;code>WorkerPoolHash&lt;/code> function uses the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/47d6bb34a538f3dfeedcf99361696de72d1eeae2/vendor/github.com/gardener/gardener/extensions/pkg/controller/worker/machines.go#L146-L148">entire providerConfig&lt;/a> to compute the hash. Proposal is to do the following:&lt;/p>
+&lt;ol>
+&lt;li>Remove the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/47d6bb34a538f3dfeedcf99361696de72d1eeae2/vendor/github.com/gardener/gardener/extensions/pkg/controller/worker/machines.go#L146-L148">code&lt;/a> from function &lt;code>WorkerPoolHash&lt;/code>.&lt;/li>
+&lt;li>Add another function to compute hash using all immutable fields in the provider config struct and then pass that to &lt;code>worker.WorkerPoolHash&lt;/code> as &lt;code>additionalData&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;p>The above will ensure that tags and any other field in &lt;code>WorkerConfig&lt;/code> which is marked with &lt;code>updatable:true&lt;/code> is not considered for hash computation and will therefore not contribute to changing the name of &lt;code>MachineClass&lt;/code> object thus preventing a rolling update.&lt;/p>
+&lt;p>&lt;code>WorkerConfig&lt;/code> and therefore the contained tags will be set as &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/apis/machine/v1alpha1/machineclass_types.go#L54">ProviderSpec&lt;/a> in &lt;code>MachineClass&lt;/code>.&lt;/p>
+&lt;p>If only fields which have &lt;code>updatable:true&lt;/code> are changed then it should result in update/patch of &lt;code>MachineClass&lt;/code> and not creation.&lt;/p>
+&lt;h3 id="driver-interface-changes">Driver interface changes&lt;/h3>
+&lt;p>&lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/pkg/util/provider/driver/driver.go#L28">Driver&lt;/a> interface which is a facade to provider specific API implementations will have one additional method.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-golang" data-lang="golang">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">type&lt;/span> Driver &lt;span style="color:#00f">interface&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// .. existing methods are not mentioned here for brevity.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> UpdateMachine(context.Context, *UpdateMachineRequest) &lt;span style="color:#2b91af">error&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// UpdateMachineRequest is the request to update machine tags.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>&lt;span style="color:#00f">type&lt;/span> UpdateMachineRequest &lt;span style="color:#00f">struct&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ProviderID &lt;span style="color:#2b91af">string&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> LastAppliedProviderSpec raw.Extension
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> MachineClass *v1alpha1.MachineClass
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Secret *corev1.Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>If any &lt;code>machine-controller-manager-provider-&amp;lt;providername&amp;gt;&lt;/code> has not implemented &lt;code>UpdateMachine&lt;/code> then updates of tags on Instances/NICs/Disks will not be done. An error message will be logged instead.&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;/blockquote>
+&lt;h3 id="machine-class-reconciliation">Machine Class reconciliation&lt;/h3>
+&lt;p>Current &lt;a href="https://github.com/gardener/machine-controller-manager/blob/v0.48.1/pkg/util/provider/machinecontroller/machineclass.go#L140-L194">MachineClass reconciliation&lt;/a> does not reconcile &lt;code>MachineClass&lt;/code> resource updates but it only enqueues associated machines. The reason is that it is assumed that anything that is changed in a MachineClass will result in a creation of a new MachineClass with a different name. This will result in a rolling update of all machines using the MachineClass as a template.&lt;/p>
+&lt;p>However, it is possible that there is data that all machines in a &lt;code>MachineSet&lt;/code> share which do not require a rolling update (e.g. tags), therefore there is a need to reconcile the MachineClass as well.&lt;/p>
+&lt;h4 id="overview">Overview&lt;/h4>
+&lt;p>&lt;img src="https://github.com/gardener/machine-controller-manager/raw/master/docs/proposals/HotUpdateMachine.drawio.png" alt="Overview">&lt;/p>
+&lt;h4 id="reconciliation-changes">Reconciliation Changes&lt;/h4>
+&lt;p>In order to ensure that machines get updated eventually with changes to the &lt;code>hot-updatable&lt;/code> fields defined in the &lt;code>MachineClass.ProviderConfig&lt;/code> as &lt;code>raw.Extension&lt;/code>.&lt;/p>
+&lt;p>We should only fix &lt;a href="https://github.com/gardener/machine-controller-manager/issues/751">MCM Issue#751&lt;/a> in the MachineClass reconciliation and let it enqueue the machines as it does today. We additionally propose the following two things:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Introduce a new annotation &lt;code>last-applied-providerspec&lt;/code> on every machine resource. This will capture the last successfully applied &lt;code>MachineClass.ProviderSpec&lt;/code> on this instance.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Enhance the machine reconciliation to include code to hot-update machine.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>In &lt;a href="https://github.com/gardener/machine-controller-manager/blob/v0.48.1/pkg/util/provider/machinecontroller/machine.go#L114">machine-reconciliation&lt;/a> there are currently two flows &lt;code>triggerDeletionFlow&lt;/code> and &lt;code>triggerCreationFlow&lt;/code>. When a machine gets enqueued due to changes in MachineClass then in this method following changes needs to be introduced:&lt;/p>
+&lt;p>Check if the machine has &lt;code>last-applied-providerspec&lt;/code> annotation.&lt;/p>
+&lt;p>&lt;em>Case 1.1&lt;/em>&lt;/p>
+&lt;p>If the annotation is not present then there can be just 2 possibilities:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>It is a fresh/new machine and no backing resources (VM/NIC/Disk) exist yet. The current flow checks if the providerID is empty and &lt;code>Status.CurrenStatus.Phase&lt;/code> is empty then it enters into the &lt;code>triggerCreationFlow&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>It is an existing machine which does not yet have this annotation. In this case call &lt;code>Driver.UpdateMachine&lt;/code>. If the driver returns no error then add &lt;code>last-applied-providerspec&lt;/code> annotation with the value of &lt;code>MachineClass.ProviderSpec&lt;/code> to this machine.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;em>Case 1.2&lt;/em>&lt;/p>
+&lt;p>If the annotation is present then compare the last applied provider-spec with the current provider-spec. If there are changes (check their hash values) then call &lt;code>Driver.UpdateMachine&lt;/code>. If the driver returns no error then add &lt;code>last-applied-providerspec&lt;/code> annotation with the value of &lt;code>MachineClass.ProviderSpec&lt;/code> to this machine.&lt;/p>
+&lt;blockquote>
+&lt;p>NOTE: It is assumed that if there are changes to the fields which are not marked as &lt;code>hotupdatable&lt;/code> then it will result in the change of name for MachineClass resulting in a rolling update of machines. If the name has not changed + machine is enqueued + there is a change in machine-class then it will be change to a hotupdatable fields in the spec.&lt;/p>
+&lt;/blockquote>
+&lt;p>Trigger update flow can be done after &lt;code>reconcileMachineHealth&lt;/code> and &lt;code>syncMachineNodeTemplates&lt;/code> in &lt;a href="https://github.com/gardener/machine-controller-manager/blob/v0.48.1/pkg/util/provider/machinecontroller/machine.go#L164-L175">machine-reconciliation&lt;/a>.&lt;/p>
+&lt;p>There are 2 edge cases that needs attention and special handling:&lt;/p>
+&lt;blockquote>
+&lt;p>Premise: It is identified that there is an update done to one or more hotupdatable fields in the MachineClass.ProviderSpec.&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;em>Edge-Case-1&lt;/em>&lt;/p>
+&lt;p>In the machine reconciliation, an update-machine-flow is triggered which in-turn calls &lt;code>Driver.UpdateMachine&lt;/code>. Consider the case where the hot update needs to be done to all VM, NIC and Disk resources. The driver returns an error which indicates a &lt;code>partial-failure&lt;/code>. As we have mentioned above only when &lt;code>Driver.UpdateMachine&lt;/code> returns no error will &lt;code>last-applied-providerspec&lt;/code> be updated. In case of partial failure the annotation will not be updated. This event will be re-queued for a re-attempt. However consider a case where before the item is re-queued, another update is done to MachineClass reverting back the changes to the original spec.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>At T1&lt;/th>
+&lt;th>At T2 (T2 &amp;gt; T1)&lt;/th>
+&lt;th>At T3 (T3&amp;gt; T2)&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>last-applied-providerspec=S1&lt;br/>MachineClass.ProviderSpec = S1&lt;/td>
+&lt;td>last-applied-providerspec=S1&lt;br/>MachineClass.ProviderSpec = S2&lt;br/> Another update to MachineClass.ProviderConfig = S3 is enqueue (S3 == S1)&lt;/td>
+&lt;td>last-applied-providerspec=S1&lt;br/>Driver.UpdateMachine for S1-S2 update - returns partial failure&lt;br/>Machine-Key is requeued&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>At T4 (T4&amp;gt; T3) when a machine is reconciled then it checks that &lt;code>last-applied-providerspec&lt;/code> is S1 and current MachineClass.ProviderSpec = S3 and since S3 is same as S1, no update is done. At T2 Driver.UpdateMachine was called to update the machine with &lt;code>S2&lt;/code> but it partially failed. So now you will have resources which are partially updated with S2 and no further updates will be attempted.&lt;/p>
+&lt;p>&lt;em>Edge-Case-2&lt;/em>&lt;/p>
+&lt;p>The above situation can also happen when &lt;code>Driver.UpdateMachine&lt;/code> is in the process of updating resources. It has hot-updated lets say 1 resource. But now MCM crashes. By the time it comes up another update to MachineClass.ProviderSpec is done essentially reverting back the previous change (same case as above). In this case reconciliation loop never got a chance to get any response from the driver.&lt;/p>
+&lt;p>To handle the above edge cases there are 2 options:&lt;/p>
+&lt;p>&lt;em>Option #1&lt;/em>&lt;/p>
+&lt;p>Introduce a new annotation &lt;code>inflight-providerspec-hash&lt;/code> . The value of this annotation will be the hash value of the &lt;code>MachineClass.ProviderSpec&lt;/code> that is in the process of getting applied on this machine. The machine will be updated with this annotation just before calling &lt;code>Driver.UpdateMachine&lt;/code> (in the trigger-update-machine-flow). If the driver returns no error then (in a single update):&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;code>last-applied-providerspec&lt;/code> will be updated&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>inflight-providerspec-hash&lt;/code> annotation will be removed.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>&lt;em>Option #2&lt;/em> - Preferred&lt;/p>
+&lt;p>Leverage &lt;code>Machine.Status.LastOperation&lt;/code> with &lt;code>Type&lt;/code> set to &lt;code>MachineOperationUpdate&lt;/code> and &lt;code>State&lt;/code> set to &lt;code>MachineStateProcessing&lt;/code> This status will be updated just before calling &lt;code>Driver.UpdateMachine&lt;/code>.&lt;/p>
+&lt;p>Semantically &lt;code>LastOperation&lt;/code> captures the details of the operation post-operation and not pre-operation. So this solution would be a divergence from the norm.&lt;/p></description></item></channel></rss>

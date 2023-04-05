@@ -132,6 +132,9 @@ Please consider spreading your Shoots over multiple credentials from different t
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># router:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># id: 1234&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers: 10.250.0.0/19
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># shareNetwork:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: true&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>floatingPoolName&lt;/code> is the name of the floating pool you want to use for your shoot.
 If you don&amp;rsquo;t know which floating pools are available look it up in the respective &lt;code>CloudProfile&lt;/code>.&lt;/p>
 &lt;p>With &lt;code>floatingPoolSubnetName&lt;/code> you can explicitly define to which subnet in the floating pool network (defined via &lt;code>floatingPoolName&lt;/code>) the router should be attached to.&lt;/p>
@@ -151,6 +154,8 @@ If you want to get a fresh router for the shoot then just omit the &lt;code>netw
 &lt;p>The &lt;code>networks.workers&lt;/code> section describes the CIDR for a subnet that is used for all shoot worker nodes, i.e., VMs which later run your applications.&lt;/p>
 &lt;p>You can freely choose these CIDRs and it is your responsibility to properly design the network layout to suit your needs.&lt;/p>
 &lt;p>Apart from the router and the worker subnet the OpenStack extension will also create a network, router interfaces, security groups, and a key pair.&lt;/p>
+&lt;p>The optional &lt;code>networks.shareNetwork.enabled&lt;/code> field controls the creation of a share network. This is only needed if shared
+file system storage (like NFS) should be used. Note, that in this case, the &lt;code>ControlPlaneConfig&lt;/code> needs additional configuration, too.&lt;/p>
 &lt;h2 id="controlplaneconfig">&lt;code>ControlPlaneConfig&lt;/code>&lt;/h2>
 &lt;p>The control plane configuration mainly contains values for the OpenStack-specific control plane components.
 Today, the only component deployed by the OpenStack extension is the &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>
@@ -172,6 +177,9 @@ Today, the only component deployed by the OpenStack extension is the &lt;code>cl
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cloudControllerManager:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CustomResourceValidation: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#storage:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># csiManila:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: true&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>loadBalancerProvider&lt;/code> is the provider name you want to use for load balancers in your shoot.
 If you don&amp;rsquo;t know which types are available look it up in the respective &lt;code>CloudProfile&lt;/code>.&lt;/p>
 &lt;p>The &lt;code>loadBalancerClasses&lt;/code> field contains an optional list of load balancer classes which will be available in the cluster. Each entry can have the following fields:&lt;/p>
@@ -195,6 +203,10 @@ If you don&amp;rsquo;t know which types are available look it up in the respecti
 &lt;p>The &lt;code>cloudControllerManager.featureGates&lt;/code> contains a map of explicitly enabled or disabled feature gates.
 For production usage it&amp;rsquo;s not recommended to use this field at all as you can enable alpha features or disable beta/stable features, potentially impacting the cluster stability.
 If you don&amp;rsquo;t want to configure anything for the &lt;code>cloudControllerManager&lt;/code> simply omit the key in the YAML specification.&lt;/p>
+&lt;p>The optional &lt;code>storage.csiManila.enabled&lt;/code> field is used to enable the deployment of the CSI Manila driver to support NFS persistent volumes.
+In this case, please ensure to set &lt;code>networks.shareNetwork.enabled=true&lt;/code> in the &lt;code>InfrastructureConfig&lt;/code>, too.
+Additionally, if CSI Manila driver is enabled, for each availability zone a NFS &lt;code>StorageClass&lt;/code> will be created on the shoot
+named like &lt;code>csi-manila-nfs-&amp;lt;zone&amp;gt;&lt;/code>.&lt;/p>
 &lt;h2 id="workerconfig">&lt;code>WorkerConfig&lt;/code>&lt;/h2>
 &lt;p>Each worker group in a shoot may contain provider-specific configurations and options. These are contained in the &lt;code>providerConfig&lt;/code> section of a worker group and can be configured using a &lt;code>WorkerConfig&lt;/code> object.
 An example of a &lt;code>WorkerConfig&lt;/code> looks as follows:&lt;/p>
@@ -202,13 +214,19 @@ An example of a &lt;code>WorkerConfig&lt;/code> looks as follows:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: WorkerConfig
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>serverGroup:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> policy: soft-anti-affinity
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># nodeTemplate: # (to be specified only if the node capacity would be different from cloudprofile info during runtime)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># capacity:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># cpu: 2&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># gpu: 0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># memory: 50Gi&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># machineLabels:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: my-label&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># value: foo&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: my-rolling-label&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># value: bar&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># triggerRollingOnUpdate: true # means any change of the machine label value will trigger rolling of all machines of the worker pool&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When you specify the &lt;code>serverGroup&lt;/code> section in your worker group configuration, a new server group will be created with the configured policy for each worker group that enabled this setting and all machines managed by this worker group will be assigned as members of the created server group.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="servergroups">ServerGroups&lt;/h3>
+&lt;p>When you specify the &lt;code>serverGroup&lt;/code> section in your worker group configuration, a new server group will be created with the configured policy for each worker group that enabled this setting and all machines managed by this worker group will be assigned as members of the created server group.&lt;/p>
 &lt;p>For users to have access to the server group feature, it must be enabled on the &lt;code>CloudProfile&lt;/code> by your operator.
 Existing clusters can take advantage of this feature by updating the server group configuration of their respective worker groups. Worker groups that are already configured with server groups can update their setting to change the policy used, or remove it altogether at any time.&lt;/p>
 &lt;p>Users must be aware that &lt;strong>any change to the server group settings will result in a rolling deployment of new nodes for the affected worker group&lt;/strong>.&lt;/p>
@@ -218,9 +236,12 @@ Existing clusters can take advantage of this feature by updating the server grou
 &lt;li>The available &lt;code>policy&lt;/code> values that can be used, are defined in the provider specific section of &lt;code>CloudProfile&lt;/code> by your operator.&lt;/li>
 &lt;li>Certain policy values may induce further constraints. Using the &lt;code>affinity&lt;/code> policy is only allowed when the worker group utilizes a single zone.&lt;/li>
 &lt;/ul>
+&lt;h3 id="machinelabels">MachineLabels&lt;/h3>
 &lt;p>The &lt;code>machineLabels&lt;/code> section in the worker group configuration allows to specify additional machine labels. These labels are added to the machine
 instances only, but not to the node object. Additionally, they have an optional &lt;code>triggerRollingOnUpdate&lt;/code> field. If it is set to &lt;code>true&lt;/code>, changing the label value
 will trigger a rolling of all machines of this worker pool.&lt;/p>
+&lt;h3 id="node-templates">Node Templates&lt;/h3>
+&lt;p>Node templates allow users to override the capacity of the nodes as defined by the server flavor specified in the &lt;code>CloudProfile&lt;/code>&amp;rsquo;s &lt;code>machineTypes&lt;/code>. This is useful for certain dynamic scenarios as it allows users to customize cluster-autoscaler&amp;rsquo;s behavior for these workergroup with their provided values.&lt;/p>
 &lt;h2 id="example-shoot-manifest-one-availability-zone">Example &lt;code>Shoot&lt;/code> manifest (one availability zone)&lt;/h2>
 &lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for one availability zone:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1

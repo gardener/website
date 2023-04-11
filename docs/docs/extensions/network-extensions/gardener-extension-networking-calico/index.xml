@@ -85,18 +85,18 @@
 &lt;p>The Overlay networking permits the routing of packets between multiples pods located on multiple nodes, even if the pod and the node network are not the same.&lt;/p>
 &lt;p>This is done through the encapsulation of pod packets in the node network so that the routing can be done as usual. We use &lt;code>ipip&lt;/code> encapsulation with calico in case the overlay network is enabled. This (simply put) sends an IP packet as workload in another IP packet.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/Overlay-Network.drawio_f88c6f.png" alt="">&lt;/p>
-&lt;p>In order to simplify the troubleshooting of problems and reducing the latency of packets travelling between nodes, the overlay network is disabled by default for extension default as stated above for all new clusters.&lt;/p>
+&lt;p>In order to simplify the troubleshooting of problems and reduce the latency of packets traveling between nodes, the overlay network is disabled by default as stated above for all new clusters.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/No-Overlay-Network.drawio_f5b3bd.png" alt="">&lt;/p>
-&lt;p>This means that the routing is done directly through the VPC routing table. Basically, when a new node it created, it is assigned a slice (usually a /24) of the pod network. All future pods in that node are going to be in this slice. Then, the cloud-controller-manager updated the cloud provider router to add the new route (all packets with in the network slice as destination should go to that node).&lt;/p>
+&lt;p>This means that the routing is done directly through the VPC routing table. Basically, when a new node is created, it is assigned a slice (usually a /24) of the pod network. All future pods in that node are going to be in this slice. Then, the cloud-controller-manager updates the cloud provider router to add the new route (all packets within the network slice as destination should go to that node).&lt;/p>
 &lt;p>This has the advantage of:&lt;/p>
 &lt;ul>
 &lt;li>Doing less work for the node as encapsulation takes some CPU cycles.&lt;/li>
 &lt;li>The maximum transmission unit (MTU) is slightly bigger resulting in slightly better performance, i.e. potentially more workload bytes per packet.&lt;/li>
 &lt;li>More direct and simpler setup, which makes the problems much easier to troubleshoot.&lt;/li>
 &lt;/ul>
+&lt;p>&lt;strong>In the case where multiple shoots are in the same VPC and the overlay network is disabled, if the pod&amp;rsquo;s network is not configured properly, there is a very strong chance that some pod IP address might overlap, which is going to cause all sorts of funny problems.&lt;/strong> So, if someone asks you how to avoid that, they need to make sure that the podCIDRs for each shoot &lt;strong>do not overlap with each other&lt;/strong>.&lt;/p>
 &lt;h2 id="enabling-the-overlay-network">Enabling the overlay network&lt;/h2>
 &lt;p>In certain cases, the overlay network might be preferable if, for example, the customer wants to create multiple clusters in the same VPC without ensuring there&amp;rsquo;s no overlap between the pod networks.&lt;/p>
-&lt;p>&lt;strong>In that case (multiple shoot in the same VPC), if the pod&amp;rsquo;s network is not configured properly, there is a very strong chance that some pod IP address might overlap, which is going to cause all sorts of funny problems.&lt;/strong> So, if someone asks you how to avoid that, they need to make sure that the podCIDR for each shoot &lt;strong>do not overlap with each other&lt;/strong>.&lt;/p>
 &lt;p>To enable the overlay network, add the following to the shoot&amp;rsquo;s YAML:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
@@ -129,7 +129,7 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="how-to-know-if-a-cluster-is-using-overlay-or-not">How to know if a cluster is using overlay or not?&lt;/h2>
-&lt;p>You can look at any of the old nodes. If there are tunl0 devices at least at some point in time the overlay network was used.
+&lt;p>You can look at any of the old nodes. If there are &lt;code>tunl0&lt;/code> devices at least at some point in time the overlay network was used.
 Another way is to look into the Network object in the shoot&amp;rsquo;s control plane namespace on the seed (see example above).&lt;/p>
 &lt;h2 id="do-we-have-some-documentation-somewhere-on-how-to-do-the-migration">Do we have some documentation somewhere on how to do the migration?&lt;/h2>
 &lt;p>No, not yet. The migration from no overlay to overlay is fairly simply by just setting the configuration as specified above. The other way is more complicated as the Network configuration needs to be changed AND the local routes need to be cleaned.

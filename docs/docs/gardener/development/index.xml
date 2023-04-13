@@ -328,13 +328,6 @@ If you plan on following the optional steps to &lt;a href="#optional-setting-up-
 &lt;/blockquote>
 &lt;/li>
 &lt;li>
-&lt;p>Make sure the &lt;code>kind&lt;/code> docker network is using the CIDR &lt;code>172.18.0.0/16&lt;/code>.&lt;/p>
-&lt;ul>
-&lt;li>If the network does not exist, it can be created with &lt;code>docker network create kind --subnet 172.18.0.0/16&lt;/code>&lt;/li>
-&lt;li>If the network already exists, the CIDR can be checked with &lt;code>docker network inspect kind | jq '.[].IPAM.Config[].Subnet'&lt;/code>. If it is not &lt;code>172.18.0.0/16&lt;/code>, delete the network with &lt;code>docker network rm kind&lt;/code> and create it with the command above.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
 &lt;p>Make sure that you increase the maximum number of open files on your host:&lt;/p>
 &lt;ul>
 &lt;li>
@@ -352,7 +345,7 @@ If you plan on following the optional steps to &lt;a href="#optional-setting-up-
 &lt;h2 id="setting-up-the-kind-cluster-garden-and-seed">Setting Up the KinD Cluster (Garden and Seed)&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>If you want to setup an IPv6 KinD cluster, use &lt;code>make kind-up IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
+&lt;p>If you want to setup an IPv6 KinD cluster, use &lt;code>make kind-up KIND_ENV=local IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
 &lt;/blockquote>
 &lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local&lt;/code> and stores the kubeconfig in the &lt;code>./example/gardener-local/kind/local/kubeconfig&lt;/code> file.&lt;/p>
 &lt;blockquote>
@@ -367,36 +360,45 @@ The storage directories of the registries are mounted to the host machine under 
 With this, mirrored images don&amp;rsquo;t have to be pulled again after recreating the cluster.&lt;/p>
 &lt;p>The command also deploys a default &lt;a href="https://github.com/projectcalico/calico">calico&lt;/a> installation as the cluster&amp;rsquo;s CNI implementation with &lt;code>NetworkPolicy&lt;/code> support (the default &lt;code>kindnet&lt;/code> CNI doesn&amp;rsquo;t provide &lt;code>NetworkPolicy&lt;/code> support).
 Furthermore, it deploys the &lt;a href="https://github.com/kubernetes-sigs/metrics-server">metrics-server&lt;/a> in order to support HPA and VPA on the seed cluster.&lt;/p>
-&lt;h2 id="outgoing-ipv6-single-stack-networking-optional">Outgoing IPv6 Single-Stack Networking (optional)&lt;/h2>
-&lt;p>If you want to test IPv6-related features, we need to configure NAT for outgoing traffic from the kind network to the internet.
-After &lt;code>make kind-up IPFAMILY=ipv6&lt;/code>, check the network created by kind:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ docker network inspect kind | jq &lt;span style="color:#a31515">&amp;#39;.[].IPAM.Config[].Subnet&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&amp;#34;172.18.0.0/16&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&amp;#34;fc00:f853:ccd:e793::/64&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Determine which device is used for outgoing internet traffic by looking at the default route:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ ip route show default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>default via 192.168.195.1 dev enp3s0 proto dhcp src 192.168.195.34 metric 100
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Configure NAT for traffic from the kind cluster to the internet using the IPv6 range and the network device from the previous two steps:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>ip6tables -t nat -A POSTROUTING -o enp3s0 -s fc00:f853:ccd:e793::/64 -j MASQUERADE
+&lt;h2 id="setting-up-ipv6-single-stack-networking-optional">Setting Up IPv6 Single-Stack Networking (optional)&lt;/h2>
+&lt;p>First, ensure that your &lt;code>/etc/hosts&lt;/code> file contains an entry resolving &lt;code>localhost&lt;/code> to the IPv6 loopback address:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>::1 localhost
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Typically, only &lt;code>ip6-localhost&lt;/code> is mapped to &lt;code>::1&lt;/code> on linux machines.
+However, we need &lt;code>localhost&lt;/code> to resolve to both &lt;code>127.0.0.1&lt;/code> and &lt;code>::1&lt;/code> so that we can talk to our registry via a single address (&lt;code>localhost:5001&lt;/code>).&lt;/p>
+&lt;p>Next, we need to configure NAT for outgoing traffic from the kind network to the internet.
+After executing &lt;code>make kind-up IPFAMILY=ipv6&lt;/code>, execute the following command to set up the corresponding iptables rules:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>ip6tables -t nat -A POSTROUTING -o &lt;span style="color:#00f">$(&lt;/span>ip route show default | awk &lt;span style="color:#a31515">&amp;#39;{print $5}&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span> -s fd00:10::/64 -j MASQUERADE
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setting-up-gardener">Setting Up Gardener&lt;/h2>
 &lt;p>In a terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make dev-setup &lt;span style="color:#008000"># preparing the environment (without webhooks for now)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=ready pod -l run=etcd -n garden --timeout 2m &lt;span style="color:#008000"># wait for etcd to be ready&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver &lt;span style="color:#008000"># starting gardener-apiserver&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>For IPv6 use &lt;code>make dev-setup IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
+&lt;/blockquote>
+&lt;p>In a new terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=available apiservice v1beta1.core.gardener.cloud &lt;span style="color:#008000"># wait for gardener-apiserver to be ready&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-admission-controller &lt;span style="color:#008000"># starting gardener-admission-controller&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make dev-setup DEV_SETUP_WITH_WEBHOOKS=true &lt;span style="color:#008000"># preparing the environment with webhooks&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-controller-manager &lt;span style="color:#008000"># starting gardener-controller-manager&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(Optional): In a new terminal pane, run:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>For IPv6 use &lt;code>make dev-setup DEV_SETUP_WITH_WEBHOOKS=true IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
+&lt;/blockquote>
+&lt;p>(Optional): In a new terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-scheduler &lt;span style="color:#008000"># starting gardener-scheduler&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make register-local-env &lt;span style="color:#008000"># registering the local environment (CloudProfile, Seed, etc.)&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-gardenlet SEED_NAME=local &lt;span style="color:#008000"># starting gardenlet&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>For IPv6 use &lt;code>make register-local-env IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
+&lt;/blockquote>
+&lt;p>In a new terminal pane, run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-extension-provider-local &lt;span style="color:#008000"># starting gardener-extension-provider-local&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ The &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">&lt;code>provider-local&lt;/code>&lt;/a> is started with elevated privileges since it needs to manipulate your &lt;code>/etc/hosts&lt;/code> file to enable you accessing the created shoot clusters from your local machine, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/#dnsrecord">this&lt;/a> for more details.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>For IPv6 use &lt;code>make start-extension-provider-local IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
+&lt;/blockquote>
+&lt;p>ℹ️ The &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">&lt;code>provider-local&lt;/code>&lt;/a> is started with elevated privileges since it needs to manipulate your &lt;code>/etc/hosts&lt;/code> file to enable you accessing the created shoot clusters from your local machine, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/#dnsrecord">this&lt;/a> for more details.&lt;/p>
 &lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
 &lt;p>You can wait for the &lt;code>Seed&lt;/code> to become ready by running:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh seed local GardenletReady Bootstrapped SeedSystemComponentsHealthy ExtensionsReady

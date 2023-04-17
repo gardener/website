@@ -1,4 +1,199 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Administer Client (Shoot) Clusters</title><link>https://gardener.cloud/docs/guides/administer_shoots/</link><description>Recent content in Administer Client (Shoot) Clusters on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/guides/administer_shoots/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Create / Delete a Shoot Cluster</title><link>https://gardener.cloud/docs/guides/administer_shoots/create-delete-shoot/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/create-delete-shoot/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Administer Client (Shoot) Clusters</title><link>https://gardener.cloud/docs/guides/administer_shoots/</link><description>Recent content in Administer Client (Shoot) Clusters on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Tue, 01 Dec 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/docs/guides/administer_shoots/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Authenticating with an Identity Provider</title><link>https://gardener.cloud/docs/guides/administer_shoots/oidc-login/</link><pubDate>Tue, 01 Dec 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/oidc-login/</guid><description>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Please read the following background material on &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens">Authenticating&lt;/a>.&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>Kubernetes on its own doesn’t provide any user management. In other words, users aren’t managed through Kubernetes resources. Whenever you refer to a human user it’s sufficient to use a unique ID, for example, an email address. Nevertheless, Gardener project owners can use an identity provider to authenticate user access for shoot clusters in the following way:&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="#configure-an-identity-provider">Configure an Identity Provider&lt;/a> using &lt;strong>OpenID Connect&lt;/strong> (OIDC).&lt;/li>
+&lt;li>&lt;a href="#configure-a-local-kubectl-oidc-login">Configure a local kubectl oidc-login&lt;/a> to enable &lt;code>oidc-login&lt;/code>.&lt;/li>
+&lt;li>&lt;a href="#configure-the-shoot-cluster">Configure the shoot cluster&lt;/a> to share details of the OIDC-compliant identity provider with the Kubernetes API Server.&lt;/li>
+&lt;li>&lt;a href="#authorize-an-authenticated-user">Authorize an authenticated user&lt;/a> using role-based access control (RBAC).&lt;/li>
+&lt;li>&lt;a href="#verify-the-result">Verify the result&lt;/a>&lt;/li>
+&lt;/ol>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+Gardener allows administrators to modify aspects of the control plane setup. It gives administrators full control of how the control plane is parameterized. While this offers much flexibility, administrators need to ensure that they don’t configure a control plane that goes beyond the service level agreements of the responsible operators team.
+&lt;/div>
+&lt;h2 id="configure-an-identity-provider">Configure an Identity Provider&lt;/h2>
+&lt;p>Create a tenant in an OIDC compatible Identity Provider. For simplicity, we use &lt;em>Auth0&lt;/em>, which has a free plan.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>In your tenant, create a client application to use authentication with &lt;code>kubectl&lt;/code>:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Create-client-application_6d15eb.png" alt="Create client application">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Provide a &lt;em>Name&lt;/em>, choose &lt;em>Native&lt;/em> as application type, and choose &lt;em>CREATE&lt;/em>.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Choose-application-type_070f3f.png" alt="Choose application type">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In the tab &lt;em>Settings&lt;/em>, copy the following parameters to a local text file:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;em>Domain&lt;/em>&lt;/p>
+&lt;p>Corresponds to the &lt;strong>issuer&lt;/strong> in OIDC. It must be an &lt;code>https&lt;/code>-secured endpoint (Auth0 requires a trailing &lt;code>/&lt;/code> at the end). For more information, see &lt;a href="https://openid.net/specs/openid-connect-core-1_0.html#Terminology">Issuer Identifier&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Client ID&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Client Secret&lt;/em>&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Basic-information_ffb8f0.png" alt="Basic information">&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Configure the client to have a callback url of &lt;code>http://localhost:8000&lt;/code>. This callback connects to your local &lt;code>kubectl oidc-login&lt;/code> plugin:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Configure-callback_7ae7ef.png" alt="Configure callback">&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Save your changes.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Verify that &lt;code>https://&amp;lt;Auth0 Domain&amp;gt;/.well-known/openid-configuration&lt;/code> is reachable.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Choose &lt;em>Users &amp;amp; Roles&lt;/em> &amp;gt; &lt;em>Users&lt;/em> &amp;gt; &lt;em>CREATE USERS&lt;/em> to create a user with a user and password:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Create-user_df6840.png" alt="Create user">&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+Users must have a &lt;em>verified&lt;/em> email address.
+&lt;/div>
+&lt;h2 id="configure-a-local-kubectl-oidc-login">Configure a Local &lt;code>kubectl&lt;/code> &lt;code>oidc-login&lt;/code>&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>Install the &lt;code>kubectl&lt;/code> plugin &lt;a href="https://github.com/int128/kubelogin">oidc-login&lt;/a>. We highly recommend the &lt;a href="https://github.com/kubernetes-sigs/krew">krew&lt;/a> installation tool, which also makes other plugins easily available.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl krew install oidc-login
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The response looks like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>Updated the local copy of plugin index.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Installing plugin: oidc-login
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>CAVEATS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>\
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| You need to setup the OIDC provider, Kubernetes API server, role binding and kubeconfig.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| See https://github.com/int128/kubelogin for more.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Installed plugin: oidc-login
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Prepare a &lt;code>kubeconfig&lt;/code> for later use:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>cp ~/.kube/config ~/.kube/config-oidc
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Modify the configuration of &lt;code>~/.kube/config-oidc&lt;/code> as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: shoot--project--mycluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: my-oidc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot--project--mycluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: my-oidc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: client.authentication.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: kubectl
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - oidc-login
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - get-token
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --oidc-issuer-url=https://&amp;lt;Issuer&amp;gt;/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --oidc-client-id=&amp;lt;Client ID&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --oidc-client-secret=&amp;lt;Client Secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --oidc-extra-scope=email,offline_access,profile
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>To test our OIDC-based authentication, the context &lt;code>shoot--project--mycluster&lt;/code> of &lt;code>~/.kube/config-oidc&lt;/code> is used in a later step. For now, continue to use the configuration &lt;code>~/.kube/config&lt;/code> with administration rights for your cluster.&lt;/p>
+&lt;h2 id="configure-the-shoot-cluster">Configure the Shoot Cluster&lt;/h2>
+&lt;p>Modify the shoot cluster YAML as follows, using the client ID and the domain (as issuer) from the settings of the client application you created in Auth0:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: garden.sapcloud.io/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mycluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-project
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> oidcConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clientID: &amp;lt;Client ID&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> issuerURL: &lt;span style="color:#a31515">&amp;#34;https://&amp;lt;Issuer&amp;gt;/&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usernameClaim: email
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This change of the &lt;code>Shoot&lt;/code> manifest triggers a reconciliation. Once the reconciliation is finished, your OIDC configuration is applied. It &lt;strong>doesn&amp;rsquo;t&lt;/strong> invalidate other certificate-based authentication methods. Wait for Gardener to reconcile the change. It can take up to 5 minutes.&lt;/p>
+&lt;h2 id="authorize-an-authenticated-user">Authorize an Authenticated User&lt;/h2>
+&lt;p>In Auth0, you created a user with a verified email address, &lt;code>test@test.com&lt;/code> in our example. For simplicity, we authorize a single user identified by this email address with the cluster role &lt;code>view&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: rbac.authorization.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterRoleBinding
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: viewer-test
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>roleRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ClusterRole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: view
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>subjects:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- apiGroup: rbac.authorization.k8s.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test@test.com
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As administrator, apply the cluster role binding in your shoot cluster.&lt;/p>
+&lt;h2 id="verify-the-result">Verify the Result&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>To step into the shoes of your user, use the prepared &lt;code>kubeconfig&lt;/code> file &lt;code>~/.kube/config-oidc&lt;/code>, and switch to the context that uses &lt;code>oidc-login&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>cd ~/.kube
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$(pwd)/config-oidc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl config use-context `shoot--project--mycluster`
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;code>kubectl&lt;/code> delegates the authentication to plugin &lt;code>oidc-login&lt;/code> the first time the user uses &lt;code>kubectl&lt;/code> to contact the API server, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl get all
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The plugin opens a browser for an interactive authentication session with Auth0, and in parallel serves a local webserver for the configured callback.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Enter your login credentials.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/Login-through-identity-provider_30610b.png" alt="Login through identity provider">&lt;/p>
+&lt;p>You should get a successful response from the API server:&lt;/p>
+&lt;pre tabindex="0">&lt;code>Opening in existing browser session.
+NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
+service/kubernetes ClusterIP 100.64.0.1 &amp;lt;none&amp;gt; 443/TCP 86m
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;/ol>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+&lt;p>After a successful login, &lt;code>kubectl&lt;/code> uses a token for authentication so that you don’t have to provide user and password for every new &lt;code>kubectl&lt;/code> command. How long the token is valid can be configured. If you want to log in again earlier, reset plugin &lt;code>oidc-login&lt;/code>:&lt;/p>
+&lt;ol>
+&lt;li>Delete directory &lt;code>~/.kube/cache/oidc-login&lt;/code>.&lt;/li>
+&lt;li>Delete the browser cache.&lt;/li>
+&lt;/ol>
+&lt;/div>
+&lt;ol>
+&lt;li>
+&lt;p>To see if your user uses the cluster role &lt;code>view&lt;/code>, do some checks with &lt;code>kubectl auth can-i&lt;/code>.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>The response for the following commands should be &lt;code>no&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl auth can-i create clusterrolebindings
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl auth can-i get secrets
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl auth can-i describe secrets
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>The response for the following commands should be &lt;code>yes&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl auth can-i list pods
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl auth can-i get pods
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;p>If the last step is successful, you’ve configured your cluster to authenticate against an identity provider using OIDC.&lt;/p>
+&lt;h2 id="related-links">Related Links&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://auth0.com/pricing/">Auth0 Pricing&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Create / Delete a Shoot Cluster</title><link>https://gardener.cloud/docs/guides/administer_shoots/create-delete-shoot/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/create-delete-shoot/</guid><description>
 &lt;h2 id="create-a-shoot-cluster">Create a Shoot Cluster&lt;/h2>
 &lt;p>As you have already prepared an &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">example Shoot manifest&lt;/a> in the steps described in the development documentation, please open another Terminal pane/window with the &lt;code>KUBECONFIG&lt;/code> environment variable pointing to the Garden development cluster and send the manifest to the Kubernetes API server:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl apply -f your-shoot-aws.yaml
@@ -88,7 +283,196 @@ If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.id&lt;/code> is spe
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get shoot $SHOOT_NAME -n $SHOOT_NAMESPACE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE VERSION SEED DOMAIN OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;SHOOT_NAME&amp;gt; aws 1.15.0 aws &amp;lt;SHOOT_DOMAIN&amp;gt; Succeeded 100 True True True True 20m
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shoot Cluster Maintenance</title><link>https://gardener.cloud/docs/guides/administer_shoots/maintain-shoot/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/maintain-shoot/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: GPU Enabled Cluster</title><link>https://gardener.cloud/docs/guides/administer_shoots/gpu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/gpu/</guid><description>
+&lt;h2 id="disclaimer">Disclaimer&lt;/h2>
+&lt;p>Be aware, that the following sections might be opinionated. Kubernetes, and the GPU support in particular,
+are rapidly evolving, which means that this guide is likely to be outdated sometime soon. For this reason,
+&lt;strong>contributions are highly appreciated&lt;/strong> to update this guide.&lt;/p>
+&lt;h2 id="create-a-cluster">Create a Cluster&lt;/h2>
+&lt;p>First thing first, let’s create a Kubernetes (K8s) cluster with GPU accelerated nodes. In this example we will use an AWS
+&lt;strong>p2.xlarge&lt;/strong> EC2 instance because it&amp;rsquo;s the cheapest available option at the moment. Use such cheap instances
+for learning to limit your resource costs. &lt;strong>This costs around 1€/hour per GPU&lt;/strong>&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/howto-gpu_c83e8f.png" alt="gpu-selection">&lt;/p>
+&lt;h2 id="install-nvidia-driver-as-daemonset">Install NVidia Driver as Daemonset&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DaemonSet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-driver-installer
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPID: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initContainers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - image: squat/modulus:4a1799e7aa0143bcbb70d354bab3e419b1f54972
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: modulus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - compile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - nvidia
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;410.104&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> securityContext:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privileged: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> env:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: MODULUS_CHROOT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: MODULUS_INSTALL
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: MODULUS_INSTALL_DIR
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /opt/drivers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: MODULUS_CACHE_DIR
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /opt/modulus/cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: MODULUS_LD_ROOT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: /root
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: IGNORE_MISSING_MODULE_SYMVERS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: &lt;span style="color:#a31515">&amp;#34;1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeMounts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: etc-coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /etc/coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> readOnly: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: usr-share-coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /usr/share/coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> readOnly: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: ld-root
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /root
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: module-cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /opt/modulus/cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: module-install-dir-base
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /opt/drivers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - image: &lt;span style="color:#a31515">&amp;#34;gcr.io/google-containers/pause:3.1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pause
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tolerations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: &lt;span style="color:#a31515">&amp;#34;nvidia.com/gpu&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> effect: &lt;span style="color:#a31515">&amp;#34;NoSchedule&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: &lt;span style="color:#a31515">&amp;#34;Exists&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: etc-coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /etc/coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: usr-share-coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /usr/share/coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: ld-root
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: module-cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /opt/modulus/cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: module-install-dir-base
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /opt/drivers
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="install-device-plugin">Install Device Plugin&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DaemonSet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nvidia-gpu-device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-gpu-device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#addonmanager.kubernetes.io/mode: Reconcile&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-gpu-device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> k8s-app: nvidia-gpu-device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduler.alpha.kubernetes.io/critical-pod: &lt;span style="color:#a31515">&amp;#39;&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> priorityClassName: system-node-critical
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /var/lib/kubelet/device-plugins
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hostPath:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: /dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - image: &lt;span style="color:#a31515">&amp;#34;k8s.gcr.io/nvidia-gpu-device-plugin@sha256:08509a36233c5096bb273a492251a9a5ca28558ab36d74007ca2a9d3f0b61e1d&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: [&lt;span style="color:#a31515">&amp;#34;/usr/bin/nvidia-gpu-device-plugin&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-logtostderr&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;-host-path=/opt/drivers/nvidia&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nvidia-gpu-device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 50m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 10Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 50m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 10Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> securityContext:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> privileged: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeMounts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /device-plugin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mountPath: /dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> updateStrategy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: RollingUpdate
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="test">Test&lt;/h2>
+&lt;p>To run an example training on a GPU node, first start a base image with Tensorflow with GPU support &amp;amp; Keras:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: deeplearning-workbench
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: deeplearning-workbench
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: deeplearning-workbench
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: deeplearning-workbench
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: afritzler/deeplearning-workbench
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nvidia.com/gpu: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tolerations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: &lt;span style="color:#a31515">&amp;#34;nvidia.com/gpu&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> effect: &lt;span style="color:#a31515">&amp;#34;NoSchedule&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: &lt;span style="color:#a31515">&amp;#34;Exists&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+&lt;p>the &lt;code>tolerations&lt;/code> section above is not required if you deploy the &lt;code>ExtendedResourceToleration&lt;/code>
+admission controller to your cluster. You can do this in the &lt;code>kubernetes&lt;/code> section of your Gardener
+cluster &lt;code>shoot.yaml&lt;/code> as follows:&lt;/p>
+&lt;pre tabindex="0">&lt;code> kubernetes:
+kubeAPIServer:
+admissionPlugins:
+- name: ExtendedResourceToleration
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>Now exec into the container and start an example Keras training:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl exec -it deeplearning-workbench-8676458f5d-p4d2v -- /bin/bash
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd /keras/example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>python imdb_cnn.py
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="related-links">Related Links&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://github.com/afritzler/kubernetes-gpu">Andreas Fritzler&lt;/a> from the Gardener Core team for the R&amp;amp;D, who has provided this setup.&lt;/li>
+&lt;li>&lt;a href="https://github.com/squat/modulus">Build and install NVIDIA driver on CoreOS&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/kubernetes/kubernetes/blob/master/cluster/addons/device-plugins/nvidia-gpu/daemonset.yaml">Nvidia Device Plugin&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Shoot Cluster Maintenance</title><link>https://gardener.cloud/docs/guides/administer_shoots/maintain-shoot/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer_shoots/maintain-shoot/</guid><description>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Day two operations for shoot clusters are related to:&lt;/p>
 &lt;ul>

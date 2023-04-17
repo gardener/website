@@ -500,7 +500,313 @@ The policy above is a very simple one and not suitable for complex applications.
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>postgres 9.6 d92dad241eff 13 days ago 235.4 MB
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>postgres 10.4-alpine 93797b0f31f4 13 days ago 39.56 MB
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In addition, for compiled languages such as Go or C++ that do not require build time tooling during runtime, it is recommended to avoid build time tooling in the final images. With Docker&amp;rsquo;s support for &lt;a href="https://docs.docker.com/engine/userguide/eng-image/multistage-build/">multi-stages builds&lt;/a>, this can be easily achieved with minimal effort. Such an example can be found at &lt;a href="https://docs.docker.com/develop/develop-images/multistage-build/#name-your-build-stages">Multi-stage builds&lt;/a>.&lt;/p>
-&lt;p>Google&amp;rsquo;s &lt;a href="https://github.com/GoogleContainerTools/distroless">distroless&lt;/a> image is also a good base image.&lt;/p></description></item><item><title>Docs: Integrity and Immutability</title><link>https://gardener.cloud/docs/guides/applications/content_trust/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/content_trust/</guid><description>
+&lt;p>Google&amp;rsquo;s &lt;a href="https://github.com/GoogleContainerTools/distroless">distroless&lt;/a> image is also a good base image.&lt;/p></description></item><item><title>Docs: Dynamic Volume Provisioning</title><link>https://gardener.cloud/docs/guides/applications/dynamic-pvc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/dynamic-pvc/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>The example shows how to run a Postgres database on Kubernetes and how to dynamically provision and mount the storage
+volumes needed by the database&lt;/p>
+&lt;h2 id="run-postgres-database">Run Postgres Database&lt;/h2>
+&lt;p>Define the following Kubernetes resources in a yaml file:&lt;/p>
+&lt;ul>
+&lt;li>PersistentVolumeClaim (PVC)&lt;/li>
+&lt;li>Deployment&lt;/li>
+&lt;/ul>
+&lt;h3 id="persistentvolumeclaim">PersistentVolumeClaim&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: PersistentVolumeClaim
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: postgresdb-pvc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> accessModes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ReadWriteOnce
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> requests:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage: 9Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClassName: &lt;span style="color:#a31515">&amp;#39;default&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This defines a PVC using the storage class &lt;code>default&lt;/code>. Storage classes abstract from the underlying storage provider as well
+as other parameters, like disk-type (e.g.; solid-state vs standard disks).&lt;/p>
+&lt;p>The default storage class has the annotation &lt;strong>{&amp;ldquo;storageclass.kubernetes.io/is-default-class&amp;rdquo;:&amp;ldquo;true&amp;rdquo;}&lt;/strong>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl describe sc default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Name: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>IsDefaultClass: Yes
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Annotations: kubectl.kubernetes.io/last-applied-configuration={&lt;span style="color:#a31515">&amp;#34;apiVersion&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;storage.k8s.io/v1beta1&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;kind&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;StorageClass&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;metadata&amp;#34;&lt;/span>:{&lt;span style="color:#a31515">&amp;#34;annotations&amp;#34;&lt;/span>:{&lt;span style="color:#a31515">&amp;#34;storageclass.kubernetes.io/is-default-class&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>},&lt;span style="color:#a31515">&amp;#34;labels&amp;#34;&lt;/span>:{&lt;span style="color:#a31515">&amp;#34;addonmanager.kubernetes.io/mode&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;Exists&amp;#34;&lt;/span>},&lt;span style="color:#a31515">&amp;#34;name&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;default&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;namespace&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>},&lt;span style="color:#a31515">&amp;#34;parameters&amp;#34;&lt;/span>:{&lt;span style="color:#a31515">&amp;#34;type&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;gp2&amp;#34;&lt;/span>},&lt;span style="color:#a31515">&amp;#34;provisioner&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;kubernetes.io/aws-ebs&amp;#34;&lt;/span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>,storageclass.kubernetes.io/is-default-class=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Provisioner: kubernetes.io/aws-ebs
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Parameters: type=gp2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>AllowVolumeExpansion: &amp;lt;unset&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>MountOptions: &amp;lt;none&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ReclaimPolicy: Delete
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>VolumeBindingMode: Immediate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Events: &amp;lt;none&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>A Persistent Volume is automatically created when it is dynamically provisioned. In the following example, the PVC is defined
+as &amp;ldquo;postgresdb-pvc&amp;rdquo;, and a corresponding PV &amp;ldquo;pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb&amp;rdquo; is created and associated with the PVC automatically.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl create -f .&lt;span style="color:#a31515">\p&lt;/span>ostgres_deployment.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>persistentvolumeclaim &lt;span style="color:#a31515">&amp;#34;postgresdb-pvc&amp;#34;&lt;/span> created
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pv
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Delete Bound default/postgresdb-pvc default 3s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pvc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME STATUS VOLUME CAPACITY ACCESS MODES STORAGECLASS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>postgresdb-pvc Bound pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO default 8s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Notice that the &lt;strong>RECLAIM POLICY&lt;/strong> is &lt;strong>Delete&lt;/strong> (default value), which is one of the two reclaim policies, the other
+one is &lt;strong>Retain&lt;/strong>. (A third policy &lt;strong>Recycle&lt;/strong> has been deprecated). In the case of &lt;strong>Delete&lt;/strong>, the PV is deleted automatically
+when the PVC is removed, and the data on the PVC will also be lost.&lt;/p>
+&lt;p>On the other hand, a PV with &lt;strong>Retain&lt;/strong> policy will not be deleted when the PVC is removed, and moved to &lt;strong>Release&lt;/strong> status, so
+that data can be recovered by Administrators later.&lt;/p>
+&lt;p>You can use the &lt;code>kubectl patch&lt;/code> command to change the reclaim policy as described in &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/change-pv-reclaim-policy/">Change the Reclaim Policy of a PersistentVolume&lt;/a>
+or use &lt;code>kubectl edit pv &amp;lt;pv-name&amp;gt;&lt;/code> to edit it online as shown below:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get pv
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Delete Bound default/postgresdb-pvc default 44m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># change the reclaim policy from &amp;#34;Delete&amp;#34; to &amp;#34;Retain&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl edit pv pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>persistentvolume &lt;span style="color:#a31515">&amp;#34;pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb&amp;#34;&lt;/span> edited
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># check the reclaim policy afterwards&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pv
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Bound default/postgresdb-pvc default 45m
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="deployment">Deployment&lt;/h3>
+&lt;p>Once a PVC is created, you can use it in your container via &lt;code>volumes.persistentVolumeClaim.claimName&lt;/code>. In the below
+example, the PVC &lt;strong>postgresdb-pvc&lt;/strong> is mounted as readable and writable, and in &lt;code>volumeMounts&lt;/code> two paths in the container are mounted to subfolders in the volume.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deployment.kubernetes.io/revision: &lt;span style="color:#a31515">&amp;#34;1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> strategy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: RollingUpdate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rollingUpdate:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxUnavailable: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxSurge: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: &lt;span style="color:#a31515">&amp;#34;cpettech.docker.repositories.sap.ondemand.com/jtrack_postgres:howto&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> env:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: POSTGRES_USER
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: postgres
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: POSTGRES_PASSWORD
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: p5FVqfuJFrM42cVX9muQXxrC3r8S9yn0zqWnFR6xCoPqxqVQ
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: POSTGRES_INITDB_XLOGDIR
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: &lt;span style="color:#a31515">&amp;#34;/var/log/postgresql/logs&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerPort: 5432
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeMounts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - mountPath: /var/lib/postgresql/data
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: postgre-db
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subPath: data &lt;span style="color:#008000"># https://github.com/kubernetes/website/pull/2292. Solve the issue of crashing initdb due to non-empty directory (i.e. lost+found)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - mountPath: /var/log/postgresql/logs
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: postgre-db
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subPath: logs
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: postgre-db
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> persistentVolumeClaim:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> claimName: postgresdb-pvc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> readOnly: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imagePullSecrets:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: cpettechregistry
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To check the mount points in the container:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get po
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME READY STATUS RESTARTS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>postgres-7f485fd768-c5jf9 1/1 Running 0 32m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl exec -it postgres-7f485fd768-c5jf9 bash
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@postgres-7f485fd768-c5jf9:/# ls /var/lib/postgresql/data/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>base pg_clog pg_dynshmem pg_ident.conf pg_multixact pg_replslot pg_snapshots pg_stat_tmp pg_tblspc PG_VERSION postgresql.auto.conf postmaster.opts
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>global pg_commit_ts pg_hba.conf pg_logical pg_notify pg_serial pg_stat pg_subtrans pg_twophase pg_xlog postgresql.conf postmaster.pid
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>root@postgres-7f485fd768-c5jf9:/# ls /var/log/postgresql/logs/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>000000010000000000000001 archive_status
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deleting-a-persistentvolumeclaim">Deleting a PersistentVolumeClaim&lt;/h2>
+&lt;p>In case of a &lt;strong>Delete&lt;/strong> policy, deleting a PVC will also delete its associated PV. If &lt;strong>Retain&lt;/strong> is the reclaim policy, the
+PV will change status from &lt;strong>Bound&lt;/strong> to &lt;strong>Released&lt;/strong> when the PVC is deleted.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Check pvc and pv before deletion&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pvc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME STATUS VOLUME CAPACITY ACCESS MODES STORAGECLASS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>postgresdb-pvc Bound pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO default 50m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pv
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Bound default/postgresdb-pvc default 50m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># delete pvc&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl delete pvc postgresdb-pvc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>persistentvolumeclaim &lt;span style="color:#a31515">&amp;#34;postgresdb-pvc&amp;#34;&lt;/span> deleted
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># pv changed to status &amp;#34;Released&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ kubectl get pv
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CAPACITY ACCESS MODES RECLAIM POLICY STATUS CLAIM STORAGECLASS REASON AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>pvc-06c81c30-72ea-11e8-ada2-aa3b2329c8bb 9Gi RWO Retain Released default/postgresdb-pvc default 51m
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Install Knative in Gardener Clusters</title><link>https://gardener.cloud/docs/guides/applications/knative-install/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/knative-install/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>This guide walks you through the installation of the latest version of Knative
+using pre-built images on a &lt;a href="https://gardener.cloud">Gardener&lt;/a> created cluster
+environment. To set up your own Gardener, see the
+&lt;a href="https://github.com/gardener/gardener/blob/master/docs/README.md">documentation&lt;/a>
+or have a look at the
+&lt;a href="https://github.com/gardener/landscape-setup-template">landscape-setup-template&lt;/a>
+project. To learn more about this open source project, read the
+&lt;a href="https://kubernetes.io/blog/2018/05/17/gardener/">blog on kubernetes.io&lt;/a>.&lt;/p>
+&lt;h2 id="prerequsites">Prerequsites&lt;/h2>
+&lt;p>Knative requires a Kubernetes cluster v1.15 or newer.&lt;/p>
+&lt;h2 id="steps">Steps&lt;/h2>
+&lt;h3 id="install-and-configure-kubectl">Install and Configure kubectl&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>If you already have &lt;code>kubectl&lt;/code> CLI, run &lt;code>kubectl version --short&lt;/code> to check
+the version. You need v1.10 or newer. If your &lt;code>kubectl&lt;/code> is older, follow the
+next step to install a newer version.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl">Install the kubectl CLI&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="access-gardener">Access Gardener&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>Create a project in the Gardener dashboard. This will essentially create a
+Kubernetes namespace with the name &lt;code>garden-&amp;lt;my-project&amp;gt;&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/#configure-kubectl">Configure access to your Gardener project&lt;/a>
+using a kubeconfig.&lt;/p>
+&lt;p>If you are not the Gardener Administrator already, you
+can create a technical user in the Gardener dashboard.
+Go to the &amp;ldquo;Members&amp;rdquo; section and add a service account.
+You can then download the kubeconfig for your project.
+You can skip this step if you create your cluster using the
+user interface; it is only needed for programmatic access, make sure you set
+&lt;code>export KUBECONFIG=garden-my-project.yaml&lt;/code> in your shell.
+&lt;img src="https://gardener.cloud/__resources/gardener_service_account_be6920.png" alt="Download kubeconfig for Gardener">&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="creating-a-kubernetes-cluster">Creating a Kubernetes Cluster&lt;/h3>
+&lt;p>You can create your cluster using &lt;code>kubectl&lt;/code> CLI by providing a cluster
+specification yaml file. You can find an example for GCP in the
+&lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">gardener/gardener repository&lt;/a>.
+Make sure the namespace matches that of your project. Then just apply the
+prepared so-called &amp;ldquo;shoot&amp;rdquo; cluster CRD with kubectl:&lt;/p>
+&lt;pre tabindex="0">&lt;code>kubectl apply --filename my-cluster.yaml
+&lt;/code>&lt;/pre>&lt;p>The easier alternative is to create the cluster following the cluster creation
+wizard in the Gardener dashboard:
+&lt;img src="https://gardener.cloud/__resources/gardener_shoot_creation_d5b7e1.png" alt="shoot creation" title="shoot creation via the dashboard">&lt;/p>
+&lt;h3 id="configure-kubectl-for-your-cluster">Configure kubectl for Your Cluster&lt;/h3>
+&lt;p>You can now download the kubeconfig for your freshly created cluster in the
+Gardener dashboard or via the CLI as follows:&lt;/p>
+&lt;pre tabindex="0">&lt;code>kubectl --namespace shoot--my-project--my-cluster get secret kubecfg --output jsonpath={.data.kubeconfig} | base64 --decode &amp;gt; my-cluster.yaml
+&lt;/code>&lt;/pre>&lt;p>This kubeconfig file has full administrators access to you cluster. For the rest
+of this guide, be sure you have &lt;code>export KUBECONFIG=my-cluster.yaml&lt;/code> set.&lt;/p>
+&lt;h2 id="installing-istio">Installing Istio&lt;/h2>
+&lt;p>Knative depends on Istio. If your cloud platform offers a managed Istio
+installation, we recommend installing Istio that way, unless you need the
+ability to customize your installation.&lt;/p>
+&lt;p>Otherwise, see the &lt;a href="https://knative.dev/docs/install/installing-istio/">Installing Istio for Knative guide&lt;/a>
+to install Istio.&lt;/p>
+&lt;p>You must install Istio on your Kubernetes cluster before continuing with these
+instructions to install Knative.&lt;/p>
+&lt;h2 id="installing-cluster-local-gateway-for-serving-cluster-internal-traffic">Installing &lt;code>cluster-local-gateway&lt;/code> for Serving Cluster-Internal Traffic&lt;/h2>
+&lt;p>If you installed Istio, you can install a &lt;code>cluster-local-gateway&lt;/code> within your Knative cluster so that you can serve cluster-internal traffic. If you want to configure your revisions to use routes that are visible only within your cluster, &lt;a href="https://knative.dev/docs/admin/install/knative-offerings/">install and use the &lt;code>cluster-local-gateway&lt;/code>&lt;/a>.&lt;/p>
+&lt;h2 id="installing-knative">Installing Knative&lt;/h2>
+&lt;p>The following commands install all available Knative components as well as the
+standard set of observability plugins. Knative&amp;rsquo;s installation guide - &lt;a href="https://knative.dev/docs/admin/install/">Installing Knative&lt;/a>.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>If you are upgrading from Knative 0.3.x: Update your domain and static IP
+address to be associated with the LoadBalancer &lt;code>istio-ingressgateway&lt;/code> instead
+of &lt;code>knative-ingressgateway&lt;/code>. Then run the following to clean up leftover
+resources:&lt;/p>
+&lt;pre tabindex="0">&lt;code>kubectl delete svc knative-ingressgateway -n istio-system
+kubectl delete deploy knative-ingressgateway -n istio-system
+&lt;/code>&lt;/pre>&lt;p>If you have the Knative Eventing Sources component installed, you will also
+need to delete the following resource before upgrading:&lt;/p>
+&lt;pre tabindex="0">&lt;code>kubectl delete statefulset/controller-manager -n knative-sources
+&lt;/code>&lt;/pre>&lt;p>While the deletion of this resource during the upgrade process will not
+prevent modifications to Eventing Source resources, those changes will not be
+completed until the upgrade process finishes.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>To install Knative, first install the CRDs by running the &lt;code>kubectl apply&lt;/code>
+command once with the &lt;code>-l knative.dev/crd-install=true&lt;/code> flag. This prevents
+race conditions during the install, which cause intermittent errors:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply --selector knative.dev/crd-install=true &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span>--filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>To complete the installation of Knative and its dependencies, run the
+&lt;code>kubectl apply&lt;/code> command again, this time without the &lt;code>--selector&lt;/code> flag:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply --filename https://github.com/knative/serving/releases/download/v0.12.1/serving.yaml &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span>--filename https://github.com/knative/eventing/releases/download/v0.12.1/eventing.yaml &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span>--filename https://github.com/knative/serving/releases/download/v0.12.1/monitoring.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Monitor the Knative components until all of the components show a &lt;code>STATUS&lt;/code> of
+&lt;code>Running&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get pods --namespace knative-serving
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl get pods --namespace knative-eventing
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl get pods --namespace knative-monitoring
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="set-your-custom-domain">Set Your Custom Domain&lt;/h2>
+&lt;ol>
+&lt;li>Fetch the external IP or CNAME of the knative-ingressgateway:&lt;/li>
+&lt;/ol>
+&lt;pre tabindex="0">&lt;code>kubectl --namespace istio-system get service knative-ingressgateway
+NAME TYPE CLUSTER-IP EXTERNAL-IP PORT(S) AGE
+knative-ingressgateway LoadBalancer 100.70.219.81 35.233.41.212 80:32380/TCP,443:32390/TCP,32400:32400/TCP 4d
+&lt;/code>&lt;/pre>&lt;ol start="2">
+&lt;li>Create a wildcard DNS entry in your custom domain to point to the above IP or
+CNAME:&lt;/li>
+&lt;/ol>
+&lt;pre tabindex="0">&lt;code>*.knative.&amp;lt;my domain&amp;gt; == A 35.233.41.212
+# or CNAME if you are on AWS
+*.knative.&amp;lt;my domain&amp;gt; == CNAME a317a278525d111e89f272a164fd35fb-1510370581.eu-central-1.elb.amazonaws.com
+&lt;/code>&lt;/pre>&lt;ol start="3">
+&lt;li>Adapt your Knative config-domain (set your domain in the data field):&lt;/li>
+&lt;/ol>
+&lt;pre tabindex="0">&lt;code>kubectl --namespace knative-serving get configmaps config-domain --output yaml
+apiVersion: v1
+data:
+knative.&amp;lt;my domain&amp;gt;: &amp;#34;&amp;#34;
+kind: ConfigMap
+name: config-domain
+namespace: knative-serving
+&lt;/code>&lt;/pre>&lt;h2 id="whats-next">What&amp;rsquo;s Next&lt;/h2>
+&lt;p>Now that your cluster has Knative installed, you can see what Knative has to
+offer.&lt;/p>
+&lt;p>Deploy your first app with the
+&lt;a href="https://knative.dev/docs/serving/getting-started-knative-app/">Getting Started with Knative App Deployment&lt;/a>
+guide.&lt;/p>
+&lt;p>Get started with Knative Eventing by walking through one of the
+&lt;a href="https://knative.dev/docs/eventing/samples/">Eventing Samples&lt;/a>.&lt;/p>
+&lt;p>&lt;a href="https://knative.dev/docs/serving/installing-cert-manager/">Install Cert-Manager&lt;/a> if you want to use the
+&lt;a href="https://knative.dev/docs/serving/using-auto-tls/">automatic TLS cert provisioning feature&lt;/a>.&lt;/p>
+&lt;h2 id="cleaning-up">Cleaning Up&lt;/h2>
+&lt;p>Use the Gardener dashboard to delete your cluster, or execute the following with
+kubectl pointing to your &lt;code>garden-my-project.yaml&lt;/code> kubeconfig:&lt;/p>
+&lt;pre tabindex="0">&lt;code>kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project annotate shoot my-cluster confirmation.gardener.cloud/deletion=true
+kubectl --kubeconfig garden-my-project.yaml --namespace garden--my-project delete shoot my-cluster
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Integrity and Immutability</title><link>https://gardener.cloud/docs/guides/applications/content_trust/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/content_trust/</guid><description>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>When transferring data among networked systems, &lt;strong>trust is a central concern&lt;/strong>. In particular, when communicating over an untrusted medium such as the internet, it is critical to ensure the &lt;strong>integrity and immutability&lt;/strong> of all the data a system operates on. Especially if you use Docker Engine to push and pull images (data) to a &lt;strong>public registry&lt;/strong>.&lt;/p>
 &lt;p>This immutability offers you a guarantee that any and all containers that you instantiate will be absolutely identical at inception. Surprise surprise, deterministic operations.&lt;/p>

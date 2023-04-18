@@ -3495,36 +3495,41 @@ gardenlet enables topology-aware Services only for Shoot control planes with fai
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyAwareRouting:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The topology-aware routing setting can be only enabled for a garden runtime cluster with more than one zone.&lt;/p>
-&lt;p>⚠️ For K8s &amp;lt; 1.24 garden runtime clusters, the topology-aware routing setting requires the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature gate to be enabled for kube-apiserver, kube-controller-manager and kube-proxy. For more details, see the above section.&lt;/p></description></item><item><title>Docs: Trouble Shooting Guide</title><link>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/trouble_shooting_guide/</guid><description>
-&lt;h1 id="troubleshooting-guide">Troubleshooting Guide&lt;/h1>
-&lt;h2 id="are-there-really-issues-that-cannot-be-fixed">Are there really issues that cannot be fixed?&lt;/h2>
-&lt;p>Well, of course not. With the continuous development of Gardener, over the time its architecture and API might have to be changed to reduce complexity and support more features. In this process, developers are bound to keep the current Gardener version backward compatible with the last two releases. But maintaining backward compatibility is quite the complex and effortful task. So, to save the short term complex effort, it&amp;rsquo;s common practice in open source community to use workarounds or hacky solutions sometimes. This results in rare issues which are supposed to be resolved by human interaction across upgrades of the Gardener version.&lt;/p>
-&lt;p>This guide records the issues that are quite possible across upgrade of Gardener version, their root cause and the human action required for graceful resolution of the issue. For a troubleshooting guide of bugs which are not yet fixed, please refer the associated GitHub issue.&lt;/p>
-&lt;blockquote>
-&lt;p>&lt;strong>Note To Maintainers:&lt;/strong> Please only mention the resolution of issues which are by design. For bugs, please report the temporary resolution in the GitHub issue created for the bug.&lt;/p>
-&lt;/blockquote>
-&lt;h3 id="etcd-main-pod-fails-to-come-up-since-the-backup-restore-sidecar-is-reporting-revisionconsistencycheckerr">Etcd-Main pod fails to come up since the backup-restore sidecar is reporting RevisionConsistencyCheckErr&lt;/h3>
-&lt;h4 id="issue">Issue&lt;/h4>
+&lt;p>⚠️ For K8s &amp;lt; 1.24 garden runtime clusters, the topology-aware routing setting requires the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature gate to be enabled for kube-apiserver, kube-controller-manager and kube-proxy. For more details, see the above section.&lt;/p></description></item><item><title>Docs: Trusted Tls For Control Planes</title><link>https://gardener.cloud/docs/gardener/usage/trusted-tls-for-control-planes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/trusted-tls-for-control-planes/</guid><description>
+&lt;h1 id="trusted-tls-certificate-for-shoot-control-planes">Trusted TLS Certificate for Shoot Control Planes&lt;/h1>
+&lt;p>Shoot clusters are composed of several control plane components deployed by Gardener and its corresponding extensions.&lt;/p>
+&lt;p>Some components are exposed via &lt;code>Ingress&lt;/code> resources, which make them addressable under the HTTPS protocol.&lt;/p>
+&lt;p>Examples:&lt;/p>
 &lt;ul>
-&lt;li>Etcd-main pod goes in &lt;code>CrashLoopBackoff&lt;/code>.&lt;/li>
-&lt;li>Etcd-backup-restore sidecar reports validation error with RevisionConsistencyCheckErr.&lt;/li>
+&lt;li>Alertmanager&lt;/li>
+&lt;li>Grafana&lt;/li>
+&lt;li>Prometheus&lt;/li>
 &lt;/ul>
-&lt;h4 id="environment">Environment&lt;/h4>
+&lt;p>Gardener generates the backing TLS certificates, which are signed by the shoot cluster&amp;rsquo;s CA by default (self-signed).&lt;/p>
+&lt;p>Unlike with a self-contained Kubeconfig file, common internet browsers or operating systems don&amp;rsquo;t trust a shoot&amp;rsquo;s cluster CA and adding it as a trusted root is often undesired in enterprise environments.&lt;/p>
+&lt;p>Therefore, Gardener operators can predefine trusted wildcard certificates under which the mentioned endpoints will be served instead.&lt;/p>
+&lt;h2 id="register-a-trusted-wildcard-certificate">Register a trusted wildcard certificate&lt;/h2>
+&lt;p>Since control plane components are published under the ingress domain (&lt;code>core.gardener.cloud/v1beta1.Seed.spec.ingress.domain&lt;/code>) a wildcard certificate is required.&lt;/p>
+&lt;p>For example:&lt;/p>
 &lt;ul>
-&lt;li>Gardener version: 0.29.0+&lt;/li>
+&lt;li>Seed ingress domain: &lt;code>dev.my-seed.example.com&lt;/code>&lt;/li>
+&lt;li>&lt;code>CN&lt;/code> or &lt;code>SAN&lt;/code> for a certificate: &lt;code>*.dev.my-seed.example.com&lt;/code>&lt;/li>
 &lt;/ul>
-&lt;h4 id="root-cause">Root Cause&lt;/h4>
-&lt;ul>
-&lt;li>From version 0.29.0, Gardener uses a shared backup bucket for storing etcd backups, replacing the old logic of having a single bucket per shoot as per &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md">GEP-02&lt;/a>.&lt;/li>
-&lt;li>Since there are very rare chances that the etcd data directory will get corrupted while doing this migration, to avoid etcd downtime and implementation effort, we decided to switch directly from the old bucket to the new shared bucket without migrating the snapshot from the old bucket to the new bucket.&lt;/li>
-&lt;li>In this case, just to be on the safe side, we added a sanity check in the etcd-backup-restore sidecar of the etcd-main pod, which checks if the etcd data revision is greater than the last snapshot revision from the old bucket.&lt;/li>
-&lt;li>If the above check fails, this means that some data corruption has occurred with etcd, so etcd-backup-restore reports error and then etcd-main pod goes in &lt;code>CrashLoopBackoff&lt;/code>, creating etcd-main down alerts.&lt;/li>
-&lt;/ul>
-&lt;h4 id="action">Action&lt;/h4>
-&lt;ol>
-&lt;li>Disable the Gardener reconciliation for the Shoot by annotating it with &lt;code>shoot.gardener.cloud/ignore=true&lt;/code>.&lt;/li>
-&lt;li>Scale down the etcd-main statefulset in the seed cluster.&lt;/li>
-&lt;li>Find out the latest full snapshot and delta snapshot from the old backup bucket. The old backup bucket name is the same as the backupInfra resource associated with the Shoot in the Garden cluster.&lt;/li>
-&lt;li>Move them manually to new the backup bucket.&lt;/li>
-&lt;li>Enable the Gardener reconciliation for the shoot by removing the &lt;code>shoot.gardener.cloud/ignore=true&lt;/code> annotation.&lt;/li>
-&lt;/ol></description></item></channel></rss>
+&lt;p>A wildcard certificate matches exactly one seed. It must be deployed as part of your landscape setup as a Kubernetes &lt;code>Secret&lt;/code> inside the &lt;code>garden&lt;/code> namespace of the corresponding seed cluster.&lt;/p>
+&lt;p>Please ensure that the secret has the &lt;code>gardener.cloud/role&lt;/code> label shown below:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca.crt: base64-encoded-ca.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls.crt: base64-encoded-tls.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls.key: base64-encoded-tls.key
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/role: controlplane-cert
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed-ingress-certificate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener copies the secret during the reconciliation of shoot clusters to the shoot namespace in the seed. Afterwards, the &lt;code>Ingress&lt;/code> resources in that namespace for the mentioned components will refer to the wildcard certificate.&lt;/p>
+&lt;h2 id="best-practice">Best Practice&lt;/h2>
+&lt;p>While it is possible to create the wildcard certificates manually and deploy them to seed clusters, it is recommended to let certificate management components do this job. Often, a seed cluster is also a shoot cluster at the same time (ManagedSeed) and might already provide a certificate service extension.
+Otherwise, a Gardener operator may use solutions like &lt;a href="https://github.com/gardener/cert-management">Cert-Management&lt;/a> or &lt;a href="https://github.com/jetstack/cert-manager">Cert-Manager&lt;/a>.&lt;/p></description></item></channel></rss>

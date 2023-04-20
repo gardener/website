@@ -1871,7 +1871,29 @@ This significantly reduces turnaround times during development.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make gardener-up
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># start iterating on gardenlet without deploying other components&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make gardener-dev SKAFFOLD_MODULE=gardenlet
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="debugging-gardener">Debugging Gardener&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-debug
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is using skaffold debugging features. In the Gardener case, Go debugging using &lt;a href="https://github.com/go-delve/delve">Delve&lt;/a> is the most relevant use case.
+Please see the &lt;a href="https://skaffold.dev/docs/workflows/debug/">skaffold debugging documentation&lt;/a> how to setup your IDE accordingly.&lt;/p>
+&lt;p>&lt;code>SKAFFOLD_MODULE&lt;/code> environment variable is working the same way as described for &lt;a href="#developing-gardener">Developing Gardener&lt;/a>. However, skaffold is not watching for changes when debugging,
+because it would like to avoid interrupting your debugging session.&lt;/p>
+&lt;p>For example, if you want to debug gardenlet:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># initial deployment of all components&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make gardener-up
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># start debugging gardenlet without deploying other components&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make gardener-debug SKAFFOLD_MODULE=gardenlet
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In debugging flow, skaffold builds your container images, reconfigures your pods and creates port forwardings for the &lt;code>Delve&lt;/code> debugging ports to your localhost.
+The default port is &lt;code>56268&lt;/code>. If you debug multiple pods at the same time, the port of the second pod will be forwarded to &lt;code>56269&lt;/code> and so on.
+Please check your console output for the concrete port-forwarding on your machine.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: Resuming or stopping only a single goroutine (Go Issue &lt;a href="https://github.com/golang/go/issues/25578">25578&lt;/a>, &lt;a href="https://github.com/golang/go/issues/31132">31132&lt;/a>) is currently not supported, so the action will cause all the goroutines to get activated or paused.
+(&lt;a href="https://github.com/golang/vscode-go/wiki/debugging#connecting-to-headless-delve-with-target-specified-at-server-start-up">vscode-go wiki&lt;/a>)&lt;/p>
+&lt;/blockquote>
+&lt;p>This means that when a goroutine of gardenlet (or any other gardener-core component you try to debug) is paused on a breakpoint, all the other goroutines are paused. Hence, when the whole gardenlet process is paused, it can not renew its lease and can not respond to the liveness and readiness probes. Skaffold automatically increases &lt;code>timeoutSeconds&lt;/code> of liveness and readiness probes to 600. In our local setups the gardener-core components should run with one replica only, so leases which are not renewed should not cause problems. Anyway, if you face problems when debugging, you could temporarily turn off the leader election e.g. by adding&lt;/p>
+&lt;pre tabindex="0">&lt;code> leaderElection:
+leaderElect: false
+&lt;/code>&lt;/pre>&lt;p>to &lt;code>example/gardener-local/gardenlet/values.yaml&lt;/code> and disable liveness and readiness probes.&lt;/p>
+&lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
 &lt;p>You can wait for the &lt;code>Seed&lt;/code> to be ready by running:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh seed local GardenletReady Bootstrapped SeedSystemComponentsHealthy ExtensionsReady
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get seed local&lt;/code> and wait for the &lt;code>STATUS&lt;/code> to indicate readiness:&lt;/p>

@@ -2399,7 +2399,7 @@ Definitely, we will merge it back into the community&amp;rsquo;s versions once i
 &lt;p>Our cluster-autoscaler only needs to know the minimum and maximum number of replicas &lt;strong>per&lt;/strong> &lt;code>MachineDeployment&lt;/code> and is ready to act. Without knowing that, it needs to talk to the provider APIs (it just modifies the &lt;code>.spec.replicas&lt;/code> field in the &lt;code>MachineDeployment&lt;/code> object).
 Gardener deploys this autoscaler if there is at least one worker pool that specifies &lt;code>max&amp;gt;min&lt;/code>.
 In order to know how it needs to configure it, the provider-specific &lt;code>Worker&lt;/code> extension controller must expose which &lt;code>MachineDeployment&lt;/code>s it has created and how the &lt;code>min&lt;/code>/&lt;code>max&lt;/code> numbers should look like.&lt;/p>
-&lt;p>Consequently, your controller should write this information into the &lt;code>Worker&lt;/code> resource&amp;rsquo;s &lt;code>.status.machineDeployments&lt;/code> field:&lt;/p>
+&lt;p>Consequently, your controller should write this information into the &lt;code>Worker&lt;/code> resource&amp;rsquo;s &lt;code>.status.machineDeployments&lt;/code> field. It should also update the &lt;code>.status.machineDeploymentsLastUpdateTime&lt;/code> field along with &lt;code>.status.machineDeployments&lt;/code>, so that gardener is able to deploy Cluster-Autoscaler right after the status is updated with the latest &lt;code>MachineDeployment&lt;/code>s and does not wait for the reconciliation to be completed:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Worker
@@ -2417,6 +2417,7 @@ In order to know how it needs to configure it, the provider-specific &lt;code>Wo
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: shoot--foo--bar-cpu-worker-z2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minimum: 1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maximum: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineDeploymentsLastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2023-05-01T12:44:27Z&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to support a new worker provider, you need to write a controller that watches all &lt;code>Worker&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-provider-name&amp;gt;&lt;/code>.
 You can take a look at the below referenced example implementation for the AWS provider.&lt;/p>
 &lt;h2 id="that-sounds-like-a-lot-that-needs-to-be-done-can-you-help-me">That sounds like a lot that needs to be done, can you help me?&lt;/h2>

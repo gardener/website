@@ -865,7 +865,7 @@ Concretely, when there is at least one extension resource in the seed cluster a 
 If there are no extension resources anymore, its status will be &lt;code>False&lt;/code>.&lt;/p>
 &lt;p>This condition is taken into account by the &lt;code>ControllerRegistration&lt;/code> controller part of &lt;code>gardener-controller-manager&lt;/code> when it computes which extensions have to be deployed to which seed cluster. See &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#controllerregistration-controller">Gardener Controller Manager&lt;/a> for more details.&lt;/p>
 &lt;h3 id="networkpolicy-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>NetworkPolicy&lt;/code> controller reconciles &lt;code>NetworkPolicy&lt;/code>s in shoot namespaces in order to ensure access to the Kubernetes API server.&lt;/p>
+&lt;p>The &lt;code>NetworkPolicy&lt;/code> controller reconciles &lt;code>NetworkPolicy&lt;/code>s in all relevant namespaces in the seed cluster and provides so-called &amp;ldquo;general&amp;rdquo; policies for access to the runtime cluster&amp;rsquo;s API server, DNS, public networks, etc.&lt;/p>
 &lt;p>The controller resolves the IP address of the Kubernetes service in the &lt;code>default&lt;/code> namespace and creates an egress &lt;code>NetworkPolicy&lt;/code>s for it.&lt;/p>
 &lt;p>For more details about &lt;code>NetworkPolicy&lt;/code>s in Gardener, please see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/network_policies.md">Network Policies in Gardener&lt;/a>.&lt;/p>
 &lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
@@ -1063,7 +1063,7 @@ Using a runtime cluster without VPA is not supported.&lt;/p>
 &lt;h2 id="credentials-rotation">Credentials Rotation&lt;/h2>
 &lt;p>The credentials rotation works in the same way as it does for &lt;code>Shoot&lt;/code> resources, i.e. there are &lt;code>gardener.cloud/operation&lt;/code> annotation values for starting or completing the rotation procedures.&lt;/p>
 &lt;p>For certificate authorities, &lt;code>gardener-operator&lt;/code> generates one which is automatically rotated roughly each month (&lt;code>ca-garden-runtime&lt;/code>) and several CAs which are &lt;strong>NOT&lt;/strong> automatically rotated but only on demand.&lt;/p>
-&lt;p>&lt;strong>🚨 Hence, it is the responsibility of the operator to regularly perform the credentials rotation.&lt;/strong>&lt;/p>
+&lt;p>&lt;strong>🚨 Hence, it is the responsibility of the (human) operator to regularly perform the credentials rotation.&lt;/strong>&lt;/p>
 &lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_credentials_rotation/#gardener-provided-credentials">this document&lt;/a> for more details. As of today, &lt;code>gardener-operator&lt;/code> only creates the following types of credentials (i.e., some sections of the document don&amp;rsquo;t apply for &lt;code>Garden&lt;/code>s and can be ignored):&lt;/p>
 &lt;ul>
 &lt;li>certificate authorities (and related server and client certificates)&lt;/li>
@@ -1171,6 +1171,10 @@ The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and 
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p>
+&lt;h4 id="networkpolicy-controller-registrarhttpsgithubcomgardenergardenertreemasterpkgcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller Registrar&lt;/a>&lt;/h4>
+&lt;p>This controller registers the same &lt;code>NetworkPolicy&lt;/code> controller which is also used in &lt;code>gardenlet&lt;/code>, please read it up &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#networkpolicy-controllerpkggardenletcontrollernetworkpolicy">here&lt;/a> for more details.&lt;/p>
+&lt;p>The registration happens as soon as the &lt;code>Garden&lt;/code> resource is created.
+It contains the networking information of the garden runtime cluster which is required configuration for the &lt;code>NetworkPolicy&lt;/code> controller.&lt;/p>
 &lt;h3 id="webhooks">Webhooks&lt;/h3>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
 &lt;h4 id="validation">Validation&lt;/h4>
@@ -2005,6 +2009,13 @@ The &lt;code>minDomains&lt;/code> calculation is based on whatever value is lowe
 &lt;/li>
 &lt;/ul>
 &lt;p>Independent on the number of zones, when the &lt;code>high-availability-config.resources.gardener.cloud/failure-tolerance-type&lt;/code> annotation is set and NOT empty, then the &lt;code>whenUnsatisfiable&lt;/code> is set to &lt;code>DoNotSchedule&lt;/code> for the constraint with &lt;code>topologyKey=kubernetes.io/hostname&lt;/code> (which enforces the node-spread).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Adds default tolerations for &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions">taint-based evictions&lt;/a>:&lt;/p>
+&lt;p>Tolerations for taints &lt;code>node.kubernetes.io/not-ready&lt;/code> and &lt;code>node.kubernetes.io/unreachable&lt;/code> are added to the handled &lt;code>Deployment&lt;/code> and &lt;code>StatefulSet&lt;/code> if their &lt;code>podTemplate&lt;/code>s do not already specify them.
+The &lt;code>TolerationSeconds&lt;/code> are taken from the respective configuration section of the webhook&amp;rsquo;s configuration (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/resource-manager/10-componentconfig.yaml">example&lt;/a>)).&lt;/p>
+&lt;p>We consider fine-tuned values for those tolerations a matter of high-availability because they often help to reduce recovery times in case of node or zone outages, also see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_high_availability_best_practices/">High-Availability Best Practices&lt;/a>.
+In addition, this webhook handling helps to set defaults for many but not all workload components in a cluster. For instance, Gardener can use this webhook to set defaults for nearly every component in seed clusters but only for the system components in shoot clusters. Any customer workload remains unchanged.&lt;/p>
 &lt;/li>
 &lt;/ol>
 &lt;h4 id="auto-mounting-projected-serviceaccount-tokens">Auto-Mounting Projected &lt;code>ServiceAccount&lt;/code> Tokens&lt;/h4>

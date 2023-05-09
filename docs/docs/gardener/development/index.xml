@@ -1424,37 +1424,62 @@ So our timestamp matches correctly the following format:&lt;/li>
 &lt;/ul>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>%Y-%m-%dT%H:%M:%S.%L
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>It&amp;rsquo;s time to apply our new regex into fluent-bit configuration. Go to &lt;code>fluent-bit-configmap.yaml&lt;/code> and create new filter using the following template:&lt;/li>
+&lt;li>It&amp;rsquo;s time to apply our new regex into fluent-bit configuration. To achieve that we can just deploy in the cluster where the &lt;code>fluent-operator&lt;/code> is deployed the following custom resources:&lt;/li>
 &lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>[FILTER]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name parser
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Match kubernetes.&amp;lt;&amp;lt; pod-name &amp;gt;&amp;gt;*&amp;lt;&amp;lt; container-name &amp;gt;&amp;gt;*
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Key_Name log
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Parser &amp;lt;&amp;lt; parser-name &amp;gt;&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Reserve_Data True
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>EXAMPLE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[FILTER]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name parser
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Match kubernetes.alertmanager*alertmanager*
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Key_Name log
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Parser alermanagerParser
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Reserve_Data True
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterFilter
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.gardener/type: seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;&amp;lt; pod-name &amp;gt;&amp;gt;--(&amp;lt;&amp;lt; container-name &amp;gt;&amp;gt;)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - parser:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> keyName: log
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> parser: &amp;lt;&amp;lt; container-name &amp;gt;&amp;gt;-parser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reserveData: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match: kubernetes.&amp;lt;&amp;lt; pod-name &amp;gt;&amp;gt;*&amp;lt;&amp;lt; container-name &amp;gt;&amp;gt;*
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>EXAMPLE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterFilter
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.gardener/type: seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: alertmanager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> filters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - parser:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> keyName: log
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> parser: alertmanager-parser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reserveData: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> match: &lt;span style="color:#a31515">&amp;#34;kubernetes.alertmanager*alertmanager*&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>Now lets check if there already exists parser with such a regex and time format that we need. If it doesn&amp;rsquo;t, create one:&lt;/li>
+&lt;li>Now lets check if there already exists &lt;code>ClusterParser&lt;/code> with such a regex and time format that we need. If it doesn&amp;rsquo;t, create one:&lt;/li>
 &lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>[PARSER]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name &amp;lt;&amp;lt; parser-name &amp;gt;&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Format regex
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Regex &amp;lt;&amp;lt; regex &amp;gt;&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Time_Key time
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Time_Format &amp;lt;&amp;lt; time-format &amp;gt;&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>EXAMPLE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[PARSER]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name alermanagerParser
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Format regex
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Regex ^level=(?&amp;lt;severity&amp;gt;\w+)\s+ts=(?&amp;lt;time&amp;gt;\d{4}-\d{2}-\d{2}[Tt].*[zZ])\s+caller=(?&amp;lt;source&amp;gt;[^\s]*+)\s+(?&amp;lt;log&amp;gt;.*)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Time_Key time
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Time_Format %Y-%m-%dT%H:%M:%S.%L
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterParser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;&amp;lt; container-name &amp;gt;&amp;gt;-parser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.gardener/type: &lt;span style="color:#a31515">&amp;#34;seed&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeKey: time
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeFormat: &amp;lt;&amp;lt; time-format &amp;gt;&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: &lt;span style="color:#a31515">&amp;#34;&amp;lt;&amp;lt; regex &amp;gt;&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>EXAMPLE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterParser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: alermanager-parser
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fluentbit.gardener/type: &lt;span style="color:#a31515">&amp;#34;seed&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeKey: time
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeFormat: &lt;span style="color:#a31515">&amp;#34;%Y-%m-%dT%H:%M:%S.%L&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: &lt;span style="color:#a31515">&amp;#34;^level=(?&amp;lt;severity&amp;gt;\\w+)\\s+ts=(?&amp;lt;time&amp;gt;\\d{4}-\\d{2}-\\d{2}[Tt].*[zZ])\\s+caller=(?&amp;lt;source&amp;gt;[^\\s]*+)\\s+(?&amp;lt;log&amp;gt;.*)&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>Follow your development setup to validate that the parsers are working correctly.
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Logging</title><link>https://gardener.cloud/docs/gardener/development/logging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/logging/</guid><description>
 &lt;h1 id="logging-in-gardener-components">Logging in Gardener Components&lt;/h1>

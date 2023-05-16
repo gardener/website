@@ -1127,8 +1127,7 @@ As a result, in most cases no special/custom-crafted &lt;code>NetworkPolicy&lt;/
 See also &lt;a href="https://gardener.cloud/docs/gardener/development/monitoring-stack/">this document&lt;/a> for more information.
 Each pod that should be scraped for metrics by these instances must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-seed-scrape-targets
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-seed-scrape-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is not running in the &lt;code>garden&lt;/code> namespace, the &lt;code>Service&lt;/code> needs these annotations in addition:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;kubernetes.io/metadata.name&amp;#34;:&amp;#34;garden&amp;#34;}}]&amp;#39;&lt;/span>
@@ -1140,9 +1139,13 @@ Each pod that should be scraped for metrics by these instances must have a &lt;c
 &lt;p>As part of the shoot reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys a shoot-specific Prometheus into the shoot namespace.
 Each pod that should be scraped for metrics must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-pod-label-selector: all-scrape-targets
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-policy-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the Prometheus pod.&lt;/p>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-scrape-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the network traffic from the Prometheus pod.&lt;/p>
+&lt;h3 id="webhook-servers">Webhook Servers&lt;/h3>
+&lt;p>Components serving webhook handlers that must be reached by &lt;code>kube-apiserver&lt;/code>s of the virtual garden cluster or shoot clusters just need to annotate their &lt;code>Service&lt;/code> as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-webhook-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;server-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the network traffic from the API server pods.&lt;/p>
 &lt;h2 id="shoot-cluster">Shoot Cluster&lt;/h2>
 &lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code>)&lt;/em>&lt;/p>
 &lt;p>For shoot clusters, the concepts mentioned above don&amp;rsquo;t apply and are not enabled.
@@ -1879,6 +1882,19 @@ By setting the &lt;code>.spec.settings.ownerChecks.enabled=false&lt;/code> (defa
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;expirationSeconds&amp;#34;: 1000
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You also can use controller-runtime &lt;code>client&lt;/code> (&amp;gt;= v0.14.3) to create such a kubeconfig from your go code like so:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>expiration := 8*time.Hour
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>expirationSeconds := int64(expiration.Seconds())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>adminKubeconfigRequest := &amp;amp;authenticationv1alpha1.AdminKubeconfigRequest{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ExpirationSeconds: &amp;amp;expirationSeconds,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>err := client.SubResource(&lt;span style="color:#a31515">&amp;#34;adminkubeconfig&amp;#34;&lt;/span>).Create(ctx, shoot, adminKubeconfigRequest)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> err != &lt;span style="color:#00f">nil&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> err
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config = adminKubeconfigRequest.Status.Kubeconfig
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> The &lt;a href="https://github.com/gardener/gardenctl-v2/">&lt;code>gardenctl-v2&lt;/code>&lt;/a> tool makes it easy to target shoot clusters and automatically renews such &lt;code>kubeconfig&lt;/code> when required.&lt;/p>
 &lt;/blockquote>
@@ -3279,7 +3295,7 @@ Configuring the &lt;code>CloudProfile&lt;/code> in such a way, the Shoot&amp;rsq
 &lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
 &lt;p>The minimum version of a seed cluster that can be connected to Gardener is &lt;strong>&lt;code>1.20.x&lt;/code>&lt;/strong>.&lt;/p>
 &lt;h2 id="shoot-clusters">Shoot Clusters&lt;/h2>
-&lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.20&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.26&lt;/code>&lt;/strong>.
+&lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.20&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.27&lt;/code>&lt;/strong>.
 However, the concrete versions that can be used for shoot clusters depend on the installed provider extension.
 Consequently, please consult the documentation of your provider extension to see which Kubernetes versions are supported for shoot clusters.&lt;/p>
 &lt;blockquote>
@@ -3419,7 +3435,7 @@ Many components deployed by Gardener are scaled automatically by VPA. In case of
 &lt;p>By default, with kube-proxy running in &lt;code>iptables&lt;/code> mode, traffic is distributed randomly across all endpoints, regardless of where it originates from. In a cluster with 3 zones, traffic is more likely to go to another zone than to stay in the current zone.
 With the topology-aware routing feature, kube-proxy filters the endpoints it routes to based on the hints in the EndpointSlice resource. In most of the cases, kube-proxy will prefer the endpoint(s) in the same zone. For more details, see the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#implementation-kube-proxy">Kubernetes documentation&lt;/a>.&lt;/p>
 &lt;h2 id="how-to-make-a-service-topology-aware">How to make a Service topology-aware?&lt;/h2>
-&lt;p>To make a Service topology-aware, the following annotation and label has to be added to the Service:&lt;/p>
+&lt;p>To make a Service topology-aware, the following annotation and label have to be added to the Service:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -3427,7 +3443,10 @@ With the topology-aware routing feature, kube-proxy filters the endpoints it rou
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service.kubernetes.io/topology-aware-hints: &lt;span style="color:#a31515">&amp;#34;auto&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoint-slice-hints.resources.gardener.cloud/consider: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is needed for kube-proxy. One of the prerequisites on kube-proxy side for using topology-aware routing is the corresponding Service to be annotated with the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code>. For more details, see the following &lt;a href="https://github.com/kubernetes/kubernetes/blob/b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d/pkg/proxy/topology.go#L140-L186">kube-proxy function&lt;/a>.
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Note: In Kubernetes 1.27 the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is deprecated in favor of the newly introduced &lt;code>service.kubernetes.io/topology-mode=auto&lt;/code>. When the runtime cluster&amp;rsquo;s K8s version is &amp;gt;= 1.27, use the &lt;code>service.kubernetes.io/topology-mode=auto&lt;/code> annotation. For more details, see the &lt;a href="https://github.com/kubernetes/kubernetes/pull/116522">corresponding upstream PR&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;p>The &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is needed for kube-proxy. One of the prerequisites on kube-proxy side for using topology-aware routing is the corresponding Service to be annotated with the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code>. For more details, see the following &lt;a href="https://github.com/kubernetes/kubernetes/blob/b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d/pkg/proxy/topology.go#L140-L186">kube-proxy function&lt;/a>.
 The &lt;code>endpoint-slice-hints.resources.gardener.cloud/consider=true&lt;/code> label is needed for gardener-resource-manager to prevent the EndpointSlice hints mutating webhook from selecting all EndpointSlice resources but only the ones that are labeled with the consider label.&lt;/p>
 &lt;p>The Gardener extensions can use this approach to make a Service they deploy topology-aware.&lt;/p>
 &lt;p>Prerequisites for making a Service topology-aware:&lt;/p>

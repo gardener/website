@@ -41,66 +41,7 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - start: &lt;span style="color:#a31515">&amp;#34;0 20 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Start hibernation every day at 8PM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: &lt;span style="color:#a31515">&amp;#34;0 6 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Stop hibernation every day at 6AM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> location: &lt;span style="color:#a31515">&amp;#34;America/Los_Angeles&amp;#34;&lt;/span> &lt;span style="color:#008000"># Specify a location for the cron to run in&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: APIServer SNI Injection</title><link>https://gardener.cloud/docs/gardener/usage/apiserver-sni-injection/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/apiserver-sni-injection/</guid><description>
-&lt;h1 id="apiserversni-environment-variable-injection">APIServerSNI Environment Variable Injection&lt;/h1>
-&lt;p>If the Gardener administrator has enabled the &lt;code>APIServerSNI&lt;/code> feature gate for a particular Seed cluster, then in each Shoot cluster&amp;rsquo;s &lt;code>kube-system&lt;/code> namespace a &lt;code>DaemonSet&lt;/code> called &lt;code>apiserver-proxy&lt;/code> is deployed. It routes traffic to the upstream Shoot Kube APIServer. See the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/08-shoot-apiserver-via-sni.md">APIServer SNI GEP&lt;/a> for more details.&lt;/p>
-&lt;p>To skip this extra network hop, a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#mutatingadmissionwebhook">mutating webhook&lt;/a> called &lt;code>apiserver-proxy.networking.gardener.cloud&lt;/code> is deployed next to the API server in the Seed. It adds a &lt;code>KUBERNETES_SERVICE_HOST&lt;/code> environment variable to each container and init container that do not specify it. See the webhook &lt;a href="https://github.com/gardener/apiserver-proxy/">repository&lt;/a> for more information.&lt;/p>
-&lt;h2 id="opt-out-of-pod-injection">Opt-Out of Pod Injection&lt;/h2>
-&lt;p>In some cases it&amp;rsquo;s desirable to opt-out of Pod injection:&lt;/p>
-&lt;ul>
-&lt;li>DNS is disabled on that individual Pod, but it still needs to talk to the kube-apiserver.&lt;/li>
-&lt;li>Want to test the &lt;code>kube-proxy&lt;/code> and &lt;code>kubelet&lt;/code> in-cluster discovery.&lt;/li>
-&lt;/ul>
-&lt;h3 id="opt-out-of-pod-injection-for-specific-pods">Opt-Out of Pod Injection for Specific Pods&lt;/h3>
-&lt;p>To opt out of the injection, the Pod should be labeled with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nginx
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: nginx
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: nginx:1.14.2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerPort: 80
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="opt-out-of-pod-injection-on-namespace-level">Opt-Out of Pod Injection on Namespace Level&lt;/h3>
-&lt;p>To opt out of the injection of &lt;strong>all&lt;/strong> Pods in a namespace, you should label your namespace with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Namespace
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-namespace
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing namespace:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label namespace my-namespace apiserver-proxy.networking.gardener.cloud/inject=disable
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a namespace level and enable it for individual pods in it.&lt;/p>
-&lt;/blockquote>
-&lt;h3 id="opt-out-of-pod-injection-for-the-entire-cluster">Opt-Out of Pod Injection for the Entire Cluster&lt;/h3>
-&lt;p>If the injection is causing problems for different workloads and ignoring individual pods or namespaces is not possible, then the feature could be disabled for the entire cluster with the &lt;code>alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector&lt;/code> annotation with value &lt;code>disable&lt;/code> on the &lt;code>Shoot&lt;/code> resource itself:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector: &lt;span style="color:#a31515">&amp;#39;disable&amp;#39;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-cluster
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing shoot cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label shoot my-cluster alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector=disable
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a cluster level and enable it for individual pods in it.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Configuration</title><link>https://gardener.cloud/docs/gardener/usage/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/configuration/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: Configuration</title><link>https://gardener.cloud/docs/gardener/usage/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/configuration/</guid><description>
 &lt;h1 id="gardener-configuration-and-usage">Gardener Configuration and Usage&lt;/h1>
 &lt;p>Gardener automates the full lifecycle of Kubernetes clusters as a service.
 Additionally, it has several extension points allowing external controllers to plug-in to the lifecycle.
@@ -741,7 +682,7 @@ If this is not feasible, then the combination with the &lt;code>ExposureClass&lt
 The load balancer service needs to be configured in a way that it is reachable from the target network environment.
 Therefore, the configuration of load balancer service need to be specified, which can be done via the &lt;code>.loadBalancerService&lt;/code> section.
 The common way to influence load balancer service behaviour is via annotations where the respective cloud-controller-manager will react on and configure the infrastructure load balancer accordingly.&lt;/p>
-&lt;p>In case the gardenlet runs with activated &lt;code>APIServerSNI&lt;/code> feature flag (default), the control planes on a &lt;code>Seed&lt;/code> will be exposed via a central load balancer and with Envoy via TLS SNI passthrough proxy.
+&lt;p>The control planes on a &lt;code>Seed&lt;/code> will be exposed via a central load balancer and with Envoy via TLS SNI passthrough proxy.
 In this case, the gardenlet will install a dedicated ingress gateway (Envoy + load balancer + respective configuration) for each handler on the &lt;code>Seed&lt;/code>.
 The configuration of the ingress gateways can be controlled via the &lt;code>.sni&lt;/code> section in the same way like for the default ingress gateways.&lt;/p></description></item><item><title>Docs: Ipv6</title><link>https://gardener.cloud/docs/gardener/usage/ipv6/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/ipv6/</guid><description>
 &lt;h1 id="ipv6-in-gardener-clusters">IPv6 in Gardener Clusters&lt;/h1>
@@ -2655,7 +2596,66 @@ the new &lt;code>AlwaysAllow&lt;/code> option is probably the better choice in m
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-central-1 &lt;span style="color:#008000"># .spec.region field from the Shoot resource&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceNetwork: 100.64.0.0/13 &lt;span style="color:#008000"># .spec.networking.services field from the Shoot resource&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootName: crazy-botany &lt;span style="color:#008000"># .metadata.name from the Shoot resource&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shoot Maintenance</title><link>https://gardener.cloud/docs/gardener/usage/shoot_maintenance/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_maintenance/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shoot Kubernetes Service Host Injection</title><link>https://gardener.cloud/docs/gardener/usage/shoot_kubernetes_service_host_injection/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_kubernetes_service_host_injection/</guid><description>
+&lt;h1 id="kubernetes_service_host-environment-variable-injection">&lt;code>KUBERNETES_SERVICE_HOST&lt;/code> Environment Variable Injection&lt;/h1>
+&lt;p>In each Shoot cluster&amp;rsquo;s &lt;code>kube-system&lt;/code> namespace a &lt;code>DaemonSet&lt;/code> called &lt;code>apiserver-proxy&lt;/code> is deployed. It routes traffic to the upstream Shoot Kube APIServer. See the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/08-shoot-apiserver-via-sni.md">APIServer SNI GEP&lt;/a> for more details.&lt;/p>
+&lt;p>To skip this extra network hop, a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#mutatingadmissionwebhook">mutating webhook&lt;/a> called &lt;code>apiserver-proxy.networking.gardener.cloud&lt;/code> is deployed next to the API server in the Seed. It adds a &lt;code>KUBERNETES_SERVICE_HOST&lt;/code> environment variable to each container and init container that do not specify it. See the webhook &lt;a href="https://github.com/gardener/apiserver-proxy/">repository&lt;/a> for more information.&lt;/p>
+&lt;h2 id="opt-out-of-pod-injection">Opt-Out of Pod Injection&lt;/h2>
+&lt;p>In some cases it&amp;rsquo;s desirable to opt-out of Pod injection:&lt;/p>
+&lt;ul>
+&lt;li>DNS is disabled on that individual Pod, but it still needs to talk to the kube-apiserver.&lt;/li>
+&lt;li>Want to test the &lt;code>kube-proxy&lt;/code> and &lt;code>kubelet&lt;/code> in-cluster discovery.&lt;/li>
+&lt;/ul>
+&lt;h3 id="opt-out-of-pod-injection-for-specific-pods">Opt-Out of Pod Injection for Specific Pods&lt;/h3>
+&lt;p>To opt out of the injection, the Pod should be labeled with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: nginx:1.14.2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerPort: 80
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="opt-out-of-pod-injection-on-namespace-level">Opt-Out of Pod Injection on Namespace Level&lt;/h3>
+&lt;p>To opt out of the injection of &lt;strong>all&lt;/strong> Pods in a namespace, you should label your namespace with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-namespace
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing namespace:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label namespace my-namespace apiserver-proxy.networking.gardener.cloud/inject=disable
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a namespace level and enable it for individual pods in it.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="opt-out-of-pod-injection-for-the-entire-cluster">Opt-Out of Pod Injection for the Entire Cluster&lt;/h3>
+&lt;p>If the injection is causing problems for different workloads and ignoring individual pods or namespaces is not possible, then the feature could be disabled for the entire cluster with the &lt;code>alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector&lt;/code> annotation with value &lt;code>disable&lt;/code> on the &lt;code>Shoot&lt;/code> resource itself:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector: &lt;span style="color:#a31515">&amp;#39;disable&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-cluster
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing shoot cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label shoot my-cluster alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector=disable
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a cluster level and enable it for individual pods in it.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Shoot Maintenance</title><link>https://gardener.cloud/docs/gardener/usage/shoot_maintenance/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/shoot_maintenance/</guid><description>
 &lt;h1 id="shoot-maintenance">Shoot Maintenance&lt;/h1>
 &lt;p>Shoots configure a maintenance time window in which Gardener performs certain operations that may restart the control plane, roll out the nodes, result in higher network traffic, etc. A summary of what was changed in the last maintenance time window in shoot specification is kept in the shoot status &lt;code>.status.lastMaintenance&lt;/code> field.&lt;/p>
 &lt;p>This document outlines what happens during a shoot maintenance.&lt;/p>

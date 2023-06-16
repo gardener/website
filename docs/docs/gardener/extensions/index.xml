@@ -1960,6 +1960,10 @@ It makes important LoadBalancer Services (e.g. &lt;code>istio-ingress/istio-ingr
 &lt;p>This webhook reacts on events for the &lt;code>dependency-watchdog-probe&lt;/code> &lt;code>Deployment&lt;/code>, the &lt;code>prometheus&lt;/code> &lt;code>StatefulSet&lt;/code> as well as on events for &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
 All these pods need to be able to resolve the DNS names for shoot clusters.
 It sets the &lt;code>.spec.dnsPolicy=None&lt;/code> and &lt;code>.spec.dnsConfig.nameServers&lt;/code> to the cluster IP of the &lt;code>coredns&lt;/code> &lt;code>Service&lt;/code> created in the &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespaces so that these pods can resolve the DNS records for shoot clusters (see the &lt;a href="#bootstrapping">Bootstrapping section&lt;/a> for more details).&lt;/p>
+&lt;h4 id="machine-controller-manager">Machine Controller Manager&lt;/h4>
+&lt;p>This webhook mutates the global &lt;code>ClusterRole&lt;/code> related to &lt;code>machine-controller-manager&lt;/code> and injects permissions for &lt;code>Service&lt;/code> resources.
+The &lt;code>machine-controller-manager-provider-local&lt;/code> deploys &lt;code>Pod&lt;/code>s for each &lt;code>Machine&lt;/code> (while real infrastructure provider obviously deploy VMs, so no Kubernetes resources directly).
+It also deploys a &lt;code>Service&lt;/code> for these machine pods, and in order to do so, the &lt;code>ClusterRole&lt;/code> must allow the needed permissions for &lt;code>Service&lt;/code> resources.&lt;/p>
 &lt;h4 id="node">Node&lt;/h4>
 &lt;p>This webhook reacts on updates to &lt;code>nodes/status&lt;/code> in both seed and shoot clusters and sets the &lt;code>.status.{allocatable,capacity}.cpu=&amp;quot;100&amp;quot;&lt;/code> and &lt;code>.status.{allocatable,capacity}.memory=&amp;quot;100Gi&amp;quot;&lt;/code> fields.&lt;/p>
 &lt;p>Background: Typically, the &lt;code>.status.{capacity,allocatable}&lt;/code> values are determined by the resources configured for the Docker daemon (see for example the &lt;a href="https://docs.docker.com/desktop/mac/#resources">docker Quick Start Guide&lt;/a> for Mac).
@@ -2136,9 +2140,8 @@ This way the &lt;code>gardener-resource-manager&lt;/code> ensures that end-users
 The provider extension doesn&amp;rsquo;t need to care about the same.&lt;/p>
 &lt;h2 id="what-else-is-needed">What else is needed?&lt;/h2>
 &lt;p>The shoot&amp;rsquo;s kube-apiserver must be allowed to talk to the provider extension.
-To achieve this, you need to create a &lt;code>NetworkPolicy&lt;/code> in the shoot namespace.
-Our &lt;a href="https://github.com/gardener/gardener/blob/master/extensions">extension controller library&lt;/a> provides easy-to-use utilities and hooks to implement such a webhook.
-Please find an exemplary implementation &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/webhook/shoot">here&lt;/a> and &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/566fe4dd588c93821bc9d22c452203867457c930/cmd/gardener-extension-provider-aws/app/app.go#L170-L174">here&lt;/a>.&lt;/p></description></item><item><title>Docs: Worker</title><link>https://gardener.cloud/docs/gardener/extensions/worker/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/worker/</guid><description>
+To achieve this, you need to make sure that the relevant &lt;code>NetworkPolicy&lt;/code> get created for allowing the network traffic.
+Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/network_policies/#webhook-servers">this guide&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: Worker</title><link>https://gardener.cloud/docs/gardener/extensions/worker/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/worker/</guid><description>
 &lt;h1 id="contract-worker-resource">Contract: &lt;code>Worker&lt;/code> Resource&lt;/h1>
 &lt;p>While the control plane of a shoot cluster is living in the seed and deployed as native Kubernetes workload, the worker nodes of the shoot clusters are normal virtual machines (VMs) in the end-users infrastructure account.
 The Gardener project features a sub-project called &lt;a href="https://github.com/gardener/machine-controller-manager">machine-controller-manager&lt;/a>.

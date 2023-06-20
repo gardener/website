@@ -294,173 +294,9 @@ In that case, please consider what additional dependencies it will pull in, when
 Also consider possible alternatives, like code restructurings or extracting shared code into dedicated packages for minimal impact on dependent projects.&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Getting Started Locally</title><link>https://gardener.cloud/docs/gardener/development/getting_started_locally/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/getting_started_locally/</guid><description>
 &lt;h1 id="developing-gardener-locally">Developing Gardener Locally&lt;/h1>
-&lt;p>This document will walk you through running Gardener on your local machine for development purposes.
-If you encounter difficulties, please open an issue so that we can make this process easier.&lt;/p>
-&lt;p>Gardener runs in any Kubernetes cluster.
-In this guide, we will start a &lt;a href="https://kind.sigs.k8s.io/">KinD&lt;/a> cluster which is used as both garden and seed cluster (please refer to the &lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">architecture overview&lt;/a>) for simplicity.&lt;/p>
-&lt;p>The Gardener components, however, will be run as regular processes on your machine (hence, no container images are being built).&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/getting_started_locally_39a5b3.png" alt="Architecture Diagram">&lt;/p>
-&lt;h2 id="alternatives">Alternatives&lt;/h2>
-&lt;p>When developing Gardener on your local machine you might face several limitations:&lt;/p>
-&lt;ul>
-&lt;li>Your machine doesn&amp;rsquo;t have enough compute resources (see &lt;a href="#prerequisites">prerequisites&lt;/a>) for hosting a second seed cluster or multiple shoot clusters.&lt;/li>
-&lt;li>Developing Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/usage/ipv6/">IPv6 features&lt;/a> requires a Linux machine and native IPv6 connectivity to the internet, but you&amp;rsquo;re on macOS or don&amp;rsquo;t have IPv6 connectivity in your office environment or via your home ISP.&lt;/li>
-&lt;/ul>
-&lt;p>In these cases, you might want to check out one of the following options that run the setup described in this guide elsewhere for circumventing these limitations:&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="#remote-local-setup">remote local setup&lt;/a>: develop on a remote pod for more compute resources&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener-community/dev-box-gcp">dev box on Google Cloud&lt;/a>: develop on a Google Cloud machine for more compute resource and/or simple IPv4/IPv6 dual-stack networking&lt;/li>
-&lt;/ul>
-&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
-&lt;ul>
-&lt;li>
-&lt;p>Make sure that you have followed the &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup/">Local Setup guide&lt;/a> up until the &lt;a href="https://gardener.cloud/docs/gardener/development/local_setup/#get-the-sources">Get the sources&lt;/a> step.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Make sure your Docker daemon is up-to-date, up and running and has enough resources (at least &lt;code>4&lt;/code> CPUs and &lt;code>4Gi&lt;/code> memory; see &lt;a href="https://docs.docker.com/desktop/mac/#resources">here&lt;/a> how to configure the resources for Docker for Mac).&lt;/p>
-&lt;blockquote>
-&lt;p>Please note that 4 CPU / 4Gi memory might not be enough for more than one &lt;code>Shoot&lt;/code> cluster, i.e., you might need to increase these values if you want to run additional &lt;code>Shoot&lt;/code>s.
-If you plan on following the optional steps to &lt;a href="#optional-setting-up-a-second-seed-cluster">create a second seed cluster&lt;/a>, the required resources will be more - at least &lt;code>10&lt;/code> CPUs and &lt;code>16Gi&lt;/code> memory.&lt;/p>
-&lt;/blockquote>
-&lt;p>Additionally, please configure at least &lt;code>120Gi&lt;/code> of disk size for the Docker daemon.&lt;/p>
-&lt;blockquote>
-&lt;p>Tip: With &lt;code>docker system df&lt;/code> and &lt;code>docker system prune -a&lt;/code> you can cleanup unused data.&lt;/p>
-&lt;/blockquote>
-&lt;/li>
-&lt;li>
-&lt;p>Make sure that you increase the maximum number of open files on your host:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>On Mac, run &lt;code>sudo launchctl limit maxfiles 65536 200000&lt;/code>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>On Linux, extend the &lt;code>/etc/security/limits.conf&lt;/code> file with&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>* hard nofile 97816
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>* soft nofile 97816
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>and reload the terminal.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;h2 id="setting-up-the-kind-cluster-garden-and-seed">Setting Up the KinD Cluster (Garden and Seed)&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>If you want to setup an IPv6 KinD cluster, use &lt;code>make kind-up KIND_ENV=local IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
-&lt;/blockquote>
-&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local&lt;/code> and stores the kubeconfig in the &lt;code>./example/gardener-local/kind/local/kubeconfig&lt;/code> file.&lt;/p>
-&lt;blockquote>
-&lt;p>It might be helpful to copy this file to &lt;code>$HOME/.kube/config&lt;/code> since you will need to target this KinD cluster multiple times.
-Alternatively, make sure to set your &lt;code>KUBECONFIG&lt;/code> environment variable to &lt;code>./example/gardener-local/kind/local/kubeconfig&lt;/code> for all future steps via &lt;code>export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig&lt;/code>.&lt;/p>
-&lt;/blockquote>
-&lt;p>All following steps assume that you are using this kubeconfig.&lt;/p>
-&lt;p>Additionally, this command also deploys a local container registry to the cluster as well as a few registry mirrors, that are set up as a pull-through cache for all upstream registries Gardener uses by default.
-This is done to speed up image pulls across local clusters.
-The local registry can be accessed as &lt;code>localhost:5001&lt;/code> for pushing and pulling.
-The storage directories of the registries are mounted to the host machine under &lt;code>dev/local-registry&lt;/code>.
-With this, mirrored images don&amp;rsquo;t have to be pulled again after recreating the cluster.&lt;/p>
-&lt;p>The command also deploys a default &lt;a href="https://github.com/projectcalico/calico">calico&lt;/a> installation as the cluster&amp;rsquo;s CNI implementation with &lt;code>NetworkPolicy&lt;/code> support (the default &lt;code>kindnet&lt;/code> CNI doesn&amp;rsquo;t provide &lt;code>NetworkPolicy&lt;/code> support).
-Furthermore, it deploys the &lt;a href="https://github.com/kubernetes-sigs/metrics-server">metrics-server&lt;/a> in order to support HPA and VPA on the seed cluster.&lt;/p>
-&lt;h2 id="setting-up-ipv6-single-stack-networking-optional">Setting Up IPv6 Single-Stack Networking (optional)&lt;/h2>
-&lt;p>First, ensure that your &lt;code>/etc/hosts&lt;/code> file contains an entry resolving &lt;code>localhost&lt;/code> to the IPv6 loopback address:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>::1 localhost
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Typically, only &lt;code>ip6-localhost&lt;/code> is mapped to &lt;code>::1&lt;/code> on linux machines.
-However, we need &lt;code>localhost&lt;/code> to resolve to both &lt;code>127.0.0.1&lt;/code> and &lt;code>::1&lt;/code> so that we can talk to our registry via a single address (&lt;code>localhost:5001&lt;/code>).&lt;/p>
-&lt;p>Next, we need to configure NAT for outgoing traffic from the kind network to the internet.
-After executing &lt;code>make kind-up IPFAMILY=ipv6&lt;/code>, execute the following command to set up the corresponding iptables rules:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>ip6tables -t nat -A POSTROUTING -o &lt;span style="color:#00f">$(&lt;/span>ip route show default | awk &lt;span style="color:#a31515">&amp;#39;{print $5}&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span> -s fd00:10::/64 -j MASQUERADE
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setting-up-gardener">Setting Up Gardener&lt;/h2>
-&lt;p>In a terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make dev-setup &lt;span style="color:#008000"># preparing the environment (without webhooks for now)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=ready pod -l run=etcd -n garden --timeout 2m &lt;span style="color:#008000"># wait for etcd to be ready&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-apiserver &lt;span style="color:#008000"># starting gardener-apiserver&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>For IPv6 use &lt;code>make dev-setup IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
-&lt;/blockquote>
-&lt;p>In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl wait --for=condition=available apiservice v1beta1.core.gardener.cloud &lt;span style="color:#008000"># wait for gardener-apiserver to be ready&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-admission-controller &lt;span style="color:#008000"># starting gardener-admission-controller&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make dev-setup DEV_SETUP_WITH_WEBHOOKS=true &lt;span style="color:#008000"># preparing the environment with webhooks&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-controller-manager &lt;span style="color:#008000"># starting gardener-controller-manager&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>For IPv6 use &lt;code>make dev-setup DEV_SETUP_WITH_WEBHOOKS=true IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
-&lt;/blockquote>
-&lt;p>(Optional): In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-scheduler &lt;span style="color:#008000"># starting gardener-scheduler&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make register-local-env &lt;span style="color:#008000"># registering the local environment (CloudProfile, Seed, etc.)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-gardenlet SEED_NAME=local &lt;span style="color:#008000"># starting gardenlet&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>For IPv6 use &lt;code>make register-local-env IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
-&lt;/blockquote>
-&lt;p>In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-extension-provider-local &lt;span style="color:#008000"># starting gardener-extension-provider-local&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>For IPv6 use &lt;code>make start-extension-provider-local IPFAMILY=ipv6&lt;/code> instead.&lt;/p>
-&lt;/blockquote>
-&lt;p>ℹ️ The &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">&lt;code>provider-local&lt;/code>&lt;/a> is started with elevated privileges since it needs to manipulate your &lt;code>/etc/hosts&lt;/code> file to enable you accessing the created shoot clusters from your local machine, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/#dnsrecord">this&lt;/a> for more details.&lt;/p>
-&lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
-&lt;p>You can wait for the &lt;code>Seed&lt;/code> to become ready by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh seed local GardenletReady Bootstrapped SeedSystemComponentsHealthy ExtensionsReady
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get seed local&lt;/code> and wait for the &lt;code>STATUS&lt;/code> to indicate readiness:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>local Ready local local 4m42s vX.Y.Z-dev v1.21.1
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to create a first shoot cluster, just run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/provider-local/shoot.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can wait for the &lt;code>Shoot&lt;/code> to be ready by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAMESPACE=garden-local ./hack/usage/wait-for.sh shoot local APIServerAvailable ControlPlaneHealthy ObservabilityComponentsHealthy EveryNodeReady SystemComponentsHealthy
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl -n garden-local get shoot local&lt;/code> and wait for the &lt;code>LAST OPERATION&lt;/code> to reach &lt;code>100%&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE PROVIDER REGION K8S VERSION HIBERNATION LAST OPERATION STATUS AGE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>local local local local 1.21.0 Awake Create Processing (43%) healthy 94s
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(Optional): You could also execute a simple e2e test (creating and deleting a shoot) by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make test-e2e-local-simple KUBECONFIG=&lt;span style="color:#a31515">&amp;#34;&lt;/span>$PWD&lt;span style="color:#a31515">/example/gardener-local/kind/local/kubeconfig&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When the &lt;code>Shoot&lt;/code> got created successfully, you can acquire a &lt;code>kubeconfig&lt;/code> by using the &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> to access the cluster.&lt;/p>
-&lt;h2 id="optional-setting-up-a-second-seed-cluster">(Optional): Setting Up a Second Seed Cluster&lt;/h2>
-&lt;p>There are cases where you would want to create a second seed cluster in your local setup. For example, if you want to test the &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">control plane migration&lt;/a> feature. The following steps describe how to do that.&lt;/p>
-&lt;p>If you are on macOS, add a new IP address on your loopback device which will be necessary for the new KinD cluster that you will create. On macOS, the default loopback device is &lt;code>lo0&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>sudo ip addr add 127.0.0.2 dev lo0 &lt;span style="color:#008000"># adding 127.0.0.2 ip to the loopback interface&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, setup the second KinD cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make kind2-up KIND_ENV=local
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command sets up a new KinD cluster named &lt;code>gardener-local2&lt;/code> and stores its kubeconfig in the &lt;code>./example/gardener-local/kind/local2/kubeconfig&lt;/code> file. You will need this file when starting the &lt;code>provider-local&lt;/code> extension controller for the second seed cluster.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make register-kind2-env &lt;span style="color:#008000"># registering the local2 seed&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-gardenlet SEED_NAME=local2 &lt;span style="color:#008000"># starting gardenlet for the local2 seed&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In a new terminal pane, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export KUBECONFIG=./example/gardener-local/kind/local2/kubeconfig &lt;span style="color:#008000"># setting KUBECONFIG to point to second kind cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-extension-provider-local &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> WEBHOOK_SERVER_PORT=9444 &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> WEBHOOK_CERT_DIR=/tmp/gardener-extension-provider-local2 &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> SERVICE_HOST_IP=127.0.0.2 &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> METRICS_BIND_ADDRESS=:8082 &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> HEALTH_BIND_ADDRESS=:8083 &lt;span style="color:#008000"># starting gardener-extension-provider-local&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you want to perform a control plane migration you can follow the steps outlined in the &lt;a href="https://gardener.cloud/docs/gardener/usage/control_plane_migration/">Control Plane Migration&lt;/a> topic to migrate the shoot cluster to the second seed you just created.&lt;/p>
-&lt;h2 id="deleting-the-shoot-cluster">Deleting the &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/delete shoot local garden-local
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="optional-tear-down-the-second-seed-cluster">(Optional): Tear Down the Second Seed Cluster&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make tear-down-kind2-env
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind2-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tear-down-the-gardener-environment">Tear Down the Gardener Environment&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make tear-down-local-env
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="remote-local-setup">Remote Local Setup&lt;/h2>
-&lt;p>Just like Prow is executing the KinD based integration tests in a K8s pod, it is
-possible to interactively run this KinD based Gardener development environment
-aka &amp;ldquo;local setup&amp;rdquo; in a &amp;ldquo;remote&amp;rdquo; K8s pod.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>k apply -f docs/development/content/remote-local-setup.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k exec -it deployment/remote-local-setup -- sh
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>tmux -u a
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="caveats">Caveats&lt;/h3>
-&lt;p>Please refer to the &lt;a href="https://github.com/tmux/tmux/wiki">TMUX documentation&lt;/a> for
-working effectively inside the remote-local-setup pod.&lt;/p>
-&lt;p>To access Plutono, Prometheus, or other components in a browser, two port forwards are needed:&lt;/p>
-&lt;p>The port forward from the laptop to the pod:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>k port-forward deployment/remote-local-setup 3000
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The port forward in the remote-local-setup pod to the respective component:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>k port-forward -n shoot--local--local deployment/plutono 3000
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="related-links">Related Links&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/">Local Provider Extension&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: High Availability</title><link>https://gardener.cloud/docs/gardener/development/high-availability/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/high-availability/</guid><description>
+&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/">This document&lt;/a> explains how to setup a kind based environment for developing Gardener locally.&lt;/p>
+&lt;p>For the best development experience you should especially check the &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#developing-gardener">Developing Gardener&lt;/a> section.&lt;/p>
+&lt;p>In case you plan a debugging session please check the &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#debugging-gardener">Debugging Gardener&lt;/a> section.&lt;/p></description></item><item><title>Docs: High Availability</title><link>https://gardener.cloud/docs/gardener/development/high-availability/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/high-availability/</guid><description>
 &lt;h1 id="high-availability-of-deployed-components">High Availability of Deployed Components&lt;/h1>
 &lt;p>&lt;code>gardenlet&lt;/code>s and extension controllers are deploying components via &lt;code>Deployment&lt;/code>s, &lt;code>StatefulSet&lt;/code>s, etc., as part of the shoot control plane, or the seed or shoot system components.&lt;/p>
 &lt;p>Some of the above component deployments must be further tuned to improve fault tolerance / resilience of the service. This document outlines what needs to be done to achieve this goal.&lt;/p>
@@ -1108,11 +944,10 @@ That means that the Gardener runs outside a Kubernetes cluster which requires pr
 &lt;li>&lt;a href="https://github.com/kubernetes/community/tree/master/contributors/devel">Kubernetes Development Guide&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/documentation/wiki/Architecture">Architecture of Gardener&lt;/a>&lt;/li>
 &lt;/ol>
-&lt;p>This guide is split into three main parts:&lt;/p>
+&lt;p>This guide is split into two main parts:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="#preparing-the-setup">Preparing your setup by installing all dependencies and tools&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#start-gardener-locally">Building and starting Gardener components locally&lt;/a>&lt;/li>
-&lt;li>&lt;a href="#create-a-shoot">Using your local Gardener setup to create a Shoot&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#get-the-sources">Getting the Gardener source code locally&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;h1 id="preparing-the-setup">Preparing the Setup&lt;/h1>
 &lt;h2 id="macos-only-installing-homebrew">[macOS only] Installing homebrew&lt;/h2>
@@ -1128,7 +963,7 @@ That means that the Gardener runs outside a Kubernetes cluster which requires pr
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install go
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check &lt;a href="https://golang.org/doc/install">Go installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-kubectl">Installing kubectl&lt;/h2>
-&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.20.x&lt;/code>. On macOS run&lt;/p>
+&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.22.x&lt;/code>. On macOS run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install kubernetes-cli
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check the &lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">kubectl installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-docker">Installing Docker&lt;/h2>
@@ -1163,8 +998,7 @@ To allow using them without the &lt;code>g&lt;/code> prefix, add the &lt;code>gn
 &lt;li>Nodeless local garden (see below)&lt;/li>
 &lt;/ul>
 &lt;p>The Gardener repository and all the above-mentioned tools (git, golang, kubectl, &amp;hellip;) should be installed in your WSL2 distro, according to the distribution-specific Linux installation instructions.&lt;/p>
-&lt;h1 id="start-gardener-locally">Start Gardener Locally&lt;/h1>
-&lt;h2 id="get-the-sources">Get the Sources&lt;/h2>
+&lt;h1 id="get-the-sources">Get the Sources&lt;/h1>
 &lt;p>Clone the repository from GitHub into your &lt;code>$GOPATH&lt;/code>.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>mkdir -p &lt;span style="color:#00f">$(&lt;/span>go env GOPATH&lt;span style="color:#00f">)&lt;/span>/src/github.com/gardener
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cd &lt;span style="color:#00f">$(&lt;/span>go env GOPATH&lt;span style="color:#00f">)&lt;/span>/src/github.com/gardener
@@ -1173,228 +1007,8 @@ To allow using them without the &lt;code>g&lt;/code> prefix, add the &lt;code>gn
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
 &lt;p>Note: Gardener is using Go modules and cloning the repository into &lt;code>$GOPATH&lt;/code> is not a hard requirement. However it is still recommended to clone into &lt;code>$GOPATH&lt;/code> because &lt;code>k8s.io/code-generator&lt;/code> does not work yet outside of &lt;code>$GOPATH&lt;/code> - &lt;a href="https://github.com/kubernetes/kubernetes/issues/86753">kubernetes/kubernetes#86753&lt;/a>.&lt;/p>
 &lt;/blockquote>
-&lt;h2 id="start-the-gardener">Start the Gardener&lt;/h2>
-&lt;p>ℹ️ In the following guide, you have to define the configuration (&lt;code>CloudProfile&lt;/code>s, &lt;code>SecretBinding&lt;/code>s, &lt;code>Seed&lt;/code>s, etc.) manually for the infrastructure environment you want to develop against.
-Additionally, you have to register the respective Gardener extensions manually.
-If you are rather looking for a quick start guide to develop entirely locally on your machine (no real cloud provider or infrastructure involved), then you should rather follow &lt;a href="https://gardener.cloud/docs/gardener/development/getting_started_locally/">this guide&lt;/a>.&lt;/p>
-&lt;h3 id="start-a-local-kubernetes-cluster">Start a Local Kubernetes Cluster&lt;/h3>
-&lt;p>For the development of Gardener you need a Kubernetes API server on which you can register Gardener&amp;rsquo;s own Extension API Server as &lt;code>APIService&lt;/code>. This cluster doesn&amp;rsquo;t need any worker nodes to run pods, though, therefore, you can use the &amp;ldquo;nodeless Garden cluster setup&amp;rdquo; residing in &lt;code>hack/local-garden&lt;/code>. This will start all minimally required components of a Kubernetes cluster (&lt;code>etcd&lt;/code>, &lt;code>kube-apiserver&lt;/code>, &lt;code>kube-controller-manager&lt;/code>)
-and an &lt;code>etcd&lt;/code> Instance for the &lt;code>gardener-apiserver&lt;/code> as Docker containers. This is the easiest way to get your
-Gardener development setup up and running.&lt;/p>
-&lt;p>&lt;strong>Using the nodeless cluster setup&lt;/strong>&lt;/p>
-&lt;p>Use the provided Makefile rules to start your local Garden:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make local-garden-up
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Starting gardener-dev kube-etcd cluster..!
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Starting gardener-dev kube-apiserver..!
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Starting gardener-dev kube-controller-manager..!
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Starting gardener-dev gardener-etcd cluster..!
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>namespace/garden created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusterrole.rbac.authorization.k8s.io/gardener.cloud:admin created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusterrolebinding.rbac.authorization.k8s.io/front-proxy-client created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ [Optional] If you want to develop the &lt;code>SeedAuthorization&lt;/code> feature then you have to run &lt;code>make ACTIVATE_SEEDAUTHORIZER=true local-garden-up&lt;/code>. However, please note that this forces you to start the &lt;code>gardener-admission-controller&lt;/code> via &lt;code>make start-admission-controller&lt;/code>.&lt;/p>
-&lt;p>To tear down the local Garden cluster and remove the Docker containers, simply run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make local-garden-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;details>
-&lt;summary>&lt;b>Alternative: Using a local Kubernetes cluster&lt;/b>&lt;/summary>
-&lt;p>Instead of starting a Kubernetes API server and etcd as docker containers, you can also opt for running a local Kubernetes cluster, provided by e.g. &lt;a href="https://minikube.sigs.k8s.io/docs/start/">minikube&lt;/a>, &lt;a href="https://kind.sigs.k8s.io/docs/user/quick-start/">kind&lt;/a> or docker desktop.&lt;/p>
-&lt;blockquote>
-&lt;p>Note: Gardener requires self-contained kubeconfig files because of a &lt;a href="https://banzaicloud.com/blog/kubeconfig-security/">security issue&lt;/a>. You can configure your minikube to create self-contained kubeconfig files via:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>minikube config set embed-certs true
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or when starting the local cluster&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>minikube start --embed-certs
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/blockquote>
-&lt;/details>
-&lt;details>
-&lt;summary>&lt;b>Alternative: Using a remote Kubernetes cluster&lt;/b>&lt;/summary>
-&lt;p>For some testing scenarios, you may want to use a remote cluster instead of a local one as your Garden cluster.
-To do this, you can use the &amp;ldquo;remote Garden cluster setup&amp;rdquo; residing in &lt;code>hack/remote-garden&lt;/code>. This will start an &lt;code>etcd&lt;/code> instance for the &lt;code>gardener-apiserver&lt;/code> as a Docker container, and open tunnels for accessing local gardener components from the remote cluster.&lt;/p>
-&lt;p>To avoid mistakes, the remote cluster must have a &lt;code>garden&lt;/code> namespace labeled with &lt;code>gardener.cloud/purpose=remote-garden&lt;/code>.
-You must create the &lt;code>garden&lt;/code> namespace and label it manually before running &lt;code>make remote-garden-up&lt;/code> as described below.&lt;/p>
-&lt;p>Use the provided &lt;code>Makefile&lt;/code> rules to bootstrap your remote Garden:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export KUBECONFIG=&amp;lt;path to kubeconfig&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make remote-garden-up
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Start gardener etcd used to store gardener resources (e.g., seeds, shoots)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Starting gardener-dev-remote gardener-etcd cluster!
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Open tunnels for accessing local gardener components from the remote cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To close the tunnels and remove the locally-running Docker containers, run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make remote-garden-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ [Optional] If you want to use the remote Garden cluster setup with the &lt;code>SeedAuthorization&lt;/code> feature, you have to adapt the &lt;code>kube-apiserver&lt;/code> process of your remote Garden cluster. To do this, perform the following steps after running &lt;code>make remote-garden-up&lt;/code>:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>Create an &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/webhook/#configuration-file-format">authorization webhook configuration file&lt;/a> using the IP of the &lt;code>garden/quic-server&lt;/code> pod running in your remote Garden cluster and port 10444 that tunnels to your locally running &lt;code>gardener-admission-controller&lt;/code> process.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: seedauthorizer
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: gardener-admission-controller
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> insecure-skip-tls-verify: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://&amp;lt;quic-server-pod-ip&amp;gt;:10444/webhooks/auth/seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: kube-apiserver
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: {}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: seedauthorizer
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: gardener-admission-controller
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: kube-apiserver
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>Change or add the following command line parameters to your &lt;code>kube-apiserver&lt;/code> process:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>--authorization-mode=&amp;lt;...&amp;gt;,Webhook&lt;/code>&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-config-file=&amp;lt;path to config file&amp;gt;&lt;/code>&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-cache-authorized-ttl=0&lt;/code>&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-cache-unauthorized-ttl=0&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>Delete the cluster role and rolebinding &lt;code>gardener.cloud:system:seeds&lt;/code> from your remote Garden cluster.&lt;/p>
-&lt;/li>
-&lt;/ul>
-&lt;p>If your remote Garden cluster is a Gardener shoot, and you can access the seed on which this shoot is scheduled, you can automate the above steps by running the &lt;a href="https://github.com/gardener/gardener/blob/master/hack/local-development/remote-garden/enable-seed-authorizer">&lt;code>enable-seed-authorizer&lt;/code> script&lt;/a> and passing the kubeconfig of the seed cluster and the shoot namespace as parameters:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>hack/local-development/remote-garden/enable-seed-authorizer &amp;lt;seed kubeconfig&amp;gt; &amp;lt;namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>Note: This script is not working anymore, as the &lt;code>ReversedVPN&lt;/code> feature can&amp;rsquo;t be disabled. The annotation &lt;code>alpha.featuregates.shoot.gardener.cloud/reversed-vpn&lt;/code> on &lt;code>Shoot&lt;/code>s is no longer respected.&lt;/p>
-&lt;/blockquote>
-&lt;p>To prevent Gardener from reconciling the shoot and overwriting your changes, add the annotation &lt;code>shoot.gardener.cloud/ignore: 'true'&lt;/code> to the remote Garden shoot. Note that this annotation takes effect only if it is enabled via the &lt;code>constollers.shoot.respectSyncPeriodOverwrite: true&lt;/code> option in the &lt;code>gardenlet&lt;/code> configuration.&lt;/p>
-&lt;p>To disable the seed authorizer again, run the same script with &lt;code>-d&lt;/code> as a third parameter:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>hack/local-development/remote-garden/enable-seed-authorizer &amp;lt;seed kubeconfig&amp;gt; &amp;lt;namespace&amp;gt; -d
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the seed authorizer is enabled, you also have to start the &lt;code>gardener-admission-controller&lt;/code> via &lt;code>make start-admission-controller&lt;/code>.&lt;/p>
-&lt;blockquote>
-&lt;p>⚠️ In the remote garden setup all Gardener components run with administrative permissions, i.e., there is no fine-grained access control via RBAC (as opposed to productive installations of Gardener).&lt;/p>
-&lt;/blockquote>
-&lt;/details>
-&lt;h3 id="prepare-the-gardener">Prepare the Gardener&lt;/h3>
-&lt;p>Now, that you have started your local cluster, we can go ahead and register the Gardener API Server.
-Just point your &lt;code>KUBECONFIG&lt;/code> environment variable to the cluster you created in the previous step and run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make dev-setup
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>namespace/garden created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>namespace/garden-dev created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>deployment.apps/etcd created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service/etcd created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service/gardener-apiserver created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service/gardener-admission-controller created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>endpoints/gardener-apiserver created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>endpoints/gardener-admission-controller created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiservice.apiregistration.k8s.io/v1beta1.core.gardener.cloud created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiservice.apiregistration.k8s.io/v1alpha1.seedmanagement.gardener.cloud created
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiservice.apiregistration.k8s.io/v1alpha1.settings.gardener.cloud created
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>ℹ️ [Optional] If you want to enable logging, in the gardenlet configuration add:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>logging:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Gardener exposes the API servers of Shoot clusters via Kubernetes services of type &lt;code>LoadBalancer&lt;/code>.
-In order to establish stable endpoints (robust against changes of the load balancer address), it creates DNS records pointing to these load balancer addresses. They are used internally and by all cluster components to communicate.
-You need to have control over a domain (or subdomain) for which these records will be created.
-Please provide an &lt;em>internal domain secret&lt;/em> (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-internal-domain.yaml">this&lt;/a> for an example) which contains credentials with the proper privileges. Further information can be found in &lt;a href="https://gardener.cloud/docs/gardener/usage/configuration/">Gardener Configuration and Usage&lt;/a>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/10-secret-internal-domain-unmanaged.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>secret/internal-domain-unmanaged created
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="run-the-gardener">Run the Gardener&lt;/h3>
-&lt;p>Next, run the Gardener API Server, the Gardener Controller Manager (optionally), the Gardener Scheduler (optionally), and the gardenlet in different terminal windows/panes using rules in the &lt;code>Makefile&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-apiserver
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>I0306 15:23:51.044421 74536 plugins.go:84] Registered admission plugin &lt;span style="color:#a31515">&amp;#34;ResourceReferenceManager&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>I0306 15:23:51.044523 74536 plugins.go:84] Registered admission plugin &lt;span style="color:#a31515">&amp;#34;DeletionConfirmation&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>I0306 15:23:51.626836 74536 secure_serving.go:116] Serving securely on [::]:8443
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(Optional) Now you are ready to launch the Gardener Controller Manager.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-controller-manager
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting Gardener controller manager...&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Feature Gates: &amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting HTTP server on 0.0.0.0:2718&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Acquired leadership, starting controllers.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting HTTPS server on 0.0.0.0:2719&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Found internal domain secret internal-domain-unmanaged for domain nip.io.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Successfully bootstrapped the Garden cluster.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Gardener controller manager (version 1.0.0-dev) initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;ControllerRegistration controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;SecretBinding controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Project controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Quota controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-03-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;CloudProfile controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(Optional) Now you are ready to launch the Gardener Scheduler.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-scheduler
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-05-02T16:31:50+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting Gardener scheduler ...&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-05-02T16:31:50+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting HTTP server on 0.0.0.0:10251&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-05-02T16:31:50+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Acquired leadership, starting scheduler.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-05-02T16:31:50+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Gardener scheduler initialized (with Strategy: SameRegion)&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-05-02T16:31:50+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Scheduler controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Gardener should now be ready to operate on Shoot resources. You can use&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get shoots
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>No resources found.
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>to operate against your local running Gardener API Server.&lt;/p>
-&lt;blockquote>
-&lt;p>Note: It may take several seconds until the Gardener API server has been started and is available. &lt;code>No resources found&lt;/code> is the expected result of our initial development setup.&lt;/p>
-&lt;/blockquote>
-&lt;h1 id="create-a-shoot">Create a Shoot&lt;/h1>
-&lt;p>The steps below describe the general process of creating a Shoot. Have in mind that the steps do not provide full example manifests. The reader needs to check the provider documentation and adapt the manifests accordingly.&lt;/p>
-&lt;h4 id="1-copy-the-example-manifests">1. Copy the Example Manifests&lt;/h4>
-&lt;p>The next steps require modifications of the example manifests. These modifications are part of local setup and should not be &lt;code>git push&lt;/code>-ed. To do not interfere with git, let&amp;rsquo;s copy the example manifests to &lt;code>dev/&lt;/code> which is ignored by git.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cp example/*.yaml dev/
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="2-create-a-project">2. Create a Project&lt;/h4>
-&lt;p>Every Shoot is associated with a Project. Check the corresponding example manifests &lt;code>dev/00-namespace-garden-dev.yaml&lt;/code> and &lt;code>dev/05-project-dev.yaml&lt;/code>. Adapt them and create them.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/00-namespace-garden-dev.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/05-project-dev.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Make sure that the Project is successfully reconciled:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get project dev
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME NAMESPACE STATUS OWNER CREATOR AGE
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dev garden-dev Ready john.doe@example.com kubernetes-admin 6s
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="3-create-a-cloudprofile">3. Create a CloudProfile&lt;/h4>
-&lt;p>The &lt;code>CloudProfile&lt;/code> resource is provider specific and describes the underlying cloud provider (available machine types, regions, machine images, etc.). Check the corresponding example manifest &lt;code>dev/30-cloudprofile.yaml&lt;/code>. Check also the documentation and example manifests of the provider extension. Adapt &lt;code>dev/30-cloudprofile.yaml&lt;/code> and apply it.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/30-cloudprofile.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="4-install-necessary-gardener-extensions">4. Install Necessary Gardener Extensions&lt;/h4>
-&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#known-extension-implementations">Known Extension Implementations&lt;/a> section contains a list of available extension implementations. You need to create a ControllerRegistration and ControllerDeployment for:&lt;/p>
-&lt;ul>
-&lt;li>at least one infrastructure provider&lt;/li>
-&lt;li>a DNS provider (if the DNS for the Seed is not disabled)&lt;/li>
-&lt;li>at least one operating system extension&lt;/li>
-&lt;li>at least one network plugin extension&lt;/li>
-&lt;/ul>
-&lt;p>As a convention, the example ControllerRegistration manifest (containing also the necessary ControllerDeployment) for an extension is located under &lt;code>example/controller-registration.yaml&lt;/code> in the corresponding repository (for example for AWS the ControllerRegistration can be found &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/controller-registration.yaml">here&lt;/a>). An example creation for provider-aws (make sure to replace &lt;code>&amp;lt;version&amp;gt;&lt;/code> with the newest released version tag):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f https://raw.githubusercontent.com/gardener/gardener-extension-provider-aws/&amp;lt;version&amp;gt;/example/controller-registration.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Instead of updating extensions manually you can use &lt;a href="https://github.com/gardener/gem">Gardener Extensions Manager&lt;/a> to install and update extension controllers. This is especially useful if you want to keep and maintain your development setup for a longer time.
-Also, please refer to &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/">Registering Extension Controllers&lt;/a> for further information about how extensions are registered in case you want to use other versions than the latest releases.&lt;/p>
-&lt;h4 id="5-register-a-seed">5. Register a Seed&lt;/h4>
-&lt;p>Shoot controlplanes run in seed clusters, so we need to create our first Seed now.&lt;/p>
-&lt;p>Check the corresponding example manifest &lt;code>dev/40-secret-seed.yaml&lt;/code> and &lt;code>dev/50-seed.yaml&lt;/code>. Update &lt;code>dev/40-secret-seed.yaml&lt;/code> with base64 encoded kubeconfig of the cluster that will be used as Seed (the scope of the permissions should be identical to the kubeconfig that the gardenlet creates during bootstrapping - for now, &lt;code>cluster-admin&lt;/code> privileges are recommended).&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/40-secret-seed.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Adapt &lt;code>dev/50-seed.yaml&lt;/code> - adjust &lt;code>.spec.secretRef&lt;/code> to refer the newly created Secret, adjust &lt;code>.spec.provider&lt;/code> with the Seed cluster provider and revise the other fields.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/50-seed.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="6-start-the-gardenlet">6. Start the gardenlet&lt;/h4>
-&lt;p>Once the Seed is created, start the gardenlet to reconcile it. The &lt;code>make start-gardenlet&lt;/code> command will automatically configure the local gardenlet process to use the Seed and its kubeconfig. If you have multiple Seeds, you have to specify which to use by setting the &lt;code>SEED_NAME&lt;/code> environment variable like in &lt;code>make start-gardenlet SEED_NAME=my-first-seed&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make start-gardenlet
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Starting Gardenlet...&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Feature Gates: HVPA=true, Logging=true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:17+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Acquired leadership, starting controllers.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Found internal domain secret internal-domain-unmanaged for domain nip.io.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Gardenlet (version 1.0.0-dev) initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;ControllerInstallation controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Shoot controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>time=&lt;span style="color:#a31515">&amp;#34;2019-11-06T15:24:18+02:00&amp;#34;&lt;/span> level=info msg=&lt;span style="color:#a31515">&amp;#34;Seed controller initialized.&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[...]
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The gardenlet will now reconcile the Seed. Check the progess from time to time until it&amp;rsquo;s &lt;code>Ready&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME STATUS PROVIDER REGION AGE VERSION K8S VERSION
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>seed-aws Ready aws eu-west-1 4m v1.61.0-dev v1.24.8
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="7-create-a-shoot">7. Create a Shoot&lt;/h4>
-&lt;p>A Shoot requires a SecretBinding. The SecretBinding refers to a Secret that contains the cloud provider credentials. The Secret data keys are provider specific and you need to check the documentation of the provider to find out which data keys are expected (for example for AWS the related documentation can be found at &lt;a href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-end-user/#provider-secret-data">Provider Secret Data&lt;/a>). Adapt &lt;code>dev/70-secret-provider.yaml&lt;/code> and &lt;code>dev/80-secretbinding.yaml&lt;/code> and apply them.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/70-secret-provider.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/80-secretbinding.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>After the SecretBinding creation, you are ready to proceed with the Shoot creation. You need to check the documentation of the provider to find out the expected configuration (for example for AWS the related documentation and example Shoot manifest can be found at &lt;a href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/docs/usage-as-end-user/">Using the AWS provider extension with Gardener as end-user&lt;/a>). Adapt &lt;code>dev/90-shoot.yaml&lt;/code> and apply it.&lt;/p>
-&lt;p>To make sure that a specific Seed cluster will be chosen or to skip the scheduling (the sheduling requires Gardener Scheduler to be running), specify the &lt;code>.spec.seedName&lt;/code> field (see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml#L317-L318">here&lt;/a>).&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f dev/90-shoot.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Watch the progress of the operation and make sure that the Shoot will be successfully created.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>watch kubectl get shoot --all-namespaces
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Log Parsers</title><link>https://gardener.cloud/docs/gardener/development/log_parsers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/log_parsers/</guid><description>
+&lt;h1 id="start-the-gardener">Start the Gardener&lt;/h1>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/">getting_started_locally.md&lt;/a> how to build and deploy Gardener from your local sources.&lt;/p></description></item><item><title>Docs: Log Parsers</title><link>https://gardener.cloud/docs/gardener/development/log_parsers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/development/log_parsers/</guid><description>
 &lt;h1 id="how-to-create-log-parser-for-container-into-fluent-bit">How to Create Log Parser for Container into fluent-bit&lt;/h1>
 &lt;p>If our log message is parsed correctly, it has to be showed in Plutono like this:&lt;/p>
 &lt;pre tabindex="0">&lt;code class="language-jsonc" data-lang="jsonc"> {&amp;#34;log&amp;#34;:&amp;#34;OpenAPI AggregationController: Processing item v1beta1.metrics.k8s.io&amp;#34;,&amp;#34;pid&amp;#34;:&amp;#34;1&amp;#34;,&amp;#34;severity&amp;#34;:&amp;#34;INFO&amp;#34;,&amp;#34;source&amp;#34;:&amp;#34;controller.go:107&amp;#34;}

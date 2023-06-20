@@ -79,7 +79,7 @@ This allows separating access to &amp;ldquo;normal&amp;rdquo; secrets and intern
 &lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/11-internal-secret.yaml">this&lt;/a> example manifest.&lt;/p>
 &lt;h2 id="seeds">&lt;code>Seed&lt;/code>s&lt;/h2>
 &lt;p>&lt;code>Seed&lt;/code>s are resources that represent seed clusters.
-Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.20 and passes the Kubernetes conformance tests.
+Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.22 and passes the Kubernetes conformance tests.
 The Gardener operator has to either deploy the gardenlet into the cluster they want to use as seed (recommended, then the gardenlet will create the &lt;code>Seed&lt;/code> object itself after bootstrapping) or provide the kubeconfig to the cluster inside a secret (that is referenced by the &lt;code>Seed&lt;/code> resource) and create the &lt;code>Seed&lt;/code> resource themselves.&lt;/p>
 &lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/45-secret-seed-backup.yaml">this&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">this&lt;/a>, and optionally &lt;a href="https://github.com/gardener/gardener/blob/master/example/40-secret-seed.yaml">this&lt;/a> example manifests.&lt;/p>
 &lt;h2 id="shoot-quotas">Shoot &lt;code>Quota&lt;/code>s&lt;/h2>
@@ -717,7 +717,7 @@ gardenlet configuration to share it with the gardenlet.&lt;/p>
 has a certain validity based on the configuration of the garden cluster
 (&lt;code>--cluster-signing-duration&lt;/code> flag of the &lt;code>kube-controller-manager&lt;/code> (default &lt;code>1y&lt;/code>)).&lt;/p>
 &lt;blockquote>
-&lt;p>If your garden cluster is of at least Kubernetes v1.22, then you can also configure the validity for the client certificate by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.validity&lt;/code> in the gardenlet&amp;rsquo;s component configuration.
+&lt;p>You can also configure the validity for the client certificate by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.validity&lt;/code> in the gardenlet&amp;rsquo;s component configuration.
 Note that changing this value will only take effect when the kubeconfig is rotated again (it is not picked up immediately).
 The minimum validity is &lt;code>10m&lt;/code> (that&amp;rsquo;s what is enforced by the &lt;code>CertificateSigningRequest&lt;/code> API in Kubernetes which is used by the gardenlet).&lt;/p>
 &lt;/blockquote>
@@ -965,6 +965,15 @@ Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
 &lt;/ul>
 &lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
 Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h3 id="tokenrequestor-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollertokenrequestor">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/tokenrequestor">&lt;code>TokenRequestor&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>gardenlet&lt;/code> uses an instance of the &lt;code>TokenRequestor&lt;/code> controller which initially was developed in the context of the &lt;code>gardener-resource-manager&lt;/code>, please read &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor-controller">this document&lt;/a> for further information.&lt;/p>
+&lt;p>&lt;code>gardenlet&lt;/code> uses it for requesting tokens for components running in the seed cluster that need to communicate with the garden cluster.
+The mechanism works the same way as for shoot control plane components running in the seed which need to communicate with the shoot cluster.
+However, &lt;code>gardenlet&lt;/code>&amp;rsquo;s instance of the &lt;code>TokenRequestor&lt;/code> controller is restricted to &lt;code>Secret&lt;/code>s labeled with &lt;code>resources.gardener.cloud/class=garden&lt;/code>.
+Furthermore, it doesn&amp;rsquo;t respect the &lt;code>serviceaccount.resources.gardener.cloud/namespace&lt;/code> annotation. Instead, it always uses the seed&amp;rsquo;s namespace in the garden cluster for managing &lt;code>ServiceAccounts&lt;/code> and their tokens.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ This feature is under development. The managed &lt;code>ServiceAccounts&lt;/code> in the garden cluster don&amp;rsquo;t have any API permissions as of now. They will be handled by the &lt;code>SeedAuthorizer&lt;/code> in the future and equipped with permissions similar to the gardenlets&amp;rsquo; credentials.&lt;/p>
+&lt;/blockquote>
 &lt;h5 id="constraints-and-automatic-webhook-remediation">Constraints And Automatic Webhook Remediation&lt;/h5>
 &lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_status/#constraints">Shoot Status&lt;/a> for more details.&lt;/p>
 &lt;h5 id="garbage-collection">Garbage Collection&lt;/h5>
@@ -1096,6 +1105,9 @@ Afterwards, the Gardener Operator resources will be deployed into the cluster.&l
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is similar to &lt;code>make operator-up&lt;/code> but additionally starts a &lt;a href="https://skaffold.dev/docs/workflows/dev/">skaffold dev loop&lt;/a>.
 After the initial deployment, skaffold starts watching source files.
 Once it has detected changes, press any key to trigger a new build and deployment of the changed components.&lt;/p>
+&lt;h3 id="debugging-gardener-operator-optional">Debugging Gardener Operator (Optional)&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-debug
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is similar to &lt;code>make gardener-debug&lt;/code> but for Gardener Operator component. Please check &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#debugging-gardener">Debugging Gardener&lt;/a> for details.&lt;/p>
 &lt;h3 id="creating-a-garden">Creating a &lt;code>Garden&lt;/code>&lt;/h3>
 &lt;p>In order to create a garden, just run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/operator/20-garden.yaml
@@ -1125,15 +1137,6 @@ Hence, if you want to access the virtual garden cluster, you have to run the fol
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="tear-down-the-gardener-operator-environment">Tear Down the Gardener Operator Environment&lt;/h3>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-down
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="alternative-development-variant">Alternative Development Variant&lt;/h2>
-&lt;p>An alternative approach is to start the process locally and manually deploy the &lt;code>CustomResourceDefinition&lt;/code> for the &lt;code>Garden&lt;/code> resources into the targeted cluster (potentially remote):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/10-crd-operator.gardener.cloud_gardens.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-operator KUBECONFIG=...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># now you can create Garden resources, for example&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create -f example/operator/20-garden.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># alternatively, you can run the e2e test&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make test-e2e-local-operator KUBECONFIG=...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
 &lt;h3 id="controllers">Controllers&lt;/h3>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one controller which is now described in more detail.&lt;/p>
@@ -1532,7 +1535,7 @@ Typically, when you create a &lt;code>ServiceAccount&lt;/code>&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: token
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationSeconds: 7200
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>While the &lt;code>Pod&lt;/code> is now using an expiring and auto-rotated token, the static token is still generated and valid.&lt;/p>
-&lt;p>As of Kubernetes v1.22, there is neither a way of preventing &lt;code>kube-controller-manager&lt;/code> to generate such static tokens, nor a way to proactively remove or invalidate them:&lt;/p>
+&lt;p>There is neither a way of preventing &lt;code>kube-controller-manager&lt;/code> to generate such static tokens, nor a way to proactively remove or invalidate them:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://github.com/kubernetes/kubernetes/issues/77599">https://github.com/kubernetes/kubernetes/issues/77599&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/kubernetes/kubernetes/issues/77600">https://github.com/kubernetes/kubernetes/issues/77600&lt;/a>&lt;/li>
@@ -1578,8 +1581,8 @@ The &lt;code>source cluster&lt;/code> hosts the &lt;code>gardener-resource-manag
 The &lt;code>target cluster&lt;/code> &lt;em>can&lt;/em> be configured to point to another cluster. The existence of ServiceAccounts are ensured and token requests are issued against the target.
 When the &lt;code>gardener-resource-manager&lt;/code> is deployed next to the Shoot&amp;rsquo;s controlplane in the Seed, the &lt;code>source cluster&lt;/code> is the Seed while the &lt;code>target cluster&lt;/code> points to the Shoot.&lt;/p>
 &lt;h4 id="reconciliation-loop">Reconciliation Loop&lt;/h4>
-&lt;p>This controller reconciles secrets in all namespaces in the source cluster with the label: &lt;code>resources.gardener.cloud/purpose: token-requestor&lt;/code>.
-See &lt;a href="https://github.com/gardener/gardener/blob/master/example/resource-manager/30-secret-tokenrequestor.yaml">this yaml file&lt;/a> for an example of the secret.&lt;/p>
+&lt;p>This controller reconciles &lt;code>Secret&lt;/code>s in all namespaces in the source cluster with the label: &lt;code>resources.gardener.cloud/purpose=token-requestor&lt;/code>.
+See &lt;a href="https://github.com/gardener/gardener/blob/master/example/resource-manager/30-secret-tokenrequestor.yaml">this YAML file&lt;/a> for an example of the secret.&lt;/p>
 &lt;p>The controller ensures a &lt;code>ServiceAccount&lt;/code> exists in the target cluster as specified in the annotations of the &lt;code>Secret&lt;/code> in the source cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>serviceaccount.resources.gardener.cloud/name: &amp;lt;sa-name&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>serviceaccount.resources.gardener.cloud/namespace: &amp;lt;sa-namespace&amp;gt;
@@ -1618,6 +1621,12 @@ By default, the tokens are issued to expire after 12 hours. The expiration time 
 used by Shoot control plane components running in the Seed to talk to the Shoot API Server.
 Please see the graphic below:&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/resource-manager-projected-token-controlplane-to-shoot-apiserver_da4cda.jpg" alt="image">&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ Generally, the controller can run with multiple instances in different components.
+For example, &lt;code>gardener-resource-manager&lt;/code> might run the &lt;code>TokenRequestor&lt;/code> controller, but &lt;code>gardenlet&lt;/code> might run it, too.
+In order to differentiate which instance of the controller is responsible for a &lt;code>Secret&lt;/code>, it can be labeled with &lt;code>resources.gardener.cloud/class=&amp;lt;class&amp;gt;&lt;/code>.
+The &lt;code>&amp;lt;class&amp;gt;&lt;/code> must be configured in the respective controller, otherwise it will be responsible for all &lt;code>Secret&lt;/code>s no matter whether they have the label or not.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="kubelet-server-certificatesigningrequest-approverhttpsgithubcomgardenergardenertreemasterpkgresourcemanagercontrollercsrapprover">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/resourcemanager/controller/csrapprover">Kubelet Server &lt;code>CertificateSigningRequest&lt;/code> Approver&lt;/a>&lt;/h3>
 &lt;p>Gardener configures the kubelets such that they request two certificates via the &lt;code>CertificateSigningRequest&lt;/code> API:&lt;/p>
 &lt;ol>

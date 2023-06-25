@@ -4791,7 +4791,50 @@ For example, if an &lt;code>exponential&lt;/code> retention policy is configured
 &lt;td>total latency distribution of defragmentation of each etcd cluster member.&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table></description></item><item><title>Docs: Single Member Restoration</title><link>https://gardener.cloud/docs/other-components/etcd-druid/single_member_restoration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/single_member_restoration/</guid><description>
+&lt;/table></description></item><item><title>Docs: Scale Up</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/scale-up/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/scale-up/</guid><description>
+&lt;h2 id="scaling-up-a-single-node-to-multi-node-etcd-cluster-deployed-by-etcd-druid">Scaling-up a single-node to multi-node etcd cluster deployed by etcd-druid&lt;/h2>
+&lt;p>To mark a cluster for scale-up from single node to multi-node etcd, just patch the etcd custom resource&amp;rsquo;s &lt;code>.spec.replicas&lt;/code> from &lt;code>1&lt;/code> to &lt;code>3&lt;/code> (for example).&lt;/p>
+&lt;h3 id="challenges-for-scale-up">Challenges for scale-up&lt;/h3>
+&lt;ol>
+&lt;li>Etcd cluster with single replica don&amp;rsquo;t have any peers, so no peer communication is required hence peer URL may or may not be TLS enabled. However, while scaling up from single node etcd to multi-node etcd, there will be a requirement to have peer communication between members of the etcd cluster. Peer communication is required for various reasons, for instance for members to sync up cluster state, data, and to perform leader election or any cluster wide operation like removal or addition of a member etc. Hence in a multi-node etcd cluster we need to have TLS enable peer URL for peer communication.&lt;/li>
+&lt;li>Providing the correct configuration to start new etcd members as it is different from boostrapping a cluster since these new etcd members will join an existing cluster.&lt;/li>
+&lt;/ol>
+&lt;h3 id="approach">Approach&lt;/h3>
+&lt;p>We first went through the etcd doc of &lt;a href="https://etcd.io/docs/v3.4/op-guide/runtime-configuration/#update-advertise-peer-urls">update-advertise-peer-urls&lt;/a> to find out information regarding peer URL updation. Interestingly, etcd doc has mentioned the following:&lt;/p>
+&lt;pre tabindex="0">&lt;code>To update the advertise peer URLs of a member, first update it explicitly via member command and then restart the member.
+&lt;/code>&lt;/pre>&lt;p>But we can&amp;rsquo;t assume peer URL is not TLS enabled for single-node cluster as it depends on end-user. A user may or may not enable the TLS for peer URL for a single node etcd cluster. So, How do we detect whether peer URL was enabled or not when cluster is marked for scale-up?&lt;/p>
+&lt;h3 id="detecting-if-peerurl-tls-is-enabled-or-not">Detecting if peerURL TLS is enabled or not&lt;/h3>
+&lt;p>For this we use an annotation in member lease object &lt;code>member.etcd.gardener.cloud/tls-enabled&lt;/code> set by backup-restore sidecar of etcd. As etcd configuration is provided by backup-restore, so it can find out whether TLS is enabled or not and accordingly set this annotation &lt;code>member.etcd.gardener.cloud/tls-enabled&lt;/code> to either &lt;code>true&lt;/code> or &lt;code>false&lt;/code> in member lease object.
+And with the help of this annotation and config-map values etcd-druid is able to detect whether there is a change in a peer URL or not.&lt;/p>
+&lt;h3 id="etcd-druid-helps-in-scaling-up-etcd-cluster">Etcd-Druid helps in scaling up etcd cluster&lt;/h3>
+&lt;p>Now, it is detected whether peer URL was TLS enabled or not for single node etcd cluster. Etcd-druid can now use this information to take action:&lt;/p>
+&lt;ul>
+&lt;li>If peer URL was already TLS enabled then no action is required from etcd-druid side. Etcd-druid can proceed with scaling up the cluster.&lt;/li>
+&lt;li>If peer URL was not TLS enabled then etcd-druid has to intervene and make sure peer URL should be TLS enabled first for the single node before marking the cluster for scale-up.&lt;/li>
+&lt;/ul>
+&lt;h3 id="action-taken-by-etcd-druid-to-enable-the-peerurl-tls">Action taken by etcd-druid to enable the peerURL TLS&lt;/h3>
+&lt;ol>
+&lt;li>Etcd-druid will update the &lt;code>etcd-bootstrap&lt;/code> config-map with new config like initial-cluster,initial-advertise-peer-urls etc. Backup-restore will detect this change and update the member lease annotation to &lt;code>member.etcd.gardener.cloud/tls-enabled: &amp;quot;true&amp;quot;&lt;/code>.&lt;/li>
+&lt;li>In case the peer URL TLS has been changed to &lt;code>enabled&lt;/code>: Etcd-druid will add tasks to the deployment flow.
+&lt;ul>
+&lt;li>To ensure that the TLS enablement of peer URL is properly reflected in etcd, the existing etcd StatefulSet pods should be restarted twice.&lt;/li>
+&lt;li>The first restart pushes a new configuration which contains Peer URL TLS configuration. Backup-restore will update the member peer url. This will result in the change of the peer url in the etcd&amp;rsquo;s database, but it may not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s doesn&amp;rsquo;t expose an API to force restart a single container within a pod. Therefore, we need to restart the StatefulSet pod(s) once again. When the pod(s) is restarted the second time it will now start etcd with the correct peer url which will be TLS enabled.&lt;/li>
+&lt;li>To achieve 2 restarts following is done:
+&lt;ul>
+&lt;li>An update is made to the spec mounting the peer URL TLS secrets. This will cause a rolling update of the existing pod.&lt;/li>
+&lt;li>Once the update is successfully completed, then we delete StatefulSet pods, causing a restart by the StatefulSet controller.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="after-peerurl-is-tls-enabled">After PeerURL is TLS enabled&lt;/h3>
+&lt;p>After peer URL TLS enablement for single node etcd cluster, now etcd-druid adds a scale-up annotation: &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> to the etcd statefulset and etcd-druid will patch the statefulsets &lt;code>.spec.replicas&lt;/code> to &lt;code>3&lt;/code>(for example). The statefulset controller will then bring up new pods(etcd with backup-restore as a sidecar). Now etcd&amp;rsquo;s sidecar i.e backup-restore will check whether this member is already a part of a cluster or not and incase it is unable to check (may be due to some network issues) then backup-restore checks presence of this annotation: &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> in etcd statefulset to detect scale-up. If it finds out it is the scale-up case then backup-restore adds new etcd member as a &lt;a href="https://etcd.io/docs/v3.3/learning/learner/">learner&lt;/a> first and then starts the etcd learner by providing the correct configuration. Once learner gets in sync with the etcd cluster leader, it will get promoted to a voting member.&lt;/p>
+&lt;h3 id="providing-the-correct-etcd-config">Providing the correct etcd config&lt;/h3>
+&lt;p>As backup-restore detects that it&amp;rsquo;s a scale-up scenario, backup-restore sets &lt;code>initial-cluster-state&lt;/code> to &lt;code>existing&lt;/code> as this member will join an existing cluster and it calculates the rest of the config from the updated config-map provided by etcd-druid.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/scale-up-sequenceDiagram_c90582.png" alt="Sequence diagram">&lt;/p>
+&lt;h4 id="future-improvements">Future improvements:&lt;/h4>
+&lt;p>The need of restarting etcd pods twice will change in the future. please refer: &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/538">https://github.com/gardener/etcd-backup-restore/issues/538&lt;/a>&lt;/p></description></item><item><title>Docs: Single Member Restoration</title><link>https://gardener.cloud/docs/other-components/etcd-druid/single_member_restoration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/single_member_restoration/</guid><description>
 &lt;h1 id="restoration-of-a-single-member-in-multi-node-etcd-deployed-by-etcd-druid">Restoration of a single member in multi-node etcd deployed by etcd-druid.&lt;/h1>
 &lt;p>&lt;strong>Note&lt;/strong>:&lt;/p>
 &lt;ul>

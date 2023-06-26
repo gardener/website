@@ -1249,7 +1249,34 @@ example &lt;code>values.yaml&lt;/code>:&lt;/li>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: |&lt;span style="color:#a31515">
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> If you can&amp;#39;t comply, only third-level/dev support at usual 8x5 working hours in EEA will be available to you for all node-related components such as Docker and Kubelet, the operating system, and everything else that would require direct inspection of your nodes through a privileged pod or SSH
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> inverted: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Accessing the Gardener API</title><link>https://gardener.cloud/docs/dashboard/usage/gardener-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/dashboard/usage/gardener-api/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Access to the Garden Cluster for Extensions</title><link>https://gardener.cloud/docs/gardener/extensions/garden-api-access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/garden-api-access/</guid><description>
+&lt;h1 id="access-to-the-garden-cluster-for-extensions">Access to the Garden Cluster for Extensions&lt;/h1>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>Historically, &lt;code>gardenlet&lt;/code> has been the only component running in the seed cluster that has access to both the seed cluster and the garden cluster.
+Accordingly, extensions running on the seed cluster didn&amp;rsquo;t have access to the garden cluster.&lt;/p>
+&lt;p>Starting from Gardener &lt;a href="https://github.com/gardener/gardener/releases/v1.74.0">&lt;code>v1.74.0&lt;/code>&lt;/a>, there is a new mechanism for components running on seed clusters to get access to the garden cluster.
+For this, &lt;code>gardenlet&lt;/code> runs an instance of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#tokenrequestor-controller">&lt;code>TokenRequestor&lt;/code>&lt;/a> for requesting tokens that can be used to communicate with the garden cluster.&lt;/p>
+&lt;h2 id="manually-requesting-a-token-for-the-garden-cluster">Manually Requesting a Token for the Garden Cluster&lt;/h2>
+&lt;p>Seed components that need to communicate with the garden cluster can request a token in the garden cluster by creating a garden access secret.
+This secret has to be labelled with &lt;code>resources.gardener.cloud/purpose=token-requestor&lt;/code> and &lt;code>resources.gardener.cloud/class=garden&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden-access-example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources.gardener.cloud/purpose: token-requestor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceaccount.resources.gardener.cloud/name: example
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will instruct gardenlet to create a new &lt;code>ServiceAccount&lt;/code> named &lt;code>example&lt;/code> in its own &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code> namespace in the garden cluster, request a token for it, and populate the token in the secret&amp;rsquo;s data under the &lt;code>token&lt;/code> key.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ This feature is under development. The managed &lt;code>ServiceAccounts&lt;/code> in the garden cluster don&amp;rsquo;t have any API permissions as of now. They will be handled by the &lt;code>SeedAuthorizer&lt;/code> in the future and equipped with permissions similar to the gardenlets&amp;rsquo; credentials. See &lt;a href="https://github.com/gardener/gardener/issues/8001">gardener/gardener#8001&lt;/a> for more information.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="renewing-all-garden-access-secrets">Renewing All Garden Access Secrets&lt;/h2>
+&lt;p>Operators can trigger an automatic renewal of all garden access secrets in a given &lt;code>Seed&lt;/code> and their requested &lt;code>ServiceAccount&lt;/code> tokens, e.g., when rotating the garden cluster&amp;rsquo;s &lt;code>ServiceAccount&lt;/code> signing key.
+For this, the &lt;code>Seed&lt;/code> has to be annotated with &lt;code>gardener.cloud/operation=renew-garden-access-secrets&lt;/code>.&lt;/p></description></item><item><title>Docs: Accessing the Gardener API</title><link>https://gardener.cloud/docs/dashboard/usage/gardener-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/dashboard/usage/gardener-api/</guid><description>
 &lt;h1 id="accessing-the-gardener-api-through-the-dashboard">Accessing the Gardener API Through the Dashboard&lt;/h1>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The cluster operations that are performed manually in the dashboard or via &lt;code>kubectl&lt;/code> can be automated using the &lt;a href="https://gardener.cloud/docs/gardener/api-reference/">&lt;strong>Gardener API&lt;/strong>&lt;/a> and a &lt;strong>Service Account&lt;/strong> authorized to perform them.&lt;/p>
@@ -7621,11 +7648,4 @@ Enabling the static token kubeconfig is not recommended and you should consider 
 &lt;h2 id="whats-next">What&amp;rsquo;s next?&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/usage/using-terminal/">Using Dashboard Terminal&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Connectivity</title><link>https://gardener.cloud/docs/gardener/monitoring/connectivity/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/connectivity/</guid><description>
-&lt;h1 id="connectivity">Connectivity&lt;/h1>
-&lt;h2 id="shoot-connectivity">Shoot Connectivity&lt;/h2>
-&lt;p>We measure the connectivity from the shoot to the API Server. This is done via the &lt;code>blackbox exporter&lt;/code> which is deployed in the shoot&amp;rsquo;s &lt;code>kube-system&lt;/code> namespace. Prometheus will scrape the &lt;code>blackbox exporter&lt;/code> and then the exporter will try to access the API Server. Metrics are exposed if the connection was successful or not. This can be seen in the &lt;code>Kubernetes Control Plane Status&lt;/code> dashboard under the &lt;code>API Server Connectivity&lt;/code> panel. The &lt;code>shoot&lt;/code> line represents the connectivity from the shoot.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/panel_393a41.png" alt="image">&lt;/p>
-&lt;h2 id="seed-connectivity">Seed Connectivity&lt;/h2>
-&lt;p>In addition to the shoot connectivity, we also measure the seed connectivity. This means trying to reach the API Server from the seed via the external fully qualified domain name of the API server. The connectivity is also displayed in the above panel as the &lt;code>seed&lt;/code> line. Both &lt;code>seed&lt;/code> and &lt;code>shoot&lt;/code> connectivity are shown below.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/connectivity_b79584.png" alt="image">&lt;/p></description></item></channel></rss>
+&lt;/ul></description></item></channel></rss>

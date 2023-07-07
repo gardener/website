@@ -1,0 +1,205 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Usage</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-openstack/usage/</link><description>Recent content in Usage on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-openstack/usage/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Usage</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-openstack/usage/usage/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-openstack/usage/usage/</guid><description>
+&lt;h1 id="using-the-openstack-provider-extension-with-gardener-as-end-user">Using the OpenStack provider extension with Gardener as end-user&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">&lt;code>core.gardener.cloud/v1beta1.Shoot&lt;/code> resource&lt;/a> declares a few fields that are meant to contain provider-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for OpenStack and provide an example &lt;code>Shoot&lt;/code> manifest with minimal configuration that you can use to create an OpenStack cluster (modulo the landscape-specific information like cloud profile names, secret binding names, etc.).&lt;/p>
+&lt;h2 id="provider-secret-data">Provider Secret Data&lt;/h2>
+&lt;p>Every shoot cluster references a &lt;code>SecretBinding&lt;/code> which itself references a &lt;code>Secret&lt;/code>, and this &lt;code>Secret&lt;/code> contains the provider credentials of your OpenStack tenant.
+This &lt;code>Secret&lt;/code> must look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: core-openstack
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domainName: base64(domain-name)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tenantName: base64(tenant-name)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># either use username/password&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> username: base64(user-name)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> password: base64(password)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># or application credentials&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#applicationCredentialID: base64(app-credential-id)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#applicationCredentialName: base64(app-credential-name) # optional&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#applicationCredentialSecret: base64(app-credential-secret)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please look up &lt;a href="https://docs.openstack.org/keystone/pike/admin/identity-concepts.html">https://docs.openstack.org/keystone/pike/admin/identity-concepts.html&lt;/a> as well.&lt;/p>
+&lt;p>For authentication with username/password see &lt;a href="https://docs.openstack.org/keystone/latest/user/supported_clients.html">Keystone username/password&lt;/a>&lt;/p>
+&lt;p>Alternatively, for authentication with application credentials see &lt;a href="https://docs.openstack.org/keystone/latest/user/application_credentials.html">Keystone Application Credentials&lt;/a>.&lt;/p>
+&lt;p>⚠️ Depending on your API usage it can be problematic to reuse the same provider credentials for different Shoot clusters due to rate limits.
+Please consider spreading your Shoots over multiple credentials from different tenants if you are hitting those limits.&lt;/p>
+&lt;h2 id="infrastructureconfig">&lt;code>InfrastructureConfig&lt;/code>&lt;/h2>
+&lt;p>The infrastructure configuration mainly describes how the network layout looks like in order to create the shoot worker nodes in a later step, thus, prepares everything relevant to create VMs, load balancers, volumes, etc.&lt;/p>
+&lt;p>An example &lt;code>InfrastructureConfig&lt;/code> for the OpenStack extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: InfrastructureConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>floatingPoolName: MY-FLOATING-POOL
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># floatingPoolSubnetName: my-floating-pool-subnet-name&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>networks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># id: 12345678-abcd-efef-08af-0123456789ab&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># router:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># id: 1234&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers: 10.250.0.0/19
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># shareNetwork:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>floatingPoolName&lt;/code> is the name of the floating pool you want to use for your shoot.
+If you don&amp;rsquo;t know which floating pools are available look it up in the respective &lt;code>CloudProfile&lt;/code>.&lt;/p>
+&lt;p>With &lt;code>floatingPoolSubnetName&lt;/code> you can explicitly define to which subnet in the floating pool network (defined via &lt;code>floatingPoolName&lt;/code>) the router should be attached to.&lt;/p>
+&lt;p>&lt;code>networks.id&lt;/code> is an optional field. If it is given, you can specify the uuid of an existing private Neutron network (created manually, by other tooling, &amp;hellip;) that should be reused. A new subnet for the Shoot will be created in it.&lt;/p>
+&lt;p>If a &lt;code>networks.id&lt;/code> is given and calico shoot clusters are created without a network overlay within one network make sure that the pod CIDR specified in &lt;code>shoot.spec.networking.pods&lt;/code> is not overlapping with any other pod CIDR used in that network.
+Overlapping pod CIDRs will lead to disfunctional shoot clusters.&lt;/p>
+&lt;p>The &lt;code>networks.router&lt;/code> section describes whether you want to create the shoot cluster in an already existing router or whether to create a new one:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>If &lt;code>networks.router.id&lt;/code> is given then you have to specify the router id of the existing router that was created by other means (manually, other tooling, &amp;hellip;).
+If you want to get a fresh router for the shoot then just omit the &lt;code>networks.router&lt;/code> field.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In any case, the shoot cluster will be created in a &lt;strong>new&lt;/strong> subnet.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>The &lt;code>networks.workers&lt;/code> section describes the CIDR for a subnet that is used for all shoot worker nodes, i.e., VMs which later run your applications.&lt;/p>
+&lt;p>You can freely choose these CIDRs and it is your responsibility to properly design the network layout to suit your needs.&lt;/p>
+&lt;p>Apart from the router and the worker subnet the OpenStack extension will also create a network, router interfaces, security groups, and a key pair.&lt;/p>
+&lt;p>The optional &lt;code>networks.shareNetwork.enabled&lt;/code> field controls the creation of a share network. This is only needed if shared
+file system storage (like NFS) should be used. Note, that in this case, the &lt;code>ControlPlaneConfig&lt;/code> needs additional configuration, too.&lt;/p>
+&lt;h2 id="controlplaneconfig">&lt;code>ControlPlaneConfig&lt;/code>&lt;/h2>
+&lt;p>The control plane configuration mainly contains values for the OpenStack-specific control plane components.
+Today, the only component deployed by the OpenStack extension is the &lt;code>cloud-controller-manager&lt;/code>.&lt;/p>
+&lt;p>An example &lt;code>ControlPlaneConfig&lt;/code> for the OpenStack extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControlPlaneConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>loadBalancerProvider: haproxy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>loadBalancerClasses:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: lbclass-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingNetworkID: fips-1-id
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingSubnetName: internet-*
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: lbclass-2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingNetworkID: fips-1-id
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingSubnetTags: internal,private
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: lbclass-3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: private
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subnetID: internal-id
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cloudControllerManager:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CustomResourceValidation: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#storage:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># csiManila:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>loadBalancerProvider&lt;/code> is the provider name you want to use for load balancers in your shoot.
+If you don&amp;rsquo;t know which types are available look it up in the respective &lt;code>CloudProfile&lt;/code>.&lt;/p>
+&lt;p>The &lt;code>loadBalancerClasses&lt;/code> field contains an optional list of load balancer classes which will be available in the cluster. Each entry can have the following fields:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>name&lt;/code> to select the load balancer class via the kubernetes &lt;a href="https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/expose-applications-using-loadbalancer-type-service.md#switching-between-floating-subnets-by-using-preconfigured-classes">service annotations&lt;/a> &lt;code>loadbalancer.openstack.org/class=name&lt;/code>&lt;/li>
+&lt;li>&lt;code>purpose&lt;/code> with values &lt;code>default&lt;/code> or &lt;code>private&lt;/code>
+&lt;ul>
+&lt;li>The configuration of the &lt;code>default&lt;/code> load balancer class will be used as default for all other kubernetes loadbalancer services without a class annotation&lt;/li>
+&lt;li>The configuration of the &lt;code>private&lt;/code> load balancer class will be also set to the global loadbalancer configuration of the cluster, but will be overridden by the &lt;code>default&lt;/code> purpose&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>floatingNetworkID&lt;/code> can be specified to receive an ip from an floating/external network, additionally the subnet in this network can be selected via
+&lt;ul>
+&lt;li>&lt;code>floatingSubnetName&lt;/code> can be either a full subnet name or a regex/glob to match subnet name&lt;/li>
+&lt;li>&lt;code>floatingSubnetTags&lt;/code> a comma seperated list of subnet tags&lt;/li>
+&lt;li>&lt;code>floatingSubnetID&lt;/code> the id of a specific subnet&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;code>subnetID&lt;/code> can be specified by to receive an ip from an internal subnet (will not have an effect in combination with floating/external network configuration)&lt;/li>
+&lt;/ul>
+&lt;p>The &lt;code>cloudControllerManager.featureGates&lt;/code> contains a map of explicitly enabled or disabled feature gates.
+For production usage it&amp;rsquo;s not recommended to use this field at all as you can enable alpha features or disable beta/stable features, potentially impacting the cluster stability.
+If you don&amp;rsquo;t want to configure anything for the &lt;code>cloudControllerManager&lt;/code> simply omit the key in the YAML specification.&lt;/p>
+&lt;p>The optional &lt;code>storage.csiManila.enabled&lt;/code> field is used to enable the deployment of the CSI Manila driver to support NFS persistent volumes.
+In this case, please ensure to set &lt;code>networks.shareNetwork.enabled=true&lt;/code> in the &lt;code>InfrastructureConfig&lt;/code>, too.
+Additionally, if CSI Manila driver is enabled, for each availability zone a NFS &lt;code>StorageClass&lt;/code> will be created on the shoot
+named like &lt;code>csi-manila-nfs-&amp;lt;zone&amp;gt;&lt;/code>.&lt;/p>
+&lt;h2 id="workerconfig">&lt;code>WorkerConfig&lt;/code>&lt;/h2>
+&lt;p>Each worker group in a shoot may contain provider-specific configurations and options. These are contained in the &lt;code>providerConfig&lt;/code> section of a worker group and can be configured using a &lt;code>WorkerConfig&lt;/code> object.
+An example of a &lt;code>WorkerConfig&lt;/code> looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: WorkerConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>serverGroup:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> policy: soft-anti-affinity
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># nodeTemplate: # (to be specified only if the node capacity would be different from cloudprofile info during runtime)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># capacity:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># cpu: 2&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># gpu: 0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># memory: 50Gi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># machineLabels:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: my-label&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># value: foo&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: my-rolling-label&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># value: bar&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># triggerRollingOnUpdate: true # means any change of the machine label value will trigger rolling of all machines of the worker pool&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="servergroups">ServerGroups&lt;/h3>
+&lt;p>When you specify the &lt;code>serverGroup&lt;/code> section in your worker group configuration, a new server group will be created with the configured policy for each worker group that enabled this setting and all machines managed by this worker group will be assigned as members of the created server group.&lt;/p>
+&lt;p>For users to have access to the server group feature, it must be enabled on the &lt;code>CloudProfile&lt;/code> by your operator.
+Existing clusters can take advantage of this feature by updating the server group configuration of their respective worker groups. Worker groups that are already configured with server groups can update their setting to change the policy used, or remove it altogether at any time.&lt;/p>
+&lt;p>Users must be aware that &lt;strong>any change to the server group settings will result in a rolling deployment of new nodes for the affected worker group&lt;/strong>.&lt;/p>
+&lt;p>Please note the following restrictions when deploying workers with server groups:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>serverGroup&lt;/code> section is optional, but if it is included in the worker configuration, it must contain a valid policy value.&lt;/li>
+&lt;li>The available &lt;code>policy&lt;/code> values that can be used, are defined in the provider specific section of &lt;code>CloudProfile&lt;/code> by your operator.&lt;/li>
+&lt;li>Certain policy values may induce further constraints. Using the &lt;code>affinity&lt;/code> policy is only allowed when the worker group utilizes a single zone.&lt;/li>
+&lt;/ul>
+&lt;h3 id="machinelabels">MachineLabels&lt;/h3>
+&lt;p>The &lt;code>machineLabels&lt;/code> section in the worker group configuration allows to specify additional machine labels. These labels are added to the machine
+instances only, but not to the node object. Additionally, they have an optional &lt;code>triggerRollingOnUpdate&lt;/code> field. If it is set to &lt;code>true&lt;/code>, changing the label value
+will trigger a rolling of all machines of this worker pool.&lt;/p>
+&lt;h3 id="node-templates">Node Templates&lt;/h3>
+&lt;p>Node templates allow users to override the capacity of the nodes as defined by the server flavor specified in the &lt;code>CloudProfile&lt;/code>&amp;rsquo;s &lt;code>machineTypes&lt;/code>. This is useful for certain dynamic scenarios as it allows users to customize cluster-autoscaler&amp;rsquo;s behavior for these workergroup with their provided values.&lt;/p>
+&lt;h2 id="example-shoot-manifest-one-availability-zone">Example &lt;code>Shoot&lt;/code> manifest (one availability zone)&lt;/h2>
+&lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for one availability zone:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: johndoe-openstack
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudProfileName: openstack
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretBindingName: core-openstack
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: openstack
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> infrastructureConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> floatingPoolName: MY-FLOATING-POOL
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers: 10.250.0.0/19
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controlPlaneConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: openstack.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ControlPlaneConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerProvider: haproxy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: worker-xoluy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machine:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: medium_4_8
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minimum: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maximum: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - europe-1a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.250.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: calico
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoUpdate:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImageVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> addons:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesDashboard:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nginxIngress:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="csi-volume-provisioners">CSI volume provisioners&lt;/h2>
+&lt;p>Every OpenStack shoot cluster will be deployed with the OpenStack Cinder CSI driver.
+It is compatible with the legacy in-tree volume provisioner that was deprecated by the Kubernetes community and will be removed in future versions of Kubernetes.
+End-users might want to update their custom &lt;code>StorageClass&lt;/code>es to the new &lt;code>cinder.csi.openstack.org&lt;/code> provisioner.&lt;/p>
+&lt;h2 id="kubernetes-versions-per-worker-pool">Kubernetes Versions per Worker Pool&lt;/h2>
+&lt;p>This extension supports &lt;code>gardener/gardener&lt;/code>&amp;rsquo;s &lt;code>WorkerPoolKubernetesVersion&lt;/code> feature gate, i.e., having &lt;a href="https://github.com/gardener/gardener/blob/8a9c88866ec5fce59b5acf57d4227eeeb73669d7/example/90-shoot.yaml#L69-L70">worker pools with overridden Kubernetes versions&lt;/a> since &lt;code>gardener-extension-provider-openstack@v1.23&lt;/code>.&lt;/p>
+&lt;h2 id="shoot-ca-certificate-and-serviceaccount-signing-key-rotation">Shoot CA Certificate and &lt;code>ServiceAccount&lt;/code> Signing Key Rotation&lt;/h2>
+&lt;p>This extension supports &lt;code>gardener/gardener&lt;/code>&amp;rsquo;s &lt;code>ShootCARotation&lt;/code> and &lt;code>ShootSARotation&lt;/code> feature gates since &lt;code>gardener-extension-provider-openstack@v1.26&lt;/code>.&lt;/p></description></item></channel></rss>

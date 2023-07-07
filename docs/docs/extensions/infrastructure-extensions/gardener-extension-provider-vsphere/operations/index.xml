@@ -1,0 +1,252 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Operations</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/</link><description>Recent content in Operations on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Deployment</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/deployment/</guid><description>
+&lt;h1 id="deployment-of-the-vsphere-provider-extension">Deployment of the vSphere provider extension&lt;/h1>
+&lt;p>&lt;strong>Disclaimer:&lt;/strong> This document is NOT a step by step installation guide for the vSphere provider extension and only contains some configuration specifics regarding the installation of different components via the helm charts residing in the vSphere provider extension &lt;a href="https://github.com/gardener/gardener-extension-provider-vsphere">repository&lt;/a>.&lt;/p>
+&lt;h2 id="gardener-extension-validator-vsphere">gardener-extension-validator-vsphere&lt;/h2>
+&lt;h3 id="authentication-against-the-garden-cluster">Authentication against the Garden cluster&lt;/h3>
+&lt;p>There are several authentication possibilities depending on whether or not &lt;a href="https://github.com/gardener/garden-setup#concept-the-virtual-cluster">the concept of &lt;em>Virtual Garden&lt;/em>&lt;/a> is used.&lt;/p>
+&lt;h4 id="virtual-garden-is-not-used-ie-the-runtime-garden-cluster-is-also-the-target-garden-cluster">&lt;em>Virtual Garden&lt;/em> is not used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is also the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;p>&lt;strong>Automounted Service Account Token&lt;/strong>
+The easiest way to deploy the &lt;code>gardener-extension-validator-vsphere&lt;/code> component will be to not provide &lt;code>kubeconfig&lt;/code> at all. This way in-cluster configuration and an automounted service account token will be used. The drawback of this approach is that the automounted token will not be automatically rotated.&lt;/p>
+&lt;p>&lt;strong>Service Account Token Volume Projection&lt;/strong>
+Another solution will be to use &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">Service Account Token Volume Projection&lt;/a> combined with a &lt;code>kubeconfig&lt;/code> referencing a token file (see example below).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- cluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: &amp;lt;CA-DATA&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://default.kubernetes.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tokenFile: /var/run/secrets/projected/serviceaccount/token
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will allow for automatic rotation of the service account token by the &lt;code>kubelet&lt;/code>. The configuration can be achieved by setting both &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.kubeconfig&lt;/code> in the respective chart&amp;rsquo;s &lt;code>values.yaml&lt;/code> file.&lt;/p>
+&lt;h4 id="virtual-garden-is-used-ie-the-runtime-garden-cluster-is-different-from-the-target-garden-cluster">&lt;em>Virtual Garden&lt;/em> is used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is different from the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;p>&lt;strong>Service Account&lt;/strong>
+The easiest way to setup the authentication will be to create a service account and the respective roles will be bound to this service account in the &lt;code>target&lt;/code> cluster. Then use the generated service account token and craft a &lt;code>kubeconfig&lt;/code> which will be used by the workload in the &lt;code>runtime&lt;/code> cluster. This approach does not provide a solution for the rotation of the service account token. However, this setup can be achieved by setting &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Get the service account token and craft the &lt;code>kubeconfig&lt;/code>.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>Client Certificate&lt;/strong>
+Another solution will be to bind the roles in the &lt;code>target&lt;/code> cluster to a &lt;code>User&lt;/code> subject instead of a service account and use a client certificate for authentication. This approach does not provide a solution for the client certificate rotation. However, this setup can be achieved by setting both &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>, then following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Generate a client certificate for the &lt;code>target&lt;/code> cluster for the respective user.&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Craft a &lt;code>kubeconfig&lt;/code> using the already generated client certificate.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>Projected Service Account Token&lt;/strong>
+This approach requires an already deployed and configured &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">oidc-webhook-authenticator&lt;/a> for the &lt;code>target&lt;/code> cluster. Also the &lt;code>runtime&lt;/code> cluster should be registered as a trusted identity provider in the &lt;code>target&lt;/code> cluster. Then projected service accounts tokens from the &lt;code>runtime&lt;/code> cluster can be used to authenticate against the &lt;code>target&lt;/code> cluster. The needed steps are as follows:&lt;/p>
+&lt;ol>
+&lt;li>Deploy &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">OWA&lt;/a> and establish the needed trust.&lt;/li>
+&lt;li>Set &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>. &lt;strong>Note:&lt;/strong> username value will depend on the trust configuration, e.g., &lt;code>&amp;lt;prefix&amp;gt;:system:serviceaccount:&amp;lt;namespace&amp;gt;:&amp;lt;serviceaccount&amp;gt;&lt;/code>&lt;/li>
+&lt;li>Set &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.serviceAccountTokenVolumeProjection.audience&lt;/code>. &lt;strong>Note:&lt;/strong> audience value will depend on the trust configuration, e.g., &lt;code>&amp;lt;cliend-id-from-trust-config&amp;gt;&lt;/code>.&lt;/li>
+&lt;li>Craft a kubeconfig (see example below).&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- cluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: &amp;lt;CA-DATA&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://virtual-garden.api
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tokenFile: /var/run/secrets/projected/serviceaccount/token
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Operations</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/operations/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-vsphere/operations/operations/</guid><description>
+&lt;h1 id="using-the-vsphere-provider-extension-with-gardener-as-operator">Using the vSphere provider extension with Gardener as operator&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">&lt;code>core.gardener.cloud/v1beta1.CloudProfile&lt;/code> resource&lt;/a> declares a &lt;code>providerConfig&lt;/code> field that is meant to contain provider-specific configuration.&lt;/p>
+&lt;p>In this document we are describing how this configuration looks like for VMware vSphere and provide an example &lt;code>CloudProfile&lt;/code> manifest with minimal configuration that you can use to allow creating vSphere shoot clusters.&lt;/p>
+&lt;h2 id="cloudprofileconfig">&lt;code>CloudProfileConfig&lt;/code>&lt;/h2>
+&lt;p>The cloud profile configuration contains information about the real machine image paths in the vSphere environment (image names).
+You have to map every version that you specify in &lt;code>.spec.machineImages[].versions&lt;/code> here such that the vSphere extension knows the image ID for every version you want to offer.&lt;/p>
+&lt;p>It also contains optional default values for DNS servers that shall be used for shoots.
+In the &lt;code>dnsServers[]&lt;/code> list you can specify IP addresses that are used as DNS configuration for created shoot subnets.&lt;/p>
+&lt;p>The &lt;code>dhcpOptions&lt;/code> list allows to specify DHCP options. See &lt;a href="https://www.iana.org/assignments/bootp-dhcp-parameters/bootp-dhcp-parameters.xhtml">BOOTP Vendor Extensions and DHCP Options&lt;/a>
+for valid codes (tags) and details about values. The code &lt;code>15&lt;/code> (domain name) is only allowed for
+when using NSX-T 2.5. For NSX-T &amp;gt;= 3.0 use &lt;code>119&lt;/code> (search domain).&lt;/p>
+&lt;p>The &lt;code>dockerDaemonOptions&lt;/code> allow to adjust the docker daemon configuration.&lt;/p>
+&lt;ul>
+&lt;li>with &lt;code>dockerDaemonOptions.httpProxyConf&lt;/code> the content of the proxy configuration file can be set.
+See &lt;a href="https://docs.docker.com/config/daemon/systemd/#httphttps-proxy">Docker HTTP/HTTPS proxy&lt;/a> for more details&lt;/li>
+&lt;li>with &lt;code>dockerDaemonOptions.insecureRegistries&lt;/code> insecure registries can be specified. This
+should only be used for development or evaluation purposes.&lt;/li>
+&lt;/ul>
+&lt;p>Also, you have to specify several name of NSX-T objects in the constraints.&lt;/p>
+&lt;p>An example &lt;code>CloudProfileConfig&lt;/code> for the vSphere extension looks as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: vsphere.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: CloudProfileConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>namePrefix: my_gardener
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>defaultClassStoragePolicyName: &lt;span style="color:#a31515">&amp;#34;vSAN Default Storage Policy&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>folder: my-vsphere-vm-folder
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>regions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: region1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vsphereHost: my.vsphere.host
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vsphereInsecureSSL: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nsxtHost: my.vsphere.host
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nsxtInsecureSSL: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transportZone: &lt;span style="color:#a31515">&amp;#34;my-tz&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logicalTier0Router: &lt;span style="color:#a31515">&amp;#34;my-tier0router&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> edgeCluster: &lt;span style="color:#a31515">&amp;#34;my-edgecluster&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snatIpPool: &lt;span style="color:#a31515">&amp;#34;my-snat-ip-pool&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datacenter: my-vsphere-dc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> computeCluster: my-vsphere-computecluster1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># resourcePool: my-resource-pool1 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># hostSystem: my-host1 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datastore: my-vsphere-datastore1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#datastoreCluster: my-vsphere-datastore-cluster # provide either datastore or datastoreCluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> computeCluster: my-vsphere-computecluster2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># resourcePool: my-resource-pool2 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># hostSystem: my-host2 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datastore: my-vsphere-datastore2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#datastoreCluster: my-vsphere-datastore-cluster # provide either datastore or datastoreCluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>constraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: MEDIUM
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> classes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ipPoolName: gardener_lb_vip
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># optional DHCP options like 119 (search domain), 42 (NTP), 15 (domain name (only NSX-T 2.5))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#dhcpOptions:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#- code: 15&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># values:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - foo.bar.com&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#- code: 42&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># values:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - 136.243.202.118&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - 80.240.29.124&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - 78.46.53.8&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - 162.159.200.123&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dnsServers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- 10.10.10.11
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- 10.10.10.12
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>machineImages:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: flatcar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 3139.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: gardener/templates/flatcar-3139.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> guestId: other4xLinux64Guest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">#dockerDaemonOptions:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># httpProxyConf: |&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># [Service]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Environment=&amp;#34;HTTPS_PROXY=https://proxy.example.com:443&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># insecureRegistries:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - myregistrydomain.com:5000&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - blabla.mycompany.local&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="example-cloudprofile-manifest">Example &lt;code>CloudProfile&lt;/code> manifest&lt;/h2>
+&lt;p>Please find below an example &lt;code>CloudProfile&lt;/code> manifest:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: CloudProfile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: vsphere
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: vsphere
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: vsphere.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CloudProfileConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namePrefix: my_gardener
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> defaultClassStoragePolicyName: &lt;span style="color:#a31515">&amp;#34;vSAN Default Storage Policy&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> folder: my-vsphere-vm-folder
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: region1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vsphereHost: my.vsphere.host
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vsphereInsecureSSL: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nsxtHost: my.vsphere.host
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nsxtInsecureSSL: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transportZone: &lt;span style="color:#a31515">&amp;#34;my-tz&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logicalTier0Router: &lt;span style="color:#a31515">&amp;#34;my-tier0router&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> edgeCluster: &lt;span style="color:#a31515">&amp;#34;my-edgecluster&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snatIpPool: &lt;span style="color:#a31515">&amp;#34;my-snat-ip-pool&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datacenter: my-vsphere-dc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> computeCluster: my-vsphere-computecluster1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># resourcePool: my-resource-pool1 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># hostSystem: my-host1 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datastore: my-vsphere-datastore1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#datastoreCluster: my-vsphere-datastore-cluster # provide either datastore or datastoreCluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> computeCluster: my-vsphere-computecluster2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># resourcePool: my-resource-pool2 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># hostSystem: my-host2 # provide either computeCluster or resourcePool or hostSystem&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> datastore: my-vsphere-datastore2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#datastoreCluster: my-vsphere-datastore-cluster # provide either datastore or datastoreCluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> constraints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: MEDIUM
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> classes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ipPoolName: gardener_lb_vip
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsServers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.10.10.11
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.10.10.12
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImages:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: coreos
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 3139.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> path: gardener/templates/flatcar-3139.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> guestId: other4xLinux64Guest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.23.4
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.24.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.24.1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImages:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: flatcar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 3139.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineTypes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: std-02
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;2&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 8Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usable: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: std-04
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;4&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 16Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usable: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: std-08
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;8&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 32Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usable: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: region1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: zone2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="which-versions-of-kubernetesvsphere-are-supported">Which versions of Kubernetes/vSphere are supported&lt;/h2>
+&lt;p>This extension targets Kubernetes &amp;gt;= &lt;code>v1.20&lt;/code> and vSphere &lt;code>6.7 U3&lt;/code> or later.&lt;/p>
+&lt;ul>
+&lt;li>vSphere CSI driver needs vSphere &lt;code>6.7 U3&lt;/code> or later,
+and Kubernetes &amp;gt;= &lt;code>v1.16&lt;/code>
+(see &lt;a href="https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/index.html">VMware vSphere Container Storage Plug-in&lt;/a> for more details)&lt;/li>
+&lt;li>vSpere CPI driver needs vSphere &lt;code>6.7 U3&lt;/code> or later,
+and Kubernetes &amp;gt;= &lt;code>v1.11&lt;/code>
+(see &lt;a href="https://github.com/kubernetes/cloud-provider-vsphere/blob/master/docs/book/cloud_provider_interface.md#which-versions-of-kubernetesvsphere-support-it">cloud-provider-vsphere CPI - Cloud Provider Interface&lt;/a>)&lt;/li>
+&lt;/ul>
+&lt;h2 id="supported-vm-images">Supported VM images&lt;/h2>
+&lt;p>Currently, only Gardenlinux and Flatcar (CoreOS fork) are supported.
+Virtual Machine Hardware must be version 15 or higher, but images are upgraded
+automatically if their hardware has an older version.&lt;/p></description></item></channel></rss>

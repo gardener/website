@@ -1,0 +1,179 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Operations</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/</link><description>Recent content in Operations on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Configuration</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/configuration/</guid><description>
+&lt;h1 id="deployment-of-the-shoot-dns-service-extension">Deployment of the shoot DNS service extension&lt;/h1>
+&lt;p>&lt;strong>Disclaimer:&lt;/strong> This document is NOT a step by step deployment guide for the shoot DNS service extension and only contains some configuration specifics regarding the deployment of different components via the helm charts residing in the shoot DNS service extension &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">repository&lt;/a>.&lt;/p>
+&lt;h2 id="gardener-extension-admission-shoot-dns-service">gardener-extension-admission-shoot-dns-service&lt;/h2>
+&lt;h3 id="authentication-against-the-garden-cluster">Authentication against the Garden cluster&lt;/h3>
+&lt;p>There are several authentication possibilities depending on whether or not &lt;a href="https://github.com/gardener/garden-setup#concept-the-virtual-cluster">the concept of Virtual Garden&lt;/a> is used.&lt;/p>
+&lt;h4 id="virtual-garden-is-not-used-ie-the-runtime-garden-cluster-is-also-the-target-garden-cluster">Virtual Garden is not used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is also the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;h5 id="automounted-service-account-token">Automounted Service Account Token&lt;/h5>
+&lt;p>The easiest way to deploy the &lt;code>gardener-extension-admission-shoot-dns-service&lt;/code> component will be to not provide &lt;code>kubeconfig&lt;/code> at all. This way in-cluster configuration and an automounted service account token will be used. The drawback of this approach is that the automounted token will not be automatically rotated.&lt;/p>
+&lt;h5 id="service-account-token-volume-projection">Service Account Token Volume Projection&lt;/h5>
+&lt;p>Another solution will be to use &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">Service Account Token Volume Projection&lt;/a> combined with a &lt;code>kubeconfig&lt;/code> referencing a token file (see example below).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- cluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: &amp;lt;CA-DATA&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://default.kubernetes.svc.cluster.local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tokenFile: /var/run/secrets/projected/serviceaccount/token
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will allow for automatic rotation of the service account token by the &lt;code>kubelet&lt;/code>. The configuration can be achieved by setting both &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.kubeconfig&lt;/code> in the respective chart&amp;rsquo;s &lt;code>values.yaml&lt;/code> file.&lt;/p>
+&lt;h4 id="virtual-garden-is-used-ie-the-runtime-garden-cluster-is-different-from-the-target-garden-cluster">Virtual Garden is used, i.e., the &lt;code>runtime&lt;/code> Garden cluster is different from the &lt;code>target&lt;/code> Garden cluster.&lt;/h4>
+&lt;h5 id="service-account">Service Account&lt;/h5>
+&lt;p>The easiest way to setup the authentication will be to create a service account and the respective roles will be bound to this service account in the &lt;code>target&lt;/code> cluster. Then use the generated service account token and craft a &lt;code>kubeconfig&lt;/code> which will be used by the workload in the &lt;code>runtime&lt;/code> cluster. This approach does not provide a solution for the rotation of the service account token. However, this setup can be achieved by setting &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Get the service account token and craft the &lt;code>kubeconfig&lt;/code>.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;h5 id="client-certificate">Client Certificate&lt;/h5>
+&lt;p>Another solution will be to bind the roles in the &lt;code>target&lt;/code> cluster to a &lt;code>User&lt;/code> subject instead of a service account and use a client certificate for authentication. This approach does not provide a solution for the client certificate rotation. However, this setup can be achieved by setting both &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>, then following these steps:&lt;/p>
+&lt;ol>
+&lt;li>Generate a client certificate for the &lt;code>target&lt;/code> cluster for the respective user.&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Craft a &lt;code>kubeconfig&lt;/code> using the already generated client certificate.&lt;/li>
+&lt;li>Set the crafted &lt;code>kubeconfig&lt;/code> and deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;h5 id="projected-service-account-token">Projected Service Account Token&lt;/h5>
+&lt;p>This approach requires an already deployed and configured &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">oidc-webhook-authenticator&lt;/a> for the &lt;code>target&lt;/code> cluster. Also the &lt;code>runtime&lt;/code> cluster should be registered as a trusted identity provider in the &lt;code>target&lt;/code> cluster. Then projected service accounts tokens from the &lt;code>runtime&lt;/code> cluster can be used to authenticate against the &lt;code>target&lt;/code> cluster. The needed steps are as follows:&lt;/p>
+&lt;ol>
+&lt;li>Deploy &lt;a href="https://github.com/gardener/oidc-webhook-authenticator">OWA&lt;/a> and establish the needed trust.&lt;/li>
+&lt;li>Set &lt;code>.Values.global.virtualGarden.enabled: true&lt;/code> and &lt;code>.Values.global.virtualGarden.user.name&lt;/code>. &lt;strong>Note:&lt;/strong> username value will depend on the trust configuration, e.g., &lt;code>&amp;lt;prefix&amp;gt;:system:serviceaccount:&amp;lt;namespace&amp;gt;:&amp;lt;serviceaccount&amp;gt;&lt;/code>&lt;/li>
+&lt;li>Set &lt;code>.Values.global.serviceAccountTokenVolumeProjection.enabled: true&lt;/code> and &lt;code>.Values.global.serviceAccountTokenVolumeProjection.audience&lt;/code>. &lt;strong>Note:&lt;/strong> audience value will depend on the trust configuration, e.g., &lt;code>&amp;lt;cliend-id-from-trust-config&amp;gt;&lt;/code>.&lt;/li>
+&lt;li>Craft a kubeconfig (see example below).&lt;/li>
+&lt;li>Deploy the &lt;code>application&lt;/code> part of the charts in the &lt;code>target&lt;/code> cluster.&lt;/li>
+&lt;li>Deploy the &lt;code>runtime&lt;/code> part of the charts in the &lt;code>runtime&lt;/code> cluster.&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- cluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: &amp;lt;CA-DATA&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://virtual-garden.api
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: virtual-garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tokenFile: /var/run/secrets/projected/serviceaccount/token
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Deployment</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/operations/deployment/</guid><description>
+&lt;h1 id="gardener-dns-management-for-shoots">Gardener DNS Management for Shoots&lt;/h1>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>Gardener allows Shoot clusters to request DNS names for Ingresses and Services out of the box.
+To support this the gardener must be installed with the &lt;code>shoot-dns-service&lt;/code>
+extension.
+This extension uses the seed&amp;rsquo;s dns management infrastructure to maintain DNS
+names for shoot clusters. So, far only the external DNS domain of a shoot
+(already used for the kubernetes api server and ingress DNS names) can be used
+for managed DNS names.&lt;/p>
+&lt;h2 id="configuration">Configuration&lt;/h2>
+&lt;p>To generally enable the DNS management for shoot objects the
+&lt;code>shoot-dns-service&lt;/code> extension must be registered by providing an
+appropriate &lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service/blob/master/example/controller-registration.yaml">extension registration&lt;/a> in the garden cluster.&lt;/p>
+&lt;p>Here it is possible to decide whether the extension should be always available
+for all shoots or whether the extension must be separately enabled per shoot.&lt;/p>
+&lt;p>If the extension should be used for all shoots, the registration must set the &lt;em>globallyEnabled&lt;/em> flag to &lt;code>true&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Extension
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> globallyEnabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="deployment-of-dns-controller-manager">Deployment of DNS controller manager&lt;/h3>
+&lt;p>If you are using Gardener version &amp;gt;= &lt;code>1.54&lt;/code>, please make sure to deploy the DNS controller manager by
+adding the &lt;code>dnsControllerManager&lt;/code> section to the &lt;code>providerConfig.values&lt;/code> section.&lt;/p>
+&lt;p>For example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerDeployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: extension-shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: helm
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> chart: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsControllerManager:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> repository: eu.gcr.io/gardener-project/dns-controller-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tag: v0.13.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configuration:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cacheTtl: 300
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controllers: dnscontrollers,dnssources
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsPoolResyncPeriod: 30m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#poolSize: 20&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#providersPoolResyncPeriod: 24h&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serverPortHttp: 8080
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> createCRDs: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deploy: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicaCount: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">#resources:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># limits:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># memory: 1Gi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># requests:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># cpu: 50m&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># memory: 500Mi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsProviderManagement:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="providing-base-domains-usable-for-a-shoot">Providing Base Domains usable for a Shoot&lt;/h3>
+&lt;p>So, far only the external DNS domain of a shoot already used
+for the kubernetes api server and ingress DNS names can be used for managed
+DNS names. This is either the shoot domain as subdomain of the default domain
+configured for the gardener installation, or a dedicated domain with dedicated
+access credentials configured for a dedicated shoot via the shoot manifest.&lt;/p>
+&lt;p>Alternatively, you can specify &lt;code>DNSProviders&lt;/code> and its credentials
+&lt;code>Secret&lt;/code> directly in the shoot, if this feature is enabled.
+By default, &lt;code>DNSProvider&lt;/code> replication is disabled, but it can be enabled globally in the &lt;code>ControllerDeployment&lt;/code>
+or for a shoot cluster in the shoot manifest (details see further below).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ControllerDeployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: extension-shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: helm
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> chart: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsProviderReplication:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>See &lt;a href="https://github.com/gardener/external-dns-management/tree/master/examples">example files (20-* and 30-*)&lt;/a>
+for details for the various provider types.&lt;/p>
+&lt;h3 id="shoot-feature-gate">Shoot Feature Gate&lt;/h3>
+&lt;p>If the shoot DNS feature is not globally enabled by default (depends on the
+extension registration on the garden cluster), it must be enabled per shoot.&lt;/p>
+&lt;p>To enable the feature for a shoot, the shoot manifest must explicitly add the
+&lt;code>shoot-dns-service&lt;/code> extension.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="enabledisable-dns-provider-replication-for-a-shoot">Enable/disable DNS provider replication for a shoot&lt;/h4>
+&lt;p>The DNSProvider` replication feature enablement can be overwritten in the
+shoot manifest, e.g.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>Kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-dns-service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: service.dns.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: DNSConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dnsProviderReplication:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

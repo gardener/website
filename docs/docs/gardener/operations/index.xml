@@ -1,0 +1,591 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Operations</title><link>https://gardener.cloud/docs/gardener/operations/</link><description>Recent content in Operations on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/operations/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Configuration</title><link>https://gardener.cloud/docs/gardener/operations/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/configuration/</guid><description>
+&lt;h1 id="gardener-configuration-and-usage">Gardener Configuration and Usage&lt;/h1>
+&lt;p>Gardener automates the full lifecycle of Kubernetes clusters as a service.
+Additionally, it has several extension points allowing external controllers to plug-in to the lifecycle.
+As a consequence, there are several configuration options for the various custom resources that are partially required.&lt;/p>
+&lt;p>This document describes the:&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="#configuration-and-usage-of-gardener-as-operatoradministrator">Configuration and usage of Gardener as operator/administrator&lt;/a>.&lt;/li>
+&lt;li>&lt;a href="#configuration-and-usage-of-gardener-as-end-userstakeholdercustomer">Configuration and usage of Gardener as end-user/stakeholder/customer&lt;/a>.&lt;/li>
+&lt;/ol>
+&lt;h2 id="configuration-and-usage-of-gardener-as-operatoradministrator">Configuration and Usage of Gardener as Operator/Administrator&lt;/h2>
+&lt;p>When we use the terms &amp;ldquo;operator/administrator&amp;rdquo;, we refer to both the people deploying and operating Gardener.
+Gardener consists of the following components:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>gardener-apiserver&lt;/code>, a Kubernetes-native API extension that serves custom resources in the Kubernetes-style (like &lt;code>Seed&lt;/code>s and &lt;code>Shoot&lt;/code>s), and a component that contains multiple admission plugins.&lt;/li>
+&lt;li>&lt;code>gardener-admission-controller&lt;/code>, an HTTP(S) server with several handlers to be used in a &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/controlplane/charts/application/templates/validatingwebhook-admission-controller.yaml">ValidatingWebhookConfiguration&lt;/a>.&lt;/li>
+&lt;li>&lt;code>gardener-controller-manager&lt;/code>, a component consisting of multiple controllers that implement reconciliation and deletion flows for some of the custom resources (e.g., it contains the logic for maintaining &lt;code>Shoot&lt;/code>s, reconciling &lt;code>Project&lt;/code>s).&lt;/li>
+&lt;li>&lt;code>gardener-scheduler&lt;/code>, a component that assigns newly created &lt;code>Shoot&lt;/code> clusters to appropriate &lt;code>Seed&lt;/code> clusters.&lt;/li>
+&lt;li>&lt;code>gardenlet&lt;/code>, a component running in seed clusters and consisting out of multiple controllers that implement reconciliation and deletion flows for some of the custom resources (e.g., it contains the logic for reconciliation and deletion of &lt;code>Shoot&lt;/code>s).&lt;/li>
+&lt;/ol>
+&lt;p>Each of these components have various configuration options.
+The &lt;code>gardener-apiserver&lt;/code> uses the standard API server library maintained by the Kubernetes community, and as such it mainly supports command line flags.
+Other components use so-called componentconfig files that describe their configuration in a Kubernetes-style versioned object.&lt;/p>
+&lt;h3 id="configuration-file-for-gardener-admission-controller">Configuration File for Gardener Admission Controller&lt;/h3>
+&lt;p>The Gardener admission controller only supports one command line flag, which should be a path to a valid admission-controller configuration file.
+Please take a look at this &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-admission-controller.yaml">example configuration&lt;/a>.&lt;/p>
+&lt;h3 id="configuration-file-for-gardener-controller-manager">Configuration File for Gardener Controller Manager&lt;/h3>
+&lt;p>The Gardener controller manager only supports one command line flag, which should be a path to a valid controller-manager configuration file.
+Please take a look at this &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-controller-manager.yaml">example configuration&lt;/a>.&lt;/p>
+&lt;h3 id="configuration-file-for-gardener-scheduler">Configuration File for Gardener Scheduler&lt;/h3>
+&lt;p>The Gardener scheduler also only supports one command line flag, which should be a path to a valid scheduler configuration file.
+Please take a look at this &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-scheduler.yaml">example configuration&lt;/a>.
+Information about the concepts of the Gardener scheduler can be found at &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/">Gardener Scheduler&lt;/a>.&lt;/p>
+&lt;h3 id="configuration-file-for-gardenlet">Configuration File for gardenlet&lt;/h3>
+&lt;p>The gardenlet also only supports one command line flag, which should be a path to a valid gardenlet configuration file.
+Please take a look at this &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">example configuration&lt;/a>.
+Information about the concepts of the Gardenlet can be found at &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a>.&lt;/p>
+&lt;h3 id="system-configuration">System Configuration&lt;/h3>
+&lt;p>After successful deployment of the four components, you need to setup the system.
+Let&amp;rsquo;s first focus on some &amp;ldquo;static&amp;rdquo; configuration.
+When the &lt;code>gardenlet&lt;/code> starts, it scans the &lt;code>garden&lt;/code> namespace of the garden cluster for &lt;code>Secret&lt;/code>s that have influence on its reconciliation loops, mainly the &lt;code>Shoot&lt;/code> reconciliation:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>Internal domain secret&lt;/strong> - contains the DNS provider credentials (having appropriate privileges) which will be used to create/delete the so-called &amp;ldquo;internal&amp;rdquo; DNS records for the Shoot clusters, please see this &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-internal-domain.yaml">yaml file&lt;/a> for an example.&lt;/p>
+&lt;ul>
+&lt;li>This secret is used in order to establish a stable endpoint for shoot clusters, which is used internally by all control plane components.&lt;/li>
+&lt;li>The DNS records are normal DNS records but called &amp;ldquo;internal&amp;rdquo; in our scenario because only the kubeconfigs for the control plane components use this endpoint when talking to the shoot clusters.&lt;/li>
+&lt;li>It is forbidden to change the internal domain secret if there are existing shoot clusters.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Default domain secrets&lt;/strong> (optional) - contain the DNS provider credentials (having appropriate privileges) which will be used to create/delete DNS records for a default domain for shoots (e.g., &lt;code>example.com&lt;/code>), please see this &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-default-domain.yaml">yaml file&lt;/a> for an example.&lt;/p>
+&lt;ul>
+&lt;li>Not every end-user/stakeholder/customer has its own domain, however, Gardener needs to create a DNS record for every shoot cluster.&lt;/li>
+&lt;li>As landscape operator you might want to define a default domain owned and controlled by you that is used for all shoot clusters that don&amp;rsquo;t specify their own domain.&lt;/li>
+&lt;li>If you have multiple default domain secrets defined you can add a priority as an annotation (&lt;code>dns.gardener.cloud/domain-default-priority&lt;/code>) to select which domain should be used for new shoots during creation. The domain with the highest priority is selected during shoot creation. If there is no annotation defined, the default priority is &lt;code>0&lt;/code>, also all non integer values are considered as priority &lt;code>0&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Alerting secrets&lt;/strong> (optional) - contain the alerting configuration and credentials for the &lt;a href="https://prometheus.io/docs/alerting/alertmanager/">AlertManager&lt;/a> to send email alerts. It is also possible to configure the monitoring stack to send alerts to an AlertManager not deployed by Gardener to handle alerting. Please see this &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-alerting.yaml">yaml file&lt;/a> for an example.&lt;/p>
+&lt;ul>
+&lt;li>If email alerting is configured:
+&lt;ul>
+&lt;li>An AlertManager is deployed into each seed cluster that handles the alerting for all shoots on the seed cluster.&lt;/li>
+&lt;li>Gardener will inject the SMTP credentials into the configuration of the AlertManager.&lt;/li>
+&lt;li>The AlertManager will send emails to the configured email address in case any alerts are firing.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If an external AlertManager is configured:
+&lt;ul>
+&lt;li>Each shoot has a &lt;a href="https://prometheus.io/docs/introduction/overview/">Prometheus&lt;/a> responsible for monitoring components and sending out alerts. The alerts will be sent to a URL configured in the alerting secret.&lt;/li>
+&lt;li>This external AlertManager is not managed by Gardener and can be configured however the operator sees fit.&lt;/li>
+&lt;li>Supported authentication types are no authentication, basic, or mutual TLS.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>OpenVPN Diffie-Hellmann Key secret&lt;/strong> (optional) - contains the self-generated Diffie-Hellmann key used by OpenVPN in your landscape, please see this &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-openvpn-diffie-hellman.yaml">yaml file&lt;/a> for an example.&lt;/p>
+&lt;ul>
+&lt;li>If you don&amp;rsquo;t specify a custom key, then a default key is used, but for productive landscapes it&amp;rsquo;s recommend to create a landscape-specific key and define it.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Global monitoring secrets&lt;/strong> (optional) - contains basic authentication credentials for the Prometheus aggregating metrics for all clusters.&lt;/p>
+&lt;ul>
+&lt;li>These secrets are synced to each seed cluster and used to gain access to the aggregate monitoring components.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>Apart from this &amp;ldquo;static&amp;rdquo; configuration there are several custom resources extending the Kubernetes API and used by Gardener.
+As an operator/administrator, you have to configure some of them to make the system work.&lt;/p>
+&lt;h3 id="configuration-and-usage-of-gardener-as-end-userstakeholdercustomer">Configuration and Usage of Gardener as End-User/Stakeholder/Customer&lt;/h3>
+&lt;p>As an end-user/stakeholder/customer, you are using a Gardener landscape that has been setup for you by another team.
+You don&amp;rsquo;t need to care about how Gardener itself has to be configured or how it has to be deployed.
+Take a look at &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver/">Gardener API Server&lt;/a> - the topic describes which resources are offered by Gardener.
+You may want to have a more detailed look for &lt;code>Project&lt;/code>s, &lt;code>SecretBinding&lt;/code>s, &lt;code>Shoot&lt;/code>s, and &lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s.&lt;/p></description></item><item><title>Docs: Control Plane Migration</title><link>https://gardener.cloud/docs/gardener/operations/control_plane_migration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/control_plane_migration/</guid><description>
+&lt;h1 id="control-plane-migration">Control Plane Migration&lt;/h1>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;p>Also, the involved Seeds need to have enabled &lt;code>BackupBucket&lt;/code>s.&lt;/p>
+&lt;h2 id="shootstate">ShootState&lt;/h2>
+&lt;p>&lt;code>ShootState&lt;/code> is an API resource which stores non-reconstructible state and data required to completely recreate a &lt;code>Shoot&lt;/code>&amp;rsquo;s control plane on a new &lt;code>Seed&lt;/code>. The &lt;code>ShootState&lt;/code> resource is created on &lt;code>Shoot&lt;/code> creation in its &lt;code>Project&lt;/code> namespace and the required state/data is persisted during &lt;code>Shoot&lt;/code> creation or reconciliation.&lt;/p>
+&lt;h2 id="shoot-control-plane-migration">Shoot Control Plane Migration&lt;/h2>
+&lt;p>Triggering the migration is done by changing the &lt;code>Shoot&lt;/code>&amp;rsquo;s &lt;code>.spec.seedName&lt;/code> to a &lt;code>Seed&lt;/code> that differs from the &lt;code>.status.seedName&lt;/code>, we call this &lt;code>Seed&lt;/code> a &lt;code>&amp;quot;Destination Seed&amp;quot;&lt;/code>. This action can only be performed by an operator with the necessary RBAC. If the Destination &lt;code>Seed&lt;/code> does not have a backup and restore configuration, the change to &lt;code>spec.seedName&lt;/code> is rejected. Additionally, this Seed must not be set for deletion and must be healthy.&lt;/p>
+&lt;p>If the &lt;code>Shoot&lt;/code> has different &lt;code>.spec.seedName&lt;/code> and &lt;code>.status.seedName&lt;/code>, a process is started to prepare the Control Plane for migration:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>.status.lastOperation&lt;/code> is changed to &lt;code>Migrate&lt;/code>.&lt;/li>
+&lt;li>Kubernetes API Server is stopped and the extension resources are annotated with &lt;code>gardener.cloud/operation=migrate&lt;/code>.&lt;/li>
+&lt;li>Full snapshot of the ETCD is created and terminating of the Control Plane in the &lt;code>Source Seed&lt;/code> is initiated.&lt;/li>
+&lt;/ol>
+&lt;p>If the process is successful, we update the status of the &lt;code>Shoot&lt;/code> by setting the &lt;code>.status.seedName&lt;/code> to the null value. That way, a restoration is triggered in the &lt;code>Destination Seed&lt;/code> and &lt;code>.status.lastOperation&lt;/code> is changed to &lt;code>Restore&lt;/code>. The control plane migration is completed when the &lt;code>Restore&lt;/code> operation has completed successfully.&lt;/p>
+&lt;p>The etcd backups will be copied over to the &lt;code>BackupBucket&lt;/code> of the &lt;code>Destination Seed&lt;/code> during control plane migration and any future backups will be uploaded there.&lt;/p>
+&lt;h2 id="triggering-the-migration">Triggering the Migration&lt;/h2>
+&lt;p>For controlplane migration, operators with the necessary RBAC can use the &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/#shootsbinding-subresource">&lt;code>shoots/binding&lt;/code>&lt;/a> subresource to change the &lt;code>.spec.seedName&lt;/code>, with the following commands:&lt;/p>
+&lt;pre tabindex="0">&lt;code>export NAMESPACE=my-namespace
+export SHOOT_NAME=my-shoot
+kubectl get --raw /apis/core.gardener.cloud/v1beta1/namespaces/${NAMESPACE}/shoots/${SHOOT_NAME} | jq -c &amp;#39;.spec.seedName = &amp;#34;&amp;lt;destination-seed&amp;gt;&amp;#34;&amp;#39; | kubectl replace --raw /apis/core.gardener.cloud/v1beta1/namespaces/${NAMESPACE}/shoots/${SHOOT_NAME}/binding -f - | jq -r &amp;#39;.spec.seedName&amp;#39;
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Istio</title><link>https://gardener.cloud/docs/gardener/operations/istio/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/istio/</guid><description>
+&lt;h1 id="istio">Istio&lt;/h1>
+&lt;p>&lt;a href="https://istio.io">Istio&lt;/a> offers a service mesh implementation with focus on several important features - traffic, observability, security, and policy.&lt;/p>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;ul>
+&lt;li>Third-party JWT is used, therefore each Seed cluster where this feature is enabled must have &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection">Service Account Token Volume Projection&lt;/a> enabled.&lt;/li>
+&lt;li>Kubernetes 1.16+&lt;/li>
+&lt;/ul>
+&lt;h2 id="differences-with-istios-default-profile">Differences with Istio&amp;rsquo;s Default Profile&lt;/h2>
+&lt;p>The &lt;a href="https://istio.io/docs/setup/additional-setup/config-profiles/">default profile&lt;/a> which is recommended for production deployment, is not suitable for the Gardener use case, as it offers more functionality than desired. The current installation goes through heavy refactorings due to the &lt;code>IstioOperator&lt;/code> and the mixture of Helm values + Kubernetes API specification makes configuring and fine-tuning it very hard. A more simplistic deployment is used by Gardener. The differences are the following:&lt;/p>
+&lt;ul>
+&lt;li>Telemetry is not deployed.&lt;/li>
+&lt;li>&lt;code>istiod&lt;/code> is deployed.&lt;/li>
+&lt;li>&lt;code>istio-ingress-gateway&lt;/code> is deployed in a separate &lt;code>istio-ingress&lt;/code> namespace.&lt;/li>
+&lt;li>&lt;code>istio-egress-gateway&lt;/code> is not deployed.&lt;/li>
+&lt;li>None of the Istio addons are deployed.&lt;/li>
+&lt;li>Mixer (deprecated) is not deployed.&lt;/li>
+&lt;li>Mixer CDRs are not deployed.&lt;/li>
+&lt;li>Kubernetes &lt;code>Service&lt;/code>, Istio&amp;rsquo;s &lt;code>VirtualService&lt;/code> and &lt;code>ServiceEntry&lt;/code> are &lt;strong>NOT&lt;/strong> advertised in the service mesh. This means that if a &lt;code>Service&lt;/code> needs to be accessed directly from the Istio Ingress Gateway, it should have &lt;code>networking.istio.io/exportTo: &amp;quot;*&amp;quot;&lt;/code> annotation. &lt;code>VirtualService&lt;/code> and &lt;code>ServiceEntry&lt;/code> must have &lt;code>.spec.exportTo: [&amp;quot;*&amp;quot;]&lt;/code> set on them respectively.&lt;/li>
+&lt;li>Istio injector is not enabled.&lt;/li>
+&lt;li>mTLS is enabled by default.&lt;/li>
+&lt;/ul>
+&lt;h2 id="handling-multiple-availability-zones-with-istio">Handling Multiple Availability Zones with Istio&lt;/h2>
+&lt;p>For various reasons, e.g., improved resiliency to certain failures, it may be beneficial to use multiple availability zones in a seed cluster. While availability zones have advantages in being able to cover some failure domains, they also come with some additional challenges. Most notably, the latency across availability zone boundaries is higher than within an availability zone. Furthermore, there might be additional cost implied by network traffic crossing an availability zone boundary. Therefore, it may be useful to try to keep traffic within an availability zone if possible. The istio deployment as part of Gardener has been adapted to allow this.&lt;/p>
+&lt;p>A seed cluster spanning multiple availability zones may be used for &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_high_availability/">highly-available shoot control planes&lt;/a>. Those control planes may use a single or multiple availability zones. In addition to that, ordinary non-highly-available shoot control planes may be scheduled to such a seed cluster as well. The result is that the seed cluster may have control planes spanning multiple availability zones and control planes that are pinned to exactly one availability zone. These two types need to be handled differently when trying to prevent unnecessary cross-zonal traffic.&lt;/p>
+&lt;p>The goal is achieved by using multiple istio ingress gateways. The default istio ingress gateway spans all availability zones. It is used for multi-zonal shoot control planes. For each availability zone, there is an additional istio ingress gateway, which is utilized only for single-zone shoot control planes pinned to this availability zone. This is illustrated in the following diagram.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/multi-zonal-istio_8c8fa9.png" alt="Multi Availability Zone Handling in Istio">&lt;/p>
+&lt;p>Please note that operators may need to perform additional tuning to prevent cross-zonal traffic completely. The &lt;a href="https://gardener.cloud/docs/gardener/operations/seed_settings/#load-balancer-services">loadbalancer settings in the seed specification&lt;/a> offer various options, e.g., by setting the external traffic policy to &lt;code>local&lt;/code> or using infrastructure specific loadbalancer annotations.&lt;/p>
+&lt;p>Furthermore, note that this approach is also taken in case &lt;a href="https://gardener.cloud/docs/gardener/usage/exposureclasses/">&lt;code>ExposureClass&lt;/code>es&lt;/a> are used. For each exposure class, additional zonal istio ingress gateways may be deployed to cover for single-zone shoot control planes using the exposure class.&lt;/p></description></item><item><title>Docs: Managed Seed</title><link>https://gardener.cloud/docs/gardener/operations/managed_seed/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/managed_seed/</guid><description>
+&lt;h1 id="register-shoot-as-seed">Register Shoot as Seed&lt;/h1>
+&lt;p>An existing shoot can be registered as a seed by creating a &lt;code>ManagedSeed&lt;/code> resource. This resource contains:&lt;/p>
+&lt;ul>
+&lt;li>The name of the shoot that should be registered as seed.&lt;/li>
+&lt;li>A &lt;code>gardenlet&lt;/code> section that contains:
+&lt;ul>
+&lt;li>&lt;code>gardenlet&lt;/code> deployment parameters, such as the number of replicas, the image, etc.&lt;/li>
+&lt;li>The &lt;code>GardenletConfiguration&lt;/code> resource that contains controllers configuration, feature gates, and a &lt;code>seedConfig&lt;/code> section that contains the &lt;code>Seed&lt;/code> spec and parts of its metadata.&lt;/li>
+&lt;li>Additional configuration parameters, such as the garden connection bootstrap mechanism (see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#tls-bootstrapping">TLS Bootstrapping&lt;/a>), and whether to merge the provided configuration with the configuration of the parent &lt;code>gardenlet&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>gardenlet&lt;/code> is deployed to the shoot, and it registers a new seed upon startup based on the &lt;code>seedConfig&lt;/code> section.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Earlier Gardener allowed specifying a &lt;code>seedTemplate&lt;/code> directly in the &lt;code>ManagedSeed&lt;/code> resource. This feature is discontinued, any seed configuration must be via the &lt;code>GardenletConfiguration&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;p>Note the following important aspects:&lt;/p>
+&lt;ul>
+&lt;li>Unlike the &lt;code>Seed&lt;/code> resource, the &lt;code>ManagedSeed&lt;/code> resource is namespaced. Currently, managed seeds are restricted to the &lt;code>garden&lt;/code> namespace.&lt;/li>
+&lt;li>The newly created &lt;code>Seed&lt;/code> resource always has the same name as the &lt;code>ManagedSeed&lt;/code> resource. Attempting to specify a different name in the &lt;code>seedConfig&lt;/code> will fail.&lt;/li>
+&lt;li>The &lt;code>ManagedSeed&lt;/code> resource must always refer to an existing shoot. Attempting to create a &lt;code>ManagedSeed&lt;/code> referring to a non-existing shoot will fail.&lt;/li>
+&lt;li>A shoot that is being referred to by a &lt;code>ManagedSeed&lt;/code> cannot be deleted. Attempting to delete such a shoot will fail.&lt;/li>
+&lt;li>You can omit practically everything from the &lt;code>gardenlet&lt;/code> section, including all or most of the &lt;code>Seed&lt;/code> spec fields. Proper defaults will be supplied in all cases, based either on the most common use cases or the information already available in the &lt;code>Shoot&lt;/code> resource.&lt;/li>
+&lt;li>Also, if your seed is configured to host HA shoot control planes, then &lt;code>gardenlet&lt;/code> will be deployed with multiple replicas across nodes or availability zones by default.&lt;/li>
+&lt;li>Some &lt;code>Seed&lt;/code> spec fields, for example the provider type and region, networking CIDRs for pods, services, and nodes, etc., must be the same as the corresponding &lt;code>Shoot&lt;/code> spec fields of the shoot that is being registered as seed. Attempting to use different values (except empty ones, so that they are supplied by the defaulting mechanims) will fail.&lt;/li>
+&lt;/ul>
+&lt;h2 id="deploying-gardenlet-to-the-shoot">Deploying gardenlet to the Shoot&lt;/h2>
+&lt;p>To register a shoot as a seed and deploy &lt;code>gardenlet&lt;/code> to the shoot using a default configuration, create a &lt;code>ManagedSeed&lt;/code> resource similar to the following:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: seedmanagement.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ManagedSeed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-managed-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-botany
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardenlet: {}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For an example that uses non-default configuration, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/55-managedseed-gardenlet.yaml">55-managed-seed-gardenlet.yaml&lt;/a>&lt;/p>
+&lt;h3 id="renewing-the-gardenlet-kubeconfig-secret">Renewing the Gardenlet Kubeconfig Secret&lt;/h3>
+&lt;p>In order to make the &lt;code>ManagedSeed&lt;/code> controller renew the gardenlet&amp;rsquo;s kubeconfig secret, annotate the &lt;code>ManagedSeed&lt;/code> with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>. This will trigger a reconciliation during which the kubeconfig secret is deleted and the bootstrapping is performed again (during which gardenlet obtains a new client certificate).&lt;/p>
+&lt;p>It is also possible to trigger the renewal on the secret directly, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#rotate-certificates-using-bootstrap-kubeconfig">Rotate Certificates Using Bootstrap kubeconfig&lt;/a>.&lt;/p>
+&lt;h3 id="specifying-apiserver-replicas-and-autoscaler-options">Specifying &lt;code>apiServer&lt;/code> &lt;code>replicas&lt;/code> and &lt;code>autoscaler&lt;/code> Options&lt;/h3>
+&lt;p>There are few configuration options that are not supported in a &lt;code>Shoot&lt;/code> resource but due to backward compatibility reasons it is possible to specify them for a &lt;code>Shoot&lt;/code> that is referred by a &lt;code>ManagedSeed&lt;/code>. These options are:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Option&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>apiServer.autoscaler.minReplicas&lt;/code>&lt;/td>
+&lt;td>Controls the minimum number of &lt;code>kube-apiserver&lt;/code> replicas for the shoot registered as seed cluster.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>apiServer.autoscaler.maxReplicas&lt;/code>&lt;/td>
+&lt;td>Controls the maximum number of &lt;code>kube-apiserver&lt;/code> replicas for the shoot registered as seed cluster.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>apiServer.replicas&lt;/code>&lt;/td>
+&lt;td>Controls how many &lt;code>kube-apiserver&lt;/code> replicas the shoot registered as seed cluster gets by default.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>It is possible to specify these options via the &lt;code>shoot.gardener.cloud/managed-seed-api-server&lt;/code> annotation on the Shoot resource. Example configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot.gardener.cloud/managed-seed-api-server: &lt;span style="color:#a31515">&amp;#34;apiServer.replicas=3,apiServer.autoscaler.minReplicas=3,apiServer.autoscaler.maxReplicas=6&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="enforced-configuration-options">Enforced Configuration Options&lt;/h3>
+&lt;p>The following configuration options are enforced by Gardener API server for the ManagedSeed resources:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>The vertical pod autoscaler should be enabled from the Shoot specification.&lt;/p>
+&lt;p>The vertical pod autoscaler is a prerequisite for a Seed cluster. It is possible to enable the VPA feature for a Seed &lt;a href="https://gardener.cloud/docs/gardener/operations/seed_settings/#vertical-pod-autoscaler">(using the Seed spec)&lt;/a> and for a Shoot &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_autoscaling/#vertical-pod-auto-scaling">(using the Shoot spec)&lt;/a>. In context of &lt;code>ManagedSeed&lt;/code>s, enabling the VPA in the Seed spec (instead of the Shoot spec) offers less flexibility and increases the network transfer and cost. Due to these reasons, the Gardener API server enforces the vertical pod autoscaler to be enabled from the Shoot specification.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The nginx-ingress addon should not be enabled for a Shoot referred by a ManagedSeed.&lt;/p>
+&lt;p>An Ingress controller is also a prerequisite for a Seed cluster. For a Seed cluster, it is possible to enable Gardener managed Ingress controller or to deploy self-managed Ingress controller. There is also the nginx-ingress addon that can be enabled for a Shoot (using the Shoot spec). However, the Shoot nginx-ingress addon is in deprecated mode and it is not recommended for production clusters. Due to these reasons, the Gardener API server does not allow the Shoot nginx-ingress addon to be enabled for ManagedSeeds.&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Network Policies</title><link>https://gardener.cloud/docs/gardener/operations/network_policies/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/network_policies/</guid><description>
+&lt;h1 id="networkpolicys-in-garden-seed-shoot-clusters">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/h1>
+&lt;p>This document describes which &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes &lt;code>NetworkPolicy&lt;/code>s&lt;/a> deployed by Gardener into the various clusters.&lt;/p>
+&lt;h2 id="garden-cluster">Garden Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardener-operator&lt;/code> and &lt;code>gardener-resource-manager&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>The &lt;code>gardener-operator&lt;/code> runs a &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#networkpolicy-controller-registrar">&lt;code>NetworkPolicy&lt;/code> controller&lt;/a> which is responsible for the following namespaces:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>garden&lt;/code>&lt;/li>
+&lt;li>&lt;code>istio-system&lt;/code>&lt;/li>
+&lt;li>&lt;code>*istio-ingress-*&lt;/code>&lt;/li>
+&lt;li>&lt;code>shoot-*&lt;/code>&lt;/li>
+&lt;li>&lt;code>extension-*&lt;/code> (in case the garden cluster is a seed cluster at the same time)&lt;/li>
+&lt;/ul>
+&lt;p>It deploys the following so-called &amp;ldquo;general &lt;code>NetworkPolicy&lt;/code>s&amp;rdquo;:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Name&lt;/th>
+&lt;th>Purpose&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>deny-all&lt;/code>&lt;/td>
+&lt;td>&lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/#default-deny-all-ingress-and-all-egress-traffic">Denies all ingress and egress traffic&lt;/a> for all pods in this namespace. Hence, all traffic must be explicitly allowed.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-dns&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-dns=allowed&lt;/code> to DNS pods running in the &lt;code>kube-sytem&lt;/code> namespace. In practice, most of the pods performing network egress traffic need this label.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-runtime-apiserver&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-runtime-apiserver=allowed&lt;/code> to the API server of the runtime cluster.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-blocked-cidrs&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-blocked-cidrs=allowed&lt;/code> to explicitly blocked addresses configured by human operators (configured via &lt;code>.spec.networking.blockedCIDRs&lt;/code> in the &lt;code>Seed&lt;/code>). For instance, this can be used to block the cloud provider&amp;rsquo;s metadata service.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-public-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/allow-to-public-networks=allowed&lt;/code> to all public network IPs, except for private networks (RFC1918), carrier-grade NAT (RFC6598), and explicitly blocked addresses configured by human operators for all pods labeled with &lt;code>networking.gardener.cloud/to-public-networks=allowed&lt;/code>. In practice, this blocks egress traffic to all networks in the cluster and only allows egress traffic to public IPv4 addresses.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-private-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/allow-to-private-networks=allowed&lt;/code> to the private networks (RFC1918) and carrier-grade NAT (RFC6598) except for cluster-specific networks (configured via &lt;code>.spec.networks&lt;/code> in the &lt;code>Seed&lt;/code>).&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>allow-to-shoot-networks&lt;/code>&lt;/td>
+&lt;td>Allows egress traffic from pods labeled with &lt;code>networking.gardener.cloud/to-shoot-networks=allowed&lt;/code> to IPv4 blocks belonging to the shoot networks (configured via &lt;code>.spec.networking&lt;/code> in the &lt;code>Shoot&lt;/code>). In practice, this should be used by components which use VPN tunnel to communicate to pods in the shoot cluster. Note that this policy only exists in &lt;code>shoot-*&lt;/code> namespaces.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Apart from those, the &lt;code>gardener-operator&lt;/code> also enables the &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#networkpolicy-controller">&lt;code>NetworkPolicy&lt;/code> controller of &lt;code>gardener-resource-manager&lt;/code>&lt;/a>.
+Please find more information in the linked document.
+In summary, most of the pods that initiate connections with other pods will have labels with &lt;code>networking.resources.gardener.cloud/&lt;/code> prefixes.
+This way, they leverage the automatically created &lt;code>NetworkPolicy&lt;/code>s by the controller.
+As a result, in most cases no special/custom-crafted &lt;code>NetworkPolicy&lt;/code>s must be created anymore.&lt;/p>
+&lt;h2 id="seed-cluster">Seed Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code> and &lt;code>gardener-resource-manager&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>In seed clusters it works the same way as in the garden cluster managed by &lt;code>gardener-operator&lt;/code>.
+When a seed cluster is the garden cluster at the same time, &lt;code>gardenlet&lt;/code> does not enable the &lt;code>NetworkPolicy&lt;/code> controller (since &lt;code>gardener-operator&lt;/code> already runs it).
+Otherwise, it uses the exact same controller and code like &lt;code>gardener-operator&lt;/code>, resulting in the same behaviour in both garden and seed clusters.&lt;/p>
+&lt;h3 id="logging--monitoring">Logging &amp;amp; Monitoring&lt;/h3>
+&lt;h4 id="seed-system-namespaces">Seed System Namespaces&lt;/h4>
+&lt;p>As part of the seed reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys various Prometheus instances into the &lt;code>garden&lt;/code> namespace.
+See also &lt;a href="https://gardener.cloud/docs/gardener/development/monitoring-stack/">this document&lt;/a> for more information.
+Each pod that should be scraped for metrics by these instances must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-seed-scrape-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is not running in the &lt;code>garden&lt;/code> namespace, the &lt;code>Service&lt;/code> needs these annotations in addition:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;kubernetes.io/metadata.name&amp;#34;:&amp;#34;garden&amp;#34;}}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is running in an &lt;code>extension-*&lt;/code> namespace, the &lt;code>Service&lt;/code> needs this annotation in addition:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/pod-label-selector-namespace-alias: extensions
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the respective Prometheus pods.&lt;/p>
+&lt;h4 id="shoot-namespaces">Shoot Namespaces&lt;/h4>
+&lt;p>As part of the shoot reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys a shoot-specific Prometheus into the shoot namespace.
+Each pod that should be scraped for metrics must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-scrape-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the network traffic from the Prometheus pod.&lt;/p>
+&lt;h3 id="webhook-servers">Webhook Servers&lt;/h3>
+&lt;p>Components serving webhook handlers that must be reached by &lt;code>kube-apiserver&lt;/code>s of the virtual garden cluster or shoot clusters just need to annotate their &lt;code>Service&lt;/code> as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-webhook-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;server-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the network traffic from the API server pods.&lt;/p>
+&lt;p>In case the servers run in a different namespace than the &lt;code>kube-apiserver&lt;/code>s, the following annotations are needed:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-webhook-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;server-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/pod-label-selector-namespace-alias: extensions
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># for the virtual garden cluster:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;kubernetes.io/metadata.name&amp;#34;:&amp;#34;garden&amp;#34;}}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># for shoot clusters:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;gardener.cloud/role&amp;#34;:&amp;#34;shoot&amp;#34;}}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="additional-namespace-coverage-in-gardenseed-cluster">Additional Namespace Coverage in Garden/Seed Cluster&lt;/h2>
+&lt;p>In some cases, garden or seed clusters might run components in dedicated namespaces which are not covered by the controller by default (see list above).
+Still, it might(/should) be desired to also include such &amp;ldquo;custom namespaces&amp;rdquo; into the control of the &lt;code>NetworkPolicy&lt;/code> controllers.&lt;/p>
+&lt;p>In order to do so, human operators can adapt the component configs of &lt;code>gardener-operator&lt;/code> or &lt;code>gardenlet&lt;/code> by providing label selectors for additional namespaces:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>controllers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networkPolicy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> additionalNamespaceSelectors:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> foo: bar
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="communication-with-kube-apiserver-for-components-in-custom-namespaces">Communication With &lt;code>kube-apiserver&lt;/code> For Components In Custom Namespaces&lt;/h3>
+&lt;h3 id="egress-traffic">Egress Traffic&lt;/h3>
+&lt;p>Component running in such custom namespaces might need to initiate the communication with the &lt;code>kube-apiserver&lt;/code>s of the virtual garden cluster or a shoot cluster.
+In order to achieve this, their custom namespace must be labeled with &lt;code>networking.gardener.cloud/access-target-apiserver=allowed&lt;/code>.
+This will make the &lt;code>NetworkPolicy&lt;/code> controllers automatically provisioning the required policies into their namespace.&lt;/p>
+&lt;p>As a result, the respective component pods just need to be labeled with&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>networking.resources.gardener.cloud/to-garden-virtual-garden-kube-apiserver-tcp-443=allowed&lt;/code> (virtual garden cluster)&lt;/li>
+&lt;li>&lt;code>networking.resources.gardener.cloud/to-all-shoots-kube-apiserver-tcp-443=allowed&lt;/code> (shoot clusters)&lt;/li>
+&lt;/ul>
+&lt;h3 id="ingress-traffic">Ingress Traffic&lt;/h3>
+&lt;p>Components running in such custom namespaces might serve webhook handlers that must be reached by the &lt;code>kube-apiserver&lt;/code>s of the virtual garden cluster or a shoot cluster.
+In order to achieve this, their &lt;code>Service&lt;/code> must be annotated.
+Please refer to &lt;a href="#webhook-servers">this section&lt;/a> for more information.&lt;/p>
+&lt;h2 id="shoot-cluster">Shoot Cluster&lt;/h2>
+&lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code>)&lt;/em>&lt;/p>
+&lt;p>For shoot clusters, the concepts mentioned above don&amp;rsquo;t apply and are not enabled.
+Instead, &lt;code>gardenlet&lt;/code> only deploys a few &amp;ldquo;custom&amp;rdquo; &lt;code>NetworkPolicy&lt;/code>s for the shoot system components running in the &lt;code>kube-system&lt;/code> namespace.
+All other namespaces in the shoot cluster do not contain network policies deployed by &lt;code>gardenlet&lt;/code>.&lt;/p>
+&lt;p>As a best practice, every pod deployed into the &lt;code>kube-system&lt;/code> namespace should use appropriate &lt;code>NetworkPolicy&lt;/code> in order to only allow &lt;strong>required&lt;/strong> network traffic.
+Therefore, pods should have labels matching to the selectors of the available network policies.&lt;/p>
+&lt;p>&lt;code>gardenlet&lt;/code> deploys the following &lt;code>NetworkPolicy&lt;/code>s:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>NAME POD-SELECTOR
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-dns k8s-app in (kube-dns)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-from-seed networking.gardener.cloud/from-seed=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-dns networking.gardener.cloud/to-dns=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-apiserver networking.gardener.cloud/to-apiserver=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-from-nginx app=nginx-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-kubelet networking.gardener.cloud/to-kubelet=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-to-public-networks networking.gardener.cloud/to-public-networks=allowed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud--allow-vpn app=vpn-shoot
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note that a &lt;code>deny-all&lt;/code> policy will not be created by &lt;code>gardenlet&lt;/code>.
+Shoot owners can create it manually if needed/desired.
+Above listed &lt;code>NetworkPolicy&lt;/code>s ensure that the traffic for the shoot system components is allowed in case such &lt;code>deny-all&lt;/code> policies is created.&lt;/p>
+&lt;h2 id="implications-for-gardener-extensions">Implications for Gardener Extensions&lt;/h2>
+&lt;p>Gardener extensions sometimes need to deploy additional components into the shoot namespace in the seed cluster hosting the control plane.
+For example, the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws">&lt;code>gardener-extension-provider-aws&lt;/code>&lt;/a> deploys the &lt;code>cloud-controller-manager&lt;/code> into the shoot namespace.
+In most cases, such pods require network policy labels to allow the traffic they are initiating.&lt;/p>
+&lt;p>For components deployed in the &lt;code>kube-system&lt;/code> namespace of the shoots (e.g., CNI plugins or CSI drivers, etc.), custom &lt;code>NetworkPolicy&lt;/code>s might be required to ensure the respective components can still communicate in case the user creates a &lt;code>deny-all&lt;/code> policy.&lt;/p></description></item><item><title>Docs: Seed Bootstrapping</title><link>https://gardener.cloud/docs/gardener/operations/seed_bootstrapping/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/seed_bootstrapping/</guid><description>
+&lt;h1 id="seed-bootstrapping">Seed Bootstrapping&lt;/h1>
+&lt;p>Whenever the gardenlet is responsible for a new &lt;code>Seed&lt;/code> resource its &amp;ldquo;seed controller&amp;rdquo; is being activated.
+One part of this controller&amp;rsquo;s reconciliation logic is deploying certain components into the &lt;code>garden&lt;/code> namespace of the seed cluster itself.
+These components are required to spawn and manage control planes for shoot clusters later on.
+This document is providing an overview which actions are performed during this bootstrapping phase, and it explains the rationale behind them.&lt;/p>
+&lt;h2 id="dependency-watchdog">Dependency Watchdog&lt;/h2>
+&lt;p>The dependency watchdog (abbreviation: DWD) is a component developed separately in the &lt;a href="https://github.com/gardener/dependency-watchdog">gardener/dependency-watchdog&lt;/a> GitHub repository.
+Gardener is using it for two purposes:&lt;/p>
+&lt;ol>
+&lt;li>Prevention of melt-down situations when the load balancer used to expose the kube-apiserver of shoot clusters goes down while the kube-apiserver itself is still up and running.&lt;/li>
+&lt;li>Fast recovery times for crash-looping pods when depending pods are again available.&lt;/li>
+&lt;/ol>
+&lt;p>For the sake of separating these concerns, two instances of the DWD are deployed by the seed controller.&lt;/p>
+&lt;h3 id="prober">Prober&lt;/h3>
+&lt;p>The &lt;code>dependency-watchdog-prober&lt;/code> deployment is responsible for above-mentioned first point.&lt;/p>
+&lt;p>The &lt;code>kube-apiserver&lt;/code> of shoot clusters is exposed via a load balancer, usually with an attached public IP, which serves as the main entry point when it comes to interaction with the shoot cluster (e.g., via &lt;code>kubectl&lt;/code>).
+While end-users are talking to their clusters via this load balancer, other control plane components like the &lt;code>kube-controller-manager&lt;/code> or &lt;code>kube-scheduler&lt;/code> run in the same namespace/same cluster, so they can communicate via the in-cluster &lt;code>Service&lt;/code> directly instead of using the detour with the load balancer.
+However, the worker nodes of shoot clusters run in isolated, distinct networks.
+This means that the &lt;code>kubelet&lt;/code>s and &lt;code>kube-proxy&lt;/code>s also have to talk to the control plane via the load balancer.&lt;/p>
+&lt;p>The &lt;code>kube-controller-manager&lt;/code> has a special control loop called &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/pkg/controller/nodelifecycle">&lt;code>nodelifecycle&lt;/code>&lt;/a> which will set the status of &lt;code>Node&lt;/code>s to &lt;code>NotReady&lt;/code> in case the kubelet stops to regularly renew its lease/to send its heartbeat.
+This will trigger other self-healing capabilities of Kubernetes, for example, the eviction of pods from such &amp;ldquo;unready&amp;rdquo; nodes to healthy nodes.
+Similarly, the &lt;code>cloud-controller-manager&lt;/code> has a control loop that will disconnect load balancers from &amp;ldquo;unready&amp;rdquo; nodes, i.e., such workload would no longer be accessible until moved to a healthy node.
+Furthermore, the &lt;code>machine-controller-manager&lt;/code> removes &amp;ldquo;unready&amp;rdquo; nodes after &lt;code>health-timeout&lt;/code> (default 10min).&lt;/p>
+&lt;p>While these are awesome Kubernetes features on their own, they have a dangerous drawback when applied in the context of Gardener&amp;rsquo;s architecture:
+When the &lt;code>kube-apiserver&lt;/code> load balancer fails for whatever reason, then the &lt;code>kubelet&lt;/code>s can&amp;rsquo;t talk to the &lt;code>kube-apiserver&lt;/code> to renew their lease anymore.
+After a minute or so the &lt;code>kube-controller-manager&lt;/code> will get the impression that all nodes have died and will mark them as &lt;code>NotReady&lt;/code>.
+This will trigger above mentioned eviction as well as detachment of load balancers.
+As a result, the customer&amp;rsquo;s workload will go down and become unreachable.&lt;/p>
+&lt;p>This is exactly the situation that the DWD prevents:
+It regularly tries to talk to the &lt;code>kube-apiserver&lt;/code>s of the shoot clusters, once by using their load balancer, and once by talking via the in-cluster &lt;code>Service&lt;/code>.
+If it detects that the &lt;code>kube-apiserver&lt;/code> is reachable internally but not externally, it scales down &lt;code>machine-controller-manager&lt;/code>, &lt;code>cluster-autoscaler&lt;/code> (if enabled) and &lt;code>kube-controller-manager&lt;/code> to &lt;code>0&lt;/code>.
+This will prevent it from marking the shoot worker nodes as &amp;ldquo;unready&amp;rdquo;. This will also prevent the &lt;code>machine-controller-manager&lt;/code> from deleting potentially healthy nodes.
+As soon as the &lt;code>kube-apiserver&lt;/code> is reachable externally again, &lt;code>kube-controller-manager&lt;/code>, &lt;code>machine-controller-manager&lt;/code> and &lt;code>cluster-autoscaler&lt;/code> are restored to the state prior to scale-down.&lt;/p>
+&lt;h3 id="weeder">Weeder&lt;/h3>
+&lt;p>The &lt;code>dependency-watchdog-weeder&lt;/code> deployment is responsible for above mentioned second point.&lt;/p>
+&lt;p>Kubernetes is restarting failing pods with an exponentially increasing backoff time.
+While this is a great strategy to prevent system overloads, it has the disadvantage that the delay between restarts is increasing up to multiple minutes very fast.&lt;/p>
+&lt;p>In the Gardener context, we are deploying many components that are depending on other components.
+For example, the &lt;code>kube-apiserver&lt;/code> is depending on a running &lt;code>etcd&lt;/code>, or the &lt;code>kube-controller-manager&lt;/code> and &lt;code>kube-scheduler&lt;/code> are depending on a running &lt;code>kube-apiserver&lt;/code>.
+In case such a &amp;ldquo;higher-level&amp;rdquo; component fails for whatever reason, the dependent pods will fail and end-up in crash-loops.
+As Kubernetes does not know anything about these hierarchies, it won&amp;rsquo;t recognize that such pods can be restarted faster as soon as their dependents are up and running again.&lt;/p>
+&lt;p>This is exactly the situation in which the DWD will become active:
+If it detects that a certain &lt;code>Service&lt;/code> is available again (e.g., after the &lt;code>etcd&lt;/code> was temporarily down while being moved to another seed node), then DWD will restart all crash-looping dependant pods.
+These dependant pods are detected via a pre-configured label selector.&lt;/p>
+&lt;p>As of today, the DWD is configured to restart a crash-looping &lt;code>kube-apiserver&lt;/code> after &lt;code>etcd&lt;/code> became available again, or any pod depending on the &lt;code>kube-apiserver&lt;/code> that has a &lt;code>gardener.cloud/role=controlplane&lt;/code> label (e.g., &lt;code>kube-controller-manager&lt;/code>, &lt;code>kube-scheduler&lt;/code>).&lt;/p></description></item><item><title>Docs: Seed Settings</title><link>https://gardener.cloud/docs/gardener/operations/seed_settings/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/seed_settings/</guid><description>
+&lt;h1 id="settings-for-seeds">Settings for &lt;code>Seed&lt;/code>s&lt;/h1>
+&lt;p>The &lt;code>Seed&lt;/code> resource offers a few settings that are used to control the behaviour of certain Gardener components.
+This document provides an overview over the available settings:&lt;/p>
+&lt;h2 id="dependency-watchdog">Dependency Watchdog&lt;/h2>
+&lt;p>Gardenlet can deploy two instances of the &lt;a href="https://github.com/gardener/dependency-watchdog">dependency-watchdog&lt;/a> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
+One instance only activates the weeder while the second instance only activates the prober.&lt;/p>
+&lt;h3 id="weeder">Weeder&lt;/h3>
+&lt;p>The weeder helps to alleviate the delay where control plane components remain unavailable by finding the respective pods in &lt;code>CrashLoopBackoff&lt;/code> status and restarting them once their dependants become ready and available again.
+For example, if &lt;code>etcd&lt;/code> goes down then also &lt;code>kube-apiserver&lt;/code> goes down (and into a &lt;code>CrashLoopBackoff&lt;/code> state). If &lt;code>etcd&lt;/code> comes up again then (without the &lt;code>endpoint&lt;/code> controller) it might take some time until &lt;code>kube-apiserver&lt;/code> gets restarted as well.&lt;/p>
+&lt;p>⚠️ &lt;code>.spec.settings.dependencyWatchdog.endpoint.enabled&lt;/code> is deprecated and will be removed in a future version of Gardener. Use &lt;code>.spec.settings.dependencyWatchdog.weeder.enabled&lt;/code> instead.&lt;/p>
+&lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.endpoint.enabled&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;h3 id="prober">Prober&lt;/h3>
+&lt;p>The &lt;code>probe&lt;/code> controller scales down the &lt;code>kube-controller-manager&lt;/code> of shoot clusters in case their respective &lt;code>kube-apiserver&lt;/code> is not reachable via its external ingress.
+This is in order to avoid melt-down situations, since the &lt;code>kube-controller-manager&lt;/code> uses in-cluster communication when talking to the &lt;code>kube-apiserver&lt;/code>, i.e., it wouldn&amp;rsquo;t be affected if the external access to the &lt;code>kube-apiserver&lt;/code> is interrupted for whatever reason.
+The &lt;code>kubelet&lt;/code>s on the shoot worker nodes, however, would indeed be affected since they typically run in different networks and use the external ingress when talking to the &lt;code>kube-apiserver&lt;/code>.
+Hence, without scaling down &lt;code>kube-controller-manager&lt;/code>, the nodes might be marked as &lt;code>NotReady&lt;/code> and eventually replaced (since the &lt;code>kubelet&lt;/code>s cannot report their status anymore).
+To prevent such unnecessary turbulences, &lt;code>kube-controller-manager&lt;/code> is being scaled down until the external ingress becomes available again. In addition, as a precautionary measure, &lt;code>machine-controller-manager&lt;/code> is also scaled down, along with &lt;code>cluster-autoscaler&lt;/code> which depends on &lt;code>machine-controller-manager&lt;/code>.&lt;/p>
+&lt;p>⚠️ &lt;code>.spec.settings.dependencyWatchdog.probe.enabled&lt;/code> is deprecated and will be removed in a future version of Gardener. Use &lt;code>.spec.settings.dependencyWatchdog.prober.enabled&lt;/code> instead.&lt;/p>
+&lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.dependencyWatchdog.probe.enabled&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;h2 id="reserve-excess-capacity">Reserve Excess Capacity&lt;/h2>
+&lt;p>If the excess capacity reservation is enabled, then the gardenlet will deploy a special &lt;code>Deployment&lt;/code> into the &lt;code>garden&lt;/code> namespace of the seed cluster.
+This &lt;code>Deployment&lt;/code>&amp;rsquo;s pod template has only one container, the &lt;code>pause&lt;/code> container, which simply runs in an infinite loop.
+The priority of the deployment is very low, so any other pod will preempt these &lt;code>pause&lt;/code> pods.
+This is especially useful if new shoot control planes are created in the seed.
+In case the seed cluster runs at its capacity, then there is no waiting time required during the scale-up.
+Instead, the low-priority &lt;code>pause&lt;/code> pods will be preempted and allow newly created shoot control plane pods to be scheduled fast.
+In the meantime, the cluster-autoscaler will trigger the scale-up because the preempted &lt;code>pause&lt;/code> pods want to run again.
+However, this delay doesn&amp;rsquo;t affect the important shoot control plane pods, which will improve the user experience.&lt;/p>
+&lt;p>It can be enabled/disabled via the &lt;code>.spec.settings.excessCapacityReservation.enabled&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;h2 id="scheduling">Scheduling&lt;/h2>
+&lt;p>By default, the Gardener Scheduler will consider all seed clusters when a new shoot cluster shall be created.
+However, administrators/operators might want to exclude some of them from being considered by the scheduler.
+Therefore, seed clusters can be marked as &amp;ldquo;invisible&amp;rdquo;.
+In this case, the scheduler simply ignores them as if they wouldn&amp;rsquo;t exist.
+Shoots can still use the invisible seed but only by explicitly specifying the name in their &lt;code>.spec.seedName&lt;/code> field.&lt;/p>
+&lt;p>Seed clusters can be marked visible/invisible via the &lt;code>.spec.settings.scheduling.visible&lt;/code> field.
+It defaults to &lt;code>true&lt;/code>.&lt;/p>
+&lt;p>ℹ️ In previous Gardener versions (&amp;lt; 1.5) these settings were controlled via taint keys (&lt;code>seed.gardener.cloud/{disable-capacity-reservation,invisible}&lt;/code>).
+The taint keys are no longer supported and removed in version 1.12.
+The rationale behind it is the implementation of tolerations similar to Kubernetes tolerations.
+More information about it can be found in &lt;a href="https://github.com/gardener/gardener/issues/2193">#2193&lt;/a>.&lt;/p>
+&lt;h2 id="load-balancer-services">Load Balancer Services&lt;/h2>
+&lt;p>Gardener creates certain Kubernetes &lt;code>Service&lt;/code> objects of type &lt;code>LoadBalancer&lt;/code> in the seed cluster.
+Most prominently, they are used for exposing the shoot control planes, namely the kube-apiserver of the shoot clusters.
+In most cases, the cloud-controller-manager (responsible for managing these load balancers on the respective underlying infrastructure) supports certain customization and settings via annotations.
+&lt;a href="https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer">This document&lt;/a> provides a good overview and many examples.&lt;/p>
+&lt;p>By setting the &lt;code>.spec.settings.loadBalancerServices.annotations&lt;/code> field the Gardener administrator can specify a list of annotations, which will be injected into the &lt;code>Service&lt;/code>s of type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
+&lt;h3 id="external-traffic-policy">External Traffic Policy&lt;/h3>
+&lt;p>Setting the &lt;a href="https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip">external traffic policy&lt;/a> to &lt;code>Local&lt;/code> can be beneficial as it
+preserves the source IP address of client requests. In addition to that, it removes one hop in the data path and hence reduces request latency. On some cloud infrastructures, it can furthermore be
+used in conjunction with &lt;code>Service&lt;/code> annotations as described above to prevent cross-zonal traffic from the load balancer to the backend pod.&lt;/p>
+&lt;p>The default external traffic policy is &lt;code>Cluster&lt;/code>, meaning that all traffic from the load balancer will be sent to any cluster node, which then itself will redirect the traffic to the actual receiving pod.
+This approach adds a node to the data path, may cross the zone boundaries twice, and replaces the source IP with one of the cluster nodes.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/external-traffic-policy-cluster_d7d2ed.png" alt="External Traffic Policy Cluster">&lt;/p>
+&lt;p>Using external traffic policy &lt;code>Local&lt;/code> drops the additional node, i.e., only cluster nodes with corresponding backend pods will be in the list of backends of the load balancer. However, this has multiple implications.
+The health check port in this scenario is exposed by &lt;code>kube-proxy&lt;/code> , i.e., if &lt;code>kube-proxy&lt;/code> is not working on a node a corresponding pod on the node will not receive traffic from
+the load balancer as the load balancer will see a failing health check. (This is quite different from ordinary service routing where &lt;code>kube-proxy&lt;/code> is only responsible for setup, but does not need to
+run for its operation.) Furthermore, load balancing may become imbalanced if multiple pods run on the same node because load balancers will split the load equally among the nodes and not among the pods. This is mitigated by corresponding node anti affinities.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/external-traffic-policy-local_09608f.png" alt="External Traffic Policy Local">&lt;/p>
+&lt;p>Operators need to take these implications into account when considering switching external traffic policy to &lt;code>Local&lt;/code>.&lt;/p>
+&lt;h3 id="zone-specific-settings">Zone-Specific Settings&lt;/h3>
+&lt;p>In case a seed cluster is configured to use multiple zones via &lt;code>.spec.provider.zones&lt;/code>, it may be necessary to configure the load balancers in individual zones in different way, e.g., by utilizing
+different annotations. One reason may be to reduce cross-zonal traffic and have zone-specific load balancers in place. Zone-specific load balancers may then be bound to zone-specific subnets or
+availability zones in the cloud infrastructure.&lt;/p>
+&lt;p>Besides the load balancer annotations, it is also possible to set the &lt;a href="#external-traffic-policy">external traffic policy&lt;/a> for each zone-specific load balancer individually.&lt;/p>
+&lt;h2 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h2>
+&lt;p>Gardener heavily relies on the Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">&lt;code>vertical-pod-autoscaler&lt;/code> component&lt;/a>.
+By default, the seed controller deploys the VPA components into the &lt;code>garden&lt;/code> namespace of the respective seed clusters.
+In case you want to manage the VPA deployment on your own or have a custom one, then you might want to disable the automatic deployment of Gardener.
+Otherwise, you might end up with two VPAs, which will cause erratic behaviour.
+By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/code>, you can disable the automatic deployment.&lt;/p>
+&lt;p>⚠️ In any case, there must be a VPA available for your seed cluster. Using a seed without VPA is not supported.&lt;/p>
+&lt;h2 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h2>
+&lt;p>Refer to the &lt;a href="https://gardener.cloud/docs/gardener/operations/topology_aware_routing/">Topology-Aware Traffic Routing documentation&lt;/a> as this document contains the documentation for the topology-aware routing Seed setting.&lt;/p></description></item><item><title>Docs: Topology Aware Routing</title><link>https://gardener.cloud/docs/gardener/operations/topology_aware_routing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/operations/topology_aware_routing/</guid><description>
+&lt;h1 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h1>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>The enablement of &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_high_availability/">highly available shoot control-planes&lt;/a> requires multi-zone seed clusters. A garden runtime cluster can also be a multi-zone cluster. The topology-aware routing is introduced to reduce costs and to improve network performance by avoiding the cross availability zone traffic, if possible. The cross availability zone traffic is charged by the cloud providers and it comes with higher latency compared to the traffic within the same zone. The topology-aware routing feature enables topology-aware routing for &lt;code>Service&lt;/code>s deployed in a seed or garden runtime cluster. For the clients consuming these topology-aware services, &lt;code>kube-proxy&lt;/code> favors the endpoints which are located in the same zone where the traffic originated from. In this way, the cross availability zone traffic is avoided.&lt;/p>
+&lt;h2 id="how-it-works">How it works&lt;/h2>
+&lt;p>The topology-aware routing feature relies on the Kubernetes feature &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">&lt;code>TopologyAwareHints&lt;/code>&lt;/a>.&lt;/p>
+&lt;h5 id="endpointslice-hints-mutating-webhook">EndpointSlice Hints Mutating Webhook&lt;/h5>
+&lt;p>The component that is responsible for providing hints in the EndpointSlices resources is the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/">kube-controller-manager&lt;/a>, in particular this is the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/">EndpointSlice controller&lt;/a>. However, there are several drawbacks with the TopologyAwareHints feature that don&amp;rsquo;t allow us to use it in its native way:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>The algorithm in the EndpointSlice controller is based on a CPU-balance heuristic. From the TopologyAwareHints documentation:&lt;/p>
+&lt;blockquote>
+&lt;p>The controller allocates a proportional amount of endpoints to each zone. This proportion is based on the allocatable CPU cores for nodes running in that zone. For example, if one zone had 2 CPU cores and another zone only had 1 CPU core, the controller would allocate twice as many endpoints to the zone with 2 CPU cores.&lt;/p>
+&lt;/blockquote>
+&lt;p>In case it is not possible to achieve a balanced distribution of the endpoints, as a safeguard mechanism the controller removes hints from the EndpointSlice resource.
+In our setup, the clients and the servers are well-known and usually the traffic a component receives does not depend on the zone&amp;rsquo;s allocatable CPU.
+Many components deployed by Gardener are scaled automatically by VPA. In case of an overload of a replica, the VPA should provide and apply enhanced CPU and memory resources. Additionally, Gardener uses the cluster-autoscaler to upscale/downscale Nodes dynamically. Hence, it is not possible to ensure a balanced allocatable CPU across the zones.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The TopologyAwareHints feature does not work at low-endpoint counts. It falls apart for a Service with less than 10 Endpoints.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Hints provided by the EndpointSlice controller are not deterministic. With cluster-autoscaler running and load increasing, hints can be removed in the next moment. There is no option to enforce the zone-level topology.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>For more details, see the following issue &lt;a href="https://github.com/kubernetes/kubernetes/issues/113731">kubernetes/kubernetes#113731&lt;/a>.&lt;/p>
+&lt;p>To circumvent these issues with the EndpointSlice controller, a mutating webhook in the gardener-resource-manager assigns hints to EndpointSlice resources. For each endpoint in the EndpointSlice, it sets the endpoint&amp;rsquo;s hints to the endpoint&amp;rsquo;s zone. The webhook overwrites the hints provided by the EndpointSlice controller in kube-controller-manager. For more details, see the &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#endpointslice-hints">webhook&amp;rsquo;s documentation&lt;/a>.&lt;/p>
+&lt;h5 id="kube-proxy">kube-proxy&lt;/h5>
+&lt;p>By default, with kube-proxy running in &lt;code>iptables&lt;/code> mode, traffic is distributed randomly across all endpoints, regardless of where it originates from. In a cluster with 3 zones, traffic is more likely to go to another zone than to stay in the current zone.
+With the topology-aware routing feature, kube-proxy filters the endpoints it routes to based on the hints in the EndpointSlice resource. In most of the cases, kube-proxy will prefer the endpoint(s) in the same zone. For more details, see the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#implementation-kube-proxy">Kubernetes documentation&lt;/a>.&lt;/p>
+&lt;h2 id="how-to-make-a-service-topology-aware">How to make a Service topology-aware?&lt;/h2>
+&lt;p>To make a Service topology-aware, the following annotation and label have to be added to the Service:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service.kubernetes.io/topology-aware-hints: &lt;span style="color:#a31515">&amp;#34;auto&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoint-slice-hints.resources.gardener.cloud/consider: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Note: In Kubernetes 1.27 the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is deprecated in favor of the newly introduced &lt;code>service.kubernetes.io/topology-mode=auto&lt;/code>. When the runtime cluster&amp;rsquo;s K8s version is &amp;gt;= 1.27, use the &lt;code>service.kubernetes.io/topology-mode=auto&lt;/code> annotation. For more details, see the &lt;a href="https://github.com/kubernetes/kubernetes/pull/116522">corresponding upstream PR&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;p>The &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code> annotation is needed for kube-proxy. One of the prerequisites on kube-proxy side for using topology-aware routing is the corresponding Service to be annotated with the &lt;code>service.kubernetes.io/topology-aware-hints=auto&lt;/code>. For more details, see the following &lt;a href="https://github.com/kubernetes/kubernetes/blob/b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d/pkg/proxy/topology.go#L140-L186">kube-proxy function&lt;/a>.
+The &lt;code>endpoint-slice-hints.resources.gardener.cloud/consider=true&lt;/code> label is needed for gardener-resource-manager to prevent the EndpointSlice hints mutating webhook from selecting all EndpointSlice resources but only the ones that are labeled with the consider label.&lt;/p>
+&lt;p>The Gardener extensions can use this approach to make a Service they deploy topology-aware.&lt;/p>
+&lt;p>Prerequisites for making a Service topology-aware:&lt;/p>
+&lt;ol>
+&lt;li>The Pods backing the Service should be spread on most of the available zones. This constraint should be ensured with appropriate scheduling constraints (topology spread constraints, (anti-)affinity). Enabling the feature for a Service with a single backing Pod or Pods all located in the same zone does not lead to a benefit.&lt;/li>
+&lt;li>The component should be scaled up by &lt;code>VerticalPodAutoscaler&lt;/code>. In case of an overload (a large portion of the of the traffic is originating from a given zone), the &lt;code>VerticalPodAutoscaler&lt;/code> should provide better resource recommendations for the overloaded backing Pods.&lt;/li>
+&lt;li>Consider the &lt;a href="https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#constraints">&lt;code>TopologyAwareHints&lt;/code> constraints&lt;/a>.&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>Note: The topology-aware routing feature is considered as alpha feature. Use it only for evaluation purposes.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="topology-aware-services-in-the-seed-cluster">Topology-aware Services in the Seed cluster&lt;/h2>
+&lt;h5 id="etcd-main-client-and-etcd-events-client">etcd-main-client and etcd-events-client&lt;/h5>
+&lt;p>The &lt;code>etcd-main-client&lt;/code> and &lt;code>etcd-events-client&lt;/code> Services are topology-aware. They are consumed by the kube-apiserver.&lt;/p>
+&lt;h5 id="kube-apiserver">kube-apiserver&lt;/h5>
+&lt;p>The &lt;code>kube-apiserver&lt;/code> Service is topology-aware. It is consumed by the controllers running in the Shoot control plane.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: The &lt;code>istio-ingressgateway&lt;/code> component routes traffic in topology-aware manner - if possible, it routes traffic to the target &lt;code>kube-apiserver&lt;/code> Pods in the same zone. If there is no healthy &lt;code>kube-apiserver&lt;/code> Pod available in the same zone, the traffic is routed to any of the healthy Pods in the other zones. This behaviour is unconditionally enabled.&lt;/p>
+&lt;/blockquote>
+&lt;h5 id="gardener-resource-manager">gardener-resource-manager&lt;/h5>
+&lt;p>The &lt;code>gardener-resource-manager&lt;/code> Service that is part of the Shoot control plane is topology-aware. The resource-manager serves webhooks and the Service is consumed by the kube-apiserver for the webhook communication.&lt;/p>
+&lt;h5 id="vpa-webhook">vpa-webhook&lt;/h5>
+&lt;p>The &lt;code>vpa-webhook&lt;/code> Service that is part of the Shoot control plane is topology-aware. It is consumed by the kube-apiserver for the webhook communication.&lt;/p>
+&lt;h2 id="topology-aware-services-in-the-garden-runtime-cluster">Topology-aware Services in the garden runtime cluster&lt;/h2>
+&lt;h5 id="virtual-garden-etcd-main-client-and-virtual-garden-etcd-events-client">virtual-garden-etcd-main-client and virtual-garden-etcd-events-client&lt;/h5>
+&lt;p>The &lt;code>virtual-garden-etcd-main-client&lt;/code> and &lt;code>virtual-garden-etcd-events-client&lt;/code> Services are topology-aware. &lt;code>virtual-garden-etcd-main-client&lt;/code> is consumed by &lt;code>virtual-garden-kube-apiserver&lt;/code> and &lt;code>gardener-apiserver&lt;/code>, &lt;code>virtual-garden-etcd-events-client&lt;/code> is consumed by &lt;code>virtual-garden-kube-apiserver&lt;/code>.&lt;/p>
+&lt;h5 id="virtual-garden-kube-apiserver">virtual-garden-kube-apiserver&lt;/h5>
+&lt;p>The &lt;code>virtual-garden-kube-apiserver&lt;/code> Service is topology-aware. It is consumed by &lt;code>virtual-garden-kube-controller-manager&lt;/code>, &lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>, &lt;code>gardener-admission-controller&lt;/code>, extension admission components, &lt;code>gardener-dashboard&lt;/code> and other components.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: Unlike the other Services, the &lt;code>virtual-garden-kube-apiserver&lt;/code> Service is of type LoadBalancer. In-cluster components consuming the &lt;code>virtual-garden-kube-apiserver&lt;/code> Service by its Service name will have benefit from the topology-aware routing. However, the TopologyAwareHints feature cannot help with external traffic routed to load balancer&amp;rsquo;s address - such traffic won&amp;rsquo;t be routed in a topology-aware manner and will be routed according to the cloud-provider specific implementation.&lt;/p>
+&lt;/blockquote>
+&lt;h5 id="gardener-apiserver">gardener-apiserver&lt;/h5>
+&lt;p>The &lt;code>gardener-apiserver&lt;/code> Service is topology-aware. It is consumed by &lt;code>virtual-garden-kube-apiserver&lt;/code>. The aggregation layer in &lt;code>virtual-garden-kube-apiserver&lt;/code> proxies requests sent for the Gardener API types to the &lt;code>gardener-apiserver&lt;/code>.&lt;/p>
+&lt;h5 id="gardener-admission-controller">gardener-admission-controller&lt;/h5>
+&lt;p>The &lt;code>gardener-admission-controller&lt;/code> Service is topology-aware. It is consumed by &lt;code>virtual-garden-kube-apiserver&lt;/code> and &lt;code>gardener-apiserver&lt;/code> for the webhook communication.&lt;/p>
+&lt;h2 id="how-to-enable-the-topology-aware-routing-for-a-seed-cluster">How to enable the topology-aware routing for a Seed cluster?&lt;/h2>
+&lt;p>For a Seed cluster the topology-aware routing functionality can be enabled in the Seed specification:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyAwareRouting:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The topology-aware routing setting can be only enabled for a Seed cluster with more than one zone.
+gardenlet enables topology-aware Services only for Shoot control planes with failure tolerance type &lt;code>zone&lt;/code> (&lt;code>.spec.controlPlane.highAvailability.failureTolerance.type=zone&lt;/code>). Control plane Pods of non-HA Shoots and HA Shoots with failure tolerance type &lt;code>node&lt;/code> are pinned to single zone. For more details, see &lt;a href="https://gardener.cloud/docs/gardener/development/high-availability/">High Availability Of Deployed Components&lt;/a>.&lt;/p>
+&lt;p>⚠️ For K8s &amp;lt; 1.24 Seed clusters, the topology-aware routing setting requires the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature gate to be enabled for kube-apiserver, kube-controller-manager and kube-proxy. This is required because the &lt;code>TopologyAwareHints&lt;/code> feature gate is disabled by default in K8s &amp;lt; 1.24. When &lt;code>TopologyAwareHints&lt;/code> is disabled, the kube-apiserver does not allow anything to be persisted in the &lt;code>.endpoints[].hints&lt;/code> field in the EndpointSlice resource. Also, the kube-controller-manager removes the hints, hence kube-proxy is not using topology-aware routing.&lt;/p>
+&lt;h2 id="how-to-enable-the-topology-aware-routing-for-a-garden-runtime-cluster">How to enable the topology-aware routing for a garden runtime cluster?&lt;/h2>
+&lt;p>For a garden runtime cluster the topology-aware routing functionality can be enabled in the Garden resource specification:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: operator.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeCluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> topologyAwareRouting:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The topology-aware routing setting can be only enabled for a garden runtime cluster with more than one zone.&lt;/p>
+&lt;p>⚠️ For K8s &amp;lt; 1.24 garden runtime clusters, the topology-aware routing setting requires the Kubernetes &lt;code>TopologyAwareHints&lt;/code> feature gate to be enabled for kube-apiserver, kube-controller-manager and kube-proxy. For more details, see the above section.&lt;/p></description></item></channel></rss>

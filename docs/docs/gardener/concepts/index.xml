@@ -1140,10 +1140,11 @@ Hence, if you want to access the virtual garden cluster, you have to run the fol
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="tear-down-the-gardener-operator-environment">Tear Down the Gardener Operator Environment&lt;/h3>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-down
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
-&lt;h3 id="controllers">Controllers&lt;/h3>
-&lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one controller which is now described in more detail.&lt;/p>
-&lt;h4 id="garden-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden">&lt;code>Garden&lt;/code> Controller&lt;/a>&lt;/h4>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="controllers">Controllers&lt;/h2>
+&lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has two controllers which are now described in more detail.&lt;/p>
+&lt;h3 id="garden-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden">&lt;code>Garden&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The Garden controller in the operator reconciles Garden objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardengarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/garden">&lt;code>Main&lt;/code> Reconciler&lt;/a>&lt;/h4>
 &lt;p>The reconciler first generates a general CA certificate which is valid for ~&lt;code>30d&lt;/code> and auto-rotated when 80% of its lifetime is reached.
 Afterwards, it brings up the so-called &amp;ldquo;garden system components&amp;rdquo;.
 The &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/">&lt;code>gardener-resource-manager&lt;/code>&lt;/a> is deployed first since its &lt;code>ManagedResource&lt;/code> controller will be used to bring up the remainders.&lt;/p>
@@ -1188,13 +1189,31 @@ The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and 
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>Reconciled&lt;/code> condition which indicates the status of an operation.&lt;/p>
-&lt;h4 id="networkpolicy-controller-registrarhttpsgithubcomgardenergardenertreemasterpkgcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller Registrar&lt;/a>&lt;/h4>
+&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardencare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/care">&lt;code>Care&lt;/code> Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler performs four &amp;ldquo;care&amp;rdquo; actions related to &lt;code>Garden&lt;/code>s.&lt;/p>
+&lt;p>It maintains four conditions and performs the following checks:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>RuntimeComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s applied to the runtime cluster are checked (e.g., &lt;code>ResourcesApplied&lt;/code>).&lt;/li>
+&lt;li>&lt;code>VirtualComponentsHealthy&lt;/code>: The virtual components are considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>virtual-garden-kube-apiserver&lt;/code>,&lt;code>virtual-garden-kube-controller-manager&lt;/code>), and &lt;code>Etcd&lt;/code>s (for example &lt;code>virtual-garden-etcd-main&lt;/code>) exist and are healthy. Additionally, the conditions of the &lt;code>ManagedResource&lt;/code>s applied to the virtual cluster are checked (e.g., &lt;code>ResourcesApplied&lt;/code>).&lt;/li>
+&lt;li>&lt;code>VirtualGardenAPIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the garden&amp;rsquo;s &lt;code>virtual-garden-kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>If all checks for a certain condition are succeeded, then its &lt;code>status&lt;/code> will be set to &lt;code>True&lt;/code>.
+Otherwise, it will be set to &lt;code>False&lt;/code> or &lt;code>Progressing&lt;/code>.&lt;/p>
+&lt;p>If at least one check fails and there is threshold configuration for the conditions (in &lt;code>.controllers.gardenCare.conditionThresholds&lt;/code>), then the status will be set:&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
+&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition exceeds the configured threshold duration.&lt;/li>
+&lt;/ul>
+&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
+Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h3 id="networkpolicy-controller-registrarhttpsgithubcomgardenergardenertreemasterpkgcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller Registrar&lt;/a>&lt;/h3>
 &lt;p>This controller registers the same &lt;code>NetworkPolicy&lt;/code> controller which is also used in &lt;code>gardenlet&lt;/code>, please read it up &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#networkpolicy-controllerpkggardenletcontrollernetworkpolicy">here&lt;/a> for more details.&lt;/p>
 &lt;p>The registration happens as soon as the &lt;code>Garden&lt;/code> resource is created.
 It contains the networking information of the garden runtime cluster which is required configuration for the &lt;code>NetworkPolicy&lt;/code> controller.&lt;/p>
-&lt;h3 id="webhooks">Webhooks&lt;/h3>
+&lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
-&lt;h4 id="validation">Validation&lt;/h4>
+&lt;h3 id="validation">Validation&lt;/h3>
 &lt;p>This webhook handler validates &lt;code>CREATE&lt;/code>/&lt;code>UPDATE&lt;/code>/&lt;code>DELETE&lt;/code> operations on &lt;code>Garden&lt;/code> resources.
 Simple validation is performed via &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation">standard CRD validation&lt;/a>.
 However, more advanced validation is hard to express via these means and is performed by this webhook handler.&lt;/p>
@@ -1203,7 +1222,7 @@ Only if this annotation is present it allows the &lt;code>DELETE&lt;/code> opera
 This prevents users from accidental/undesired deletions.&lt;/p>
 &lt;p>Another validation is to check that there is only one &lt;code>Garden&lt;/code> resource at a time.
 It prevents creating a second &lt;code>Garden&lt;/code> when there is already one in the system.&lt;/p>
-&lt;h4 id="defaulting">Defaulting&lt;/h4>
+&lt;h3 id="defaulting">Defaulting&lt;/h3>
 &lt;p>This webhook handler mutates the &lt;code>Garden&lt;/code> resource on &lt;code>CREATE&lt;/code>/&lt;code>UPDATE&lt;/code>/&lt;code>DELETE&lt;/code> operations.
 Simple defaulting is performed via &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#defaulting">standard CRD defaulting&lt;/a>.
 However, more advanced defaulting is hard to express via these means and is performed by this webhook handler.&lt;/p></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>

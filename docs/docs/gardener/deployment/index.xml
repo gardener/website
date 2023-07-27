@@ -735,6 +735,13 @@ If so, the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#
 &lt;td>&lt;code>1.73&lt;/code>&lt;/td>
 &lt;td>&lt;/td>
 &lt;/tr>
+&lt;tr>
+&lt;td>ContainerdRegistryHostsDir&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;td>&lt;code>Alpha&lt;/code>&lt;/td>
+&lt;td>&lt;code>1.77&lt;/code>&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
 &lt;/tbody>
 &lt;/table>
 &lt;h2 id="feature-gates-for-graduated-or-deprecated-features">Feature Gates for Graduated or Deprecated Features&lt;/h2>
@@ -1503,336 +1510,13 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;td>&lt;code>gardenlet&lt;/code>&lt;/td>
 &lt;td>Disables assigning a ScalingClass to Shoots based on their maximum Node count. All Shoot kube-apiservers will get the same initial resource requests for CPU and memory instead of making this depend on the ScalingClass.&lt;/td>
 &lt;/tr>
-&lt;/tbody>
-&lt;/table></description></item><item><title>Docs: gardenlet API Access</title><link>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</guid><description>
-&lt;h1 id="scoped-api-access-for-gardenlets">Scoped API Access for gardenlets&lt;/h1>
-&lt;p>By default, &lt;code>gardenlet&lt;/code>s have administrative access in the garden cluster.
-They are able to execute any API request on any object independent of whether the object is related to the seed cluster the &lt;code>gardenlet&lt;/code> is responsible for.
-As RBAC is not powerful enough for fine-grained checks and for the sake of security, Gardener provides two optional but recommended configurations for your environments that scope the API access for &lt;code>gardenlet&lt;/code>s.&lt;/p>
-&lt;p>Similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/node/">&lt;code>Node&lt;/code> authorization mode in Kubernetes&lt;/a>, Gardener features a &lt;code>SeedAuthorizer&lt;/code> plugin.
-It is a special-purpose authorization plugin that specifically authorizes API requests made by the &lt;code>gardenlet&lt;/code>s.&lt;/p>
-&lt;p>Likewise, similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#noderestriction">&lt;code>NodeRestriction&lt;/code> admission plugin in Kubernetes&lt;/a>, Gardener features a &lt;code>SeedRestriction&lt;/code> plugin.
-It is a special-purpose admission plugin that specifically limits the Kubernetes objects &lt;code>gardenlet&lt;/code>s can modify.&lt;/p>
-&lt;p>📚 You might be interested to look into the &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-authorizer.md">design proposal for scoped Kubelet API access&lt;/a> from the Kubernetes community.
-It can be translated to Gardener and Gardenlets with their &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> resources.&lt;/p>
-&lt;h2 id="flow-diagram">Flow Diagram&lt;/h2>
-&lt;p>The following diagram shows how the two plugins are included in the request flow of a &lt;code>gardenlet&lt;/code>.
-When they are not enabled, then the &lt;code>kube-apiserver&lt;/code> is internally authorizing the request via RBAC before forwarding the request directly to the &lt;code>gardener-apiserver&lt;/code>, i.e., the &lt;code>gardener-admission-controller&lt;/code> would not be consulted (this is not entirely correct because it also serves other admission webhook handlers, but for simplicity reasons this document focuses on the API access scope only).&lt;/p>
-&lt;p>When enabling the plugins, there is one additional step for each before the &lt;code>gardener-apiserver&lt;/code> responds to the request.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet_api_access_flow_6dfa06.png" alt="Flow Diagram">&lt;/p>
-&lt;p>Please note that the example shows a request to an object (&lt;code>Shoot&lt;/code>) residing in one of the API groups served by &lt;code>gardener-apiserver&lt;/code>.
-However, the &lt;code>gardenlet&lt;/code> is also interacting with objects in API groups served by the &lt;code>kube-apiserver&lt;/code> (e.g., &lt;code>Secret&lt;/code>,&lt;code>ConfigMap&lt;/code>).
-In this case, the consultation of the &lt;code>SeedRestriction&lt;/code> admission plugin is performed by the &lt;code>kube-apiserver&lt;/code> itself before it forwards the request to the &lt;code>gardener-apiserver&lt;/code>.&lt;/p>
-&lt;p>Today, the following rules are implemented:&lt;/p>
-&lt;table>
-&lt;thead>
 &lt;tr>
-&lt;th>Resource&lt;/th>
-&lt;th>Verbs&lt;/th>
-&lt;th>Path(s)&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>&lt;code>BackupBucket&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
-&lt;td>&lt;code>BackupBucket&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>BackupBucket&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for &lt;code>BackupBucket&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>BackupEntry&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>BackupEntry&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>BackupEntry&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>BackupEntry&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code> and referencing &lt;code>BackupBucket&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Bastion&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>Bastion&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Bastion&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>Bastion&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>CertificateSigningRequest&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>create&lt;/code>&lt;/td>
-&lt;td>&lt;code>CertificateSigningRequest&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow only &lt;code>get&lt;/code>, &lt;code>create&lt;/code> requests for &lt;code>CertificateSigningRequest&lt;/code>s related to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>CloudProfile&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>CloudProfile&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>CloudProfile&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ClusterRoleBinding&lt;/code>&lt;/td>
-&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
-&lt;td>&lt;code>ClusterRoleBinding&lt;/code> -&amp;gt; &lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s in the bootstrapping phase assigned to the gardenlet&amp;rsquo;s &lt;code>Seed&lt;/code>s. Allow &lt;code>delete&lt;/code> requests from gardenlets bootstrapped via &lt;code>ManagedSeed&lt;/code>s.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ConfigMap&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>ConfigMap&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>ConfigMap&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Allows reading the &lt;code>kube-system/cluster-identity&lt;/code> &lt;code>ConfigMap&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ControllerRegistration&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>&lt;/td>
-&lt;td>&lt;code>ControllerRegistration&lt;/code> -&amp;gt; &lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ControllerRegistration&lt;/code>s.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ControllerDeployment&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>ControllerDeployment&lt;/code> -&amp;gt; &lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>ControllerDeployments&lt;/code>s referenced by &lt;code>ControllerInstallation&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ControllerInstallation&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ControllerInstallation&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ControllerInstallation&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Event&lt;/code>&lt;/td>
-&lt;td>&lt;code>create&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>none&lt;/td>
-&lt;td>Allow to &lt;code>create&lt;/code> or &lt;code>patch&lt;/code> all kinds of &lt;code>Event&lt;/code>s.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ExposureClass&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>ExposureClass&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>ExposureClass&lt;/code>es referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Deny &lt;code>get&lt;/code> requests to other &lt;code>ExposureClass&lt;/code>es.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Lease&lt;/code>&lt;/td>
-&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>&lt;/td>
-&lt;td>&lt;code>Lease&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, and &lt;code>delete&lt;/code> requests for &lt;code>Lease&lt;/code>s of the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ManagedSeed&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ManagedSeed&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s referencing a &lt;code>Shoot&lt;/code> assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Namespace&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>Namespace&lt;/code>s of &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Always allow &lt;code>get&lt;/code> requests for the &lt;code>garden&lt;/code> &lt;code>Namespace&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Project&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>Project&lt;/code> -&amp;gt; &lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>Project&lt;/code>s referenced by the &lt;code>Namespace&lt;/code> of &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>SecretBinding&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>&lt;/td>
-&lt;td>&lt;code>SecretBinding&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>SecretBinding&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Secret&lt;/code>&lt;/td>
-&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>(, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>)&lt;/td>
-&lt;td>&lt;code>Secret&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>Secret&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>Secret&lt;/code> -&amp;gt; &lt;code>SecretBinding&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>BackupBucket&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Secret&lt;/code>s in the &lt;code>seed-&amp;lt;name&amp;gt;&lt;/code> namespace. Allow only &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for the &lt;code>Secret&lt;/code>s related to resources assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
-&lt;td>&lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Seed&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s. [1]&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ServiceAccount&lt;/code>&lt;/td>
-&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
-&lt;td>&lt;code>ServiceAccount&lt;/code> -&amp;gt; &lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>ServiceAccount&lt;/code> -&amp;gt; &lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s in the bootstrapping phase assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s. Allow &lt;code>delete&lt;/code> requests from gardenlets bootstrapped via &lt;code>ManagedSeed&lt;/code>s. Allow all verbs on &lt;code>ServiceAccount&lt;/code>s in seed-specific namespace.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>Shoot&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Shoot&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>Shoot&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>ShootState&lt;/code>&lt;/td>
-&lt;td>&lt;code>get&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
-&lt;td>&lt;code>ShootState&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
-&lt;td>Allow only &lt;code>get&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ShootState&lt;/code>s belonging by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;td>ContainerdRegistryHostsDir&lt;/td>
+&lt;td>&lt;code>gardenlet&lt;/code>&lt;/td>
+&lt;td>Enables registry configuration in containerd based on the hosts directory pattern. The hosts directory pattern is the new way of configuring registries/mirrors in containerd. Ref &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">https://github.com/containerd/containerd/blob/main/docs/hosts.md&lt;/a>.&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table>
-&lt;blockquote>
-&lt;p>[1] If you use &lt;code>ManagedSeed&lt;/code> resources then the &lt;code>gardenlet&lt;/code> reconciling them (&amp;ldquo;parent &lt;code>gardenlet&lt;/code>&amp;rdquo;) may be allowed to submit certain requests for the &lt;code>Seed&lt;/code> resources resulting out of such &lt;code>ManagedSeed&lt;/code> reconciliations (even if the &amp;ldquo;parent &lt;code>gardenlet&lt;/code>&amp;rdquo; is not responsible for them):&lt;/p>
-&lt;/blockquote>
-&lt;p>ℹ️ It is allowed to delete the &lt;code>Seed&lt;/code> resources if the corresponding &lt;code>ManagedSeed&lt;/code> objects already have a &lt;code>deletionTimestamp&lt;/code> (this is secure as &lt;code>gardenlet&lt;/code>s themselves don&amp;rsquo;t have permissions for deleting &lt;code>ManagedSeed&lt;/code>s).&lt;/p>
-&lt;h2 id="seedauthorizer-authorization-webhook-enablement">&lt;code>SeedAuthorizer&lt;/code> Authorization Webhook Enablement&lt;/h2>
-&lt;p>The &lt;code>SeedAuthorizer&lt;/code> is implemented as a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/webhook/">Kubernetes authorization webhook&lt;/a> and part of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/">&lt;code>gardener-admission-controller&lt;/code>&lt;/a> component running in the garden cluster.&lt;/p>
-&lt;p>🎛 In order to activate it, you have to follow these steps:&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>Set the following flags for the &lt;code>kube-apiserver&lt;/code> of the garden cluster (i.e., the &lt;code>kube-apiserver&lt;/code> whose API is extended by Gardener):&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>--authorization-mode=RBAC,Node,Webhook&lt;/code> (please note that &lt;code>Webhook&lt;/code> should appear after &lt;code>RBAC&lt;/code> in the list [1]; &lt;code>Node&lt;/code> might not be needed if you use a virtual garden cluster)&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-config-file=&amp;lt;path-to-the-webhook-config-file&amp;gt;&lt;/code>&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-cache-authorized-ttl=0&lt;/code>&lt;/li>
-&lt;li>&lt;code>--authorization-webhook-cache-unauthorized-ttl=0&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>The webhook config file (stored at &lt;code>&amp;lt;path-to-the-webhook-config-file&amp;gt;&lt;/code>) should look as follows:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: base64(CA-CERT-OF-GARDENER-ADMISSION-CONTROLLER)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://gardener-admission-controller.garden/webhooks/auth/seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: kube-apiserver
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: {}
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: auth-webhook
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: garden
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: kube-apiserver
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: auth-webhook
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;li>
-&lt;p>When deploying the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">Gardener &lt;code>controlplane&lt;/code> Helm chart&lt;/a>, set &lt;code>.global.rbac.seedAuthorizer.enabled=true&lt;/code>. This will ensure that the RBAC resources granting global access for all &lt;code>gardenlet&lt;/code>s will be deployed.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Delete the existing RBAC resources granting global access for all &lt;code>gardenlet&lt;/code>s by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> clusterrole.rbac.authorization.k8s.io/gardener.cloud:system:seeds &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> clusterrolebinding.rbac.authorization.k8s.io/gardener.cloud:system:seeds &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --ignore-not-found
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
-&lt;/ol>
-&lt;p>Please note that you should activate the &lt;a href="#seedrestriction-admission-webhook-enablement">&lt;code>SeedRestriction&lt;/code>&lt;/a> admission handler as well.&lt;/p>
-&lt;blockquote>
-&lt;p>[1] The reason for the fact that &lt;code>Webhook&lt;/code> authorization plugin should appear after &lt;code>RBAC&lt;/code> is that the &lt;code>kube-apiserver&lt;/code> will be depending on the &lt;code>gardener-admission-controller&lt;/code> (serving the webhook). However, the &lt;code>gardener-admission-controller&lt;/code> can only start when &lt;code>gardener-apiserver&lt;/code> runs, but &lt;code>gardener-apiserver&lt;/code> itself can only start when &lt;code>kube-apiserver&lt;/code> runs. If &lt;code>Webhook&lt;/code> is before &lt;code>RBAC&lt;/code>, then &lt;code>gardener-apiserver&lt;/code> might not be able to start, leading to a deadlock.&lt;/p>
-&lt;/blockquote>
-&lt;h3 id="authorizer-decisions">Authorizer Decisions&lt;/h3>
-&lt;p>As mentioned earlier, it&amp;rsquo;s the authorizer&amp;rsquo;s job to evaluate API requests and return one of the following decisions:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>DecisionAllow&lt;/code>: The request is allowed, further configured authorizers won&amp;rsquo;t be consulted.&lt;/li>
-&lt;li>&lt;code>DecisionDeny&lt;/code>: The request is denied, further configured authorizers won&amp;rsquo;t be consulted.&lt;/li>
-&lt;li>&lt;code>DecisionNoOpinion&lt;/code>: A decision cannot be made, further configured authorizers will be consulted.&lt;/li>
-&lt;/ul>
-&lt;p>For backwards compatibility, no requests are denied at the moment, so that they are still deferred to a subsequent authorizer like RBAC.
-Though, this might change in the future.&lt;/p>
-&lt;p>First, the &lt;code>SeedAuthorizer&lt;/code> extracts the &lt;code>Seed&lt;/code> name from the API request. This requires a proper TLS certificate that the &lt;code>gardenlet&lt;/code> uses to contact the API server and is automatically given if &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#TLS-Bootstrapping">TLS bootstrapping&lt;/a> is used.
-Concretely, the authorizer checks the certificate for name &lt;code>gardener.cloud:system:seed:&amp;lt;seed-name&amp;gt;&lt;/code> and group &lt;code>gardener.cloud:system:seeds&lt;/code>.
-In cases where this information is missing e.g., when a custom Kubeconfig is used, the authorizer cannot make any decision. Thus, RBAC is still a considerable option to restrict the &lt;code>gardenlet&lt;/code>&amp;rsquo;s access permission if the above explained preconditions are not given.&lt;/p>
-&lt;p>With the &lt;code>Seed&lt;/code> name at hand, the authorizer checks for an &lt;strong>existing path&lt;/strong> from the resource that a request is being made for to the &lt;code>Seed&lt;/code> belonging to the &lt;code>gardenlet&lt;/code>. Take a look at the &lt;a href="#implementation-details">Implementation Details&lt;/a> section for more information.&lt;/p>
-&lt;h3 id="implementation-details">Implementation Details&lt;/h3>
-&lt;p>Internally, the &lt;code>SeedAuthorizer&lt;/code> uses a directed, acyclic graph data structure in order to efficiently respond to authorization requests for &lt;code>gardenlet&lt;/code>s:&lt;/p>
-&lt;ul>
-&lt;li>A vertex in this graph represents a Kubernetes resource with its kind, namespace, and name (e.g., &lt;code>Shoot:garden-my-project/my-shoot&lt;/code>).&lt;/li>
-&lt;li>An edge from vertex &lt;code>u&lt;/code> to vertex &lt;code>v&lt;/code> in this graph exists when
-&lt;ul>
-&lt;li>(1) &lt;code>v&lt;/code> is referred by &lt;code>u&lt;/code> and &lt;code>v&lt;/code> is a &lt;code>Seed&lt;/code>, or when&lt;/li>
-&lt;li>(2) &lt;code>u&lt;/code> is referred by &lt;code>v&lt;/code>, or when&lt;/li>
-&lt;li>(3) &lt;code>u&lt;/code> is strictly associated with &lt;code>v&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;/ul>
-&lt;p>For example, a &lt;code>Shoot&lt;/code> refers to a &lt;code>Seed&lt;/code>, a &lt;code>CloudProfile&lt;/code>, a &lt;code>SecretBinding&lt;/code>, etc., so it has an outgoing edge to the &lt;code>Seed&lt;/code> (1) and incoming edges from the &lt;code>CloudProfile&lt;/code> and &lt;code>SecretBinding&lt;/code> vertices (2).
-However, there might also be a &lt;code>ShootState&lt;/code> or a &lt;code>BackupEntry&lt;/code> resource strictly associated with this &lt;code>Shoot&lt;/code>, hence, it has incoming edges from these vertices (3).&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet_api_access_graph_5486ba.png" alt="Resource Dependency Graph">&lt;/p>
-&lt;p>In the above picture, the resources that are actively watched are shaded.
-Gardener resources are green, while Kubernetes resources are blue.
-It shows the dependencies between the resources and how the graph is built based on the above rules.&lt;/p>
-&lt;p>ℹ️ The above picture shows all resources that may be accessed by &lt;code>gardenlet&lt;/code>s, except for the &lt;code>Quota&lt;/code> resource which is only included for completeness.&lt;/p>
-&lt;p>Now, when a &lt;code>gardenlet&lt;/code> wants to access certain resources, then the &lt;code>SeedAuthorizer&lt;/code> uses a Depth-First traversal starting from the vertex representing the resource in question, e.g., from a &lt;code>Project&lt;/code> vertex.
-If there is a path from the &lt;code>Project&lt;/code> vertex to the vertex representing the &lt;code>Seed&lt;/code> the &lt;code>gardenlet&lt;/code> is responsible for. then it allows the request.&lt;/p>
-&lt;h4 id="metrics">Metrics&lt;/h4>
-&lt;p>The &lt;code>SeedAuthorizer&lt;/code> registers the following metrics related to the mentioned graph implementation:&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Metric&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>&lt;code>gardener_admission_controller_seed_authorizer_graph_update_duration_seconds&lt;/code>&lt;/td>
-&lt;td>Histogram of duration of resource dependency graph updates in seed authorizer, i.e., how long does it take to update the graph&amp;rsquo;s vertices/edges when a resource is created, changed, or deleted.&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>gardener_admission_controller_seed_authorizer_graph_path_check_duration_seconds&lt;/code>&lt;/td>
-&lt;td>Histogram of duration of checks whether a path exists in the resource dependency graph in seed authorizer.&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;h4 id="debug-handler">Debug Handler&lt;/h4>
-&lt;p>When the &lt;code>.server.enableDebugHandlers&lt;/code> field in the &lt;code>gardener-admission-controller&lt;/code>&amp;rsquo;s component configuration is set to &lt;code>true&lt;/code>, then it serves a handler that can be used for debugging the resource dependency graph under &lt;code>/debug/resource-dependency-graph&lt;/code>.&lt;/p>
-&lt;p>🚨 Only use this setting for development purposes, as it enables unauthenticated users to view all data if they have access to the &lt;code>gardener-admission-controller&lt;/code> component.&lt;/p>
-&lt;p>The handler renders an HTML page displaying the current graph with a list of vertices and its associated incoming and outgoing edges to other vertices.
-Depending on the size of the Gardener landscape (and consequently, the size of the graph), it might not be possible to render it in its entirety.
-If there are more than 2000 vertices, then the default filtering will selected for &lt;code>kind=Seed&lt;/code> to prevent overloading the output.&lt;/p>
-&lt;p>&lt;em>Example output&lt;/em>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # Seed:my-seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| &amp;lt;- (11)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| BackupBucket:73972fe2-3d7e-4f61-a406-b8f9e670e6b7
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| BackupEntry:garden-my-project/shoot--dev--my-shoot--4656a460-1a69-4f00-9372-7452cbd38ee3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:dns-external-mxt8m
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:extension-shoot-cert-service-4qw5j
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:networking-calico-bgrb2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:os-gardenlinux-qvb5z
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:provider-gcp-w4mvf
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Secret:garden/backup
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot:garden-my-project/my-shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # Shoot:garden-my-project/my-shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| &amp;lt;- (5)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| CloudProfile:gcp
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Namespace:garden-my-project
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Secret:garden-my-project/my-dns-secret
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| SecretBinding:garden-my-project/my-credentials
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ShootState:garden-my-project/my-shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| -&amp;gt; (1)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Seed:my-seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # ShootState:garden-my-project/my-shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| -&amp;gt; (1)
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot:garden-my-project/my-shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>... (etc., similarly for the other resources)
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>There are anchor links to easily jump from one resource to another, and the page provides means for filtering the results based on the &lt;code>kind&lt;/code>, &lt;code>namespace&lt;/code>, and/or &lt;code>name&lt;/code>.&lt;/p>
-&lt;h4 id="pitfalls">Pitfalls&lt;/h4>
-&lt;p>When there is a relevant update to an existing resource, i.e., when a reference to another resource is changed, then the corresponding vertex (along with all associated edges) is first deleted from the graph before it gets added again with the up-to-date edges.
-However, this does only work for vertices belonging to resources that are only created in exactly one &amp;ldquo;watch handler&amp;rdquo;.
-For example, the vertex for a &lt;code>SecretBinding&lt;/code> can either be created in the &lt;code>SecretBinding&lt;/code> handler itself or in the &lt;code>Shoot&lt;/code> handler.
-In such cases, deleting the vertex before (re-)computing the edges might lead to race conditions and potentially renders the graph invalid.
-Consequently, instead of deleting the vertex, only the edges the respective handler is responsible for are deleted.
-If the vertex ends up with no remaining edges, then it also gets deleted automatically.
-Afterwards, the vertex can either be added again or the updated edges can be created.&lt;/p>
-&lt;h2 id="seedrestriction-admission-webhook-enablement">&lt;code>SeedRestriction&lt;/code> Admission Webhook Enablement&lt;/h2>
-&lt;p>The &lt;code>SeedRestriction&lt;/code> is implemented as &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">Kubernetes admission webhook&lt;/a> and part of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/">&lt;code>gardener-admission-controller&lt;/code>&lt;/a> component running in the garden cluster.&lt;/p>
-&lt;p>🎛 In order to activate it, you have to set &lt;code>.global.admission.seedRestriction.enabled=true&lt;/code> when using the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">Gardener &lt;code>controlplane&lt;/code> Helm chart&lt;/a>.
-This will add an additional webhook in the existing &lt;code>ValidatingWebhookConfiguration&lt;/code> of the &lt;code>gardener-admission-controller&lt;/code> which contains the configuration for the &lt;code>SeedRestriction&lt;/code> handler.
-Please note that it should only be activated when the &lt;code>SeedAuthorizer&lt;/code> is active as well.&lt;/p>
-&lt;h3 id="admission-decisions">Admission Decisions&lt;/h3>
-&lt;p>The admission&amp;rsquo;s purpose is to perform extended validation on requests which require the body of the object in question.
-Additionally, it handles &lt;code>CREATE&lt;/code> requests of &lt;code>gardenlet&lt;/code>s (the above discussed resource dependency graph cannot be used in such cases because there won&amp;rsquo;t be any vertex/edge for non-existing resources).&lt;/p>
-&lt;p>Gardenlets are restricted to only create new resources which are somehow related to the seed clusters they are responsible for.&lt;/p></description></item><item><title>Docs: Getting Started Locally</title><link>https://gardener.cloud/docs/gardener/deployment/getting_started_locally/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/getting_started_locally/</guid><description>
+&lt;/table></description></item><item><title>Docs: Getting Started Locally</title><link>https://gardener.cloud/docs/gardener/deployment/getting_started_locally/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/getting_started_locally/</guid><description>
 &lt;h1 id="deploying-gardener-locally">Deploying Gardener Locally&lt;/h1>
 &lt;p>This document will walk you through deploying Gardener on your local machine.
 If you encounter difficulties, please open an issue so that we can make this process easier.&lt;/p>
@@ -2155,7 +1839,7 @@ To remove all seeds and to cleanup the local Gardener cluster, you have to run t
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Image Vector</title><link>https://gardener.cloud/docs/gardener/deployment/image_vector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/image_vector/</guid><description>
 &lt;h1 id="image-vector">Image Vector&lt;/h1>
 &lt;p>The Gardenlet is deploying several different container images into the seed and the shoot clusters.
-The image repositories and tags are defined in a &lt;a href="https://github.com/gardener/gardener/blob/master/charts/images.yaml">central image vector file&lt;/a>.
+The image repositories and tags are defined in a &lt;a href="https://github.com/gardener/gardener/blob/master/imagevector/images.yaml">central image vector file&lt;/a>.
 Obviously, the image versions defined there must fit together with the deployment manifests (e.g., some command-line flags do only exist in certain versions).&lt;/p>
 &lt;h2 id="example">Example&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>images:
@@ -2272,7 +1956,366 @@ Operators might want to customize the image locations for these transitive image
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The gardenlet will, if supported by the directly deployed component (&lt;code>etcd-druid&lt;/code> in this example), inject the given &lt;code>imageVectorOverwrite&lt;/code> into the &lt;code>Deployment&lt;/code> manifest.
 The respective component is responsible for using the overwritten images instead of its defaults.&lt;/p></description></item><item><title>Docs: Migration V0 To V1</title><link>https://gardener.cloud/docs/gardener/deployment/migration_v0_to_v1/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/migration_v0_to_v1/</guid><description>
 &lt;h1 id="migration-from-gardener-v0-to-v1">Migration from Gardener &lt;code>v0&lt;/code> to &lt;code>v1&lt;/code>&lt;/h1>
-&lt;p>Please refer to the &lt;a href="https://github.com/gardener/gardener/blob/v1.10.1/docs/deployment/migration_v0_to_v1.md">document for older Gardener versions&lt;/a>.&lt;/p></description></item><item><title>Docs: Secret Binding Provider Controller</title><link>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</guid><description>
+&lt;p>Please refer to the &lt;a href="https://github.com/gardener/gardener/blob/v1.10.1/docs/deployment/migration_v0_to_v1.md">document for older Gardener versions&lt;/a>.&lt;/p></description></item><item><title>Docs: Scoped API Access for gardenlets and Extensions</title><link>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/</guid><description>
+&lt;h1 id="scoped-api-access-for-gardenlets-and-extensions">Scoped API Access for gardenlets and Extensions&lt;/h1>
+&lt;p>By default, &lt;code>gardenlet&lt;/code>s have administrative access in the garden cluster.
+They are able to execute any API request on any object independent of whether the object is related to the seed cluster the &lt;code>gardenlet&lt;/code> is responsible for.
+As RBAC is not powerful enough for fine-grained checks and for the sake of security, Gardener provides two optional but recommended configurations for your environments that scope the API access for &lt;code>gardenlet&lt;/code>s.&lt;/p>
+&lt;p>Similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/node/">&lt;code>Node&lt;/code> authorization mode in Kubernetes&lt;/a>, Gardener features a &lt;code>SeedAuthorizer&lt;/code> plugin.
+It is a special-purpose authorization plugin that specifically authorizes API requests made by the &lt;code>gardenlet&lt;/code>s.&lt;/p>
+&lt;p>Likewise, similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#noderestriction">&lt;code>NodeRestriction&lt;/code> admission plugin in Kubernetes&lt;/a>, Gardener features a &lt;code>SeedRestriction&lt;/code> plugin.
+It is a special-purpose admission plugin that specifically limits the Kubernetes objects &lt;code>gardenlet&lt;/code>s can modify.&lt;/p>
+&lt;p>📚 You might be interested to look into the &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-authorizer.md">design proposal for scoped Kubelet API access&lt;/a> from the Kubernetes community.
+It can be translated to Gardener and Gardenlets with their &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> resources.&lt;/p>
+&lt;p>Historically, &lt;code>gardenlet&lt;/code> has been the only component running in the seed cluster that has access to both the seed cluster and the garden cluster.
+Starting from Gardener &lt;a href="https://github.com/gardener/gardener/releases/v1.74.0">&lt;code>v1.74.0&lt;/code>&lt;/a>, extensions running on seed clusters can also get &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/">access to the garden cluster&lt;/a> using a token for a dedicated ServiceAccount.
+Extensions using this mechanism only get permission to read global resources like &lt;code>CloudProfiles&lt;/code> (this is granted to all authenticated users) unless the plugins described in this document are enabled.&lt;/p>
+&lt;p>Generally, the plugins handle extension clients exactly like gardenlet clients with some minor &lt;a href="#rule-exceptions-for-extension-clients">exceptions&lt;/a>.
+Extension clients in the sense of the plugins are clients authenticated as a &lt;code>ServiceAccount&lt;/code> with the &lt;code>extension-&lt;/code> name prefix in a &lt;code>seed-&lt;/code> namespace of the garden cluster.
+Other &lt;code>ServiceAccounts&lt;/code> are not considered as seed clients, not handled by the plugins, and only get the described read access to global resources.&lt;/p>
+&lt;h2 id="flow-diagram">Flow Diagram&lt;/h2>
+&lt;p>The following diagram shows how the two plugins are included in the request flow of a &lt;code>gardenlet&lt;/code>.
+When they are not enabled, then the &lt;code>kube-apiserver&lt;/code> is internally authorizing the request via RBAC before forwarding the request directly to the &lt;code>gardener-apiserver&lt;/code>, i.e., the &lt;code>gardener-admission-controller&lt;/code> would not be consulted (this is not entirely correct because it also serves other admission webhook handlers, but for simplicity reasons this document focuses on the API access scope only).&lt;/p>
+&lt;p>When enabling the plugins, there is one additional step for each before the &lt;code>gardener-apiserver&lt;/code> responds to the request.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet_api_access_flow_6dfa06.png" alt="Flow Diagram">&lt;/p>
+&lt;p>Please note that the example shows a request to an object (&lt;code>Shoot&lt;/code>) residing in one of the API groups served by &lt;code>gardener-apiserver&lt;/code>.
+However, the &lt;code>gardenlet&lt;/code> is also interacting with objects in API groups served by the &lt;code>kube-apiserver&lt;/code> (e.g., &lt;code>Secret&lt;/code>,&lt;code>ConfigMap&lt;/code>).
+In this case, the consultation of the &lt;code>SeedRestriction&lt;/code> admission plugin is performed by the &lt;code>kube-apiserver&lt;/code> itself before it forwards the request to the &lt;code>gardener-apiserver&lt;/code>.&lt;/p>
+&lt;h2 id="implemented-rules">Implemented Rules&lt;/h2>
+&lt;p>Today, the following rules are implemented:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Resource&lt;/th>
+&lt;th>Verbs&lt;/th>
+&lt;th>Path(s)&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>BackupBucket&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
+&lt;td>&lt;code>BackupBucket&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>BackupBucket&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for &lt;code>BackupBucket&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>BackupEntry&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>BackupEntry&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>BackupEntry&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>BackupEntry&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code> and referencing &lt;code>BackupBucket&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Bastion&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>Bastion&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Bastion&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>Bastion&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>CertificateSigningRequest&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>create&lt;/code>&lt;/td>
+&lt;td>&lt;code>CertificateSigningRequest&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow only &lt;code>get&lt;/code>, &lt;code>create&lt;/code> requests for &lt;code>CertificateSigningRequest&lt;/code>s related to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>CloudProfile&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>CloudProfile&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>CloudProfile&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ClusterRoleBinding&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
+&lt;td>&lt;code>ClusterRoleBinding&lt;/code> -&amp;gt; &lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s in the bootstrapping phase assigned to the gardenlet&amp;rsquo;s &lt;code>Seed&lt;/code>s. Allow &lt;code>delete&lt;/code> requests from gardenlets bootstrapped via &lt;code>ManagedSeed&lt;/code>s.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ConfigMap&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>ConfigMap&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>ConfigMap&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Allows reading the &lt;code>kube-system/cluster-identity&lt;/code> &lt;code>ConfigMap&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ControllerRegistration&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>&lt;/td>
+&lt;td>&lt;code>ControllerRegistration&lt;/code> -&amp;gt; &lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ControllerRegistration&lt;/code>s.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ControllerDeployment&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>ControllerDeployment&lt;/code> -&amp;gt; &lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>ControllerDeployments&lt;/code>s referenced by &lt;code>ControllerInstallation&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ControllerInstallation&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>ControllerInstallation&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ControllerInstallation&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ControllerInstallation&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Event&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>none&lt;/td>
+&lt;td>Allow to &lt;code>create&lt;/code> or &lt;code>patch&lt;/code> all kinds of &lt;code>Event&lt;/code>s.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ExposureClass&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>ExposureClass&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>ExposureClass&lt;/code>es referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Deny &lt;code>get&lt;/code> requests to other &lt;code>ExposureClass&lt;/code>es.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Lease&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>&lt;/td>
+&lt;td>&lt;code>Lease&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, and &lt;code>delete&lt;/code> requests for &lt;code>Lease&lt;/code>s of the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ManagedSeed&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>ManagedSeed&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s referencing a &lt;code>Shoot&lt;/code> assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Namespace&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>Namespace&lt;/code>s of &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Always allow &lt;code>get&lt;/code> requests for the &lt;code>garden&lt;/code> &lt;code>Namespace&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Project&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>Project&lt;/code> -&amp;gt; &lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>Project&lt;/code>s referenced by the &lt;code>Namespace&lt;/code> of &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>SecretBinding&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>&lt;/td>
+&lt;td>&lt;code>SecretBinding&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow only &lt;code>get&lt;/code> requests for &lt;code>SecretBinding&lt;/code>s referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Secret&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>(, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>)&lt;/td>
+&lt;td>&lt;code>Secret&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>Secret&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>Secret&lt;/code> -&amp;gt; &lt;code>SecretBinding&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>BackupBucket&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Secret&lt;/code>s in the &lt;code>seed-&amp;lt;name&amp;gt;&lt;/code> namespace. Allow only &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for the &lt;code>Secret&lt;/code>s related to resources assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
+&lt;td>&lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Seed&lt;/code>s. Allow only &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code> requests for the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s. [1]&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ServiceAccount&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>delete&lt;/code>&lt;/td>
+&lt;td>&lt;code>ServiceAccount&lt;/code> -&amp;gt; &lt;code>ManagedSeed&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>, &lt;code>ServiceAccount&lt;/code> -&amp;gt; &lt;code>Namespace&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>create&lt;/code>, &lt;code>get&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ManagedSeed&lt;/code>s in the bootstrapping phase assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>s. Allow &lt;code>delete&lt;/code> requests from gardenlets bootstrapped via &lt;code>ManagedSeed&lt;/code>s. Allow all verbs on &lt;code>ServiceAccount&lt;/code>s in seed-specific namespace.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Shoot&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Shoot&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>Shoot&lt;/code>s assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ShootState&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>ShootState&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow only &lt;code>get&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>ShootState&lt;/code>s belonging by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;blockquote>
+&lt;p>[1] If you use &lt;code>ManagedSeed&lt;/code> resources then the &lt;code>gardenlet&lt;/code> reconciling them (&amp;ldquo;parent &lt;code>gardenlet&lt;/code>&amp;rdquo;) may be allowed to submit certain requests for the &lt;code>Seed&lt;/code> resources resulting out of such &lt;code>ManagedSeed&lt;/code> reconciliations (even if the &amp;ldquo;parent &lt;code>gardenlet&lt;/code>&amp;rdquo; is not responsible for them):&lt;/p>
+&lt;/blockquote>
+&lt;p>ℹ️ It is allowed to delete the &lt;code>Seed&lt;/code> resources if the corresponding &lt;code>ManagedSeed&lt;/code> objects already have a &lt;code>deletionTimestamp&lt;/code> (this is secure as &lt;code>gardenlet&lt;/code>s themselves don&amp;rsquo;t have permissions for deleting &lt;code>ManagedSeed&lt;/code>s).&lt;/p>
+&lt;h3 id="rule-exceptions-for-extension-clients">Rule Exceptions for Extension Clients&lt;/h3>
+&lt;p>Extension clients are allowed to perform the same operations as gardenlet clients with the following exceptions:&lt;/p>
+&lt;ul>
+&lt;li>Extension clients are granted the read-only subset of verbs for &lt;code>CertificateSigningRequests&lt;/code>, &lt;code>ClusterRoleBindings&lt;/code>, and &lt;code>ServiceAccounts&lt;/code> (to prevent privilege escalation).&lt;/li>
+&lt;li>Extension clients are granted full access to &lt;code>Lease&lt;/code> objects but only in the seed-specific namespace.&lt;/li>
+&lt;/ul>
+&lt;p>When the need arises, more exceptions might be added to the access rules for resources that are already handled by the plugins.
+E.g., if an extension needs to populate additional shoot-specific &lt;code>InternalSecrets&lt;/code>, according handling can be introduced.
+Permissions for resources that are not handled by the plugins can be granted using additional RBAC rules (independent of the plugins).&lt;/p>
+&lt;h2 id="seedauthorizer-authorization-webhook-enablement">&lt;code>SeedAuthorizer&lt;/code> Authorization Webhook Enablement&lt;/h2>
+&lt;p>The &lt;code>SeedAuthorizer&lt;/code> is implemented as a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/webhook/">Kubernetes authorization webhook&lt;/a> and part of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/">&lt;code>gardener-admission-controller&lt;/code>&lt;/a> component running in the garden cluster.&lt;/p>
+&lt;p>🎛 In order to activate it, you have to follow these steps:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Set the following flags for the &lt;code>kube-apiserver&lt;/code> of the garden cluster (i.e., the &lt;code>kube-apiserver&lt;/code> whose API is extended by Gardener):&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>--authorization-mode=RBAC,Node,Webhook&lt;/code> (please note that &lt;code>Webhook&lt;/code> should appear after &lt;code>RBAC&lt;/code> in the list [1]; &lt;code>Node&lt;/code> might not be needed if you use a virtual garden cluster)&lt;/li>
+&lt;li>&lt;code>--authorization-webhook-config-file=&amp;lt;path-to-the-webhook-config-file&amp;gt;&lt;/code>&lt;/li>
+&lt;li>&lt;code>--authorization-webhook-cache-authorized-ttl=0&lt;/code>&lt;/li>
+&lt;li>&lt;code>--authorization-webhook-cache-unauthorized-ttl=0&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>The webhook config file (stored at &lt;code>&amp;lt;path-to-the-webhook-config-file&amp;gt;&lt;/code>) should look as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusters:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certificate-authority-data: base64(CA-CERT-OF-GARDENER-ADMISSION-CONTROLLER)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://gardener-admission-controller.garden/webhooks/auth/seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>users:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: kube-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>contexts:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: auth-webhook
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> context:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user: kube-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>current-context: auth-webhook
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>When deploying the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">Gardener &lt;code>controlplane&lt;/code> Helm chart&lt;/a>, set &lt;code>.global.rbac.seedAuthorizer.enabled=true&lt;/code>. This will ensure that the RBAC resources granting global access for all &lt;code>gardenlet&lt;/code>s will be deployed.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Delete the existing RBAC resources granting global access for all &lt;code>gardenlet&lt;/code>s by running:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl delete &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> clusterrole.rbac.authorization.k8s.io/gardener.cloud:system:seeds &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> clusterrolebinding.rbac.authorization.k8s.io/gardener.cloud:system:seeds &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --ignore-not-found
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>Please note that you should activate the &lt;a href="#seedrestriction-admission-webhook-enablement">&lt;code>SeedRestriction&lt;/code>&lt;/a> admission handler as well.&lt;/p>
+&lt;blockquote>
+&lt;p>[1] The reason for the fact that &lt;code>Webhook&lt;/code> authorization plugin should appear after &lt;code>RBAC&lt;/code> is that the &lt;code>kube-apiserver&lt;/code> will be depending on the &lt;code>gardener-admission-controller&lt;/code> (serving the webhook). However, the &lt;code>gardener-admission-controller&lt;/code> can only start when &lt;code>gardener-apiserver&lt;/code> runs, but &lt;code>gardener-apiserver&lt;/code> itself can only start when &lt;code>kube-apiserver&lt;/code> runs. If &lt;code>Webhook&lt;/code> is before &lt;code>RBAC&lt;/code>, then &lt;code>gardener-apiserver&lt;/code> might not be able to start, leading to a deadlock.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="authorizer-decisions">Authorizer Decisions&lt;/h3>
+&lt;p>As mentioned earlier, it&amp;rsquo;s the authorizer&amp;rsquo;s job to evaluate API requests and return one of the following decisions:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>DecisionAllow&lt;/code>: The request is allowed, further configured authorizers won&amp;rsquo;t be consulted.&lt;/li>
+&lt;li>&lt;code>DecisionDeny&lt;/code>: The request is denied, further configured authorizers won&amp;rsquo;t be consulted.&lt;/li>
+&lt;li>&lt;code>DecisionNoOpinion&lt;/code>: A decision cannot be made, further configured authorizers will be consulted.&lt;/li>
+&lt;/ul>
+&lt;p>For backwards compatibility, no requests are denied at the moment, so that they are still deferred to a subsequent authorizer like RBAC.
+Though, this might change in the future.&lt;/p>
+&lt;p>First, the &lt;code>SeedAuthorizer&lt;/code> extracts the &lt;code>Seed&lt;/code> name from the API request.
+This step considers the following two cases:&lt;/p>
+&lt;ol>
+&lt;li>If the authenticated user belongs to the &lt;code>gardener.cloud:system:seeds&lt;/code> group, it is considered a gardenlet client.
+&lt;ul>
+&lt;li>This requires a proper TLS certificate that the &lt;code>gardenlet&lt;/code> uses to contact the API server and is automatically given if &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#TLS-Bootstrapping">TLS bootstrapping&lt;/a> is used.&lt;/li>
+&lt;li>The authorizer extracts the seed name from the username by stripping the &lt;code>gardener.cloud:system:seed:&lt;/code> prefix.&lt;/li>
+&lt;li>In cases where this information is missing e.g., when a custom Kubeconfig is used, the authorizer cannot make any decision. Thus, RBAC is still a considerable option to restrict the &lt;code>gardenlet&lt;/code>&amp;rsquo;s access permission if the above explained preconditions are not given.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If the authenticated user belongs to the &lt;code>system:serviceaccounts&lt;/code> group, it is considered an extension client under the following conditions:
+&lt;ul>
+&lt;li>The &lt;code>ServiceAccount&lt;/code> must be located in a &lt;code>seed-&lt;/code> namespace. I.e., the user has to belong to a group with the &lt;code>system:serviceaccounts:seed-&lt;/code> prefix. The seed name is extracted from this group by stripping the prefix.&lt;/li>
+&lt;li>The &lt;code>ServiceAccount&lt;/code> must have the &lt;code>extension-&lt;/code> prefix. I.e., the username must have the &lt;code>system:serviceaccount:seed-&amp;lt;seed-name&amp;gt;:extension-&lt;/code> prefix.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;p>With the &lt;code>Seed&lt;/code> name at hand, the authorizer checks for an &lt;strong>existing path&lt;/strong> from the resource that a request is being made for to the &lt;code>Seed&lt;/code> belonging to the &lt;code>gardenlet&lt;/code>/extension.
+Take a look at the &lt;a href="#implementation-details">Implementation Details&lt;/a> section for more information.&lt;/p>
+&lt;h3 id="implementation-details">Implementation Details&lt;/h3>
+&lt;p>Internally, the &lt;code>SeedAuthorizer&lt;/code> uses a directed, acyclic graph data structure in order to efficiently respond to authorization requests for &lt;code>gardenlet&lt;/code>s/extensions:&lt;/p>
+&lt;ul>
+&lt;li>A vertex in this graph represents a Kubernetes resource with its kind, namespace, and name (e.g., &lt;code>Shoot:garden-my-project/my-shoot&lt;/code>).&lt;/li>
+&lt;li>An edge from vertex &lt;code>u&lt;/code> to vertex &lt;code>v&lt;/code> in this graph exists when
+&lt;ul>
+&lt;li>(1) &lt;code>v&lt;/code> is referred by &lt;code>u&lt;/code> and &lt;code>v&lt;/code> is a &lt;code>Seed&lt;/code>, or when&lt;/li>
+&lt;li>(2) &lt;code>u&lt;/code> is referred by &lt;code>v&lt;/code>, or when&lt;/li>
+&lt;li>(3) &lt;code>u&lt;/code> is strictly associated with &lt;code>v&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>For example, a &lt;code>Shoot&lt;/code> refers to a &lt;code>Seed&lt;/code>, a &lt;code>CloudProfile&lt;/code>, a &lt;code>SecretBinding&lt;/code>, etc., so it has an outgoing edge to the &lt;code>Seed&lt;/code> (1) and incoming edges from the &lt;code>CloudProfile&lt;/code> and &lt;code>SecretBinding&lt;/code> vertices (2).
+However, there might also be a &lt;code>ShootState&lt;/code> or a &lt;code>BackupEntry&lt;/code> resource strictly associated with this &lt;code>Shoot&lt;/code>, hence, it has incoming edges from these vertices (3).&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet_api_access_graph_5486ba.png" alt="Resource Dependency Graph">&lt;/p>
+&lt;p>In the above picture, the resources that are actively watched are shaded.
+Gardener resources are green, while Kubernetes resources are blue.
+It shows the dependencies between the resources and how the graph is built based on the above rules.&lt;/p>
+&lt;p>ℹ️ The above picture shows all resources that may be accessed by &lt;code>gardenlet&lt;/code>s/extensions, except for the &lt;code>Quota&lt;/code> resource which is only included for completeness.&lt;/p>
+&lt;p>Now, when a &lt;code>gardenlet&lt;/code>/extension wants to access certain resources, then the &lt;code>SeedAuthorizer&lt;/code> uses a Depth-First traversal starting from the vertex representing the resource in question, e.g., from a &lt;code>Project&lt;/code> vertex.
+If there is a path from the &lt;code>Project&lt;/code> vertex to the vertex representing the &lt;code>Seed&lt;/code> the &lt;code>gardenlet&lt;/code>/extension is responsible for. then it allows the request.&lt;/p>
+&lt;h4 id="metrics">Metrics&lt;/h4>
+&lt;p>The &lt;code>SeedAuthorizer&lt;/code> registers the following metrics related to the mentioned graph implementation:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Metric&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>gardener_admission_controller_seed_authorizer_graph_update_duration_seconds&lt;/code>&lt;/td>
+&lt;td>Histogram of duration of resource dependency graph updates in seed authorizer, i.e., how long does it take to update the graph&amp;rsquo;s vertices/edges when a resource is created, changed, or deleted.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener_admission_controller_seed_authorizer_graph_path_check_duration_seconds&lt;/code>&lt;/td>
+&lt;td>Histogram of duration of checks whether a path exists in the resource dependency graph in seed authorizer.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h4 id="debug-handler">Debug Handler&lt;/h4>
+&lt;p>When the &lt;code>.server.enableDebugHandlers&lt;/code> field in the &lt;code>gardener-admission-controller&lt;/code>&amp;rsquo;s component configuration is set to &lt;code>true&lt;/code>, then it serves a handler that can be used for debugging the resource dependency graph under &lt;code>/debug/resource-dependency-graph&lt;/code>.&lt;/p>
+&lt;p>🚨 Only use this setting for development purposes, as it enables unauthenticated users to view all data if they have access to the &lt;code>gardener-admission-controller&lt;/code> component.&lt;/p>
+&lt;p>The handler renders an HTML page displaying the current graph with a list of vertices and its associated incoming and outgoing edges to other vertices.
+Depending on the size of the Gardener landscape (and consequently, the size of the graph), it might not be possible to render it in its entirety.
+If there are more than 2000 vertices, then the default filtering will selected for &lt;code>kind=Seed&lt;/code> to prevent overloading the output.&lt;/p>
+&lt;p>&lt;em>Example output&lt;/em>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # Seed:my-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| &amp;lt;- (11)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| BackupBucket:73972fe2-3d7e-4f61-a406-b8f9e670e6b7
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| BackupEntry:garden-my-project/shoot--dev--my-shoot--4656a460-1a69-4f00-9372-7452cbd38ee3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:dns-external-mxt8m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:extension-shoot-cert-service-4qw5j
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:networking-calico-bgrb2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:os-gardenlinux-qvb5z
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ControllerInstallation:provider-gcp-w4mvf
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Secret:garden/backup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot:garden-my-project/my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # Shoot:garden-my-project/my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| &amp;lt;- (5)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| CloudProfile:gcp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Namespace:garden-my-project
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Secret:garden-my-project/my-dns-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| SecretBinding:garden-my-project/my-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| ShootState:garden-my-project/my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| -&amp;gt; (1)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Seed:my-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| # ShootState:garden-my-project/my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| -&amp;gt; (1)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>| Shoot:garden-my-project/my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>|
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>-------------------------------------------------------------------------------
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>... (etc., similarly for the other resources)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>There are anchor links to easily jump from one resource to another, and the page provides means for filtering the results based on the &lt;code>kind&lt;/code>, &lt;code>namespace&lt;/code>, and/or &lt;code>name&lt;/code>.&lt;/p>
+&lt;h4 id="pitfalls">Pitfalls&lt;/h4>
+&lt;p>When there is a relevant update to an existing resource, i.e., when a reference to another resource is changed, then the corresponding vertex (along with all associated edges) is first deleted from the graph before it gets added again with the up-to-date edges.
+However, this does only work for vertices belonging to resources that are only created in exactly one &amp;ldquo;watch handler&amp;rdquo;.
+For example, the vertex for a &lt;code>SecretBinding&lt;/code> can either be created in the &lt;code>SecretBinding&lt;/code> handler itself or in the &lt;code>Shoot&lt;/code> handler.
+In such cases, deleting the vertex before (re-)computing the edges might lead to race conditions and potentially renders the graph invalid.
+Consequently, instead of deleting the vertex, only the edges the respective handler is responsible for are deleted.
+If the vertex ends up with no remaining edges, then it also gets deleted automatically.
+Afterwards, the vertex can either be added again or the updated edges can be created.&lt;/p>
+&lt;h2 id="seedrestriction-admission-webhook-enablement">&lt;code>SeedRestriction&lt;/code> Admission Webhook Enablement&lt;/h2>
+&lt;p>The &lt;code>SeedRestriction&lt;/code> is implemented as &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">Kubernetes admission webhook&lt;/a> and part of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/">&lt;code>gardener-admission-controller&lt;/code>&lt;/a> component running in the garden cluster.&lt;/p>
+&lt;p>🎛 In order to activate it, you have to set &lt;code>.global.admission.seedRestriction.enabled=true&lt;/code> when using the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">Gardener &lt;code>controlplane&lt;/code> Helm chart&lt;/a>.
+This will add an additional webhook in the existing &lt;code>ValidatingWebhookConfiguration&lt;/code> of the &lt;code>gardener-admission-controller&lt;/code> which contains the configuration for the &lt;code>SeedRestriction&lt;/code> handler.
+Please note that it should only be activated when the &lt;code>SeedAuthorizer&lt;/code> is active as well.&lt;/p>
+&lt;h3 id="admission-decisions">Admission Decisions&lt;/h3>
+&lt;p>The admission&amp;rsquo;s purpose is to perform extended validation on requests which require the body of the object in question.
+Additionally, it handles &lt;code>CREATE&lt;/code> requests of &lt;code>gardenlet&lt;/code>s/extensions (the above discussed resource dependency graph cannot be used in such cases because there won&amp;rsquo;t be any vertex/edge for non-existing resources).&lt;/p>
+&lt;p>Gardenlets/extensions are restricted to only create new resources which are somehow related to the seed clusters they are responsible for.&lt;/p></description></item><item><title>Docs: Secret Binding Provider Controller</title><link>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/secret_binding_provider_controller/</guid><description>
 &lt;h1 id="secretbinding-provider-controller">SecretBinding Provider Controller&lt;/h1>
 &lt;p>This page describes the process on how to enable the SecretBinding provider controller.&lt;/p>
 &lt;h2 id="overview">Overview&lt;/h2>

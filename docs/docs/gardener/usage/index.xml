@@ -41,7 +41,76 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - start: &lt;span style="color:#a31515">&amp;#34;0 20 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Start hibernation every day at 8PM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: &lt;span style="color:#a31515">&amp;#34;0 6 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Stop hibernation every day at 6AM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> location: &lt;span style="color:#a31515">&amp;#34;America/Los_Angeles&amp;#34;&lt;/span> &lt;span style="color:#008000"># Specify a location for the cron to run in&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: Control Plane Endpoints And Ports</title><link>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: containerd Registry Configuration</title><link>https://gardener.cloud/docs/gardener/usage/containerd-registry-configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/containerd-registry-configuration/</guid><description>
+&lt;h1 id="containerd-registry-configuration">&lt;code>containerd&lt;/code> Registry Configuration&lt;/h1>
+&lt;p>containerd supports configuring registries and mirrors. Using this native containerd feature, Shoot owners can configure containerd to use public or private mirrors for a given upstream registry. More details about the registry configuration can be found in the &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">corresponding upstream documentation&lt;/a>.&lt;/p>
+&lt;h3 id="containerd-registry-configuration-patterns">&lt;code>containerd&lt;/code> Registry Configuration Patterns&lt;/h3>
+&lt;p>At the time of writing this document, containerd support two patterns for configuring registries/mirrors.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: Trying to use both of the patterns at the same time is not supported by containerd. Only one of the configuration patterns has to be followed strictly.&lt;/p>
+&lt;/blockquote>
+&lt;h5 id="old-and-deprecated-pattern">Old and Deprecated Pattern&lt;/h5>
+&lt;p>The old and deprecated pattern is specifying &lt;code>registry.mirrors&lt;/code> and &lt;code>registry.configs&lt;/code> in the containerd&amp;rsquo;s config.toml file. See the &lt;a href="https://github.com/containerd/containerd/blob/main/docs/cri/registry.md">upstream documentation&lt;/a>.
+Example of the old and deprecated pattern:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>version = 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> [plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry.mirrors]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> [plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry.mirrors.&lt;span style="color:#a31515">&amp;#34;docker.io&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoint = [&lt;span style="color:#a31515">&amp;#34;https://public-mirror.example.com&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In the above example, containerd is configured to first try to pull &lt;code>docker.io&lt;/code> images from a configured endpoint (&lt;code>https://public-mirror.example.com&lt;/code>). If the image is not available in &lt;code>https://public-mirror.example.com&lt;/code>, then containerd will fall back to the upstream registry (&lt;code>docker.io&lt;/code>) and will pull the image from there.&lt;/p>
+&lt;h5 id="hosts-directory-pattern">Hosts Directory Pattern&lt;/h5>
+&lt;p>The hosts directory pattern is the new and recommended pattern for configuring registries. It is available starting &lt;code>containerd@v1.5.0&lt;/code>. See the &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">upstream documentation&lt;/a>.
+The above example in the hosts directory pattern looks as follows.
+The &lt;code>/etc/containerd/config.toml&lt;/code> file has the following section:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>version = 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config_path = &lt;span style="color:#a31515">&amp;#34;/etc/containerd/certs.d&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The following hosts directory structure has to be created:&lt;/p>
+&lt;pre tabindex="0">&lt;code>$ tree /etc/containerd/certs.d
+/etc/containerd/certs.d
+└── docker.io
+└── hosts.toml
+&lt;/code>&lt;/pre>&lt;p>Finally, for the &lt;code>docker.io&lt;/code> upstream registry, we configure a &lt;code>hosts.toml&lt;/code> file as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>server = &lt;span style="color:#a31515">&amp;#34;https://registry-1.docker.io&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[host.&lt;span style="color:#a31515">&amp;#34;http://public-mirror.example.com&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> capabilities = [&lt;span style="color:#a31515">&amp;#34;pull&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;resolve&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="configuring-containerd-registries-for-a-shoot">Configuring &lt;code>containerd&lt;/code> Registries for a Shoot&lt;/h3>
+&lt;blockquote>
+&lt;p>Note: The below-described functionality is provided by the &lt;code>ContainerdRegistryHostsDir&lt;/code> feature gate in gardenlet.&lt;/p>
+&lt;/blockquote>
+&lt;p>Gardener supports configuring &lt;code>containerd&lt;/code> registries on a Shoot using the new &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">hosts directory pattern&lt;/a>. For each Shoot Node, Gardener creates the &lt;code>/etc/containerd/certs.d&lt;/code> directory and adds the following section to the containerd&amp;rsquo;s &lt;code>/etc/containerd/config.toml&lt;/code> file:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>[plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry] &lt;span style="color:#008000"># gardener-managed&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config_path = &lt;span style="color:#a31515">&amp;#34;/etc/containerd/certs.d&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This allows Shoot owners to use the &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">hosts directory pattern&lt;/a> to configure registries for containerd. To do this, the Shoot owners need to create a directory under &lt;code>/etc/containerd/certs.d&lt;/code> that is named with the upstream registry host name. In the newly created directory, a &lt;code>hosts.toml&lt;/code> file needs to be created. For more details, see the &lt;a href="#hosts-directory-pattern">hosts directory pattern section&lt;/a> and the &lt;a href="https://github.com/containerd/containerd/blob/main/docs/hosts.md">upstream documentation&lt;/a>.&lt;/p>
+&lt;h3 id="the-registry-cache-extension">The registry-cache Extension&lt;/h3>
+&lt;p>&lt;a href="#configuring-containerd-registries-for-a-shoot">Configuring &lt;code>containerd&lt;/code> registries for a Shoot&lt;/a> won&amp;rsquo;t be the recommended approach for configuring a pull through cache for a Shoot in near future. There is a Gardener-native extension named &lt;a href="https://github.com/gardener/gardener-extension-registry-cache">registry-cache&lt;/a> that manages a pull through cache for a Shoot using the upstream &lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a> project.&lt;/p>
+&lt;blockquote>
+&lt;p>Note: The &lt;a href="https://github.com/gardener/gardener-extension-registry-cache">registry-cache&lt;/a> extension is currently under active development and not recommended for productive usage.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="migration">Migration&lt;/h3>
+&lt;p>This section describe the migration process from the old and deprecated pattern to the hosts directory pattern for a Shoot cluster.&lt;/p>
+&lt;p>Let&amp;rsquo;s assume that the following &lt;code>containerd&lt;/code> registries configuration using the old and deprecated pattern is being configured (for example via DaemonSet) for a Shoot:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>version = 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> [plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry.mirrors]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> [plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry.mirrors.&lt;span style="color:#a31515">&amp;#34;docker.io&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoint = [&lt;span style="color:#a31515">&amp;#34;https://public-mirror.example.com&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The migration steps are as follows:&lt;/p>
+&lt;ol>
+&lt;li>The &lt;code>containerd&lt;/code> registries configuration has to be adapted to the hosts directory pattern.
+1.1 The &lt;code>/etc/containerd/config.toml&lt;/code> file needs to be adapted as follows:
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>version = 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>[plugins.&lt;span style="color:#a31515">&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span>.registry]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config_path = &lt;span style="color:#a31515">&amp;#34;/etc/containerd/certs.d&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>1.2 The appropriate directory structure and &lt;code>hosts.toml&lt;/code> file has to be created as described in the &lt;a href="#hosts-directory-pattern">hosts directory pattern section&lt;/a>.
+2. When the &lt;code>ContainerdRegistryHostsDir&lt;/code> feature gate is GA, then the machinery that performs step 1.1 can be removed. A Shoot cluster can rely that the &lt;code>config_path&lt;/code> will be always set by gardenlet.&lt;/p></description></item><item><title>Docs: Control Plane Endpoints And Ports</title><link>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/control-plane-endpoints-and-ports/</guid><description>
 &lt;h1 id="endpoints-and-ports-of-a-shoot-control-plane">Endpoints and Ports of a Shoot Control-Plane&lt;/h1>
 &lt;p>With the &lt;a href="https://gardener.cloud/docs/gardener/usage/reversed-vpn-tunnel/">reversed VPN&lt;/a> tunnel, there are no endpoints with open ports in the shoot cluster required by Gardener.
 In order to allow communication to the shoots control-plane in the seed cluster, there are endpoints shared by multiple shoots of a seed cluster.

@@ -1651,10 +1651,8 @@ example &lt;code>values.yaml&lt;/code>:&lt;/li>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Access to the Garden Cluster for Extensions</title><link>https://gardener.cloud/docs/gardener/extensions/garden-api-access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/garden-api-access/</guid><description>
 &lt;h1 id="access-to-the-garden-cluster-for-extensions">Access to the Garden Cluster for Extensions&lt;/h1>
 &lt;p>Extensions that are installed on seed clusters via a &lt;code>ControllerInstallation&lt;/code> can simply read the kubeconfig file specified by the &lt;code>GARDEN_KUBECONFIG&lt;/code> environment variable to create a garden cluster client.
-With this, they use a short-lived token (valid for &lt;code>12h&lt;/code>) associated with a dedicated &lt;code>ServiceAccount&lt;/code> in the &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code> namespace to securely access the garden cluster.&lt;/p>
-&lt;blockquote>
-&lt;p>⚠️ This feature is under development. The managed &lt;code>ServiceAccounts&lt;/code> in the garden cluster don&amp;rsquo;t have any API permissions as of now. They will be handled by the &lt;code>SeedAuthorizer&lt;/code> in the future and equipped with permissions similar to the gardenlets&amp;rsquo; credentials. See &lt;a href="https://github.com/gardener/gardener/issues/8001">gardener/gardener#8001&lt;/a> for more information.&lt;/p>
-&lt;/blockquote>
+With this, they use a short-lived token (valid for &lt;code>12h&lt;/code>) associated with a dedicated &lt;code>ServiceAccount&lt;/code> in the &lt;code>seed-&amp;lt;seed-name&amp;gt;&lt;/code> namespace to securely access the garden cluster.
+The used &lt;code>ServiceAccounts&lt;/code> are granted permissions in the garden cluster similar to gardenlet clients.&lt;/p>
 &lt;h2 id="background">Background&lt;/h2>
 &lt;p>Historically, &lt;code>gardenlet&lt;/code> has been the only component running in the seed cluster that has access to both the seed cluster and the garden cluster.
 Accordingly, extensions running on the seed cluster didn&amp;rsquo;t have access to the garden cluster.&lt;/p>
@@ -1747,7 +1745,14 @@ This is useful for restricting watches in the garden cluster to relevant objects
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: extension
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> user:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tokenFile: /var/run/secrets/gardener.cloud/garden/generic-kubeconfig/token
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="renewing-all-garden-access-secrets">Renewing All Garden Access Secrets&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="permissions-in-the-garden-cluster">Permissions in the Garden Cluster&lt;/h2>
+&lt;p>Both the &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">&lt;code>SeedAuthorizer&lt;/code> and the &lt;code>SeedRestriction&lt;/code> plugin&lt;/a> handle extensions clients and generally grant the same permissions in the garden cluster to them as to gardenlet clients.
+With this, extensions are restricted to work with objects in the garden cluster that are related to seed they are running one just like gardenlet.
+Note that if the plugins are not enabled, extension clients are only granted read access to global resources like &lt;code>CloudProfiles&lt;/code> (this is granted to all authenticated users).
+There are a few exceptions to the granted permissions as documented &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/#rule-exceptions-for-extension-clients">here&lt;/a>.&lt;/p>
+&lt;p>If an extension needs access to additional resources in the garden cluster (e.g., extension-specific custom resources), permissions need to be granted via the usual RBAC means.
+Note that this is done outside of Gardener and might require an additional controller that manages RBAC for extension clients in the garden cluster.&lt;/p>
+&lt;h2 id="renewing-all-garden-access-secrets">Renewing All Garden Access Secrets&lt;/h2>
 &lt;p>Operators can trigger an automatic renewal of all garden access secrets in a given &lt;code>Seed&lt;/code> and their requested &lt;code>ServiceAccount&lt;/code> tokens, e.g., when rotating the garden cluster&amp;rsquo;s &lt;code>ServiceAccount&lt;/code> signing key.
 For this, the &lt;code>Seed&lt;/code> has to be annotated with &lt;code>gardener.cloud/operation=renew-garden-access-secrets&lt;/code>.&lt;/p></description></item><item><title>Docs: Accessing the Gardener API</title><link>https://gardener.cloud/docs/dashboard/usage/gardener-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/dashboard/usage/gardener-api/</guid><description>
 &lt;h1 id="accessing-the-gardener-api-through-the-dashboard">Accessing the Gardener API Through the Dashboard&lt;/h1>
@@ -7774,7 +7779,7 @@ Components that can run as both seed system component or shoot control plane com
 &lt;/li>
 &lt;li>
 &lt;p>&lt;strong>Do not hard-code container image references&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/charts/images.yaml#L130-L133">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/metricsserver.go#L28-L31">example 2&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L82-L83">example 3&lt;/a>)&lt;/p>
-&lt;p>We define all image references centrally in the &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/charts/images.yaml">&lt;code>charts/images.yaml&lt;/code>&lt;/a> file.
+&lt;p>We define all image references centrally in the &lt;a href="https://github.com/gardener/gardener/blob/master/imagevector/images.yaml">&lt;code>imagevector/images.yaml&lt;/code>&lt;/a> file.
 Hence, the image references must not be hard-coded in the pod template spec but read from this so-called &lt;a href="https://gardener.cloud/docs/gardener/deployment/image_vector/">image vector&lt;/a> instead.&lt;/p>
 &lt;/li>
 &lt;li>

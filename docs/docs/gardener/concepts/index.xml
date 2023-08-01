@@ -1115,7 +1115,7 @@ Once it has detected changes, press any key to trigger a new build and deploymen
 &lt;p>In order to create a garden, just run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/operator/20-garden.yaml
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can wait for the &lt;code>Garden&lt;/code> to be ready by running:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh garden garden Reconciled
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh garden local Reconciled
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Alternatively, you can run &lt;code>kubectl get garden&lt;/code> and wait for the &lt;code>RECONCILED&lt;/code> status to reach &lt;code>True&lt;/code>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>NAME RECONCILED AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>garden Progressing 1s
@@ -1152,9 +1152,14 @@ The &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/"
 &lt;ul>
 &lt;li>garden system resources (&lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">&lt;code>PriorityClass&lt;/code>es&lt;/a> for the workload resources)&lt;/li>
 &lt;li>Vertical Pod Autoscaler (if enabled via &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=true&lt;/code> in the &lt;code>Garden&lt;/code>)&lt;/li>
-&lt;li>HVPA controller (when &lt;code>HVPA&lt;/code> feature gate is enabled)&lt;/li>
+&lt;li>HVPA Controller (when &lt;code>HVPA&lt;/code> feature gate is enabled)&lt;/li>
 &lt;li>ETCD Druid&lt;/li>
 &lt;li>Istio&lt;/li>
+&lt;/ul>
+&lt;p>The reconciler also manages a few observability-related components (more planned as part of &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/19-migrating-observability-stack-to-operators.md">GEP-19&lt;/a>):&lt;/p>
+&lt;ul>
+&lt;li>Fluent Operator&lt;/li>
+&lt;li>Vali&lt;/li>
 &lt;/ul>
 &lt;p>As soon as all system components are up, the reconciler deploys the virtual garden cluster.
 It comprises out of two ETCDs (one &amp;ldquo;main&amp;rdquo; etcd, one &amp;ldquo;events&amp;rdquo; etcd) which are managed by ETCD Druid via &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> custom resources.
@@ -2189,7 +2194,7 @@ The following sections explain the configuration and flow in greater detail.&lt;
 &lt;h3 id="1-decoupling">1. Decoupling&lt;/h3>
 &lt;p>Previously, an admission plugin in the Gardener API server conducted the scheduling decisions.
 This implies changes to the API server whenever adjustments of the scheduling are needed.
-Decoupling the API server and the scheduler comes with greater flexibility to develop these components independently from each other.&lt;/p>
+Decoupling the API server and the scheduler comes with greater flexibility to develop these components independently.&lt;/p>
 &lt;h3 id="2-extensibility">2. Extensibility&lt;/h3>
 &lt;p>It should be possible to easily extend and tweak the scheduler in the future.
 Possibly, similar to the Kubernetes scheduler, hooks could be provided which influence the scheduling decisions.
@@ -2217,6 +2222,9 @@ It should be also possible to completely replace the standard Gardener Scheduler
 &lt;li>Apply active &lt;a href="#strategies">strategy&lt;/a> e.g., &lt;em>Minimal Distance strategy&lt;/em>&lt;/li>
 &lt;li>Choose least utilized seed, i.e., the one with the least number of shoot control planes, will be the winner and written to the &lt;code>.spec.seedName&lt;/code> field of the &lt;code>Shoot&lt;/code>.&lt;/li>
 &lt;/ol>
+&lt;p>In order to put the scheduling decision into effect, the scheduler sends an update request for the &lt;code>Shoot&lt;/code> resource to
+the API server. After validation, the &lt;code>gardener-apiserver&lt;/code> updates the &lt;code>Shoot&lt;/code> to have the &lt;code>spec.seedName&lt;/code> field set.
+Subsequently, the &lt;code>gardenlet&lt;/code> picks up and starts to create the cluster on the specified seed.&lt;/p>
 &lt;h2 id="configuration">Configuration&lt;/h2>
 &lt;p>The Gardener Scheduler configuration has to be supplied on startup. It is a mandatory and also the only available flag.
 &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardener-scheduler.yaml">This yaml file&lt;/a> holds an example scheduler configuration.&lt;/p>
@@ -2225,17 +2233,44 @@ However, the Gardener Scheduler on the other hand does not need a TLS configurat
 &lt;h2 id="strategies">Strategies&lt;/h2>
 &lt;p>The scheduling strategy is defined in the &lt;em>&lt;strong>candidateDeterminationStrategy&lt;/strong>&lt;/em> of the scheduler&amp;rsquo;s configuration and can have the possible values &lt;code>SameRegion&lt;/code> and &lt;code>MinimalDistance&lt;/code>.
 The &lt;code>SameRegion&lt;/code> strategy is the default strategy.&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;em>Same Region strategy&lt;/em>&lt;/p>
+&lt;h3 id="same-region-strategy">Same Region strategy&lt;/h3>
 &lt;p>The Gardener Scheduler reads the &lt;code>spec.provider.type&lt;/code> and &lt;code>.spec.region&lt;/code> fields from the &lt;code>Shoot&lt;/code> resource.
 It tries to find a seed that has the identical &lt;code>.spec.provider.type&lt;/code> and &lt;code>.spec.provider.region&lt;/code> fields set.
 If it cannot find a suitable seed, it adds an event to the shoot stating that it is unschedulable.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;em>Minimal Distance strategy&lt;/em>&lt;/p>
+&lt;h3 id="minimal-distance-strategy">Minimal Distance strategy&lt;/h3>
 &lt;p>The Gardener Scheduler tries to find a valid seed with minimal distance to the shoot&amp;rsquo;s intended region.
-The distance is calculated based on the Levenshtein distance of the region. Therefore, the region name
+Distances are configured via &lt;code>ConfigMap&lt;/code>(s), usually per cloud provider in a Gardener landscape.
+The configuration is structured like this:&lt;/p>
+&lt;ul>
+&lt;li>It refers to one or multiple &lt;code>CloudProfile&lt;/code>s via annotation &lt;code>scheduling.gardener.cloud/cloudprofiles&lt;/code>.&lt;/li>
+&lt;li>It contains the declaration as &lt;code>region-config&lt;/code> via label &lt;code>scheduling.gardener.cloud/purpose&lt;/code>.&lt;/li>
+&lt;li>If a &lt;code>CloudProfile&lt;/code> is referred by multiple &lt;code>ConfigMap&lt;/code>s, only the first one is considered.&lt;/li>
+&lt;li>The &lt;code>data&lt;/code> fields configure actual distances, where &lt;em>key&lt;/em> relates to the &lt;code>Shoot&lt;/code> region and &lt;em>value&lt;/em> contains distances to &lt;code>Seed&lt;/code> regions.&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduling.gardener.cloud/cloudprofiles: cloudprofile-name-1{,optional-cloudprofile-name-2,...}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduling.gardener.cloud/purpose: region-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region-1: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> region-2: 10
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> region-3: 20
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region-2: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> region-1: 10
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> region-3: 10
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>Gardener provider extensions for public cloud providers usually have an example weight &lt;code>ConfigMap&lt;/code> in their repositories.
+We suggest to check them out before defining your own data.&lt;/p>
+&lt;/blockquote>
+&lt;p>If a valid seed candidate cannot be found after consulting the distance configuration, the scheduler will fall back to
+the Levenshtein distance to find the closest region. Therefore, the region name
 is split into a base name and an orientation. Possible orientations are &lt;code>north&lt;/code>, &lt;code>south&lt;/code>, &lt;code>east&lt;/code>, &lt;code>west&lt;/code> and &lt;code>central&lt;/code>.
 The distance then is twice the Levenshtein distance of the region&amp;rsquo;s base name plus a correction value based on the
 orientation and the provider.&lt;/p>
@@ -2243,14 +2278,7 @@ orientation and the provider.&lt;/p>
 either the seed&amp;rsquo;s or the shoot&amp;rsquo;s region does not have an orientation it is 1.
 If the provider differs, the correction value is additionally incremented by 2.&lt;/p>
 &lt;p>Because of this, a matching region with a matching provider is always prefered.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;p>In order to put the scheduling decision into effect, the scheduler sends an update request for the &lt;code>Shoot&lt;/code> resource to
-the API server. After validation, the Gardener Aggregated API server updates the shoot to have the &lt;code>spec.seedName&lt;/code> field set.
-Subsequently, the Gardenlet picks up and starts to create the cluster on the specified seed.&lt;/p>
-&lt;ol start="3">
-&lt;li>&lt;em>Special handling based on shoot cluster purpose&lt;/em>&lt;/li>
-&lt;/ol>
+&lt;h3 id="special-handling-based-on-shoot-cluster-purpose">Special handling based on shoot cluster purpose&lt;/h3>
 &lt;p>Every shoot cluster can have a purpose that describes what the cluster is used for, and also influences how the cluster is setup (see &lt;a href="https://gardener.cloud/docs/gardener/usage/shoot_purposes/">Shoot Cluster Purpose&lt;/a> for more information).&lt;/p>
 &lt;p>In case the shoot has the &lt;code>testing&lt;/code> purpose, then the scheduler only reads the &lt;code>.spec.provider.type&lt;/code> from the &lt;code>Shoot&lt;/code> resource and tries to find a &lt;code>Seed&lt;/code> that has the identical &lt;code>.spec.provider.type&lt;/code>.
 The region does not matter, i.e., &lt;code>testing&lt;/code> shoots may also be scheduled on a seed in a complete different region if it is better for balancing the whole Gardener system.&lt;/p>

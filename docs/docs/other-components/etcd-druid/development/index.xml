@@ -1,4 +1,2492 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Development</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/</link><description>Recent content in Development on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/other-components/etcd-druid/development/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Local e2e Tests</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/local-e2e-tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/development/local-e2e-tests/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Development</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/</link><description>Recent content in Development on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/other-components/etcd-druid/development/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: etcd Network Latency</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/etcd-network-latency/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/development/etcd-network-latency/</guid><description>
+&lt;h1 id="network-latency-analysis-sn-etcd-sz-vs--mn-etcd-sz-vs-mn-etcd-mz">Network Latency analysis: &lt;code>sn-etcd-sz&lt;/code> vs &lt;code>mn-etcd-sz&lt;/code> vs &lt;code>mn-etcd-mz&lt;/code>&lt;/h1>
+&lt;p>This page captures the ETCD cluster latency analysis for below scenarios using the benchmark tool (build from &lt;a href="https://github.com/seshachalam-yv/etcd">ETCD benchmark tool&lt;/a>).&lt;/p>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> -&amp;gt; single-node ETCD single zone (Only single replica of etcd will be running)&lt;/p>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> -&amp;gt; multi-node ETCD single zone (Multiple replicas of etcd pods will be running across nodes in a single zone)&lt;/p>
+&lt;p>&lt;code>mn-etcd-mz&lt;/code> -&amp;gt; multi-node ETCD multi zone (Multiple replicas of etcd pods will be running across nodes in multiple zones)&lt;/p>
+&lt;h2 id="put-analysis">PUT Analysis&lt;/h2>
+&lt;h3 id="summary">Summary&lt;/h3>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency is &lt;strong>~20% less than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code> when benchmark tool with single client.&lt;/li>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency is less than &lt;code>mn-etcd-mz&lt;/code> but the difference is &lt;code>~+/-5%&lt;/code>.&lt;/li>
+&lt;li>Compared to &lt;code>mn-etcd-sz&lt;/code>, &lt;code>sn-etcd-sz&lt;/code> latency is higher and gradually grows with more clients and larger value size.&lt;/li>
+&lt;li>Compared to &lt;code>mn-etcd-mz&lt;/code>, &lt;code>mn-etcd-sz&lt;/code> latency is higher and gradually grows with more clients and larger value size.&lt;/li>
+&lt;li>&lt;em>Compared to &lt;code>follower&lt;/code>, &lt;code>leader&lt;/code> latency is less&lt;/em>, when benchmark tool with single client for all cases.&lt;/li>
+&lt;li>&lt;em>Compared to &lt;code>follower&lt;/code>, &lt;code>leader&lt;/code> latency is high&lt;/em>, when benchmark tool with multiple clients for all cases.&lt;/li>
+&lt;/ul>
+&lt;p>Sample commands:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># write to leader&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark put --target-leader --conns=1 --clients=1 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --val-size=256 --total=10000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_HOST
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># write to follower&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark put --conns=1 --clients=1 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --val-size=256 --total=10000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_FOLLOWER_HOST
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="latency-analysis-during-put-requests-to-etcd">Latency analysis during PUT requests to ETCD&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;details>
+&lt;summary>In this case benchmark tool tries to put key with random 256 bytes value.&lt;/summary>
+&lt;ul>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>leader&lt;/code> with single client .&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency (~0.815ms) is &lt;strong>~50% lesser than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code> (~1.74ms ).&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency (~1.74ms ) is slightly lesser than &lt;code>mn-etcd-mz&lt;/code> (~1.8ms) but the difference is negligible (within same ms).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">1220.0520&lt;/td>
+&lt;td style="text-align:center">0.815ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">586.545&lt;/td>
+&lt;td style="text-align:center">1.74ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">554.0155654442634&lt;/td>
+&lt;td style="text-align:center">1.8ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>follower&lt;/code> with single client.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~2.2ms&lt;/code>) is &lt;strong>20% to 30% lesser than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~2.7ms&lt;/code>).&lt;/li>
+&lt;li>&lt;em>Compare to &lt;code>follower&lt;/code>, &lt;code>leader&lt;/code> has lower latency.&lt;/em>&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">445.743&lt;/td>
+&lt;td style="text-align:center">2.23ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">378.9366747610789&lt;/td>
+&lt;td style="text-align:center">2.63ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">457.967&lt;/td>
+&lt;td style="text-align:center">2.17ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">345.6586129825796&lt;/td>
+&lt;td style="text-align:center">2.89ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>leader&lt;/code> with multiple clients.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~78.3ms&lt;/code>) is &lt;strong>~10% greater than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~71.81ms&lt;/code>).&lt;/li>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~71.81ms&lt;/code>) is less than &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~72.5ms&lt;/code>) but the difference is negligible.&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">12638.905&lt;/td>
+&lt;td style="text-align:center">78.32ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">13789.248&lt;/td>
+&lt;td style="text-align:center">71.81ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">13728.446436395223&lt;/td>
+&lt;td style="text-align:center">72.5ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>follower&lt;/code> with multiple clients.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~69.8ms&lt;/code>) is &lt;strong>~5% greater than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~72.6ms&lt;/code>).&lt;/li>
+&lt;li>&lt;em>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> has lower latency&lt;/em>.&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">14271.983&lt;/td>
+&lt;td style="text-align:center">69.80ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">13695.98&lt;/td>
+&lt;td style="text-align:center">72.62ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">14325.436&lt;/td>
+&lt;td style="text-align:center">69.47ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">15750.409490407475&lt;/td>
+&lt;td style="text-align:center">63.3ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;/li>
+&lt;li>
+&lt;details>
+&lt;summary>In this case benchmark tool tries to put key with random 1 MB value.&lt;/summary>
+&lt;ul>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>leader&lt;/code> with single client.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~16.35ms&lt;/code>) is &lt;strong>~20% lesser than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~20.64ms&lt;/code>).&lt;/li>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~20.64ms&lt;/code>) is less than &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~21.08ms&lt;/code>) but the difference is negligible..&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">61.117&lt;/td>
+&lt;td style="text-align:center">16.35ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">48.416&lt;/td>
+&lt;td style="text-align:center">20.64ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">45.7517341664802&lt;/td>
+&lt;td style="text-align:center">21.08ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value withto &lt;code>follower&lt;/code> single client.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~23.10ms&lt;/code>) is &lt;strong>~10% greater than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~21.8ms&lt;/code>).&lt;/li>
+&lt;li>&lt;em>Compare to &lt;code>follower&lt;/code>, &lt;code>leader&lt;/code> has lower latency&lt;/em>.&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">43.261&lt;/td>
+&lt;td style="text-align:center">23.10ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">45.7517341664802&lt;/td>
+&lt;td style="text-align:center">21.8ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">45.33&lt;/td>
+&lt;td style="text-align:center">22.05ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">40.0518&lt;/td>
+&lt;td style="text-align:center">24.95ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">43.28573155709838&lt;/td>
+&lt;td style="text-align:center">23.09ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">45.92&lt;/td>
+&lt;td style="text-align:center">21.76ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">35.5705&lt;/td>
+&lt;td style="text-align:center">28.1ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>leader&lt;/code> with multiple clients.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~6.0375secs&lt;/code>) is &lt;strong>~30% greater than&lt;/strong> &lt;code>mn-etcd-sz``~4.000secs&lt;/code>).&lt;/li>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~4.000secs&lt;/code>) is less than &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~ 4.09secs&lt;/code>) but the difference is negligible.&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">55.373&lt;/td>
+&lt;td style="text-align:center">6.0375secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">67.319&lt;/td>
+&lt;td style="text-align:center">4.000secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">65.91914167957594&lt;/td>
+&lt;td style="text-align:center">4.09secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool loads key/value to &lt;code>follower&lt;/code> with multiple clients.&lt;/p>
+&lt;ul>
+&lt;li>&lt;em>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~4.04secs&lt;/code>) is &lt;strong>~5% greater than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~ 3.90secs&lt;/code>).&lt;/em>&lt;/li>
+&lt;li>&lt;em>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> has lower latency&lt;/em>.&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">66.528&lt;/td>
+&lt;td style="text-align:center">4.0417secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">70.6493461856332&lt;/td>
+&lt;td style="text-align:center">3.90secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">71.95&lt;/td>
+&lt;td style="text-align:center">3.84secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of keys&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">66.447&lt;/td>
+&lt;td style="text-align:center">4.0164secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">67.53038086369484&lt;/td>
+&lt;td style="text-align:center">3.87secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">300&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">68.46&lt;/td>
+&lt;td style="text-align:center">3.92secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;br>
+&lt;h2 id="range-analysis">Range Analysis&lt;/h2>
+&lt;p>Sample commands are:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Single connection read request with sequential keys&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark range 0 --target-leader --conns=1 --clients=1 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --total=10000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --consistency=l &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_HOST
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># --consistency=s [Serializable]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark range 0 --target-leader --conns=1 --clients=1 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --total=10000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --consistency=s &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_HOST
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Each read request with range query matches key 0 9999 and repeats for total number of requests. &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark range 0 9999 --target-leader --conns=1 --clients=1 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --total=10 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --consistency=s &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=https://etcd-main-client:2379
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Read requests with multiple connections&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark range 0 --target-leader --conns=100 --clients=1000 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --total=100000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --consistency=l &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_HOST
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>benchmark range 0 --target-leader --conns=100 --clients=1000 --precise &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --sequential-keys --key-starts 0 --total=100000 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --consistency=s &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --endpoints=$ETCD_HOST
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="latency-analysis-during-range-requests-to-etcd">Latency analysis during Range requests to ETCD&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;details>
+&lt;summary>In this case benchmark tool tries to get specific key with random 256 bytes value.&lt;/summary>
+&lt;ul>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> with single client.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~1.24ms&lt;/code>) is &lt;strong>~40% greater than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~0.67ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~0.67ms&lt;/code>) is &lt;strong>~20% lesser than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~0.85ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">800.272&lt;/td>
+&lt;td style="text-align:center">1.24ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">1173.9081&lt;/td>
+&lt;td style="text-align:center">0.67ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">999.3020189178693&lt;/td>
+&lt;td style="text-align:center">0.85ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~40% less&lt;/strong> for all cases&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">1411.229&lt;/td>
+&lt;td style="text-align:center">0.70ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">2033.131&lt;/td>
+&lt;td style="text-align:center">0.35ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">2100.2426362012025&lt;/td>
+&lt;td style="text-align:center">0.47ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> with single client .&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~1.3ms&lt;/code>) is &lt;strong>~20% lesser than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~1.6ms&lt;/code>).&lt;/li>
+&lt;li>&lt;em>Compare to &lt;code>follower&lt;/code>, &lt;code>leader&lt;/code> read request latency is &lt;strong>~50% less&lt;/strong> for both &lt;code>mn-etcd-sz&lt;/code>, &lt;code>mn-etcd-mz&lt;/code>&lt;/em>&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">765.325&lt;/td>
+&lt;td style="text-align:center">1.3ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">596.1&lt;/td>
+&lt;td style="text-align:center">1.6ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~50% less&lt;/strong> for all cases&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">1823.631&lt;/td>
+&lt;td style="text-align:center">0.54ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">1442.6&lt;/td>
+&lt;td style="text-align:center">0.69ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">1416.39&lt;/td>
+&lt;td style="text-align:center">0.70ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">10000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">2077.449&lt;/td>
+&lt;td style="text-align:center">0.47ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> with multiple client.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~84.66ms&lt;/code>) is &lt;strong>~20% greater than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~73.95ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~73.95ms&lt;/code>) is &lt;strong>more or less equal to&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~ 73.8ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">11775.721&lt;/td>
+&lt;td style="text-align:center">84.66ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">13446.9598&lt;/td>
+&lt;td style="text-align:center">73.95ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">13527.19810605353&lt;/td>
+&lt;td style="text-align:center">73.8ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~20% lesser&lt;/strong> for all cases&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~69.37ms&lt;/code>) is &lt;strong>more or less equal to&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~69.89ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~69.89ms&lt;/code>) is &lt;strong>slightly higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~67.63ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">14334.9027&lt;/td>
+&lt;td style="text-align:center">69.37ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">14270.008&lt;/td>
+&lt;td style="text-align:center">69.89ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">14715.287354023869&lt;/td>
+&lt;td style="text-align:center">67.63ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> with multiple client.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~60.69ms&lt;/code>) is &lt;strong>~20% lesser than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~70.76ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> has lower read request latency.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">11586.032&lt;/td>
+&lt;td style="text-align:center">60.69ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">14050.5&lt;/td>
+&lt;td style="text-align:center">70.76ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~86.09ms&lt;/code>) is &lt;strong>~20 higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~64.6ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>Compare to &lt;code>mn-etcd-sz&lt;/code> consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~20% higher&lt;/strong>.*&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to &lt;code>mn-etcd-mz&lt;/code> consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~slightly less&lt;/strong>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">11582.438&lt;/td>
+&lt;td style="text-align:center">86.09ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">100000&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">15422.2&lt;/td>
+&lt;td style="text-align:center">64.6ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> all keys.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~678.77ms&lt;/code>) is &lt;strong>~5% slightly lesser than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~697.29ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~697.29ms&lt;/code>) is less than &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~701ms&lt;/code>) but the difference is negligible.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.8875&lt;/td>
+&lt;td style="text-align:center">678.77ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.720&lt;/td>
+&lt;td style="text-align:center">697.29ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.7&lt;/td>
+&lt;td style="text-align:center">701ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~5% slightly higher&lt;/strong> for all cases&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~687.36ms&lt;/code>) is less than &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~692.68ms&lt;/code>) but the difference is negligible.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~692.68ms&lt;/code>) is &lt;strong>~5% slightly lesser than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~735.7ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.76&lt;/td>
+&lt;td style="text-align:center">687.36ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.635&lt;/td>
+&lt;td style="text-align:center">692.68ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">6.3&lt;/td>
+&lt;td style="text-align:center">735.7ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> all keys&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code>(&lt;code>~737.68ms&lt;/code>) latency is &lt;strong>~5% slightly higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~713.7ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to &lt;code>leader&lt;/code> consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> is &lt;em>~5% slightly higher&lt;/em>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">6.163&lt;/td>
+&lt;td style="text-align:center">737.68ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">6.52&lt;/td>
+&lt;td style="text-align:center">713.7ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~757.73ms&lt;/code>) is &lt;strong>~10% higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~690.4ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to &lt;code>follower&lt;/code> consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> consistency &lt;code>Serializable&lt;/code> is &lt;em>~3% slightly higher&lt;/em> for &lt;code>mn-etcd-sz&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to &lt;code>follower&lt;/code> consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> consistency &lt;code>Serializable&lt;/code> is &lt;em>~5% less&lt;/em> for &lt;code>mn-etcd-mz&lt;/code>.&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>*Compare to &lt;code>leader&lt;/code> consistency &lt;code>Serializable&lt;/code>read request, &lt;code>follower&lt;/code> consistency &lt;code>Serializable&lt;/code> is &lt;em>~5% less&lt;/em> for &lt;code>mn-etcd-mz&lt;/code>. *&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">6.0295&lt;/td>
+&lt;td style="text-align:center">757.73ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">256&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">6.87&lt;/td>
+&lt;td style="text-align:center">690.4ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;br>
+&lt;/details>
+&lt;/li>
+&lt;li>
+&lt;details>
+&lt;summary>In this case benchmark tool tries to get specific key with random `1MB` value.&lt;/summary>
+&lt;ul>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> with single client.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~5.96ms&lt;/code>) is &lt;strong>~5% lesser than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~6.28ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~6.28ms&lt;/code>) is &lt;strong>~10% higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~5.3ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">167.381&lt;/td>
+&lt;td style="text-align:center">5.96ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">158.822&lt;/td>
+&lt;td style="text-align:center">6.28ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">187.94&lt;/td>
+&lt;td style="text-align:center">5.3ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~15% less&lt;/strong> for &lt;code>sn-etcd-sz&lt;/code>, &lt;code>mn-etcd-sz&lt;/code>, &lt;code>mn-etcd-mz&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">184.95&lt;/td>
+&lt;td style="text-align:center">5.398ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">176.901&lt;/td>
+&lt;td style="text-align:center">5.64ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">209.99&lt;/td>
+&lt;td style="text-align:center">4.7ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> with single client.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~6.66ms&lt;/code>) is &lt;strong>~10% higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~6.16ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> read request latency is &lt;strong>~10% high&lt;/strong> for &lt;code>mn-etcd-sz&lt;/code>&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> read request latency is &lt;strong>~20% high&lt;/strong> for &lt;code>mn-etcd-mz&lt;/code>&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">150.680&lt;/td>
+&lt;td style="text-align:center">6.66ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">162.072&lt;/td>
+&lt;td style="text-align:center">6.16ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~15% less&lt;/strong> for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~5.84ms&lt;/code>), &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~5.01ms&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to &lt;code>leader&lt;/code>, &lt;code>follower&lt;/code> read request latency is &lt;strong>~5% slightly high&lt;/strong> for &lt;code>mn-etcd-sz&lt;/code>, &lt;code>mn-etcd-mz&lt;/code>&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">170.918&lt;/td>
+&lt;td style="text-align:center">5.84ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">1&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">199.01&lt;/td>
+&lt;td style="text-align:center">5.01ms&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> with multiple clients.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~1.593secs&lt;/code>) is &lt;strong>~20% lesser than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~1.974secs&lt;/code>).&lt;/li>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~1.974secs&lt;/code>) is &lt;strong>~5% greater than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~1.81secs&lt;/code>).&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">252.149&lt;/td>
+&lt;td style="text-align:center">1.593secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">205.589&lt;/td>
+&lt;td style="text-align:center">1.974secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">230.42&lt;/td>
+&lt;td style="text-align:center">1.81secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>more or less same&lt;/strong> for &lt;code>sn-etcd-sz&lt;/code>(&lt;code>~1.57961secs&lt;/code>), &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~1.8secs&lt;/code>) not a big difference&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>, &lt;code>Serializable&lt;/code> is &lt;strong>~10% high&lt;/strong> for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~ 2.277secs&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">252.406&lt;/td>
+&lt;td style="text-align:center">1.57961secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">181.905&lt;/td>
+&lt;td style="text-align:center">2.277secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">227.64&lt;/td>
+&lt;td style="text-align:center">1.8secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> with multiple client.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>mn-etcd-sz&lt;/code> latency is &lt;strong>~20% less than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>.&lt;/li>
+&lt;li>Compare to &lt;code>leader&lt;/code> consistency &lt;code>Linearizable&lt;/code>, &lt;code>follower&lt;/code> read request latency is ~15 less for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~1.694secs&lt;/code>).&lt;/li>
+&lt;li>Compare to &lt;code>leader&lt;/code> consistency &lt;code>Linearizable&lt;/code>, &lt;code>follower&lt;/code> read request latency is ~10% higher for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~1.977secs&lt;/code>).&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">248.489&lt;/td>
+&lt;td style="text-align:center">1.694secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">210.22&lt;/td>
+&lt;td style="text-align:center">1.977secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">205.765&lt;/td>
+&lt;td style="text-align:center">1.967secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">195.2&lt;/td>
+&lt;td style="text-align:center">2.159secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;ul>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">231.458&lt;/td>
+&lt;td style="text-align:center">1.7413secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">214.80&lt;/td>
+&lt;td style="text-align:center">1.907secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">183.320&lt;/td>
+&lt;td style="text-align:center">2.2810secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">1000&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">100&lt;/td>
+&lt;td style="text-align:center">500&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-2&lt;/td>
+&lt;td style="text-align:center">195.40&lt;/td>
+&lt;td style="text-align:center">2.164secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1b&lt;/td>
+&lt;td style="text-align:center">etcd-main-2&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>leader&lt;/code> all keys.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~8.993secs&lt;/code>) is &lt;strong>~3% slightly lower than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~9.236secs&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~9.236secs&lt;/code>) is &lt;strong>~2% slightly lower than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~9.100secs&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.5139&lt;/td>
+&lt;td style="text-align:center">8.993secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.506&lt;/td>
+&lt;td style="text-align:center">9.236secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.508&lt;/td>
+&lt;td style="text-align:center">9.100secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> for &lt;code>sn-etcd-sz&lt;/code>(&lt;code>~9.secs&lt;/code>) is &lt;strong>a slight difference &lt;code>10ms&lt;/code>&lt;/strong>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~9.113secs&lt;/code>) is &lt;strong>~1% less&lt;/strong>, not a big difference.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> for &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~8.799secs&lt;/code>) is &lt;strong>~3% less&lt;/strong>, not a big difference.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>sn-etcd-sz&lt;/code> latency(&lt;code>~9.secs&lt;/code>) is &lt;strong>~1% slightly less than&lt;/strong> &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~9.113secs&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~9.113secs&lt;/code>) is &lt;strong>~3% slightly higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~8.799secs&lt;/code>)&lt;/em>.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.51125&lt;/td>
+&lt;td style="text-align:center">9.0003secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">sn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.4993&lt;/td>
+&lt;td style="text-align:center">9.113secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">leader&lt;/td>
+&lt;td style="text-align:center">0.522&lt;/td>
+&lt;td style="text-align:center">8.799secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-1&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Benchmark tool range requests to &lt;code>follower&lt;/code> all keys&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>mn-etcd-sz&lt;/code> latency(&lt;code>~9.065secs&lt;/code>) is &lt;strong>~1% slightly higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~9.007secs&lt;/code>).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to &lt;code>leader&lt;/code> consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> is &lt;em>~1% slightly higher&lt;/em> for both cases &lt;code>mn-etcd-sz&lt;/code>, &lt;code>mn-etcd-mz&lt;/code> .&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">0.512&lt;/td>
+&lt;td style="text-align:center">9.065secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">l&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">0.533&lt;/td>
+&lt;td style="text-align:center">9.007secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;li>
+&lt;p>Compare to consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> for &lt;code>mn-etcd-sz&lt;/code>(&lt;code>~9.553secs&lt;/code>) is &lt;strong>~5% high&lt;/strong>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>Compare to consistency &lt;code>Linearizable&lt;/code>read request, &lt;code>follower&lt;/code> for &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~7.7433secs&lt;/code>) is &lt;strong>~15% less&lt;/strong>&lt;/em>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>&lt;code>mn-etcd-sz&lt;/code>(&lt;code>~9.553secs&lt;/code>) latency is &lt;strong>~20% higher than&lt;/strong> &lt;code>mn-etcd-mz&lt;/code>(&lt;code>~7.7433secs&lt;/code>)&lt;/em>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align:center">Number of requests&lt;/th>
+&lt;th style="text-align:center">Value size&lt;/th>
+&lt;th style="text-align:center">Number of connections&lt;/th>
+&lt;th style="text-align:center">Number of clients&lt;/th>
+&lt;th style="text-align:center">sequential-keys&lt;/th>
+&lt;th style="text-align:center">Consistency&lt;/th>
+&lt;th style="text-align:center">Target etcd server&lt;/th>
+&lt;th style="text-align:center">Average write QPS&lt;/th>
+&lt;th style="text-align:center">Average latency per request&lt;/th>
+&lt;th style="text-align:center">zone&lt;/th>
+&lt;th style="text-align:center">server name&lt;/th>
+&lt;th style="text-align:center">Test name&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">0.4743&lt;/td>
+&lt;td style="text-align:center">9.553secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1a&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-sz&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align:center">20&lt;/td>
+&lt;td style="text-align:center">1000000&lt;/td>
+&lt;td style="text-align:center">2&lt;/td>
+&lt;td style="text-align:center">5&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td style="text-align:center">s&lt;/td>
+&lt;td style="text-align:center">follower-1&lt;/td>
+&lt;td style="text-align:center">0.5500&lt;/td>
+&lt;td style="text-align:center">7.7433secs&lt;/td>
+&lt;td style="text-align:center">eu-west-1c&lt;/td>
+&lt;td style="text-align:center">etcd-main-0&lt;/td>
+&lt;td style="text-align:center">mn-etcd-mz&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;br>
+&lt;/details>
+&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;br>
+&lt;br>
+&lt;blockquote>
+&lt;p>NOTE: This Network latency analysis is inspired by &lt;a href="https://etcd.io/docs/v3.5/op-guide/performance/">ETCD performance&lt;/a>.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Local e2e Tests</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/local-e2e-tests/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/development/local-e2e-tests/</guid><description>
 &lt;h1 id="e2e-test-suite">e2e Test Suite&lt;/h1>
 &lt;p>Developers can run extended e2e tests, in addition to unit tests, for Etcd-Druid in or from
 their local environments. This is recommended to verify the desired behavior of several features
@@ -133,47 +2621,4 @@ test-e2e
 &lt;p>If successful, delete the cluster by:
 &lt;code>kind delete cluster --name kind-2&lt;/code>&lt;/p>
 &lt;p>Run the following &lt;code>make&lt;/code> command to perform e2e tests that will automatically take care of spinning up KIND clsuter and deploying localstack pod:
-&lt;code>make ci-e2e-kind&lt;/code>&lt;/p></description></item><item><title>Docs: Metrics</title><link>https://gardener.cloud/docs/other-components/etcd-druid/development/metrics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/development/metrics/</guid><description>
-&lt;h1 id="monitoring">Monitoring&lt;/h1>
-&lt;p>etcd-druid uses &lt;a href="http://prometheus.io/">Prometheus&lt;/a> for metrics reporting. The metrics can be used for real-time monitoring and debugging of compaction jobs.&lt;/p>
-&lt;p>The simplest way to see the available metrics is to cURL the metrics endpoint &lt;code>/metrics&lt;/code>. The format is described &lt;a href="http://prometheus.io/docs/instrumenting/exposition_formats/">here&lt;/a>.&lt;/p>
-&lt;p>Follow the &lt;a href="http://prometheus.io/docs/introduction/getting_started/">Prometheus getting started doc&lt;/a> to spin up a Prometheus server to collect etcd metrics.&lt;/p>
-&lt;p>The naming of metrics follows the suggested &lt;a href="http://prometheus.io/docs/practices/naming/">Prometheus best practices&lt;/a>. All compaction related metrics are put under namespace &lt;code>etcddruid&lt;/code> and subsystem &lt;code>compaction&lt;/code>.&lt;/p>
-&lt;h3 id="compaction">Compaction&lt;/h3>
-&lt;p>These metrics give an idea about the compaction jobs that run after some interval in shoot control planes. Studying the metrices, we can deduce how many compaction job ran successfully, how many failed, how many delta events compacted etc.&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Name&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;th>Type&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>etcddruid_compaction_jobs_total&lt;/td>
-&lt;td>Total number of compaction jobs initiated by compaction controller.&lt;/td>
-&lt;td>Counter&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>etcddruid_compaction_jobs_current&lt;/td>
-&lt;td>Number of currently running compaction job.&lt;/td>
-&lt;td>Gauge&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>etcddruid_compaction_job_duration_seconds&lt;/td>
-&lt;td>Total time taken in seconds to finish a running compaction job.&lt;/td>
-&lt;td>Histogram&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>etcddruid_compaction_num_delta_events&lt;/td>
-&lt;td>Total number of etcd events to be compacted by a compaction job.&lt;/td>
-&lt;td>Gauge&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;p>There are two labels for &lt;code>etcddruid_compaction_jobs_total&lt;/code> metrics. The label &lt;code>succeeded&lt;/code> shows how many of the compaction jobs are succeeded and label &lt;code>failed&lt;/code> shows how many of compaction jobs are failed.&lt;/p>
-&lt;p>There are two labels for &lt;code>etcddruid_compaction_job_duration_seconds&lt;/code> metrics. The label &lt;code>succeeded&lt;/code> shows how much time taken by a successful job to complete and label &lt;code>failed&lt;/code> shows how much time taken by a failed compaction job.&lt;/p>
-&lt;p>&lt;code>etcddruid_compaction_jobs_current&lt;/code> metric comes with label &lt;code>etcd_namespace&lt;/code> that indicates the namespace of the ETCD running in the control plane of a shoot cluster..&lt;/p>
-&lt;h2 id="prometheus-supplied-metrics">Prometheus supplied metrics&lt;/h2>
-&lt;p>The Prometheus client library provides a number of metrics under the &lt;code>go&lt;/code> and &lt;code>process&lt;/code> namespaces.&lt;/p></description></item></channel></rss>
+&lt;code>make ci-e2e-kind&lt;/code>&lt;/p></description></item></channel></rss>

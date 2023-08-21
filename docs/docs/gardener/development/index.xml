@@ -3013,7 +3013,7 @@ If your test suite requires a different control plane configuration (e.g., disab
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># watch test objects&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>k get managedresource -A -w
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run a &lt;code>gardenerenvtest&lt;/code> suite (using &lt;code>gardener-apiserver&lt;/code>) against an existing test environment:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># modify test/start-envtest to disable admission plugins and enable feature gates like in test suite...&lt;/span>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># modify GardenerTestEnvironment{} in test/start-envtest to disable admission plugins and enable feature gates like in test suite...&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make start-envtest ENVTEST_TYPE=gardener
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
@@ -3345,6 +3345,7 @@ These tests operate on Shoot clusters across different Cloud Providers, using di
 &lt;li>&lt;a href="#add-a-new-test">Add a new test&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#test-labels">Test Labels&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#framework">Framework&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#container-images">Container Images&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;h2 id="structure">Structure&lt;/h2>
 &lt;p>Gardener test machinery tests are split into two test suites that can be found under &lt;a href="https://github.com/gardener/gardener/tree/master/test/testmachinery/suites">&lt;code>test/testmachinery/suites&lt;/code>&lt;/a>:&lt;/p>
@@ -3585,4 +3586,30 @@ If there is no available newer version, this test is a noop.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> -kubecfg=$HOME/.kube/config \
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> -project-namespace=$PROJECT_NAMESPACE \
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> -gardenerVersion=$GARDENER_VERSION # needed to validate the last acted gardener version of a shoot
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="container-images">Container Images&lt;/h2>
+&lt;p>Test machinery tests usually deploy a workload to the Shoot cluster as part of the test execution. When introducing a new container image, consider the following:&lt;/p>
+&lt;ul>
+&lt;li>Make sure the container image is multi-arch.
+&lt;ul>
+&lt;li>Tests are executed against &lt;code>amd64&lt;/code> and &lt;code>arm64&lt;/code> based worker Nodes.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Do not use container images from Docker Hub.
+&lt;ul>
+&lt;li>Docker Hub has rate limiting (see &lt;a href="https://docs.docker.com/docker-hub/download-rate-limit/">Download rate limit&lt;/a>). For anonymous users, the rate limit is set to 100 pulls per 6 hours per IP address. In some fenced environments the network setup can be such that all egress connections are issued from single IP (or set of IPs). In such scenarios the allowed rate limit can be exhausted too fast. See &lt;a href="https://github.com/gardener/gardener/issues/4160">https://github.com/gardener/gardener/issues/4160&lt;/a>.&lt;/li>
+&lt;li>Docker Hub registry doesn&amp;rsquo;t support pulling images over IPv6 (see &lt;a href="https://www.docker.com/blog/beta-ipv6-support-on-docker-hub-registry/">Beta IPv6 Support on Docker Hub Registry&lt;/a>).&lt;/li>
+&lt;li>Avoid manually copying Docker Hub images to Gardener GCR (&lt;code>eu.gcr.io/gardener-project/3rd/&lt;/code>). Use the existing prow job for this (see &lt;a href="https://github.com/gardener/ci-infra/tree/master/config/images">Copy Images&lt;/a>).&lt;/li>
+&lt;li>If possible, use a Kubernetes e2e image (&lt;code>registry.k8s.io/e2e-test-images/&amp;lt;image-name&amp;gt;&lt;/code>).
+&lt;ul>
+&lt;li>In some cases, there is already a Kubernetes e2e image alternative of the Docker Hub image.
+&lt;ul>
+&lt;li>For example, use &lt;code>registry.k8s.io/e2e-test-images/busybox&lt;/code> instead of &lt;code>eu.gcr.io/gardener-project/3rd/busybox&lt;/code> or &lt;code>docker.io/busybox&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Kubernetes has multiple test images - see &lt;a href="https://github.com/kubernetes/kubernetes/tree/v1.27.0/test/images">https://github.com/kubernetes/kubernetes/tree/v1.27.0/test/images&lt;/a>. &lt;code>agnhost&lt;/code> is the most widely used image in Kubernetes e2e tests. It contains multiple testing related binaries inside such as &lt;code>pause&lt;/code>, &lt;code>logs-generator&lt;/code>, &lt;code>serve-hostname&lt;/code>, &lt;code>webhook&lt;/code> and others. See all of them in the &lt;a href="https://github.com/kubernetes/kubernetes/blob/v1.27.0/test/images/agnhost/README.md">agnhost&amp;rsquo;s README.md&lt;/a>.&lt;/li>
+&lt;li>The list of available Kubernetes e2e images and tags can be checked in &lt;a href="https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-e2e-test-images/images.yaml">this page&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul></description></item></channel></rss>

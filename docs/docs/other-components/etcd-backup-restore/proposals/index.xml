@@ -1,0 +1,230 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Proposals</title><link>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/</link><description>Recent content in Proposals on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Design</title><link>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/design/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/design/</guid><description>
+&lt;h1 id="etcd-backup-restore-design">Etcd backup restore design&lt;/h1>
+&lt;h2 id="goal">Goal&lt;/h2>
+&lt;p>Main goal of this project to provide a solution to make &lt;a href="https://github.com/etcd-io/etcd">etcd&lt;/a> instance backing the kubernetes cluster robust to failures. Etcd data is backed up at regular intervals. The etcd instance runs on a Seed Kubernetes cluster and stores the state of the Shoot Kubernetes clusters. In case of etcd instance failures, the etcd instance is reconciled and in the extreme case restored from the latest non-corrupt backup available.&lt;/p>
+&lt;h2 id="non-goal">Non Goal&lt;/h2>
+&lt;ul>
+&lt;li>Volume failures like EBS volume failures, PVC and PV deletion after etcd deletion (when the shoot goes down) are not handled at this moment. However, checks and remedial steps for the failure types mentioned previously will be implemented over time/later.&lt;/li>
+&lt;li>Allowing the user to pick from a list of backups or even point-in-time-recovery (PiTR) is not planned, because there is no reliable infrastructure reconciliation implemented in Kubernetes and the CRD extension concept (or API server extensions) allows to have resources with impact on the external/physical world that would not be reconciled either (if we are to restore a backup which is not the latest).&lt;/li>
+&lt;li>Backup validation is not repeatedly done, i.e. once a backup is taken, we assume the infrastructure preserves it in a healthy state (we do not validate backups by rehashing them and comparing them with initially taken hashes).&lt;/li>
+&lt;/ul>
+&lt;h2 id="design">Design&lt;/h2>
+&lt;h3 id="assumption">Assumption&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>Etcd cluster is a single member cluster (Shoot cluster environment, much like a master in a Borg-hosted GKE cluster).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Etcd instance will be deployed as a StatefulSet with a PVC for its persistence, which will bring free reconciliation.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="requirements">Requirements&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>ETCD pod fails and PVC with valid data directory is available: Etcd pod should restart and attach to same PVC to continue from last state before failure.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Data corruption check: There should be mechanism to check etcd failure due to etcd data directory corruption.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Data directory unavailable but backups available in the cloud store: Restore Etcd from the latest backup.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Backup etcd snapshots on different cloud object-stores.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="rely-on-k8s-for-the-following">Rely on K8s for the Following&lt;/h3>
+&lt;ul>
+&lt;li>PVC deleted - Doesn&amp;rsquo;t necessarily detach volume if in use.&lt;/li>
+&lt;li>IaaS failure
+&lt;ul>
+&lt;li>Storage Volume detached: PV reattaches to the same volume. Restoration of Etcd data directory not required.&lt;/li>
+&lt;li>Storage Volume deleted: Expect StatefulSet to be robust to such failures. Restoration of etcd data directory necessary.&lt;/li>
+&lt;li>Node failure: K8s should reschedule the pod on a different node. Restoration of Etcd data directory not required.&lt;/li>
+&lt;li>ETCD Pod scheduling failed: Can’t do much (look pod configuration parameter for critical-pods).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="architecture">Architecture&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/etcd-backup-restore_f13a0f.jpg" alt="architecture">&lt;/p>
+&lt;p>We will have a StatefulSet for etcd with two containers in it.&lt;/p>
+&lt;ul>
+&lt;li>ETCD container&lt;/li>
+&lt;li>Sidecar container&lt;/li>
+&lt;/ul>
+&lt;h3 id="etcd-container">ETCD Container&lt;/h3>
+&lt;ul>
+&lt;li>Request the sidecar to validate/initialize the data directory.&lt;/li>
+&lt;li>The etcd process is started only if the &lt;code>initialize&lt;/code> request to sidecar returns a success.&lt;/li>
+&lt;/ul>
+&lt;h3 id="sidecar-container">Sidecar Container&lt;/h3>
+&lt;p>Sidecar container has two components&lt;/p>
+&lt;ul>
+&lt;li>Initializer&lt;/li>
+&lt;li>Prober&lt;/li>
+&lt;/ul>
+&lt;h4 id="initializer">Initializer&lt;/h4>
+&lt;ul>
+&lt;li>On request from the Etcd container, check the data directory for data corruption.&lt;/li>
+&lt;li>if data directory is corrupt, restore the data directory from the latest snapshot.&lt;/li>
+&lt;li>return successful response on validation/restoration of data directory.&lt;/li>
+&lt;/ul>
+&lt;h4 id="prober">Prober&lt;/h4>
+&lt;ul>
+&lt;li>Probe etcd container for liveliness of etcd process.&lt;/li>
+&lt;li>Probe is required to ensure that etcd is live before backups are triggered.&lt;/li>
+&lt;li>Schedule the backup operation (probably using cron library) which triggers full snapshot at regular intervals.&lt;/li>
+&lt;li>Store the snapshot in the configured cloud object store.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Init container is not used for the validation/restoration of etcd data directory. The rationale behind the decision was to avoid baking in pod restart logic in sidecar container in the event etcd process had died. In case etcd container died, init-container had to be run before etcd container was run to ensure that data directory was valid. This required the pod to be restarted. With the current design, the sidecar handles the data directory validation/restoration and periodic backups. Pod restart is not required.&lt;/strong>&lt;/p>
+&lt;h2 id="workflow">Workflow&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/etcd-backup-restore-sequence-diagram_12616f.jpg" alt="sequence-diagram">&lt;/p>
+&lt;h3 id="etcd-container-1">Etcd container&lt;/h3>
+&lt;ol>
+&lt;li>Etcd container starts and requests the sidecar for data directory initialization. It waits for the response.&lt;/li>
+&lt;li>On response,
+&lt;ol>
+&lt;li>in case of success, start etcd process.&lt;/li>
+&lt;li>in case of failure/timeout, exit with error. (Container restarts)&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="sidecar-container-1">Sidecar container&lt;/h3>
+&lt;ol>
+&lt;li>Start periodic liveliness prober on etcd. Start http server to serve &lt;code>initialize&lt;/code> requests.&lt;/li>
+&lt;li>On receiving an &lt;code>initialize&lt;/code> request, check the data directory for corruption.
+&lt;ol>
+&lt;li>In case of data directory corruption, restore data directory from the latest cloud snapshot. Return success.&lt;/li>
+&lt;li>In case data directory is valid, return success.&lt;/li>
+&lt;li>In all other cases, return failure.&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;li>Once the &lt;code>initialize&lt;/code> request returns success, etcd process can be expected to start up in some time. The prober would then receive a successful probe of etcd&amp;rsquo;s liveliness.&lt;/li>
+&lt;li>On successful probe, start taking periodic backup of etcd and store the snapshot to the cloud object store. Stop prober.
+&lt;ul>
+&lt;li>In case of a failure to take a backup, exit with error. (Container restarts)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="handling-of-different-scenariosissues">Handling of Different Scenarios/Issues&lt;/h3>
+&lt;ul>
+&lt;li>DNS latency: Should not matter for single member Etcd cluster.&lt;/li>
+&lt;li>Etcd upgrade and downgrade for K8s compatibility: Should not be issue for v3.* series released so far. Simply restart pod. No data format change.&lt;/li>
+&lt;li>IaaS issue: Issues like unreachable object store, will be taken care by init container and backup container. Both container will keep retrying to reach out object store with exponential timeouts.&lt;/li>
+&lt;li>Corrupt backup: StatefulSet go in restart loop, and human operator will with customers concern delete the last corrupt backup from object store manually. So that, in next iteration it will recover from previous non-corrupt backup.&lt;/li>
+&lt;/ul>
+&lt;h2 id="outlook">Outlook&lt;/h2>
+&lt;p>We want to develop incremental/continuous etcd backups (write watch logs in between full backups), to ensure our backups are fresh enough to avoid discrepancies between etcd backup and external/physical world.&lt;/p></description></item><item><title>Docs: High Watch Event Ingress Rate</title><link>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/high_watch_event_ingress_rate/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/high_watch_event_ingress_rate/</guid><description>
+&lt;h1 id="handle-high-watch-event-ingress-rate">Handle high watch event ingress rate&lt;/h1>
+&lt;h2 id="problem-statement">Problem statement&lt;/h2>
+&lt;p>For large key-value sizes of etcd and watch on etcd yielding responses at a high rates, we see that the backup sidecar memory shoots up drastically but linearly.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/profile-high-rate-events_b2b269.png" alt="profile">&lt;/p>
+&lt;h2 id="reason">Reason&lt;/h2>
+&lt;p>The memory consumption surge is associated with the watch implementation in the client library.
+As can be seen &lt;a href="https://github.com/etcd-io/etcd/blob/master/clientv3/watch.go#L814">here&lt;/a>, when the ingress rate of the events are more than the egress rate from the watch response channel the buffers holding the events tend to bloat. There is no throttling done between etcd and the client. Even if throttling was done, we would not be able to depend on it. As the revision of etcd would have moved ahead and due to throttling the watch events would be far behind. This lag could get progressively worse if the load on etcd persists. We would have to implement a different approach to watches if we stumble upon this issue in realtime.&lt;/p>
+&lt;p>When the delta snapshot logic was changed to run multiple goroutines to drain the watch channel and to short circuit writing the delta to cloud but instead just drop it, we see that the memory pressure on the watch client is drastically reduced. The finding is shown in the image below.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/profile-fast-drain_a0257d.png" alt="profile">&lt;/p>
+&lt;h2 id="solution">Solution&lt;/h2>
+&lt;p>There are two areas to address in order to arrive at a solution:&lt;/p>
+&lt;ul>
+&lt;li>Fix the watch implementation of etcd client to throttle the ingress of watch response events from etcd. Implement a fix avoid the unchecked growth of &lt;a href="https://github.com/etcd-io/etcd/blob/master/clientv3/watch.go#L814">buffer&lt;/a> so as to prevent the OOM Kill.&lt;/li>
+&lt;li>Try a polling-based approach (with parallel download of chunks of revisions) as against the watch-based approach now. The delta revisions yet to be archived in the cloud store can be polled in chunks. The amount of memory consumed from as part of the poll based events fetch can be done in a controlled manner.&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Restoration</title><link>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/restoration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/restoration/</guid><description>
+&lt;h1 id="etcd-data-restoration">Etcd data restoration&lt;/h1>
+&lt;p>Etcd-backup-restore provides a simple and automated method of restoring single-node etcd clusters from their backups (snapshots) stored via the snapshotting process. Restoration kicks in when etcd data gets corrupted, either by the etcd process itself or due to PV corruption, or if the data is manipulated or erased due to human intervention. The restorer relies on the backups stored in an object storage bucket to restore the etcd data to its latest backed-up non-corrupt state.&lt;/p>
+&lt;p>In the context of etcd-backup-restore server, restoration is a conditional part of the initialization workflow, in which restoration is triggered when etcd data validation deems the data directory invalid or corrupt.&lt;/p>
+&lt;p>To learn about starting an etcd-backup-restore server, please follow the &lt;a href="https://gardener.cloud/docs/other-components/etcd-backup-restore/deployment/getting_started/">getting started guide&lt;/a>.&lt;/p>
+&lt;h2 id="assumption">Assumption&lt;/h2>
+&lt;ul>
+&lt;li>Data directory must not contain &lt;code>member&lt;/code> directory before triggering restoration&lt;/li>
+&lt;li>Snapshotter should NOT be running
+&lt;ul>
+&lt;li>This is taken care of by etcd-backup-restore when started in &lt;code>server&lt;/code> mode&lt;/li>
+&lt;li>If running in &lt;code>snapshot&lt;/code> mode, one must take precautions to stop the snapshotter before attempting to restore&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="requirements">Requirements&lt;/h2>
+&lt;ul>
+&lt;li>Etcd backup stored in an object storage bucket like AWS S3, GCP GCS, Azure ABS, Openstack Swift or Alicloud OSS&lt;/li>
+&lt;li>The backup format must conform to that of etcd-backup-restore&amp;rsquo;s snapshotter
+&lt;ul>
+&lt;li>Each backup must have a full snapshot, optionally followed by a set of delta/incremental snapshots&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="workflow">Workflow&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/restorer-sequence-diagram_f768e9.png" alt="workflow">&lt;/p>
+&lt;ul>
+&lt;li>Full snapshot is essentially the etcd DB file encapsulated in a JSON object&lt;/li>
+&lt;li>The full snapshot is downloaded only if available. If not, the embedded etcd server takes care of initializing the DB file&lt;/li>
+&lt;li>Delta snapshots are downloaded and applied only if available. If not, this step is skipped and restoration is marked as complete.&lt;/li>
+&lt;/ul>
+&lt;p>Restorer fetches the latest full snapshot present in the snapstore, named &lt;code>etcd-main/v1/Backup-xxxxxxxxxx/Full-aaaaaaaa-bbbbbbbb-xxxxxxxxxx&lt;/code>, and restores from it. It then fetches the subsequent delta snapshots and applies them sequentially on top of the partially restored data directory. These delta snapshots are named &lt;code>etcd-main/v1/Backup-xxxxxxxxxx/Incr-bbbbbbbb-cccccccc-yyyyyyyyyy&lt;/code> and so on. Please consider the following while reading the aforementioned snapshot naming patterns: &lt;code>xxxxxxxxxx&lt;/code>,&lt;code>yyyyyyyyyy&lt;/code> are UTC timestamps and &lt;code>aaaaaaaa&lt;/code>,&lt;code>bbbbbbbb&lt;/code>,&lt;code>cccccccc&lt;/code> are etcd revision numbers. Each snapshot contains etcd events between two revisions inclusive, as specified in the snapshot name.&lt;/p>
+&lt;h2 id="automatic-restoration">Automatic restoration&lt;/h2>
+&lt;p>Restoration is an essential part of etcd-backup-restore&amp;rsquo;s &lt;code>initialization&lt;/code> workflow, which is triggered as the first step in the &lt;code>server&lt;/code> sub-command workflow. Ideally, operators need not worry about restoration when deploying etcd-backup-restore via the provided helm chart, where the tool is deployed in the &lt;code>server&lt;/code> mode, as restoration will be triggered if the etcd data directory is found to be corrupt.&lt;/p>
+&lt;h2 id="manual-restoration">Manual restoration&lt;/h2>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/other-components/etcd-backup-restore/operations/manual_restoration/">this guide&lt;/a> to know how to manually restore the etcd data, the caveats that come with it, and how to avoid common pitfalls.&lt;/p></description></item><item><title>Docs: Validation</title><link>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/validation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-backup-restore/proposals/validation/</guid><description>
+&lt;h1 id="etcd-data-validation">Etcd data validation&lt;/h1>
+&lt;p>As etcd is being used to store the state of the K8s cluster, it is mandatory that etcd deployment has to be hardened against data loss. Sufficient checks have to be in place to prevent etcd from erroneously starting with stale/corrupt data and taking stale snapshots to the backing store. We have a data validation flow in place which prevents etcd from starting in case of data corruption.&lt;/p>
+&lt;h2 id="directory-validation">Directory validation&lt;/h2>
+&lt;p>The etcd data directory validation comprises of multiple checks as mentioned below:&lt;/p>
+&lt;h3 id="structure-validation">Structure validation&lt;/h3>
+&lt;p>The member directory, snap directory and wal directory are checked to ascertain that they adhere to the directory structure followed by etcd.&lt;/p>
+&lt;h3 id="content-validation">Content validation&lt;/h3>
+&lt;h4 id="corruption-check">Corruption check&lt;/h4>
+&lt;p>The contents for the data directory(db file, snap files and wal file) are checked for data corruption.&lt;/p>
+&lt;h4 id="revision-check">Revision check&lt;/h4>
+&lt;p>The revision of etcd data in the db file is checked with the revision of the latest snapshot in the backing store. If the revison in the backing store is greater than that of etcd data in the db file, etcd data is considered stale. This is to prevent etcd snapshots for stale revisions from overwriting legit recent snapshots.&lt;/p>
+&lt;h2 id="validation-flow">Validation flow&lt;/h2>
+&lt;p>Not all validation steps take the same time to complete. Some validation steps are dependent on the size of etcd data(eg. db file). If the db file is checked for data corruption before etcd startup, it would take longer for etcd to become servicable. Therefore, it is only imperative to perform validation checks on abnormal etcd events like etcd restart after a crash. The validation flow mentioned below is modeled with the aforementioned rationale in mind.&lt;/p>
+&lt;ul>
+&lt;li>Is the validation marker file present?&lt;/li>
+&lt;li>No
+&lt;ul>
+&lt;li>Do directory structure validation.&lt;/li>
+&lt;li>Do directory content validation.&lt;/li>
+&lt;li>Start etcd&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Yes
+&lt;ul>
+&lt;li>Check if previous exit was normal from the validation marker file
+&lt;ul>
+&lt;li>Yes
+&lt;ul>
+&lt;li>Do revision check&lt;/li>
+&lt;li>Do directory structure validation.&lt;/li>
+&lt;li>Start etcd&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>No
+&lt;ul>
+&lt;li>Do directory structure validation.&lt;/li>
+&lt;li>Do directory content validation.&lt;/li>
+&lt;li>Start etcd&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="addition-design-decisions-to-be-made">Addition design decisions to be made&lt;/h2>
+&lt;p>Currently, we have the validation check triggered from a bash script in the etcd container. The status of the validation check is polled till its completed and based on the validation status, it is decided whether it is safe to start etcd. During validation if etcd directory is found to be corrupt or stale, the latest snapshot in the backing store is used to restore etcd data to the latest revision.&lt;/p>
+&lt;h3 id="question-1-should-the-sidecar-container-be-able-to-act-on-the-status-of-previous-etcd-run-status">Question 1: Should the sidecar container be able to act on the status of previous etcd run status?&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>Option 1&lt;/strong>: Yes. The information of previous etcd run may be made available to the sidecar container via configmaps. The idea is that &lt;code>validate&lt;/code> REST endpoint shall check the shared configmap for status, perform necessary validation and restore steps before etcd start.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Option 2&lt;/strong>: No. If the above-mentioned level of granularity is to be available for validation checks, we would need to modify the REST endpoints to trigger the validation sub-checks. Should we modify the bash script to handle the cases and let the sidecar be agnostic to the status of the previous etcd run?&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>We have chosen the approach were the script decides on the previous exit status of etcd, to call the necessary validation step. If etcd terminated normally then sanity validation is performed else we perform a full etcd data validation.&lt;/p>
+&lt;h3 id="question-2-how-should-status-for-previous-etcd-run-be-identified">Question 2: How should status for previous etcd run be identified?&lt;/h3>
+&lt;ul>
+&lt;li>&lt;strong>Option 1&lt;/strong>: The error logs of the etcd run can be dumped to an log file in the persistent disk. This can be checked on subsequent validation steps to identify the status of previous etcd run.&lt;/li>
+&lt;li>&lt;strong>Option 2&lt;/strong>: Via exit code stored in a file in the persistent disk. This can be checked on subsequent validation steps to identify the status of previous etcd run.&lt;/li>
+&lt;/ul>
+&lt;p>Since we are do not do an analysis of the logs at this point of time, the log dump and subsequent analysis steps can be taken care of in the necessary PR.&lt;/p></description></item></channel></rss>

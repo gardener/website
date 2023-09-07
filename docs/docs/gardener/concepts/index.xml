@@ -1055,11 +1055,17 @@ As of today, this applies to:&lt;/p>
 &lt;li>&lt;code>etcd-druid&lt;/code>&lt;/li>
 &lt;li>&lt;code>istio&lt;/code> control-plane&lt;/li>
 &lt;li>&lt;code>nginx-ingress-controller&lt;/code>&lt;/li>
-&lt;li>&lt;code>vali&lt;/code>&lt;/li>
-&lt;li>&lt;code>plutono&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>Those components are so-called &amp;ldquo;seed system components&amp;rdquo;.
-As they were already made available by &lt;code>gardener-operator&lt;/code>, the &lt;code>gardenlet&lt;/code> just skips them.&lt;/p>
+In addition, there are a few observability components:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>fluent-operator&lt;/code>&lt;/li>
+&lt;li>&lt;code>fluent-bit&lt;/code>&lt;/li>
+&lt;li>&lt;code>vali&lt;/code>&lt;/li>
+&lt;li>&lt;code>plutono&lt;/code>&lt;/li>
+&lt;li>&lt;code>kube-state-metrics&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>As all of these components are managed by &lt;code>gardener-operator&lt;/code> in this scenario, the &lt;code>gardenlet&lt;/code> just skips them.&lt;/p>
 &lt;blockquote>
 &lt;p>ℹ️ There is no need to configure anything - the &lt;code>gardenlet&lt;/code> will automatically detect when its seed cluster is the garden runtime cluster at the same time.&lt;/p>
 &lt;/blockquote>
@@ -1158,17 +1164,12 @@ Afterwards, it brings up the so-called &amp;ldquo;garden system components&amp;r
 The &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/">&lt;code>gardener-resource-manager&lt;/code>&lt;/a> is deployed first since its &lt;code>ManagedResource&lt;/code> controller will be used to bring up the remainders.&lt;/p>
 &lt;p>Other system components are:&lt;/p>
 &lt;ul>
-&lt;li>garden system resources (&lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">&lt;code>PriorityClass&lt;/code>es&lt;/a> for the workload resources)&lt;/li>
+&lt;li>runtime garden system resources (&lt;a href="https://gardener.cloud/docs/gardener/development/priority-classes/">&lt;code>PriorityClass&lt;/code>es&lt;/a> for the workload resources)&lt;/li>
+&lt;li>virtual garden system resources (RBAC rules)&lt;/li>
 &lt;li>Vertical Pod Autoscaler (if enabled via &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=true&lt;/code> in the &lt;code>Garden&lt;/code>)&lt;/li>
 &lt;li>HVPA Controller (when &lt;code>HVPA&lt;/code> feature gate is enabled)&lt;/li>
 &lt;li>ETCD Druid&lt;/li>
 &lt;li>Istio&lt;/li>
-&lt;/ul>
-&lt;p>The reconciler also manages a few observability-related components (more planned as part of &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/19-migrating-observability-stack-to-operators.md">GEP-19&lt;/a>):&lt;/p>
-&lt;ul>
-&lt;li>Fluent Operator&lt;/li>
-&lt;li>Plutono&lt;/li>
-&lt;li>Vali&lt;/li>
 &lt;/ul>
 &lt;p>As soon as all system components are up, the reconciler deploys the virtual garden cluster.
 It comprises out of two ETCDs (one &amp;ldquo;main&amp;rdquo; etcd, one &amp;ldquo;events&amp;rdquo; etcd) which are managed by ETCD Druid via &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> custom resources.
@@ -1200,6 +1201,24 @@ Third-party components that need to communicate with the virtual cluster can lev
 &lt;p>For the virtual cluster, it is essential to provide a DNS domain via &lt;code>.spec.virtualCluster.dns.domain&lt;/code>.
 &lt;strong>The respective DNS record is not managed by &lt;code>gardener-operator&lt;/code> and should be manually created and pointed to the load balancer IP of the &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Service&lt;/code>.&lt;/strong>
 The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and for configuring the &lt;code>--external-hostname&lt;/code> flag of the API server.&lt;/p>
+&lt;p>Apart from the control plane components of the virtual cluster, the reconcile also deploys the control plane components of Gardener.
+&lt;code>gardener-apiserver&lt;/code> reuses the same ETCDs like the &lt;code>virtual-garden-kube-apiserver&lt;/code>, so all data related to the &amp;ldquo;the garden cluster&amp;rdquo; is stored together and &amp;ldquo;isolated&amp;rdquo; from ETCD data related to the runtime cluster.
+This drastically simplifies backup and restore capabilities (e.g., moving the virtual garden cluster from one runtime cluster to another).&lt;/p>
+&lt;p>The Gardener control plane components are:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>gardener-apiserver&lt;/code>&lt;/li>
+&lt;li>&lt;code>gardener-admission-controller&lt;/code>&lt;/li>
+&lt;li>&lt;code>gardener-controller-manager&lt;/code>&lt;/li>
+&lt;li>&lt;code>gardener-scheduler&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>The reconciler also manages a few observability-related components (more planned as part of &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/19-migrating-observability-stack-to-operators.md">GEP-19&lt;/a>):&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>fluent-operator&lt;/code>&lt;/li>
+&lt;li>&lt;code>fluent-bit&lt;/code>&lt;/li>
+&lt;li>&lt;code>vali&lt;/code>&lt;/li>
+&lt;li>&lt;code>plutono&lt;/code>&lt;/li>
+&lt;li>&lt;code>kube-state-metrics&lt;/code>&lt;/li>
+&lt;/ul>
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>.status.lastOperation&lt;/code> which indicates the status of an operation.&lt;/p>

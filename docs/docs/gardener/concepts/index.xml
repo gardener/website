@@ -740,9 +740,12 @@ the CSRs during the initial TLS Bootstrapping also automatically signs
 the CSR during a certificate rotation.&lt;/p>
 &lt;p>ℹ️ You can trigger an immediate renewal by annotating the &lt;code>Secret&lt;/code> in the seed
 cluster stated in the &lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> field with
-&lt;code>gardener.cloud/operation=renew&lt;/code> and restarting the gardenlet. After it has booted
-up again, gardenlet will issue a new certificate independent of the remaining
-validity of the existing one.&lt;/p>
+&lt;code>gardener.cloud/operation=renew&lt;/code>. Within &lt;code>10s&lt;/code>, gardenlet detects this and terminates
+itself to request new credentials. After it has booted up again, gardenlet will issue a
+new certificate independent of the remaining validity of the existing one.&lt;/p>
+&lt;p>ℹ️ Alternatively, annotate the respective &lt;code>Seed&lt;/code> with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>.
+This will make gardenlet annotate its own kubeconfig secret with &lt;code>gardener.cloud/operation=renew&lt;/code>
+and triggers the process described in the previous paragraph.&lt;/p>
 &lt;h3 id="rotate-certificates-using-custom-kubeconfig">Rotate Certificates Using Custom &lt;code>kubeconfig&lt;/code>&lt;/h3>
 &lt;p>When trying to rotate a custom certificate that wasn’t created by gardenlet
 as part of the TLS Bootstrap, the x509 certificate&amp;rsquo;s &lt;code>Subject&lt;/code> field
@@ -1209,6 +1212,12 @@ Otherwise, you might experience unexpected behaviour or issues with your seed or
 &lt;li>&lt;code>ServiceAccount&lt;/code> token signing key&lt;/li>
 &lt;/ul>
 &lt;p>⚠️ Rotation of static &lt;code>ServiceAccount&lt;/code> secrets is not supported since the &lt;code>kube-controller-manager&lt;/code> does not enable the &lt;code>serviceaccount-token&lt;/code> controller.&lt;/p>
+&lt;p>When the &lt;code>ServiceAccount&lt;/code> token signing key rotation is in &lt;code>Preparing&lt;/code> phase, then &lt;code>gardener-operator&lt;/code> annotates all &lt;code>Seed&lt;/code>s with &lt;code>gardener.cloud/operation=renew-garden-access-secrets&lt;/code>.
+This causes &lt;code>gardenlet&lt;/code> to populate new &lt;code>ServiceAccount&lt;/code> tokens for the garden cluster to all extensions, which are now signed with the new signing key.
+Read more about it &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/#renewing-all-garden-access-secrets">here&lt;/a>.&lt;/p>
+&lt;p>Similarly, when the CA certificate rotation is in &lt;code>Preparing&lt;/code> phase, then &lt;code>gardener-operator&lt;/code> annotates all &lt;code>Seed&lt;/code>s with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>.
+This causes &lt;code>gardenlet&lt;/code> to request a new client certificate for its garden cluster kubeconfig, which is now signed with the new client CA, and which also contains the new CA bundle for the server certificate verification.
+Read more about it &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#rotate-certificates-using-bootstrap-kubeconfig">here&lt;/a>.&lt;/p>
 &lt;h2 id="migrating-an-existing-gardener-landscape-to-gardener-operator">Migrating an Existing Gardener Landscape to &lt;code>gardener-operator&lt;/code>&lt;/h2>
 &lt;p>Since &lt;code>gardener-operator&lt;/code> was only developed in 2023, six years after the Gardener project initiation, most users probably already have an existing Gardener landscape.
 The most prominent installation procedure is &lt;a href="https://github.com/gardener/garden-setup">garden-setup&lt;/a>, however experience shows that most community members have developed their own tooling for managing the garden cluster and the Gardener control plane components.&lt;/p>

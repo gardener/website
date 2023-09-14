@@ -1153,6 +1153,23 @@ Otherwise, it will be set to &lt;code>False&lt;/code> or &lt;code>Progressing&lt
 &lt;/ul>
 &lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
 Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h4 id="reference-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardenreference">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/reference">&lt;code>Reference&lt;/code> Reconciler&lt;/a>&lt;/h4>
+&lt;p>&lt;code>Garden&lt;/code> objects may specify references to other objects in the Garden cluster which are required for certain features.
+For example, operators can configure a secret for ETCD backup via &lt;code>.spec.virtualCluster.etcd.main.backup.secretRef.name&lt;/code> or an audit policy &lt;code>ConfigMap&lt;/code> via &lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.auditConfig.auditPolicy.configMapRef.name&lt;/code>.
+Such objects need a special protection against deletion requests as long as they are still being referenced by the &lt;code>Garden&lt;/code>.&lt;/p>
+&lt;p>Therefore, this reconciler checks &lt;code>Garden&lt;/code>s for referenced objects and adds the finalizer &lt;code>gardener.cloud/reference-protection&lt;/code> to their &lt;code>.metadata.finalizers&lt;/code> list.
+The reconciled &lt;code>Garden&lt;/code> also gets this finalizer to enable a proper garbage collection in case the &lt;code>gardener-operator&lt;/code> is offline at the moment of an incoming deletion request.
+When an object is not actively referenced anymore because the &lt;code>Garden&lt;/code> specification has changed is in deletion, the controller will remove the added finalizer again so that the object can safely be deleted or garbage collected.&lt;/p>
+&lt;p>This reconciler inspects the following references:&lt;/p>
+&lt;ul>
+&lt;li>ETCD backup &lt;code>Secret&lt;/code>s (&lt;code>.spec.virtualCluster.etcd.main.backup.secretRef&lt;/code>)&lt;/li>
+&lt;li>Admission plugin kubeconfig &lt;code>Secret&lt;/code>s (&lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.admissionPlugins[].kubeconfigSecretName&lt;/code> and &lt;code>.spec.virtualCluster.gardener.gardenerAPIServer.admissionPlugins[].kubeconfigSecretName&lt;/code>)&lt;/li>
+&lt;li>Authentication webhook kubeconfig &lt;code>Secret&lt;/code>s (&lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.authentication.webhook.kubeconfigSecretName&lt;/code>)&lt;/li>
+&lt;li>Audit webhook kubeconfig &lt;code>Secret&lt;/code>s (&lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.auditWebhook.kubeconfigSecretName&lt;/code> and &lt;code>.spec.virtualCluster.gardener.gardenerAPIServer.auditWebhook.kubeconfigSecretName&lt;/code>)&lt;/li>
+&lt;li>SNI &lt;code>Secret&lt;/code>s (&lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.sni.secretName&lt;/code>)&lt;/li>
+&lt;li>Audit policy &lt;code>ConfigMap&lt;/code>s (&lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.auditConfig.auditPolicy.configMapRef.name&lt;/code> and &lt;code>.spec.virtualCluster.gardener.gardenerAPIServer.auditConfig.auditPolicy.configMapRef.name&lt;/code>)&lt;/li>
+&lt;/ul>
+&lt;p>Further checks might be added in the future.&lt;/p>
 &lt;h3 id="networkpolicy-controller-registrarhttpsgithubcomgardenergardenertreemasterpkgcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller Registrar&lt;/a>&lt;/h3>
 &lt;p>This controller registers the same &lt;code>NetworkPolicy&lt;/code> controller which is also used in &lt;code>gardenlet&lt;/code>, please read it up &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#networkpolicy-controllerpkggardenletcontrollernetworkpolicy">here&lt;/a> for more details.&lt;/p>
 &lt;p>The registration happens as soon as the &lt;code>Garden&lt;/code> resource is created.

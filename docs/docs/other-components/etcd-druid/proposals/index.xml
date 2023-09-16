@@ -1759,4 +1759,634 @@ And with the help of this annotation and config-map values etcd-druid is able to
 &lt;h3 id="goals">Goals&lt;/h3>
 &lt;h3 id="non-goals">Non-Goals&lt;/h3>
 &lt;h2 id="proposal">Proposal&lt;/h2>
-&lt;h2 id="alternatives">Alternatives&lt;/h2></description></item></channel></rss>
+&lt;h2 id="alternatives">Alternatives&lt;/h2></description></item><item><title>Docs: EtcdMember Custom Resource</title><link>https://gardener.cloud/docs/other-components/etcd-druid/proposals/04-etcd-member-custom-resource/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/proposals/04-etcd-member-custom-resource/</guid><description>
+&lt;h1 id="dep-04-etcdmember-custom-resource">DEP-04: EtcdMember Custom Resource&lt;/h1>
+&lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="#dep-04-etcdmember-custom-resource">DEP-04: EtcdMember Custom Resource&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#table-of-contents">Table of Contents&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#summary">Summary&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#terminology">Terminology&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#motivation">Motivation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#goals">Goals&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#non-goals">Non-Goals&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#proposal">Proposal&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#etcd-member-metadata">Etcd Member Metadata&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#etcd-member-state-transitions">Etcd Member State Transitions&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#states-and-sub-states">States and Sub-States&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#top-level-state-transitions">Top Level State Transitions&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#starting-an-etcd-member-in-a-single-node-etcd-cluster">Starting an Etcd-Member in a Single-Node Etcd Cluster&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">Addition of a New Etcd-Member in a Multi-Node Etcd Cluster&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster">Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#deterministic-etcd-member-creationrestart-during-scale-up">Deterministic Etcd Member Creation/Restart During Scale-Up&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#tls-enablement-for-peer-communication">TLS Enablement for Peer Communication&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#monitoring-backup-health">Monitoring Backup Health&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#enhanced-snapshot-compaction">Enhanced Snapshot Compaction&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#enhanced-defragmentation">Enhanced Defragmentation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#monitoring-defragmentations">Monitoring Defragmentations&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#monitoring-restorations">Monitoring Restorations&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#monitoring-volume-mismatches">Monitoring Volume Mismatches&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#custom-resource-api">Custom Resource API&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#spec-vs-status">Spec vs Status&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#representing-state-transitions">Representing State Transitions&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#reason-codes">Reason Codes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#api">API&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#etcdmember">EtcdMember&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#etcd">Etcd&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#lifecycle-of-an-etcdmember">Lifecycle of an EtcdMember&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#creation">Creation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#updation">Updation&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#deletion">Deletion&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#reconciliation">Reconciliation&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="#stale-etcdmember-status-handling">Stale EtcdMember Status Handling&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>&lt;a href="#reference">Reference&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="summary">Summary&lt;/h2>
+&lt;p>Today, &lt;a href="https://github.com/gardener/etcd-druid">etcd-druid&lt;/a> mainly acts as an etcd cluster provisioner, and seldom takes remediatory actions if the &lt;a href="https://etcd.io/">etcd&lt;/a> cluster goes into an undesired state that needs to be resolved by a human operator. In other words, etcd-druid cannot perform day-2 operations on etcd clusters in its current form, and hence cannot carry out its full set of responsibilities as a true &amp;ldquo;operator&amp;rdquo; of etcd clusters. For etcd-druid to be fully capable of its responsibilities, it must know the latest state of the etcd clusters and their individual members at all times.&lt;/p>
+&lt;p>This proposal aims to bridge that gap by introducing &lt;code>EtcdMember&lt;/code> custom resource allowing individual etcd cluster members to publish information/state (previously unknown to etcd-druid). This provides etcd-druid a handle to potentially take cluster-scoped remediatory actions.&lt;/p>
+&lt;h2 id="terminology">Terminology&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>druid:&lt;/strong> &lt;a href="https://github.com/gardener/etcd-druid">etcd-druid&lt;/a> - an operator for etcd clusters.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>etcd-member:&lt;/strong> A single etcd pod in an etcd cluster that is realised as a &lt;a href="https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/">StatefulSet&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>backup-sidecar:&lt;/strong> It is the etcd-backup-restore sidecar container in each etcd-member pod.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> Term sidecar can now be confused with the latest definition in &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/753-sidecar-containers/README.md">KEP-73&lt;/a>. etcd-backup-restore container is currently not set as an &lt;code>init-container&lt;/code> as proposed in the KEP but as a regular container in a multi-container [Pod](&lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/">Pods | Kubernetes&lt;/a>).&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>leading-backup-sidecar:&lt;/strong> A backup-sidecar that is associated to an etcd leader.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>restoration:&lt;/strong> It refers to an individual etcd-member restoring etcd data from an existing backup (comprising of full and delta snapshots). The authors have deliberately chosen to distinguish between restoration and learning. Learning refers to a process where a &lt;a href="https://etcd.io/docs/v3.3/learning/learner/#raft-learner">learner&lt;/a> &amp;ldquo;learns&amp;rdquo; from an etcd-cluster leader.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>Sharing state of an individual etcd-member with druid is essential for diagnostics, monitoring, cluster-wide-operations and potential remediation. At present, only a subset of etcd-member state is shared with druid using &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">leases&lt;/a>. It was always meant as a stopgap arrangement as mentioned in the &lt;a href="https://github.com/gardener/etcd-druid/pull/207">corresponding issue&lt;/a> and is not the best use of leases.&lt;/p>
+&lt;p>There is a need to have a clear distinction between an etcd-member state and etcd cluster state since most of an etcd cluster state is often derived by looking at individual etcd-member states. In addition, actors which update each of these states should be clearly identified so as to prevent multiple actors updating a single resource holding the state of either an etcd cluster or an etcd-member. As a consequence, etcd-members should not directly update the &lt;code>Etcd&lt;/code> resource status and would therefore need a new custom resource allowing each member to publish detailed information about its latest state.&lt;/p>
+&lt;h3 id="goals">Goals&lt;/h3>
+&lt;ul>
+&lt;li>Introduce &lt;code>EtcdMember&lt;/code> custom resource via which each etcd-member can publish information about its state. This enables druid to deterministically orchestrate out-of-turn operations like compaction, defragmentation, volume management etc.&lt;/li>
+&lt;li>Define and capture states, sub-states and deterministic transitions amongst states of an etcd-member.&lt;/li>
+&lt;li>Today &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">leases&lt;/a> are &lt;em>misused&lt;/em> to share member-specific information with druid. Their usage to share member state [leader, follower, learner], member-id, snapshot revisions etc should be removed.&lt;/li>
+&lt;/ul>
+&lt;h3 id="non-goals">Non-Goals&lt;/h3>
+&lt;ul>
+&lt;li>Auto-recovery from quorum loss or cluster-split due to network partitioning.&lt;/li>
+&lt;li>Auto-recovery of an etcd-member due to volume mismatch.&lt;/li>
+&lt;li>Relooking at segregating responsiblities between &lt;code>etcd&lt;/code> and &lt;code>backup-sidecar &lt;/code> containers.&lt;/li>
+&lt;/ul>
+&lt;h2 id="proposal">Proposal&lt;/h2>
+&lt;p>This proposal introduces a new custom resource &lt;code>EtcdMember&lt;/code>, and in the following sections describes different sets of information that should be captured as part of the new resource.&lt;/p>
+&lt;h3 id="etcd-member-metadata">Etcd Member Metadata&lt;/h3>
+&lt;p>Every etcd-member has a unique &lt;code>memberID&lt;/code> and it is part of an etcd cluster which has a unique &lt;code>clusterID&lt;/code>. In a well-formed etcd cluster every member must have the same &lt;code>clusterID&lt;/code>. Publishing this information to druid helps in identifying issues when one or more etcd-members form their own individual clusters, thus resulting in multiple clusters where only one was expected. Issues &lt;a href="https://github.com/gardener/etcd-druid/issues/419">Issue#419&lt;/a>, Canary#4027, Canary#3973 are some such occurrences.&lt;/p>
+&lt;p>Today, this information is published by using a member &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease&lt;/a>. Both these fields are populated in the leases&amp;rsquo; &lt;code>Spec.HolderIdentity&lt;/code> by the backup-sidecar container.&lt;/p>
+&lt;p>The authors propose to publish member metadata information in &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>id: &amp;lt;etcd-member id&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>clusterID: &amp;lt;etcd cluster id&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> Druid would not do any auto-recovery when it finds out that there are more than one clusters being formed. Instead this information today will be used for diagnostic and alerting.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="etcd-member-state-transitions">Etcd Member State Transitions&lt;/h3>
+&lt;p>Each etcd-member goes through different &lt;code>States&lt;/code> during its lifetime. &lt;code>State&lt;/code> is a derived high-level summary of where an etcd-member is in its lifecycle. A &lt;code>SubState&lt;/code> gives additional information about the state. This proposal extends the concept of states with the notion of a &lt;code>SubState&lt;/code>, since &lt;code>State&lt;/code> indicates a top-level state of an &lt;code>EtcdMember&lt;/code> resource, which can have one or more &lt;code>SubState&lt;/code>s.&lt;/p>
+&lt;p>While &lt;code>State&lt;/code> is sufficient for many human operators, the notion of a &lt;code>SubState&lt;/code> provides operators with an insight about the discrete stage of an etcd-member in its lifecycle. For example, consider a top-level &lt;code>State: Starting&lt;/code>, which indicates that an etcd-member is starting. &lt;code>Starting&lt;/code> is meant to be a transient state for an etcd-member. If an etcd-member remains in this &lt;code>State&lt;/code> longer than expected, then an operator would require additional insight, which the authors propose to provide via &lt;code>SubState&lt;/code> (in this case, the possible &lt;code>SubStates&lt;/code> could be &lt;code>PendingLearner&lt;/code> and &lt;code>Learner&lt;/code>, which are detailed in the following sections).&lt;/p>
+&lt;p>At present, these states are not captured and only the final state is known - i.e the etcd-member either fails to come up (all re-attempts to bring up the pod via the StatefulSet controller has exhausted) or it comes up. Getting an insight into all its state transitions would help in diagnostics.&lt;/p>
+&lt;p>The status of an etcd-member at any given point in time can be best categorized as a combination of a top-level &lt;code>State&lt;/code> and a &lt;code>SubState&lt;/code>. The authors propose to introduce the following states and sub-states:&lt;/p>
+&lt;h4 id="states-and-sub-states">States and Sub-States&lt;/h4>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE&lt;/strong>: Abbreviations have been used wherever possible, only to represent sub-states. These representations are chosen only for brevity and will have proper longer names.&lt;/p>
+&lt;/blockquote>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>States&lt;/th>
+&lt;th>Sub-States&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>New&lt;/td>
+&lt;td>-&lt;/td>
+&lt;td>Every newly created etcd-member will start in this state and is termed as the initial state or the start state.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Initializing&lt;/td>
+&lt;td>DBV-S (DBValidationSanity)&lt;/td>
+&lt;td>This state denotes that backup-restore container in etcd-member pod has started initialization. Sub-State &lt;code>DBV-S&lt;/code> which is an abbreviation for &lt;code>DBValidationSanity&lt;/code> denotes that currently sanity etcd DB validation is in progress.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Initializing&lt;/td>
+&lt;td>DBV-F (DBValidationFull)&lt;/td>
+&lt;td>This state denotes that backup-restore container in etcd-member pod has started initialization. Sub-State &lt;code>DBV-F&lt;/code> which is an abbreviation for &lt;code>DBValidationFull&lt;/code> denotes that currently full etcd DB validation is in progress.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Initializing&lt;/td>
+&lt;td>R (Restoration)&lt;/td>
+&lt;td>This state denotes that backup-restore container in etcd-member pod has started initialization. Sub-State &lt;code>R&lt;/code> which is an abbreviation for &lt;code>Restoration&lt;/code> denotes that DB validation failed and now backup-restore has commenced restoration of etcd DB from the backup (comprising of full snapshot and delta-snapshots). An etcd-member will transition to this sub-state only when it is part of a single-node etcd-cluster.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Starting (SI)&lt;/td>
+&lt;td>PL (PendingLearner)&lt;/td>
+&lt;td>An etcd-member can transition from &lt;code>Initializing&lt;/code> state to &lt;code>PendingLearner&lt;/code> state. In this state backup-restore container will optionally delete any existing etcd data directory and then attempts to add its peer etcd-member process as a learner. Since there can be only one learner at a time in an etcd cluster, an etcd-member could be in this state for some time till its request to get added as a learner is accepted.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Starting (SI)&lt;/td>
+&lt;td>Learner&lt;/td>
+&lt;td>When backup-restore is successfully able to add its peer etcd-member process as a &lt;code>Learner&lt;/code>. In this state the etcd-member process will start its DB sync from an etcd leader.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Started (Sd)&lt;/td>
+&lt;td>Follower&lt;/td>
+&lt;td>A follower is a voting raft member. A &lt;code>Learner&lt;/code> etcd-member will get promoted to a &lt;code>Follower&lt;/code> once its DB is in sync with the leader. It could also become a follower if during a re-election it loses leadership and transitions from being a &lt;code>Leader&lt;/code> to &lt;code>Follower&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Started (Sd)&lt;/td>
+&lt;td>Leader&lt;/td>
+&lt;td>A leader is an etcd-member which will handle all client write requests and linearizable read requests. A member could transition to being a &lt;code>Leader&lt;/code> from an existing &lt;code>Follower&lt;/code> role due to winning a leader election or for a single node etcd cluster it directly transitions from &lt;code>Initializing&lt;/code> state to &lt;code>Leader&lt;/code> state as there is no other member.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>In the following sub-sections, the state transitions are categorized into several flows making it easier to grasp the different transitions.&lt;/p>
+&lt;h4 id="top-level-state-transitions">Top Level State Transitions&lt;/h4>
+&lt;p>Following DFA represents top level state transitions (without any representation of sub-states). As described in the table above there are 4 top level states:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>New&lt;/code>- this is a start state for all newly created etcd-members&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>Initializing&lt;/code> - In this state backup-restore will perform pre-requisite actions before it triggers the start of an etcd process. DB validation and optionally restoration is done in this state. Possible sub-states are: &lt;code>DBValidationSanity&lt;/code>, &lt;code>DBValidationFull&lt;/code> and &lt;code>Restoration&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>Starting&lt;/code> - Once the optional initialization is done backup-restore will trigger the start of an etcd process. It can either directly go to &lt;code>Learner&lt;/code> sub-state or wait for getting added as a learner and therefore be in &lt;code>PendingLearner&lt;/code> sub-state.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>Started&lt;/code> - In this state the etcd-member is a full voting member. It can either be in &lt;code>Leader&lt;/code> or &lt;code>Follower&lt;/code> sub-states.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;img title="" src="https://gardener.cloud/__resources/04-top-level-state-transitions.excalidraw_0af3b5.png" alt="" data-align="center">
+&lt;h4 id="starting-an-etcd-member-in-a-single-node-etcd-cluster">Starting an Etcd-Member in a Single-Node Etcd Cluster&lt;/h4>
+&lt;p>Following DFA represents the states, sub-states and transitions of a single etcd-member for a cluster that is bootstrapped from cluster size of 0 -&amp;gt; 1.&lt;/p>
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-bootstrap-0-1.excalidraw_5a2726.png" alt="" data-align="center">
+&lt;h4 id="addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">Addition of a New Etcd-Member in a Multi-Node Etcd Cluster&lt;/h4>
+&lt;p>Following DFA represents the states, sub-states and transitions of an etcd cluster which starts with having a single member (Leader) and then one or more new members are added which represents a scale-up of an etcd cluster from 1 -&amp;gt; n, where n is &lt;a href="https://etcd.io/docs/v3.5/faq/#why-an-odd-number-of-cluster-members">odd&lt;/a>.&lt;/p>
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-scaleup-1-n.excalidraw_cfa4bf.png" alt="" data-align="center">
+&lt;h4 id="restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster">Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster&lt;/h4>
+&lt;p>Following DFA represents the states, sub-states and transitions when a voting etcd-member in a multi-node etcd cluster restarts.&lt;/p>
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-restart-member.excalidraw_d23a8d.png" alt="" data-align="center">
+&lt;blockquote>
+&lt;p>NOTE: If the DB validation fails then data directory of the etcd-member is removed and etcd-member is removed from cluster membership, thus transitioning it to &lt;code>New&lt;/code> state. The state transitions from &lt;code>New&lt;/code> state are depicted by &lt;a href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">this section&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="deterministic-etcd-member-creationrestart-during-scale-up">Deterministic Etcd Member Creation/Restart During Scale-Up&lt;/h3>
+&lt;p>&lt;strong>Bootstrap information:&lt;/strong>&lt;/p>
+&lt;p>When an etcd-member starts, then it needs to find out:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>If it should join an existing cluster or start a new cluster.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If it should add itself as a &lt;code>Learner&lt;/code> or directly start as a voting member.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Issue with the current approach&lt;/strong>:&lt;/p>
+&lt;p>&lt;em>At present&lt;/em>, this is facilitated by three things:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>During scale-up, druid adds an annotation &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> to the &lt;code>StatefulSet&lt;/code>. Each etcd-members looks up this annotation.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>backup-sidecar attempts to fetch etcd cluster member-list and checks if this etcd-member is already part of the cluster.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Size of the cluster by checking &lt;code>initial-cluster&lt;/code> in the etcd config.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>Druid adds an annotation &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> on the &lt;code>StatefulSet&lt;/code> which is then shared by all etcd-members irrespective of the starting state of an etcd-member (as &lt;code>Learner&lt;/code> or &lt;code>Voting-Member&lt;/code>). This especially creates an issue for the current leader (often pod with index 0) during the scale-up of an etcd cluster as described in &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/646">this&lt;/a> issue.&lt;/p>
+&lt;p>It has been agreed that the current solution to &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/646">this issue&lt;/a> is a quick and dirty fix and needs to be revisited to be uniformly applied to all etcd-members. The authors propose to provide a more deterministic approach to scale-up using the &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;p>&lt;strong>New approach&lt;/strong>&lt;/p>
+&lt;p>Instead of adding an annotation &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> on the &lt;code>StatefulSet&lt;/code>, a new annotation &lt;code>druid.gardener.cloud/create-as-learner&lt;/code> should be added by druid on an &lt;code>EtcdMember&lt;/code> resource. This annotation will only be added to newly created members during scale-up.&lt;/p>
+&lt;p>Each etcd-member should look at the following to deterministically compute the &lt;code>bootstrap information&lt;/code> specified above:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>druid.gardener.cloud/create-as-learner&lt;/code> annotation on its respective &lt;code>EtcdMember&lt;/code> resource. This new annotation will be honored in the following cases:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>When an etcd-member is created for the very first time.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>An etcd-member is restarted while it is in &lt;code>Starting&lt;/code> state (&lt;code>PendingLearner&lt;/code> and &lt;code>Learner&lt;/code> sub-states).&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>Etcd-cluster member list. to check if it is already part of the cluster.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Existing etcd data directory and its validity.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> When the etcd-member gets promoted to a voting-member, then it should remove the annotation on its respective &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="tls-enablement-for-peer-communication">TLS Enablement for Peer Communication&lt;/h3>
+&lt;p>Etcd-members in a cluster use &lt;a href="https://etcd.io/docs/v3.4/op-guide/configuration/#--initial-advertise-peer-urls">peer URL(s)&lt;/a> to communicate amongst each other. If the advertised peer URL(s) for an etcd-member are updated then &lt;a href="https://etcd.io/docs/v3.4/op-guide/runtime-configuration/#update-advertise-peer-urls">etcd mandates a restart&lt;/a> of the etcd-member.&lt;/p>
+&lt;p>Druid only supports toggling the transport level security for the advertised peer URL(s). To indicate that the etcd process within the etcd-member has the updated advertised peer URL(s), an annotation &lt;code>member.etcd.gardener.cloud/tls-enabled&lt;/code> is added by backup-sidecar container to the member lease object.&lt;/p>
+&lt;p>During the reconciliation run for an &lt;code>Etcd&lt;/code> resource in druid, if reconciler detects a change in advertised peer URL(s) TLS configuration then it will watch for the above mentioned annotation on the member lease. If the annotation has a value of &lt;code>false&lt;/code> then it will trigger a restart of the etcd-member pod.&lt;/p>
+&lt;p>The authors propose to publish member metadata information in &lt;code>EtcdMember&lt;/code> resource and not misuse member &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease&lt;/a>s.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>peerTLSEnabled: &amp;lt;bool&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="monitoring-backup-health">Monitoring Backup Health&lt;/h3>
+&lt;p>Backup-sidecar takes delta and full snapshot both periodically and threshold based. These backed-up snapshots are essential for restoration operations for bootstrapping an etcd cluster from 0 -&amp;gt; 1 replicas. It is essential that leading-backup-sidecar container which is responsible for taking delta/full snapshots and uploading these snapshots to the configured backup store, publishes this information for druid to consume.&lt;/p>
+&lt;p>At present, information about backed-up snapshot (&lt;em>only&lt;/em> &lt;code>latest-revision-number&lt;/code>) is published by leading-backup-sidecar container by updating &lt;code>Spec.HolderIdentity&lt;/code> of the delta-snapshot and full-snapshot &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease&lt;/a>s.&lt;/p>
+&lt;p>Druid maintains &lt;code>conditions&lt;/code> in the &lt;code>Etcd&lt;/code> resource status, which include but are not limited to maintaining information on whether backups being taken for an etcd cluster are healthy (up-to-date) or stale (outdated in context to a configured schedule). Druid computes these conditions using information from full/delta snapshot leases.&lt;/p>
+&lt;p>In order to provide a holistic view of the health of backups to human operators, druid requires additional information about the snapshots that are being backed-up. The authors propose to not misuse &lt;a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease&lt;/a>s and instead publish the following snapshot information as part &lt;code>EtcdMember&lt;/code> custom resource:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>snapshots:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastFull:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timestamp: &amp;lt;time of full snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the file that is uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: &amp;lt;size of the un-compressed snapshot file uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startRevision: &amp;lt;start revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endRevision: &amp;lt;end revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastDelta:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timestamp: &amp;lt;time of delta snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the file that is uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: &amp;lt;size of the un-compressed snapshot file uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startRevision: &amp;lt;start revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endRevision: &amp;lt;end revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>While this information will primarily help druid compute accurate conditions regarding backup health from snapshot information and publish this to human operators, it could be further utilised by human operators to take remediatory actions (e.g. manually triggering a full or delta snapshot or further restarting the leader if the issue is still not resolved) if backup is unhealthy.&lt;/p>
+&lt;h3 id="enhanced-snapshot-compaction">Enhanced Snapshot Compaction&lt;/h3>
+&lt;p>Druid can be configured to perform regular snapshot compactions for etcd clusters, to reduce the total number of delta snapshots to be restored if and when a DB restoration for an etcd cluster is required. Druid triggers a snapshot compaction job when the accumulated etcd events in the latest set of delta snapshots (taken after the last full snapshot) crosses a specified threshold.&lt;/p>
+&lt;p>As described in &lt;a href="https://github.com/gardener/etcd-druid/issues/591">Issue#591&lt;/a> scheduling compaction only based on number of accumulated etcd events is not sufficient to ensure a successful compaction. This is specifically targeted for kubernetes clusters where each etcd event is larger in size owing to large spec or status fields or respective resources.&lt;/p>
+&lt;p>Druid will now need information regarding snapshot sizes, and more importantly the total size of accumulated delta snapshots since the last full snapshot.&lt;/p>
+&lt;p>The authors propose to enhance the proposed &lt;code>snapshots&lt;/code> field described in &lt;a href="#use-case-3-monitoring-backup-health">Use Case #3&lt;/a> with the following additional field:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>snapshots:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> accumulatedDeltaSize: &amp;lt;total size of delta snapshots since last full snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Druid can then use this information in addition to the existing revision information to decide to trigger an early snapshot compaction job. This effectively allows druid to be proactive in performing regular compactions for etcds receiving large events, reducing the probability of a failed snapshot compaction or restoration.&lt;/p>
+&lt;h3 id="enhanced-defragmentation">Enhanced Defragmentation&lt;/h3>
+&lt;p>Reader is recommended to read &lt;a href="https://etcd.io/docs/v3.4/op-guide/maintenance/">Etcd Compaction &amp;amp; Defragmentation&lt;/a> in order to understand the following terminology:&lt;/p>
+&lt;p>&lt;a href="https://github.com/etcd-io/etcd/blob/a603c0798948941d453b158af794edab1a8230be/mvcc/backend/backend.go#L60-L64">&lt;code>dbSize&lt;/code>&lt;/a> - total storage space used by the etcd database&lt;/p>
+&lt;p>&lt;a href="https://github.com/etcd-io/etcd/blob/a603c0798948941d453b158af794edab1a8230be/mvcc/backend/backend.go#L65-L68">&lt;code>dbSizeInUse&lt;/code>&lt;/a> - logical storage space used by the etcd database, not accounting for free pages in the DB due to etcd history compaction&lt;/p>
+&lt;p>The leading-backup-sidecar performs periodic defragmentations of the DBs of all the etcd-members in the cluster, controlled via a defragmentation cron schedule provided to each backup-sidecar. Defragmentation is a costly maintenance operation and causes a brief downtime to the etcd-member being defragmented, due to which the leading-backup-sidecar defragments each etcd-member sequentially. This ensures that only one etcd-member would be unavailable at any given time, thus avoiding an accidental quorum loss in the etcd cluster.&lt;/p>
+&lt;p>The authors propose to move the responsibility of orchestrating these individual defragmentations to druid due to the following reasons:&lt;/p>
+&lt;ul>
+&lt;li>Since each backup-sidecar only has knowledge of the health of its own etcd, it can only determine whether its own etcd can be defragmented or not, based on etcd-member health. Trying to defragment a different healthy etcd-member while another etcd-member is unhealthy would lead to a transient quorum loss.&lt;/li>
+&lt;li>Each backup-sidecar is only a &lt;code>sidecar&lt;/code> to its own etcd-member, and by good design principles, it must not be performing any cluster-wide maintenance operations, and this responsibility should remain with the etcd cluster operator.&lt;/li>
+&lt;/ul>
+&lt;p>Additionally, defragmentation of an etcd DB becomes inevitable if the DB size exceeds the specified DB space quota, since the etcd DB then becomes read-only, ie no write operations on the etcd would be possible unless the etcd DB is defragmented and storage space is freed up. In order to automate this, druid will now need information about the etcd DB size from each member, specifically the leading etcd-member, so that a cluster-wide defragmentation can be triggered if the DB size reaches a certain threshold, as already described by &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/556">this issue&lt;/a>.&lt;/p>
+&lt;p>The authors propose to enhance each etcd-member to regularly publish information about the &lt;code>dbSize&lt;/code> and &lt;code> dbSizeInUse&lt;/code> so that druid may trigger defragmentation for the etcd cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>dbSize: &amp;lt;db-size&amp;gt; &lt;span style="color:#008000"># e.g 6Gi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dbSizeInUse: &amp;lt;db-size-in-use&amp;gt; &lt;span style="color:#008000"># e.g 3.5Gi&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Difference between &lt;code>dbSize&lt;/code> and &lt;code>dbSizeInUse&lt;/code> gives a clear indication of how much storage space would be freed up if a defragmentation is performed. If the difference is not significant (based on a configurable threshold provided to druid), then no defragmentation should be performed. This will ensure that druid does not perform frequent defragmentations that do not yield much benefit. Effectively it is to maximise the benefit of defragmentation since this operations involves transient downtime for each etcd-member.&lt;/p>
+&lt;h3 id="monitoring-defragmentations">Monitoring Defragmentations&lt;/h3>
+&lt;p>As discussed in the previous section, every etcd-member is defragmented periodically, and can also be defragmented based on the DB size reaching a certain threshold. It is beneficial for druid to have knowledge of this data from each etcd-member for the following reasons:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>[&lt;strong>Diagnostics&lt;/strong>] It is expected that &lt;code>backup-sidecar&lt;/code> will push releveant metrics and configure alerts on these metrics.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>[&lt;strong>Operational&lt;/strong>] Derive status of defragmentation at etcd cluster level. In case of partial failures for a subset of etcd-members druid can potentially re-trigger defragmentation only for those etcd-members.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>The authors propose to capture this information as part of &lt;code>lastDefragmentation&lt;/code> section in the &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>lastDefragmentation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startTime: &amp;lt;start time of defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endTime: &amp;lt;end time of defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &amp;lt;Succeeded | Failed&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &amp;lt;success or failure message&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initialDBSize: &amp;lt;size of etcd DB prior to defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> finalDBSize: &amp;lt;size of etcd DB post defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>NOTE&lt;/strong>: Defragmentation is a cluster-wide operation, and insights derived from aggregating defragmentation data from individual etcd-members would be captured in the &lt;code>Etcd&lt;/code> resource status&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="monitoring-restorations">Monitoring Restorations&lt;/h3>
+&lt;p>Each etcd-member may perform restoration of data multiple times throughout its lifecycle, possibly owing to data corruptions. It would be useful to capture this information as part of an &lt;code>EtcdMember&lt;/code> resource, for the following use cases:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>[&lt;strong>Diagnostics&lt;/strong>] It is expected that &lt;code>backup-sidecar&lt;/code> will push a metric indicating failure to restore.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>[&lt;strong>Operational&lt;/strong>] Restoration from backup-bucket only happens for a single node etcd cluster. If restoration is failing then druid cannot take any remediatory actions since there is no etcd quorum.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>The authors propose to capture this information under &lt;code>lastRestoration&lt;/code> section in the &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>lastRestoration:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &amp;lt;Failed | Success | In-Progress&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: &amp;lt;reason-code for status&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &amp;lt;human readable message for status&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startTime: &amp;lt;start time of restoration&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endTime: &amp;lt;end time of restoration&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Authors have considered the following cases to better understand how errors during restoration will be handled:&lt;/p>
+&lt;p>&lt;strong>Case #1&lt;/strong> - &lt;em>Failure to connect to Provider Object Store&lt;/em>&lt;/p>
+&lt;p>At present full and delta snapshots are downloaded during restoration. If there is a failure then initialization status transitions to &lt;code>Failed&lt;/code> followed by &lt;code>New&lt;/code> which forces &lt;code>etcd-wrapper&lt;/code> to trigger the initialization again. This in a way forces a retry and currently there is no limit on the number of attempts.&lt;/p>
+&lt;p>Authors propose to improve the retry logic but keep the overall behavior of not forcing a container restart the same.&lt;/p>
+&lt;p>&lt;strong>Case #2&lt;/strong> - &lt;em>Read-Only Mounted volume&lt;/em>&lt;/p>
+&lt;p>If a mounted volume which is used to create the etcd data directory turns &lt;code>read-only&lt;/code> then authors propose to capture this state via &lt;code>EtcdMember&lt;/code>.&lt;/p>
+&lt;p>Authors propose that &lt;code>druid&lt;/code> should initiate recovery by deleting the PVC for this etcd-member and letting &lt;code>StatefulSet&lt;/code> controller re-create the Pod and the PVC. Removing PVC and deleting the pod is considered safe because:&lt;/p>
+&lt;ul>
+&lt;li>Data directory is present and is the DB is corrupt resulting in an un-usasble etcd.&lt;/li>
+&lt;li>Data directory is not present but any attempt to create a directory structure fails due to &lt;code>read-only&lt;/code> FS.&lt;/li>
+&lt;/ul>
+&lt;p>In both these cases there is no side-effect of deleting the PVC and the Pod.&lt;/p>
+&lt;p>&lt;strong>Case #3&lt;/strong> - &lt;em>Revision mismatch&lt;/em>&lt;/p>
+&lt;p>There is currently an issue in &lt;code>backup-sidecar&lt;/code> which results in a revision mismatch in the snapshots (full/delta) taken by leading the &lt;code>backup-sidecar&lt;/code> container. This results in a restoration failure. One occurance of such issue has been captured in &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/583">Issue#583&lt;/a>. This occurence points to a bug which should be fixed however there is a rare possibility that these snapshots (full/delta) get corrupted. In this rare situation, &lt;code>backup-sidecar&lt;/code> should only raise an alert.&lt;/p>
+&lt;p>Authors propose that &lt;code>druid&lt;/code> should not take any remediatory actions as this involves:&lt;/p>
+&lt;ul>
+&lt;li>Inspecting snapshots&lt;/li>
+&lt;li>If the full snapshot is corrupt then a decision needs to be taken to recover from the last full snapshot as the base snapshot. This can result in data loss and therefore needs manual intervention.&lt;/li>
+&lt;li>If a delta snapshot is corrupt, then recovery can be done till the corrupt revision in the delta snapshot. Since this will also result in a loss of data therefore this decision needs to be take by an operator.&lt;/li>
+&lt;/ul>
+&lt;h3 id="monitoring-volume-mismatches">Monitoring Volume Mismatches&lt;/h3>
+&lt;p>Each etcd-member checks for possible etcd data volume mismatches, based on which it decides whether to start the etcd process or not, but this information is not captured anywhere today. It would be beneficial to capture this information as part of the &lt;code>EtcdMember&lt;/code> resource so that a human operator may check this and manually fix the underlying problem with the wrong volume being attached or mounted to an etcd-member pod.&lt;/p>
+&lt;p>The authors propose to capture this information under &lt;code>volumeMismatches&lt;/code> section in the &lt;code>EtcdMember&lt;/code> resource.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>volumeMismatches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- identifiedAt: &amp;lt;time at which wrong volume mount was identified&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fixedAt: &amp;lt;time at which correct volume was mounted&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeID: &amp;lt;volume ID of wrong volume that got mounted&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> numRestarts: &amp;lt;num of etcd-member restarts that were attempted&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Each entry under &lt;code>volumeMismatches&lt;/code> will be for a unique &lt;code>volumeID&lt;/code>. If there is a pod restart and it results in yet another unexpected &lt;code>volumeID&lt;/code> (different from the already captured volumeIDs) then a new entry will get created. &lt;code>numRestarts&lt;/code> denotes the number of restarts seen by the etcd-member for a specific &lt;code>volumeID&lt;/code>.&lt;/p>
+&lt;p>Based on information from the &lt;code>volumeMismatches&lt;/code> section, druid &lt;em>may&lt;/em> choose to perform rudimentary remediatory actions as simple as restarting the member pod to force a possible rescheduling of the pod to a different node which could potentially force the correct volume to be mounted to the member.&lt;/p>
+&lt;h3 id="custom-resource-api">Custom Resource API&lt;/h3>
+&lt;h4 id="spec-vs-status">Spec vs Status&lt;/h4>
+&lt;p>Information that is captured in the etcd-member custom resource could be represented either as &lt;code>EtcdMember.Status&lt;/code> or &lt;code>EtcdMemberState.Spec&lt;/code>.&lt;/p>
+&lt;p>Gardener has a similar need to capture a shoot state and they have taken the decision to represent it via &lt;a href="https://github.com/gardener/gardener/blob/9e1a20aa9cc32fc806123003ba6079b284948767/pkg/apis/core/types_shootstate.go#L27-L33">ShootState&lt;/a> resource where the state or status of a shoot is captured as part of the &lt;code>Spec&lt;/code> field in the &lt;code>ShootState&lt;/code> custom resource.&lt;/p>
+&lt;p>The authors wish to instead align themselves with the &lt;a href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status">K8S API conventions&lt;/a> and choose to use &lt;code>EtcdMember&lt;/code> custom resource and capture the status of each member in &lt;code>Status&lt;/code> field of this resource. This has the following advantages:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>Spec&lt;/code> represents a desired state of a resource and what is intended to be captured is the &lt;code>As-Is&lt;/code> state of a resource which &lt;code>Status&lt;/code> is meant to capture. Therefore, semantically using &lt;code>Status&lt;/code> is the correct choice.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Not mis-using &lt;code>Spec&lt;/code> now to represent &lt;code>As-Is&lt;/code> state provides us with a choice to extend the custom resource with any future need for a &lt;code>Spec&lt;/code> a.k.a desired state.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h4 id="representing-state-transitions">Representing State Transitions&lt;/h4>
+&lt;p>The authors propose to use a custom representation for states, sub-states and transitions.&lt;/p>
+&lt;p>Consider the following representation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>transitions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- state: &amp;lt;name of the state that the etcd-member has transitioned to&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: &amp;lt;name of the sub-state if any&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: &amp;lt;reason code for the transition&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &amp;lt;time of transition to this state&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &amp;lt;detailed message if any&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As an example, consider the following transitions which represent addition of an etcd-member during scale-up of an etcd cluster, followed by a restart of the etcd-member which detects a corrupt DB:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: New
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: New
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: ClusterScaledUp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T05:00:00Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;New member added due to etcd cluster scale-up&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Starting
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: PendingLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: WaitingToJoinAsLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T05:00:30Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Waiting to join the cluster as a learner&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Starting
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: Learner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: JoinedAsLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T05:01:20Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Joined the cluster as a learner&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Started
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: Follower
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: PromotedAsVotingMember
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T05:02:00Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Now in sync with leader, promoted as voting member&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Initializing
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: DBValidationFull
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: DetectedPreviousUncleanExit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T08:00:00Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Detected previous unclean exit, requires full DB validation&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: New
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: New
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: DBCorruptionDetected
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T08:01:30Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Detected DB corruption during initialization, removing member from cluster&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Starting
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: PendingLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: WaitingToJoinAsLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T08:02:10Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Waiting to join the cluster as a learner&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Starting
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: Learner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: JoinedAsLearner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T08:02:20Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Joined the cluster as a learner&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: Started
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: Follower
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: PromotedAsVotingMember
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &lt;span style="color:#a31515">&amp;#34;2023-07-17T08:04:00Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &lt;span style="color:#a31515">&amp;#34;Now in sync with leader, promoted as voting member&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="reason-codes">Reason Codes&lt;/h5>
+&lt;p>The authors propose the following list of possible reason codes for transitions. This list is not exhaustive, and can be further enhanced to capture any new transitions in the future.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Reason&lt;/th>
+&lt;th>Transition From State (SubState)&lt;/th>
+&lt;th>Transition To State (SubState)&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>ClusterScaledUp&lt;/code> | &lt;code>NewSingleNodeClusterCreated&lt;/code>&lt;/td>
+&lt;td>nil&lt;/td>
+&lt;td>New&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>DetectedPreviousCleanExit&lt;/code>&lt;/td>
+&lt;td>New | Started (Leader) | Started (Follower)&lt;/td>
+&lt;td>Initializing (DBValidationSanity)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>DetectedPreviousUncleanExit&lt;/code>&lt;/td>
+&lt;td>New | Started (Leader) | Started (Follower)&lt;/td>
+&lt;td>Initializing (DBValidationFull)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>DBValidationFailed&lt;/code>&lt;/td>
+&lt;td>Initializing (DBValidationSanity) | Initializing (DBValidationFull)&lt;/td>
+&lt;td>Initializing (Restoration) | New&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>DBValidationSucceeded&lt;/code>&lt;/td>
+&lt;td>Initializing (DBValidationSanity) | Initializing (DBValidationFull)&lt;/td>
+&lt;td>Started (Leader) | Started (Follower)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Initializing (Restoration)Succeeded&lt;/code>&lt;/td>
+&lt;td>Initializing (Restoration)&lt;/td>
+&lt;td>Started (Leader)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>WaitingToJoinAsLearner&lt;/code>&lt;/td>
+&lt;td>New&lt;/td>
+&lt;td>Starting (PendingLearner)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>JoinedAsLearner&lt;/code>&lt;/td>
+&lt;td>Starting (PendingLearner)&lt;/td>
+&lt;td>Starting (Learner)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>PromotedAsVotingMember&lt;/code>&lt;/td>
+&lt;td>Starting (Learner)&lt;/td>
+&lt;td>Started (Follower)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>GainedClusterLeadership&lt;/code>&lt;/td>
+&lt;td>Started (Follower)&lt;/td>
+&lt;td>Started (Leader)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>LostClusterLeadership&lt;/code>&lt;/td>
+&lt;td>Started (Leader)&lt;/td>
+&lt;td>Started (Follower)&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h4 id="api">API&lt;/h4>
+&lt;h5 id="etcdmember">EtcdMember&lt;/h5>
+&lt;p>The authors propose to add the &lt;code>EtcdMember&lt;/code> custom resource API to etcd-druid APIs and initially introduce it with &lt;code>v1alpha1&lt;/code> version.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: druid.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: EtcdMember
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardener.cloud/owned-by: &amp;lt;name of parent Etcd resource&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the etcd-member&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;namespace | will be the same as that of parent Etcd resource&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ownerReferences:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiVersion: druid.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> blockOwnerDeletion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the parent Etcd resource&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> uid: &amp;lt;UID of the parent Etcd resource&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &amp;lt;etcd-member id&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterID: &amp;lt;etcd cluster id&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> peerTLSEnabled: &amp;lt;bool&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dbSize: &amp;lt;db-size&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dbSizeInUse: &amp;lt;db-size-in-use&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> snapshots:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastFull:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timestamp: &amp;lt;time of full snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the file that is uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: &amp;lt;size of the un-compressed snapshot file uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startRevision: &amp;lt;start revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endRevision: &amp;lt;end revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastDelta:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timestamp: &amp;lt;time of delta snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name of the file that is uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: &amp;lt;size of the un-compressed snapshot file uploaded&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startRevision: &amp;lt;start revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endRevision: &amp;lt;end revision of etcd db captured in the snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> accumulatedDeltaSize: &amp;lt;total size of delta snapshots since last full snapshot&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastRestoration:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;FromSnapshot | FromLeader&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> status: &amp;lt;Failed | Success | In-Progress&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startTime: &amp;lt;start time of restoration&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endTime: &amp;lt;end time of restoration&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastDefragmentation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> startTime: &amp;lt;start time of defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endTime: &amp;lt;end time of defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initialDBSize: &amp;lt;size of etcd DB prior to defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> finalDBSize: &amp;lt;size of etcd DB post defragmentation&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeMismatches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - identifiedAt: &amp;lt;time at which wrong volume mount was identified&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> fixedAt: &amp;lt;time at which correct volume was mounted&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeID: &amp;lt;volume ID of wrong volume that got mounted&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> numRestarts: &amp;lt;num of pod restarts that were attempted&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - state: &amp;lt;name of the state that the etcd-member has transitioned to&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subState: &amp;lt;name of the sub-state if any&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reason: &amp;lt;reason code for the transition&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> transitionTime: &amp;lt;time of transition to this state&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> message: &amp;lt;detailed message if any&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="etcd">Etcd&lt;/h5>
+&lt;p>Authors propose the following changes to the &lt;code>Etcd&lt;/code> API:&lt;/p>
+&lt;ol>
+&lt;li>In the &lt;code>Etcd.Status&lt;/code> resource API, &lt;a href="https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L419">member status&lt;/a> is computed and stored. This field will be marked as deprecated and in a later version of druid it will be removed. In its place, the authors propose to introduce the following:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">type&lt;/span> EtcdStatus &lt;span style="color:#00f">struct&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// MemberRefs contains references to all existing EtcdMember resources
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> MemberRefs []CrossVersionObjectReference
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="2">
+&lt;li>In &lt;code>Etcd.Status&lt;/code> resource API, &lt;a href="https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L422">PeerUrlTLSEnabled&lt;/a> reflects the status of enabling TLS for peer communication across all etcd-members. Currentlty this field is not been used anywhere. In this proposal, the authors have also proposed that each &lt;code>EtcdMember&lt;/code> resource should capture the status of TLS enablement of peer URL. The authors propose to relook at the need to have this field under &lt;code>EtcdStatus&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;h3 id="lifecycle-of-an-etcdmember">Lifecycle of an EtcdMember&lt;/h3>
+&lt;h4 id="creation">Creation&lt;/h4>
+&lt;p>Druid creates an &lt;code>EtcdMember&lt;/code> resource for every replica in &lt;code>etcd.Spec.Replicas&lt;/code> during reconciliation of an etcd resource. For a fresh etcd cluster this is done prior to creation of the StatefulSet resource and for an existing cluster which has now been scaled-up, it is done prior to updating the StatefulSet resource.&lt;/p>
+&lt;h4 id="updation">Updation&lt;/h4>
+&lt;p>All fields in &lt;code>EtcdMember.Status&lt;/code> are &lt;em>only&lt;/em> updated by the corresponding etcd-member. Druid only consumes the information published via &lt;code>EtcdMember&lt;/code> resources.&lt;/p>
+&lt;h4 id="deletion">Deletion&lt;/h4>
+&lt;p>Druid is responsible for deletion of all existing &lt;code>EtcdMember&lt;/code> resources for an etcd cluster. There are three scenarios where an &lt;code>EtcdMember&lt;/code> resource will be deleted:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Deletion of etcd resource.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Scale down of an etcd cluster to 0 replicas due to hibernation of the k8s control plane.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Transient scale down of an etcd cluster to 0 replicas to recover from a quorum loss.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>Authors found no reason to retain EtcdMember resources when the etcd cluster is scale down to 0 replicas since the information contained in each EtcdMember resource would no longer represent the current state of each member and would thus be stale. Any controller in druid which acts upon the &lt;code>EtcdMember.Status&lt;/code> could potentially take incorrect actions.&lt;/p>
+&lt;h4 id="reconciliation">Reconciliation&lt;/h4>
+&lt;p>Authors propose to introduce a new controller (let&amp;rsquo;s call it &lt;code>etcd-member-controller&lt;/code>) which watches for changes to the &lt;code>EtcdMember&lt;/code> resource(s). If a reconciliation of an &lt;code>Etcd&lt;/code> resource is required as a result of change in &lt;code>EtcdMember&lt;/code> status then this controller should enqueue an event and force a reconciliation via existing &lt;code>etcd-controller&lt;/code>, thus preserving the single-actor-principal constraint which ensures deterministic changes to etcd cluster resources.&lt;/p>
+&lt;blockquote>
+&lt;p>NOTE: Further decisions w.r.t responsibility segregation will be taken during implementation and will not be documented in this proposal.&lt;/p>
+&lt;/blockquote>
+&lt;h5 id="stale-etcdmember-status-handling">Stale EtcdMember Status Handling&lt;/h5>
+&lt;p>It is possible that an etcd-member is unable to update its respective &lt;code>EtcdMember&lt;/code> resource. Following can be some of the implications which should be kept in mind while reconciling &lt;code>EtcdMember&lt;/code> resource in druid:&lt;/p>
+&lt;ul>
+&lt;li>Druid sees stale state transitions (this assumes that the backup-sidecar attempts to update the state/sub-state in &lt;code>etcdMember.status.transitions&lt;/code> with best attempt). There is currently no implication other than an operator seeing a stale state.&lt;/li>
+&lt;li>&lt;code>dbSize&lt;/code> and &lt;code>dbSizeInUse&lt;/code> could not be updated. A consequence could be that druid continues to see high value for &lt;code>dbSize - dbSizeInUse&lt;/code> for a extended amount of time. Druid should ensure that it does not trigger repeated defragmentations.&lt;/li>
+&lt;li>If &lt;code>VolumeMismatches&lt;/code> is stale, then druid should no longer attempt to recover by repeatedly restarting the pod.&lt;/li>
+&lt;li>Failed &lt;code>restoration&lt;/code> was recorded last and further updates to this array failed. Druid should not repeatedly take full-snapshots.&lt;/li>
+&lt;li>If &lt;code>snapshots.accumulatedDeltaSize&lt;/code> could not be updated, then druid should not schedule repeated compaction Jobs.&lt;/li>
+&lt;/ul>
+&lt;h2 id="reference">Reference&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;a href="https://etcd.io/docs/v3.3/op-guide/recovery/#snapshotting-the-keyspace">Disaster recovery | etcd&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://etcd.io/docs/v3.3/dev-guide/api_reference_v3/#message-statusresponse-etcdserveretcdserverpbrpcproto">etcd API Reference | etcd&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://raft.github.io/raft.pdf">Raft Consensus Algorithm&lt;/a>&lt;/p>
+&lt;/li>
+&lt;/ul></description></item></channel></rss>

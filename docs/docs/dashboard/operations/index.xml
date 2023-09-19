@@ -252,12 +252,18 @@ As long as the terminal window is open, the dashboard regularly annotates the &l
 &lt;h3 id="9-terminal-controller-manager---cleanup">9. Terminal-Controller-Manager - Cleanup&lt;/h3>
 &lt;p>When there is no heartbeat on the &lt;code>terminal&lt;/code> resource for a certain amount of time (default is &lt;code>5m&lt;/code>) the created resources in the host and target cluster are cleaned up again and the &lt;code>terminal&lt;/code> resource will be deleted.&lt;/p>
 &lt;h2 id="browser-trusted-certificates-for-kube-apiservers">Browser Trusted Certificates for Kube-Apiservers&lt;/h2>
+&lt;p>When the dashboard frontend opens a secure WebSocket connection to the kube-apiserver, the certificate presented by the kube-apiserver must be browser trusted. Otherwise, the connection can&amp;rsquo;t be established due to browser policy. Most kube-apiservers have self-signed certificates from a custom Root CA.&lt;/p>
+&lt;p>The Gardener project now handles the responsibility of exposing the kube-apiservers with browser trusted certificates for &lt;code>Seed&lt;/code>s (gardener/gardener#7764) and &lt;code>Shoot&lt;/code>s (gardener/gardener#7712). For this to work, a &lt;code>Secret&lt;/code> must exist in the &lt;code>garden&lt;/code> namespace of the &lt;code>Seed&lt;/code> cluster. This &lt;code>Secret&lt;/code> should have a label &lt;code>gardener.cloud/role=controlplane-cert&lt;/code>. The Secret is expected to contain the wildcard certificate for &lt;code>Seed&lt;/code>s ingress domain.&lt;/p>
+&lt;h2 id="allowlist-for-hosts">Allowlist for Hosts&lt;/h2>
 &lt;h3 id="motivation-1">Motivation&lt;/h3>
-&lt;p>The dashboard frontend opens up a secure WebSocket connection to the kube-apiserver. The certificate presented by the kube-apiserver must be browser trusted, otherwise the connection can&amp;rsquo;t be established (rejected by browser policy).
-Most kube-apiservers have self-signed certificates from a custom Root CA.&lt;/p>
-&lt;h3 id="bootstrapping">Bootstrapping&lt;/h3>
-&lt;h4 id="preferred-solution">Preferred Solution&lt;/h4>
-&lt;p>There is an &lt;a href="https://github.com/gardener/gardener/issues/1413">issue&lt;/a> on the gardener component, to have browser trusted certificates for shoot kube-apiservers using SNI and certmanager.
-However, this would solve the issue for shoots and shooted-seeds, but not for soil and plant kube-apiservers and potentially others.&lt;/p>
-&lt;h4 id="current-solution">Current Solution&lt;/h4>
-&lt;p>We had to &amp;ldquo;workaround&amp;rdquo; it by creating ingress resources for the kube-apiservers and letting the certmanager (or the new &lt;a href="https://github.com/gardener/gardener-extension-shoot-cert-service">shoot cert service&lt;/a>) request browser trusted certificates.&lt;/p></description></item></channel></rss>
+&lt;p>When a user starts a terminal session, the dashboard frontend establishes a secure WebSocket connection to the corresponding kube-apiserver. This connection is controlled by the &lt;code>connectSrc&lt;/code> directive of the content security policy, which governs the hosts that the browser can connect to.&lt;/p>
+&lt;p>By default, the &lt;code>connectSrc&lt;/code> directive only permits connections to the same host. However, to enable the webterminal feature to function properly, connections to additional trusted hosts are required. This is where the &lt;code>allowedHostSourceList&lt;/code> configuration becomes relevant. It directly impacts the &lt;code>connectSrc&lt;/code> directive by specifying the hostnames that the browser is allowed to connect to during a terminal session. By defining this list, you can extend the range of terminal connections to include the necessary trusted hosts, while still preventing any unauthorized or potentially harmful connections.&lt;/p>
+&lt;h3 id="configuration">Configuration&lt;/h3>
+&lt;p>The &lt;code>allowedHostSourceList&lt;/code> can be configured within the &lt;code>global.terminal&lt;/code> section of the &lt;code>gardener-dashboard&lt;/code> Helm &lt;code>values.yaml&lt;/code> file. The list should consist of permitted hostnames (without the scheme) for terminal connections.&lt;/p>
+&lt;p>It is important to consider that the usage of wildcards follows the rules defined by the content security policy.&lt;/p>
+&lt;p>Here is an example of how to configure the &lt;code>allowedHostSourceList&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>global:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> terminal:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> allowedHostSourceList:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;*.seed.example.com&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this example, any host under the seed.example.com domain is allowed for terminal connections.&lt;/p></description></item></channel></rss>

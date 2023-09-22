@@ -40,6 +40,7 @@ this document. Few of the answers assume that the MCM being used is in conjuctio
 &lt;li>&lt;a href="#what-health-checks-are-performed-on-a-machine">What health checks are performed on a machine?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#how-does-rate-limiting-replacement-of-machine-work-in-mcm-how-is-it-related-to-meltdown-protection">How does rate limiting replacement of machine work in MCM ? How is it related to meltdown protection?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="#how-mcm-responds-when-scale-outscale-in-is-done-during-rolling-update-of-a-machinedeployment">How MCM responds when scale-out/scale-in is done during rolling update of a machinedeployment?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="#how-some-unhealthy-machines-are-drained-quickly-">How some unhealthy machines are drained quickly?&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>
@@ -272,6 +273,19 @@ Case &lt;code>scale-in&lt;/code> -&amp;gt; ALL machineSets(new or old) are scale
 &lt;li>&lt;code>deployment.kubernetes.io/desired-replicas&lt;/code> needs update&lt;/li>
 &lt;/ul>
 &lt;p>Once scaling is achieved, rollout continues.&lt;/p>
+&lt;h2 id="how-some-unhealthy-machines-are-drained-quickly-">How some unhealthy machines are drained quickly ?&lt;/h2>
+&lt;p>If a node is unhealthy for more than the &lt;code>machine-health-timeout&lt;/code> specified for the &lt;code>machine-controller&lt;/code>, the controller
+health-check moves the machine phase to &lt;code>Failed&lt;/code>. By default, the &lt;code>machine-health-timeout&lt;/code> is 10` minutes.&lt;/p>
+&lt;p>&lt;code>Failed&lt;/code> machines have their deletion timestamp set and the machine then moves to the &lt;code>Terminating&lt;/code> phase. The node
+drain process is initiated. The drain process is invoked either &lt;em>gracefully&lt;/em> or &lt;em>forcefully&lt;/em>.&lt;/p>
+&lt;p>The usual drain process is graceful. Pods are evicted from the node and the drain process waits until any existing
+attached volumes are mounted on new node. However, if the node &lt;code>Ready&lt;/code> is &lt;code>False&lt;/code> or the &lt;code>ReadonlyFilesystem&lt;/code> is &lt;code>True&lt;/code>
+for greater than &lt;code>5&lt;/code> minutes (non-configurable), then a forceful drain is initiated. In a forceful drain, pods are deleted
+and &lt;code>VolumeAttachment&lt;/code> objects associated with the old node are also marked for deletion. This is followed by the deletion of the
+cloud provider VM associated with the &lt;code>Machine&lt;/code> and then finally ending with the &lt;code>Node&lt;/code> object deletion.&lt;/p>
+&lt;p>During the deletion of the VM we only delete the local data disks and boot disks associated with the VM. The disks associated
+with persistent volumes are left un-touched as their attach/de-detach, mount/unmount processes are handled by k8s
+attach-detach controller in conjunction with the CSI driver.&lt;/p>
 &lt;h1 id="troubleshooting">Troubleshooting&lt;/h1>
 &lt;h3 id="my-machine-is-stuck-in-deletion-for-1-hr-why">My machine is stuck in deletion for 1 hr, why?&lt;/h3>
 &lt;p>In most cases, the &lt;code>Machine.Status.LastOperation&lt;/code> provides information around why a machine can&amp;rsquo;t be deleted.

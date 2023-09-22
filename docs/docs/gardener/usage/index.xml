@@ -164,7 +164,7 @@ You can add a label to your custom CSI components indicating that Gardener shoul
 &lt;p>This can result in &lt;code>VolumeSnapshot&lt;/code> resources still having finalizers that will never be cleaned up.
 Consequently, manual intervention is required to clean them up before the cluster deletion can continue.&lt;/p></description></item><item><title>Docs: Custom containerd Configuration</title><link>https://gardener.cloud/docs/gardener/usage/custom-containerd-config/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/custom-containerd-config/</guid><description>
 &lt;h1 id="custom-containerd-configuration">Custom &lt;code>containerd&lt;/code> Configuration&lt;/h1>
-&lt;p>In case a &lt;code>Shoot&lt;/code> cluster uses &lt;code>containerd&lt;/code> (see &lt;a href="https://gardener.cloud/docs/gardener/usage/docker-shim-removal/">Kubernetes dockershim Removal&lt;/a>) for more information), it is possible to make the &lt;code>containerd&lt;/code> process load custom configuration files.
+&lt;p>In case a &lt;code>Shoot&lt;/code> cluster uses &lt;code>containerd&lt;/code> (see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/docker-shim-removal.md">Kubernetes dockershim Removal&lt;/a>) for more information), it is possible to make the &lt;code>containerd&lt;/code> process load custom configuration files.
 Gardener initializes &lt;code>containerd&lt;/code> with the following statement:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-toml" data-lang="toml">&lt;span style="display:flex;">&lt;span>imports = [&lt;span style="color:#a31515">&amp;#34;/etc/containerd/conf.d/*.toml&amp;#34;&lt;/span>]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This means that all &lt;code>*.toml&lt;/code> files in the &lt;code>/etc/containerd/conf.d&lt;/code> directory will be imported and merged with the default configuration.
@@ -392,131 +392,7 @@ requires that common suffixes contain at least one dot (.) and adds a second dot
 suffix of &lt;code>example.com&lt;/code> in the configuration would match &lt;code>*.example.com&lt;/code>.&lt;/p>
 &lt;p>Since some clients verify the host in the response of a DNS query, the host must also be rewritten.
 For that reason, we can&amp;rsquo;t rewrite a query for &lt;code>service.dst-namespace.svc.cluster.local.src-namespace.svc.cluster.local&lt;/code> or
-&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code>, as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: Docker Shim Removal</title><link>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/docker-shim-removal/</guid><description>
-&lt;h1 id="kubernetes-dockershim-removal">Kubernetes dockershim Removal&lt;/h1>
-&lt;h2 id="whats-happening">What&amp;rsquo;s Happening?&lt;/h2>
-&lt;p>With Kubernetes v1.20, the built-in dockershim &lt;a href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#dockershim-deprecation">was deprecated&lt;/a> and is scheduled to be &lt;a href="https://github.com/kubernetes/enhancements/issues/2221">removed with v1.24&lt;/a>.
-Don&amp;rsquo;t Panic! The Kubernetes community has &lt;a href="https://kubernetes.io/blog/2020/12/02/dont-panic-kubernetes-and-docker/">published a blogpost&lt;/a> and an &lt;a href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/">FAQ&lt;/a> with more information.&lt;/p>
-&lt;p>Gardener also needs to switch from using the built-in dockershim to &lt;code>containerd&lt;/code>.
-Gardener will not change already running Shoot clusters. But changes to the container runtime will be coupled to the K8s version selected by the Shoot:&lt;/p>
-&lt;ul>
-&lt;li>Starting with K8s version 1.22, Shoots not explicitly selecting a container runtime will get &lt;code>containerd&lt;/code> instead of &lt;code>docker&lt;/code>. Shoots can still select &lt;code>docker&lt;/code> explicitly if needed.&lt;/li>
-&lt;li>Starting with K8s version 1.23 &lt;code>docker&lt;/code> can no longer be selected.&lt;/li>
-&lt;/ul>
-&lt;p>At this point in time, we have no plans to support other container runtimes, such as &lt;code>cri-o&lt;/code>.&lt;/p>
-&lt;h2 id="what-should-i-do">What Should I Do?&lt;/h2>
-&lt;p>As a Gardener operator:&lt;/p>
-&lt;ul>
-&lt;li>Add &lt;code>containerd&lt;/code> and &lt;code>docker&lt;/code> to &lt;code>.spec.machineImages[].versions[].cri.name&lt;/code> in your CloudProfile to allow users selecting a container runtime for their Shoots (see below).&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> Please take a look at our detailed information regarding &lt;a href="#container-runtime-support-in-gardener-operating-system-extensions">container runtime support in Gardener Operating System Extensions&lt;/a>.&lt;/p>
-&lt;/blockquote>
-&lt;ul>
-&lt;li>Update your cloud provider extensions to avoid a node rollout when a Shoot is configured from &lt;code>cri: nil&lt;/code> to &lt;code>cri.name: docker&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> Please take a look at our detailed information regarding &lt;a href="#stable-worker-node-hash-support-in-gardener-provider-extensions">stable Worker node hash support in Gardener Provider Extensions&lt;/a>.&lt;/p>
-&lt;/blockquote>
-&lt;p>As a shoot owner:&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/migrating-from-dockershim/check-if-dockershim-deprecation-affects-you/#find-docker-dependencies">Check if you have dependencies to the &lt;code>docker&lt;/code> container runtime&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> This is not only about your actual workload, but also concerns ops tooling as well as logging, monitoring, and metric agents installed on the nodes.&lt;/p>
-&lt;/blockquote>
-&lt;ul>
-&lt;li>Test with &lt;code>containerd&lt;/code>:
-&lt;ul>
-&lt;li>Create a new Shoot or add a Worker Pool to an existing one.&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#cri">Set &lt;code>.spec.provider.workers[].cri.name: containerd&lt;/code>&lt;/a> for your Shoot.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>Once testing is successful, switch to &lt;code>containerd&lt;/code> with your production workload. You don&amp;rsquo;t need to wait for kubernetes v1.22, &lt;code>containerd&lt;/code> is considered production ready as of today.&lt;/li>
-&lt;li>If you find dependencies to &lt;code>docker&lt;/code>, set &lt;code>.spec.provider.workers[].cri.name: docker&lt;/code> explicitly to avoid defaulting to &lt;code>containerd&lt;/code> once you update your Shoot to kubernetes v1.22.&lt;/li>
-&lt;/ul>
-&lt;h2 id="timeline">Timeline&lt;/h2>
-&lt;ul>
-&lt;li>&lt;strong>2021-08-04:&lt;/strong> Kubernetes v1.22 released. Shoots using this version get &lt;code>containerd&lt;/code> as default container runtime. Shoots can still select &lt;code>docker&lt;/code> explicitly if needed.&lt;/li>
-&lt;li>&lt;strong>2021-12-07:&lt;/strong> Kubernetes v1.23 released. Shoots using this version can no longer select &lt;code>docker&lt;/code> as container runtime.&lt;/li>
-&lt;li>&lt;strong>2022-06-28:&lt;/strong> Kubernetes v1.21 goes out of maintenance. This is the last version not affected by these changes. Make sure you have tested thoroughly and set the correct configuration for your Shoots!&lt;/li>
-&lt;li>&lt;strong>2022-10-28:&lt;/strong> Kubernetes v1.22 goes out of maintenance. This is the last version that you can use with &lt;code>docker&lt;/code> as container runtime. Make sure you have removed any dependencies to &lt;code>docker&lt;/code> as container runtime!&lt;/li>
-&lt;/ul>
-&lt;p>See &lt;a href="https://kubernetes.io/releases/">the official kubernetes documentation&lt;/a> for the exact dates for all releases.&lt;/p>
-&lt;h2 id="container-runtime-support-in-gardener-operating-system-extensions">Container Runtime Support in Gardener Operating System Extensions&lt;/h2>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Operating System&lt;/th>
-&lt;th>docker support&lt;/th>
-&lt;th>containerd support&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>GardenLinux&lt;/td>
-&lt;td>✅&lt;/td>
-&lt;td>&amp;gt;= v0.3.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>Ubuntu&lt;/td>
-&lt;td>✅&lt;/td>
-&lt;td>&amp;gt;= v1.4.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>SuSE CHost&lt;/td>
-&lt;td>✅&lt;/td>
-&lt;td>&amp;gt;= v1.14.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>CoreOS/FlatCar&lt;/td>
-&lt;td>✅&lt;/td>
-&lt;td>&amp;gt;= v1.8.0&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;blockquote>
-&lt;p>&lt;strong>Note&lt;/strong>: If you&amp;rsquo;re using a different Operating System Extension, start evaluating now if it provides support for &lt;code>containerd&lt;/code>. Please refer to &lt;a href="https://gardener.cloud/docs/gardener/extensions/operatingsystemconfig/#cri-support">our documentation of the &lt;code>operatingsystemconfig&lt;/code> contract&lt;/a> to understand how to support &lt;code>containerd&lt;/code> for an Operating System Extension.&lt;/p>
-&lt;/blockquote>
-&lt;h2 id="stable-worker-node-hash-support-in-gardener-provider-extensions">Stable Worker Node Hash Support in Gardener Provider Extensions&lt;/h2>
-&lt;p>Upgrade to these versions to avoid a node rollout when a Shoot is configured from &lt;code>cri: nil&lt;/code> to &lt;code>cri.name: docker&lt;/code>.&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Provider Extension&lt;/th>
-&lt;th>Stable worker hash support&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>Alicloud&lt;/td>
-&lt;td>&amp;gt;= 1.26.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>AWS&lt;/td>
-&lt;td>&amp;gt;= 1.27.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>Azure&lt;/td>
-&lt;td>&amp;gt;= 1.21.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>GCP&lt;/td>
-&lt;td>&amp;gt;= 1.18.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>OpenStack&lt;/td>
-&lt;td>&amp;gt;= 1.21.0&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>vSphere&lt;/td>
-&lt;td>&amp;gt;= 0.11.0&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;blockquote>
-&lt;p>&lt;strong>Note&lt;/strong>: If you&amp;rsquo;re using a different Provider Extension, start evaluating now if it keeps the worker hash stable when switching from &lt;code>.spec.provider.workers[].cri: nil&lt;/code> to &lt;code>.spec.provider.workers[].cri.name: docker&lt;/code>. This doesn&amp;rsquo;t impact functional correctness, however, a node rollout will be triggered when users decide to configure &lt;code>docker&lt;/code> for their shoots.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: ExposureClasses</title><link>https://gardener.cloud/docs/gardener/usage/exposureclasses/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/exposureclasses/</guid><description>
+&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code>, as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: ExposureClasses</title><link>https://gardener.cloud/docs/gardener/usage/exposureclasses/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/usage/exposureclasses/</guid><description>
 &lt;h1 id="exposureclasses">ExposureClasses&lt;/h1>
 &lt;p>The Gardener API server provides a cluster-scoped &lt;code>ExposureClass&lt;/code> resource.
 This resource is used to allow exposing the control plane of a Shoot cluster in various network environments like restricted corporate networks, DMZ, etc.&lt;/p>
@@ -1164,7 +1040,7 @@ Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/custom-dn
 &lt;p>⚠️ You should disable the admission plugin and wait until Gardener finishes at least one &lt;code>Shoot&lt;/code> reconciliation before upgrading to &lt;code>v1.25&lt;/code>. This is to make sure all the &lt;code>PodSecurityPolicy&lt;/code> related resources deployed by Gardener are cleaned up.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="admission-configuration-for-the-podsecurity-admission-plugin">Admission Configuration for the &lt;code>PodSecurity&lt;/code> Admission Plugin&lt;/h2>
-&lt;p>If you wish to add your custom configuration for the &lt;code>PodSecurity&lt;/code> plugin and your cluster version is &lt;code>v1.23+&lt;/code>, you can do so in the Shoot spec under &lt;code>.spec.kubernetes.kubeAPIServer.admissionPlugins&lt;/code> by adding:&lt;/p>
+&lt;p>If you wish to add your custom configuration for the &lt;code>PodSecurity&lt;/code> plugin, you can do so in the Shoot spec under &lt;code>.spec.kubernetes.kubeAPIServer.admissionPlugins&lt;/code> by adding:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>admissionPlugins:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: PodSecurity
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config:
@@ -1194,11 +1070,7 @@ Please refer to &lt;a href="https://gardener.cloud/docs/gardener/usage/custom-dn
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeClasses: []
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Array of namespaces to exempt.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaces: []
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠️ Note that the &lt;code>pod-security.admission.config.k8s.io/v1&lt;/code> configuration requires &lt;code>v1.25&lt;/code>+. For &lt;code>v1.23&lt;/code> and &lt;code>v1.24&lt;/code>, use &lt;code>pod-security.admission.config.k8s.io/v1beta1&lt;/code>. For &lt;code>v1.22&lt;/code>, use &lt;code>pod-security.admission.config.k8s.io/v1alpha1&lt;/code>.&lt;/p>
-&lt;p>Also note that in &lt;code>v1.22&lt;/code>, the feature gate &lt;code>PodSecurity&lt;/code> is not enabled by default. You have to add:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>featureGates:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> PodSecurity: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>under &lt;code>.spec.kubernetes.kubeAPIServer&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠️ Note that the &lt;code>pod-security.admission.config.k8s.io/v1&lt;/code> configuration requires &lt;code>v1.25&lt;/code>+. For &lt;code>v1.24&lt;/code>, use &lt;code>pod-security.admission.config.k8s.io/v1beta1&lt;/code>.&lt;/p>
 &lt;p>For proper functioning of Gardener, &lt;code>kube-system&lt;/code> namespace will also be automatically added to the &lt;code>exemptions.namespaces&lt;/code> list.&lt;/p>
 &lt;h2 id="speckubernetesallowprivilegedcontainers-in-the-shoot-spec">&lt;code>.spec.kubernetes.allowPrivilegedContainers&lt;/code> in the Shoot Spec&lt;/h2>
 &lt;p>If this field is set to &lt;code>true&lt;/code>, then all authenticated users can use the &amp;ldquo;gardener.privileged&amp;rdquo; &lt;code>PodSecurityPolicy&lt;/code>, allowing full unrestricted access to Pod features. However, the &lt;code>PodSecurityPolicy&lt;/code> admission plugin is removed in Kubernetes &lt;code>v1.25&lt;/code> and &lt;code>PodSecurity&lt;/code> has taken its place as its successor. Therefore, this field doesn&amp;rsquo;t have any relevance in versions &lt;code>&amp;gt;= v1.25&lt;/code> anymore. If you need to set a default pod admission level for your cluster, follow &lt;a href="#admission-configuration-for-the-podsecurity-admission-plugin">this documentation&lt;/a>.&lt;/p>
@@ -2817,7 +2689,7 @@ After the operator has gained sufficient trust, the version can be manually prom
 &lt;/li>
 &lt;li>
 &lt;p>&lt;strong>supported:&lt;/strong> A &lt;code>supported&lt;/code> version is the recommended version for new and existing Shoot clusters. This is the version that new Shoot clusters should use and existing clusters should update to.
-Typically for Kubernetes versions, the latest Kubernetes patch versions of the actual (if not still in &lt;code>preview&lt;/code>) and the last 3 minor Kubernetes versions are maintained by the community. An operator could define these versions as being &lt;code>supported&lt;/code> (e.g., v1.24.6, v1.23.12, and v1.22.15).&lt;/p>
+Typically for Kubernetes versions, the latest Kubernetes patch versions of the actual (if not still in &lt;code>preview&lt;/code>) and the last 3 minor Kubernetes versions are maintained by the community. An operator could define these versions as being &lt;code>supported&lt;/code> (e.g., v1.27.6, v1.26.10, and v1.25.12).&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>&lt;strong>deprecated:&lt;/strong> A &lt;code>deprecated&lt;/code> version is a version that approaches the end of its lifecycle and can contain issues which are probably resolved in a supported version.
@@ -2854,13 +2726,6 @@ New clusters with that version cannot be created and existing clusters are force
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: deprecated
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;2022-11-30T23:59:59Z&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.5
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: supported
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.23.12
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: deprecated
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;2023-01-31T23:59:59Z&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.23.11
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: supported
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.22.15
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="version-requirements-kubernetes-and-machine-image">Version Requirements (Kubernetes and Machine Image)&lt;/h2>
 &lt;p>The Gardener API server enforces the following requirements for versions:&lt;/p>
 &lt;h3 id="deletion-of-a-version">Deletion of a Version&lt;/h3>
@@ -2955,11 +2820,11 @@ Configuring the &lt;code>CloudProfile&lt;/code> in such a way, the Shoot&amp;rsq
 &lt;h1 id="supported-kubernetes-versions">Supported Kubernetes Versions&lt;/h1>
 &lt;p>Currently, Gardener supports the following Kubernetes versions:&lt;/p>
 &lt;h2 id="garden-clusters">Garden Clusters&lt;/h2>
-&lt;p>The minimum version of a garden cluster that can be used to run Gardener is &lt;strong>&lt;code>1.22.x&lt;/code>&lt;/strong>.&lt;/p>
+&lt;p>The minimum version of a garden cluster that can be used to run Gardener is &lt;strong>&lt;code>1.24.x&lt;/code>&lt;/strong>.&lt;/p>
 &lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
-&lt;p>The minimum version of a seed cluster that can be connected to Gardener is &lt;strong>&lt;code>1.22.x&lt;/code>&lt;/strong>.&lt;/p>
+&lt;p>The minimum version of a seed cluster that can be connected to Gardener is &lt;strong>&lt;code>1.24.x&lt;/code>&lt;/strong>.&lt;/p>
 &lt;h2 id="shoot-clusters">Shoot Clusters&lt;/h2>
-&lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.22&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.28&lt;/code>&lt;/strong>.
+&lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.24&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.28&lt;/code>&lt;/strong>.
 However, the concrete versions that can be used for shoot clusters depend on the installed provider extension.
 Consequently, please consult the documentation of your provider extension to see which Kubernetes versions are supported for shoot clusters.&lt;/p>
 &lt;blockquote>
@@ -3080,20 +2945,20 @@ Administrators can then reschedule their workloads to the new worker pool accord
 &lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.6
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.27.4
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.23.13
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.26.8
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data2
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>If &lt;code>.kubernetes.version&lt;/code> is not specified in a worker pool, then the Kubernetes version of the kubelet is inherited from the control plane (&lt;code>.spec.kubernetes.version&lt;/code>), i.e., in the above example, the &lt;code>data2&lt;/code> pool will use &lt;code>1.24.6&lt;/code>.&lt;/li>
+&lt;li>If &lt;code>.kubernetes.version&lt;/code> is not specified in a worker pool, then the Kubernetes version of the kubelet is inherited from the control plane (&lt;code>.spec.kubernetes.version&lt;/code>), i.e., in the above example, the &lt;code>data2&lt;/code> pool will use &lt;code>1.26.8&lt;/code>.&lt;/li>
 &lt;li>If &lt;code>.kubernetes.version&lt;/code> is specified in a worker pool, then it must meet the following constraints:
 &lt;ul>
 &lt;li>It must be at most two minor versions lower than the control plane version.&lt;/li>
-&lt;li>If it was not specified before, then no downgrade is possible (you cannot set it to &lt;code>1.23.13&lt;/code> while &lt;code>.spec.kubernetes.version&lt;/code> is already &lt;code>1.24.6&lt;/code>). The &amp;ldquo;two minor version skew&amp;rdquo; is only possible if the worker pool version is set to the control plane version and then the control plane was updated gradually by two minor versions.&lt;/li>
-&lt;li>If the version is removed from the worker pool, only one minor version difference is allowed to the control plane (you cannot upgrade a pool from version &lt;code>1.22.0&lt;/code> to &lt;code>1.24.0&lt;/code> in one go).&lt;/li>
+&lt;li>If it was not specified before, then no downgrade is possible (you cannot set it to &lt;code>1.26.8&lt;/code> while &lt;code>.spec.kubernetes.version&lt;/code> is already &lt;code>1.27.4&lt;/code>). The &amp;ldquo;two minor version skew&amp;rdquo; is only possible if the worker pool version is set to the control plane version and then the control plane was updated gradually by two minor versions.&lt;/li>
+&lt;li>If the version is removed from the worker pool, only one minor version difference is allowed to the control plane (you cannot upgrade a pool from version &lt;code>1.25.0&lt;/code> to &lt;code>1.27.0&lt;/code> in one go).&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>

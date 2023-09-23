@@ -1291,18 +1291,12 @@ the routing is switched to the other responsive routing path.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=my-namespace
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;path&amp;gt;/&amp;lt;to&amp;gt;/kubeconfig-request.json &lt;span style="color:#a31515">\
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/adminkubeconfig | jq -r &lt;span style="color:#a31515">&amp;#34;.status.kubeconfig&amp;#34;&lt;/span> | base64 -d
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Here, the &lt;code>kubeconfig-request.json&lt;/code> has the following content:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-json" data-lang="json">&lt;span style="display:flex;">&lt;span>{
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;apiVersion&amp;#34;: &lt;span style="color:#a31515">&amp;#34;authentication.gardener.cloud/v1alpha1&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;kind&amp;#34;: &lt;span style="color:#a31515">&amp;#34;AdminKubeconfigRequest&amp;#34;&lt;/span>,
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;spec&amp;#34;: {
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;#34;expirationSeconds&amp;#34;: 1000
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;(printf &lt;span style="color:#a31515">&amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;expirationSeconds&amp;#34;:600}}&amp;#39;&lt;/span>) &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/adminkubeconfig | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> jq -r &lt;span style="color:#a31515">&amp;#34;.status.kubeconfig&amp;#34;&lt;/span> | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> base64 -d
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You also can use controller-runtime &lt;code>client&lt;/code> (&amp;gt;= v0.14.3) to create such a kubeconfig from your go code like so:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>expiration := 8*time.Hour
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>expiration := 10 * time.Minute
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>expirationSeconds := int64(expiration.Seconds())
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>adminKubeconfigRequest := &amp;amp;authenticationv1alpha1.AdminKubeconfigRequest{
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
@@ -1315,7 +1309,7 @@ the routing is switched to the other responsive routing path.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config = adminKubeconfigRequest.Status.Kubeconfig
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> The &lt;a href="https://github.com/gardener/gardenctl-v2/">&lt;code>gardenctl-v2&lt;/code>&lt;/a> tool makes it easy to target shoot clusters and automatically renews such &lt;code>kubeconfig&lt;/code> when required.&lt;/p>
+&lt;p>&lt;strong>Note:&lt;/strong> The &lt;a href="https://github.com/gardener/gardenctl-v2">&lt;code>gardenctl-v2&lt;/code>&lt;/a> tool simplifies targeting shoot clusters. It automatically downloads a kubeconfig that uses the &lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a> kubectl auth plugin. This transparently manages authentication and certificate renewal without containing any credentials.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="openid-connect">OpenID Connect&lt;/h2>
 &lt;p>The &lt;code>kube-apiserver&lt;/code> of shoot clusters can be provided with &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens">OpenID Connect configuration&lt;/a> via the Shoot spec:&lt;/p>

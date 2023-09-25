@@ -21,7 +21,7 @@
 &lt;/ul>
 &lt;p>A list of operator alerts can be found in the &lt;a href="https://gardener.cloud/docs/gardener/monitoring/operator_alerts/">Operator Alerts&lt;/a> topic.&lt;/p>
 &lt;h2 id="email-alerting">Email Alerting&lt;/h2>
-&lt;p>Gardener provides the option to deploy an Alertmanager into each seed. This Alertmanager is responsible for sending out alerts to operators for each shoot cluster in the seed. Only email alerts are supported by the Alertmanager managed by Gardener. This is configurable by setting the Gardener controller manager configuration values &lt;code>alerting&lt;/code>. See &lt;a href="https://gardener.cloud/docs/gardener/operations/configuration/">Gardener Configuration and Usage&lt;/a> on how to configure the Gardener&amp;rsquo;s SMTP secret. If the values are set, a secret with the label &lt;code>gardener.cloud/role: alerting&lt;/code> will be created in the garden namespace of the garden cluster. This secret will be used by each Alertmanager in each seed.&lt;/p>
+&lt;p>Gardener provides the option to deploy an Alertmanager into each seed. This Alertmanager is responsible for sending out alerts to operators for each shoot cluster in the seed. Only email alerts are supported by the Alertmanager managed by Gardener. This is configurable by setting the Gardener controller manager configuration values &lt;code>alerting&lt;/code>. See &lt;a href="https://gardener.cloud/docs/gardener/configuration/">Gardener Configuration and Usage&lt;/a> on how to configure the Gardener&amp;rsquo;s SMTP secret. If the values are set, a secret with the label &lt;code>gardener.cloud/role: alerting&lt;/code> will be created in the garden namespace of the garden cluster. This secret will be used by each Alertmanager in each seed.&lt;/p>
 &lt;h2 id="external-alertmanager">External Alertmanager&lt;/h2>
 &lt;p>The Alertmanager supports different kinds of &lt;a href="https://prometheus.io/docs/alerting/configuration/">alerting configurations&lt;/a>. The Alertmanager provided by Gardener only supports email alerts. If email is not sufficient, then alerts can be sent to an external Alertmanager. Prometheus will send alerts to a URL and then alerts will be handled by the external Alertmanager. This external Alertmanager is operated and configured by the operator (i.e. Gardener does not configure or deploy this Alertmanager). To configure sending alerts to an external Alertmanager, create a secret in the virtual garden cluster in the garden namespace with the label: &lt;code>gardener.cloud/role: alerting&lt;/code>. This secret needs to contain a URL to the external Alertmanager and information regarding authentication. Supported authentication types are:&lt;/p>
 &lt;ul>
@@ -122,7 +122,70 @@
 &lt;p>&lt;img src="https://gardener.cloud/__resources/panel_393a41.png" alt="image">&lt;/p>
 &lt;h2 id="seed-connectivity">Seed Connectivity&lt;/h2>
 &lt;p>In addition to the shoot connectivity, we also measure the seed connectivity. This means trying to reach the API Server from the seed via the external fully qualified domain name of the API server. The connectivity is also displayed in the above panel as the &lt;code>seed&lt;/code> line. Both &lt;code>seed&lt;/code> and &lt;code>shoot&lt;/code> connectivity are shown below.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/connectivity_b79584.png" alt="image">&lt;/p></description></item><item><title>Docs: Operator Alerts</title><link>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</guid><description>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/connectivity_b79584.png" alt="image">&lt;/p></description></item><item><title>Docs: Monitoring</title><link>https://gardener.cloud/docs/gardener/monitoring/readme/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/readme/</guid><description>
+&lt;h1 id="monitoring">Monitoring&lt;/h1>
+&lt;h2 id="roles-of-the-different-prometheus-instances">Roles of the different Prometheus instances&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/monitoring_06c124.png" alt="monitoring">&lt;/p>
+&lt;h3 id="prometheus">Prometheus&lt;/h3>
+&lt;p>Deployed in the &lt;code>garden&lt;/code> namespace. Important scrape targets:&lt;/p>
+&lt;ul>
+&lt;li>cadvisor&lt;/li>
+&lt;li>node-exporter&lt;/li>
+&lt;li>kube-state-metrics&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Purpose&lt;/strong>: Acts as a cache for other Prometheus instances. The metrics are kept for a short amount of time (~2 hours) due to the high cardinality. For example if another Prometheus needs access to cadvisor metrics it will query this Prometheus instead of the cadvisor. This also reduces load on the kubelets and API Server.&lt;/p>
+&lt;p>Some of the high cardinality metrics are aggregated with recording rules. These &lt;em>pre-aggregated&lt;/em> metrics are scraped by the &lt;a href="#aggregate-prometheus">Aggregate Prometheus&lt;/a>.&lt;/p>
+&lt;p>This Prometheus is not used for alerting.&lt;/p>
+&lt;h3 id="aggregate-prometheus">Aggregate Prometheus&lt;/h3>
+&lt;p>Deployed in the &lt;code>garden&lt;/code> namespace. Important scrape targets:&lt;/p>
+&lt;ul>
+&lt;li>other prometheus instances&lt;/li>
+&lt;li>logging components&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Purpose&lt;/strong>: Store pre-aggregated data from &lt;a href="#prometheus">prometheus&lt;/a> and &lt;a href="#shoot-prometheus">shoot prometheus&lt;/a>. An ingress exposes this Prometheus allowing it to be scraped from another cluster.&lt;/p>
+&lt;h3 id="seed-prometheus">Seed Prometheus&lt;/h3>
+&lt;p>Deployed in the &lt;code>garden&lt;/code> namespace. Important scrape targets:&lt;/p>
+&lt;ul>
+&lt;li>pods in extension namespaces annotated with:&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code>prometheus.io/scrape=true
+prometheus.io/port=&amp;lt;port&amp;gt;
+prometheus.io/name=&amp;lt;name&amp;gt;
+&lt;/code>&lt;/pre>&lt;ul>
+&lt;li>cadvisor metrics from pods in the garden and extension namespaces&lt;/li>
+&lt;/ul>
+&lt;p>The job name label will be applied to all metrics from that service.
+&lt;strong>Purpose&lt;/strong>: Entrypoint for operators when debugging issues with extensions or other garden components.&lt;/p>
+&lt;h3 id="shoot-prometheus">Shoot Prometheus&lt;/h3>
+&lt;p>Deployed in the shoot control plane namespace. Important scrape targets:&lt;/p>
+&lt;ul>
+&lt;li>control plane components&lt;/li>
+&lt;li>shoot nodes (node-exporter)&lt;/li>
+&lt;li>blackbox-exporter used to measure &lt;a href="https://gardener.cloud/docs/gardener/monitoring/connectivity/">connectivity&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Purpose&lt;/strong>: Monitor all relevant components belonging to a shoot cluster managed by Gardener. Shoot owners can view the metrics in Plutono dashboards and receive &lt;a href="https://gardener.cloud/docs/gardener/monitoring/user_alerts/">alerts&lt;/a> based on these metrics. Gardener operators will receive a different set of &lt;a href="https://gardener.cloud/docs/gardener/monitoring/operator_alerts/">alerts&lt;/a>. For alerting internals refer to &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/">this&lt;/a> document.&lt;/p>
+&lt;h2 id="collect-all-shoot-prometheus-with-remote-write">Collect all Shoot Prometheus with remote write&lt;/h2>
+&lt;p>An optional collection of all Shoot Prometheus metrics to a central prometheus (or cortex) instance is possible with the &lt;code>monitoring.shoot&lt;/code> setting in &lt;code>GardenletConfiguration&lt;/code>:&lt;/p>
+&lt;pre tabindex="0">&lt;code>monitoring:
+shoot:
+remoteWrite:
+url: https://remoteWriteUrl # remote write URL
+keep:# metrics that should be forwarded to the external write endpoint. If empty all metrics get forwarded
+- kube_pod_container_info
+queueConfig: | # queue_config of prometheus remote write as multiline string
+max_shards: 100
+batch_send_deadline: 20s
+min_backoff: 500ms
+max_backoff: 60s
+externalLabels: # add additional labels to metrics to identify it on the central instance
+additional: label
+&lt;/code>&lt;/pre>&lt;p>If basic auth is needed it can be set via secret in garden namespace (Gardener API Server). &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-remote-write.yaml">Example secret&lt;/a>&lt;/p>
+&lt;h2 id="disable-gardener-monitoring">Disable Gardener Monitoring&lt;/h2>
+&lt;p>If you wish to disable metric collection for every shoot and roll your own then you can simply set.&lt;/p>
+&lt;pre tabindex="0">&lt;code>monitoring:
+shoot:
+enabled: false
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Operator Alerts</title><link>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</guid><description>
 &lt;h1 id="operator-alerts">Operator Alerts&lt;/h1>
 &lt;table>
 &lt;thead>

@@ -1044,6 +1044,22 @@ into all of your seeds (if they aren’t managed, as mentioned earlier).&lt;/p>
 &lt;p>In the beginning, there is a very small bash script called &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/extensions/operatingsystemconfig/original/components/containerd/templates/scripts/init.tpl.sh">&lt;code>gardener-node-init.sh&lt;/code>&lt;/a>, which will be copied to &lt;code>/var/lib/gardener-node-agent/gardener-node-init.sh&lt;/code> on the node with cloud-init data. This script&amp;rsquo;s sole purpose is downloading and starting the &lt;code>gardener-node-agent&lt;/code>. The binary artifact is extracted from an &lt;a href="https://github.com/opencontainers/image-spec/blob/main/manifest.md">OCI artifact&lt;/a> and lives at &lt;code>/usr/local/bin/gardener-node-agent&lt;/code>. The &lt;code>kubelet&lt;/code> should also be contained in the same OCI artifact.&lt;/p>
 &lt;p>Along with the init script, a configuration for the &lt;code>gardener-node-agent&lt;/code> is carried over to the worker node at &lt;code>/var/lib/gardener-node-agent/configuration.yaml&lt;/code>. This configuration contains things like the shoot&amp;rsquo;s &lt;code>kube-apiserver&lt;/code> endpoint, the according certificates to communicate with it, the bootstrap token for the &lt;code>kubelet&lt;/code>, and so on.&lt;/p>
 &lt;p>In a bootstrapping phase, the &lt;code>gardener-node-agent&lt;/code> sets itself up as a systemd service. It also executes tasks that need to be executed before any other components are installed, e.g. formatting the data device for the &lt;code>kubelet&lt;/code>.&lt;/p>
+&lt;h2 id="controllers">Controllers&lt;/h2>
+&lt;p>This section describes the controllers in more details.&lt;/p>
+&lt;h3 id="node-controllerhttpsgithubcomgardenergardenertreemasterpkgnodeagentcontrollernode">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/nodeagent/controller/node">&lt;code>Node&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>This controller watches the &lt;code>Node&lt;/code> object for the machine it runs on.
+The correct &lt;code>Node&lt;/code> is identified based on the hostname of the machine (&lt;code>Node&lt;/code>s have the &lt;code>kubernetes.io/hostname&lt;/code> label).
+Whenever the &lt;code>worker.gardener.cloud/restart-systemd-services&lt;/code> annotation changes, the controller performs the desired changes by restarting the specified systemd unit files.
+See also &lt;a href="https://gardener.cloud/docs/gardener/shoot_operations/#restart-systemd-services-on-particular-worker-nodes">this document&lt;/a> for more information.
+After restarting all units, the annotation is removed.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ When the &lt;code>gardener-node-agent&lt;/code> systemd service itself is requested to be restarted, the annotation is removed first to ensure it does not restart itself indefinitely.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="token-controllerhttpsgithubcomgardenergardenertreemasterpkgnodeagentcontrollertoken">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/nodeagent/controller/token">Token Controller&lt;/a>&lt;/h3>
+&lt;p>This controller watches the access token &lt;code>Secret&lt;/code> in the &lt;code>kube-system&lt;/code> namespace whose name is provided via the &lt;code>gardener-node-agent&lt;/code>&amp;rsquo;s component configuration (&lt;code>.accessTokenSecret&lt;/code> field).
+Whenever the &lt;code>.data.token&lt;/code> field changes, it writes the new content to the &lt;code>/var/lib/gardener-node-agent/credentials/token&lt;/code> file on the host file system.
+Since the underlying client is based on &lt;code>k8s.io/client-go&lt;/code> and the kubeconfig points to this token file, it is dynamically reloaded without the necessity of explicit configuration or code changes.
+This procedure ensures that the most up-to-date token is always present on the host and used by the &lt;code>gardener-node-agent&lt;/code>.&lt;/p>
 &lt;h2 id="reasoning">Reasoning&lt;/h2>
 &lt;p>The &lt;code>gardener-node-agent&lt;/code> is a replacement for what was called the &lt;code>cloud-config-downloader&lt;/code> and the &lt;code>cloud-config-executor&lt;/code>, both written in &lt;code>bash&lt;/code>. The &lt;code>gardener-node-agent&lt;/code> implements this functionality as a regular controller and feels more uniform in terms of maintenance.&lt;/p>
 &lt;p>With the new architecture we gain a lot, let&amp;rsquo;s describe the most important gains here.&lt;/p>

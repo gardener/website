@@ -1617,19 +1617,164 @@ The machine-controller-manager itself simply takes a reference to an OS-image an
 MCM does not have any restrictions regarding supported operating systems as it does not modify or influence the machine&amp;rsquo;s configuration in any way - it just creates/deletes machines with the provided metadata.&lt;/p>
 &lt;p>Consequently, Gardener needs to provide this information when interacting with the machine-controller-manager.
 This means that basically every operating system is possible to be used, as long as there is some implementation that generates the OS-specific configuration in order to provision/bootstrap the machines.&lt;/p>
-&lt;p>⚠️ Currently, there are a few requirements:&lt;/p>
+&lt;p>⚠️ Currently, there are a few requirements of pre-installed components that must be present in all OS images:&lt;/p>
 &lt;ol>
-&lt;li>The operating system must have built-in &lt;a href="https://www.docker.com/">Docker&lt;/a> support.&lt;/li>
-&lt;li>The operating system must have &lt;a href="https://www.freedesktop.org/wiki/Software/systemd/">systemd&lt;/a> support.&lt;/li>
-&lt;li>The operating system must have &lt;a href="https://www.gnu.org/software/wget/">&lt;code>wget&lt;/code>&lt;/a> pre-installed.&lt;/li>
-&lt;li>The operating system must have &lt;a href="https://stedolan.github.io/jq/">&lt;code>jq&lt;/code>&lt;/a> pre-installed.&lt;/li>
+&lt;li>&lt;a href="https://www.docker.com/">Docker&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://containerd.io/">containerd&lt;/a>
+&lt;ol>
+&lt;li>&lt;a href="https://github.com/projectatomic/containerd/blob/master/docs/cli.md/">containerd client CLI&lt;/a>&lt;/li>
+&lt;li>&lt;code>containerd&lt;/code> must listen on its default socket path: &lt;code>unix:///run/containerd/containerd.sock&lt;/code>&lt;/li>
+&lt;li>&lt;code>containerd&lt;/code> must be configured to work with the default configuration file in: &lt;code>/etc/containerd/config.toml&lt;/code> (eventually created by Gardener).&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;li>&lt;a href="https://www.freedesktop.org/wiki/Software/systemd/">systemd&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://www.gnu.org/software/wget/">&lt;code>wget&lt;/code>&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://stedolan.github.io/jq/">&lt;code>jq&lt;/code>&lt;/a>&lt;/li>
 &lt;/ol>
 &lt;p>The reasons for that will become evident later.&lt;/p>
 &lt;h2 id="what-does-the-user-data-bootstrapping-the-machines-contain">What does the user-data bootstrapping the machines contain?&lt;/h2>
 &lt;p>Gardener installs a few components onto every worker machine in order to allow it to join the shoot cluster.
-There is the &lt;code>kubelet&lt;/code> process, some scripts for continuously checking the health of &lt;code>kubelet&lt;/code> and &lt;code>docker&lt;/code>, but also configuration for log rotation, CA certificates, etc.
-The complete configuration you can find &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/component/extensions/operatingsystemconfig/original/components">at the components folder&lt;/a>. We are calling this the &amp;ldquo;original&amp;rdquo; user-data.&lt;/p>
+There is the &lt;code>kubelet&lt;/code> process, some scripts for continuously checking the health of &lt;code>kubelet&lt;/code> and &lt;code>containerd&lt;/code>, but also configuration for log rotation, CA certificates, etc.
+You can find the complete configuration &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/component/extensions/operatingsystemconfig/original/components">at the components folder&lt;/a>. We are calling this the &amp;ldquo;original&amp;rdquo; user-data.&lt;/p>
 &lt;h2 id="how-does-gardener-bootstrap-the-machines">How does Gardener bootstrap the machines?&lt;/h2>
+&lt;p>When the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/">&lt;code>UseGardenerNodeAgent&lt;/code>&lt;/a> feature gate is enabled, &lt;code>gardenlet&lt;/code> makes use of &lt;code>gardener-node-agent&lt;/code> to perform the bootstrapping and reconciliation of systemd units and files on the machine.
+Please refer to &lt;a href="https://gardener.cloud/docs/gardener/concepts/node-agent/#installation-and-bootstrapping">this document&lt;/a> for a first overview.&lt;/p>
+&lt;p>Usually, you would submit all the components you want to install onto the machine as part of the user-data during creation time.
+However, some providers do have a size limitation (around ~16KB) for that user-data.
+That&amp;rsquo;s why we do not send the &amp;ldquo;original&amp;rdquo; user-data to the machine-controller-manager (who then forwards it to the provider&amp;rsquo;s API).
+Instead, we only send a small &amp;ldquo;init&amp;rdquo; script that downloads the &amp;ldquo;original&amp;rdquo; data and applies it on the machine directly.
+This way we can extend the &amp;ldquo;original&amp;rdquo; user-data without any size restrictions.&lt;/p>
+&lt;p>The high-level flow is as follows:&lt;/p>
+&lt;ol>
+&lt;li>For every worker pool &lt;code>X&lt;/code> in the &lt;code>Shoot&lt;/code> specification, Gardener creates a &lt;code>Secret&lt;/code> named &lt;code>cloud-config-&amp;lt;X&amp;gt;&lt;/code> in the &lt;code>kube-system&lt;/code> namespace of the shoot cluster. The secret contains the &amp;ldquo;original&amp;rdquo; &lt;code>OperatingSystemConfig&lt;/code> (i.e., systemd units and files for &lt;code>kubelet&lt;/code>, etc.).&lt;/li>
+&lt;li>Gardener generates a kubeconfig with minimal permissions just allowing reading these secrets. It is used by the &lt;code>gardener-node-agent&lt;/code> later.&lt;/li>
+&lt;li>Gardener provides the &lt;code>gardener-node-init.sh&lt;/code> bash script and the machine image stated in the &lt;code>Shoot&lt;/code> specification to the machine-controller-manager.&lt;/li>
+&lt;li>Based on this information, the machine-controller-manager creates the VM.&lt;/li>
+&lt;li>After the VM has been provisioned, the &lt;code>gardener-node-init.sh&lt;/code> script starts, fetches the &lt;code>gardener-node-agent&lt;/code> binary, and starts it.&lt;/li>
+&lt;li>The &lt;code>gardener-node-agent&lt;/code> will read the &lt;code>cloud-config-&amp;lt;X&amp;gt;&lt;/code> &lt;code>Secret&lt;/code> for its worker pool (containing the &amp;ldquo;original&amp;rdquo; &lt;code>OperatingSystemConfig&lt;/code>), and reconciles it.&lt;/li>
+&lt;/ol>
+&lt;p>The &lt;code>gardener-node-agent&lt;/code> can update itself in case of newer Gardener versions, and it performs a continuous reconciliation of the systemd units and files in the provided &lt;code>OperatingSystemConfig&lt;/code> (just like any other Kubernetes controller).&lt;/p>
+&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-operating-system">What needs to be implemented to support a new operating system?&lt;/h2>
+&lt;p>As part of the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#shoot-controller">&lt;code>Shoot&lt;/code> reconciliation flow&lt;/a>, &lt;code>gardenlet&lt;/code> will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;my-operating-system&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> purpose: reconcile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reloadConfigFilePath: /var/lib/cloud-config-downloader/cloud-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> units:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: containerd.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dropIns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: 10-containerd-opts.conf
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> [Service]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> Environment=&amp;#34;SOME_OPTS=--foo=bar&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: containerd-monitor.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: start
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enable: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> [Unit]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> Description=Docker-monitor daemon
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> After=kubelet.service
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> [Install]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> WantedBy=multi-user.target
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> [Service]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> Restart=always
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> EnvironmentFile=/etc/environment
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ExecStart=/opt/bin/health-monitor containerd&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> files:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - path: /var/lib/kubelet/ca.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> permissions: 0644
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> encoding: b64
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: default-token-5dtjz
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dataKey: token
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - path: /etc/sysctl.d/99-k8s-general.conf
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> permissions: 0644
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> inline:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> # A higher vm.max_map_count is great for elasticsearch, mongo, or other mmap users
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> # See https://github.com/kubernetes/kops/issues/1340
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> vm.max_map_count = 135217728&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to support a new operating system, you need to write a controller that watches all &lt;code>OperatingSystemConfig&lt;/code>s with &lt;code>.spec.type=&amp;lt;my-operating-system&amp;gt;&lt;/code>.
+For those it shall generate a configuration blob that fits to your operating system.&lt;/p>
+&lt;p>&lt;code>OperatingSystemConfig&lt;/code>s can have two purposes: either &lt;code>provision&lt;/code> or &lt;code>reconcile&lt;/code>.&lt;/p>
+&lt;h3 id="provision-purpose">&lt;code>provision&lt;/code> Purpose&lt;/h3>
+&lt;p>The &lt;code>provision&lt;/code> purpose is used by &lt;code>gardenlet&lt;/code> for the user-data that it later passes to the machine-controller-manager (and then to the provider&amp;rsquo;s API) when creating new VMs.
+It contains the &lt;code>gardener-node-init.sh&lt;/code> script and systemd unit.&lt;/p>
+&lt;p>The OS controller has to translate the &lt;code>.spec.units&lt;/code> and &lt;code>.spec.files&lt;/code> into configuration that fits to the operating system.
+For example, a Flatcar controller might generate a &lt;a href="https://github.com/flatcar/coreos-cloudinit/blob/flatcar-master/Documentation/cloud-config-examples.md">CoreOS cloud-config&lt;/a> or &lt;a href="https://coreos.com/ignition/docs/latest/what-is-ignition.html">Ignition&lt;/a>, SLES might generate &lt;a href="https://cloudinit.readthedocs.io/en/latest/">cloud-init&lt;/a>, and others might simply generate a bash script translating the &lt;code>.spec.units&lt;/code> into &lt;code>systemd&lt;/code> units, and &lt;code>.spec.files&lt;/code> into real files on the disk.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ Please avoid mixing in additional systemd units or files - this step should just translate what &lt;code>gardenlet&lt;/code> put into &lt;code>.spec.units&lt;/code> and &lt;code>.spec.files&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;p>After generation, extension controllers are asked to store their OS config inside a &lt;code>Secret&lt;/code> (as it might contain confidential data) in the same namespace.
+The secret&amp;rsquo;s &lt;code>.data&lt;/code> could look like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ownerReferences:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> blockOwnerDeletion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: OperatingSystemConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> uid: 99c0c5ca-19b9-11e9-9ebd-d67077b40f82
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloud_config: base64(generated-user-data)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Finally, the secret&amp;rsquo;s metadata must be provided in the &lt;code>OperatingSystemConfig&lt;/code>&amp;rsquo;s &lt;code>.status&lt;/code> field:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: osc-result-pool-01-original
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Successfully generated cloud config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2019-01-23T07:45:23Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> progress: 100
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Succeeded
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Reconcile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 5
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="reconcile-purpose">&lt;code>reconcile&lt;/code> Purpose&lt;/h3>
+&lt;p>The &lt;code>reconcile&lt;/code> purpose contains the &amp;ldquo;original&amp;rdquo; &lt;code>OperatingSystemConfig&lt;/code> (which is later stored in &lt;code>Secret&lt;/code>s in the shoot&amp;rsquo;s &lt;code>kube-system&lt;/code> namespace (see step 1)).&lt;/p>
+&lt;p>The OS controller does not need to translate anything here, but it has the option to provide additional systemd units or files via the &lt;code>.status&lt;/code> field:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensionUnits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my-custom-service.service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> command: start
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enable: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> [Unit]
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> // some systemd unit content&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensionFiles:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - path: /etc/some/file
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> permissions: 0644
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> content:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> inline:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: some-file-content
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> description: Successfully generated cloud config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastUpdateTime: &lt;span style="color:#a31515">&amp;#34;2019-01-23T07:45:23Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> progress: 100
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: Succeeded
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: Reconcile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: 5
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>gardener-node-agent&lt;/code> will merge &lt;code>.spec.units&lt;/code> and &lt;code>.status.extensionUnits&lt;/code> as well as &lt;code>.spec.files&lt;/code> and &lt;code>.status.extensionFiles&lt;/code> when applying.&lt;/p>
+&lt;p>You can find an example implementation &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/provider-local/controller/operatingsystemconfig/actuator.go">here&lt;/a>.&lt;/p>
+&lt;hr>
+&lt;h2 id="how-does-gardener-bootstrap-the-machines-1">How does Gardener bootstrap the machines?&lt;/h2>
+&lt;blockquote>
+&lt;p>❗️Below section is only relevant when the &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/">&lt;code>UseGardenerNodeAgent&lt;/code>&lt;/a> feature gate is disabled.
+Once the feature gate has been promoted to GA, it will become obsolete and gets deleted.&lt;/p>
+&lt;/blockquote>
 &lt;p>Usually, you would submit all the components you want to install onto the machine as part of the user-data during creation time.
 However, some providers do have a size limitation (around ~16KB) for that user-data.
 That&amp;rsquo;s why we do not send the &amp;ldquo;original&amp;rdquo; user-data to the machine-controller-manager (who then forwards it to the provider&amp;rsquo;s API).
@@ -1665,53 +1810,6 @@ Via the OS extension, the new file (with its content in clear-text) gets passed 
 &lt;p>As part of the user-data, the bootstrap-token is placed on the newly created VM under a defined path.
 The cloud-config-script will then refer to the file path of the added bootstrap token in the kubelet-bootstrap script.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/bootstrap_token_c9a050.png" alt="Bootstrap flow with shortlived bootstrapTokens">&lt;/p>
-&lt;h3 id="compatibility-matrix-for-node-bootstrap-token">Compatibility Matrix for Node bootstrap-token&lt;/h3>
-&lt;p>With Gardener v1.23, we replaced the long-valid bootstrap-token shared between nodes with a short-lived token unique for each node, ref: &lt;a href="https://github.com/gardener/gardener/issues/3898">#3898&lt;/a>.&lt;/p>
-&lt;p>❗ When updating to Gardener version &amp;gt;=1.35, the old bootstrap-token will be removed. You are required to update your extensions to the following versions when updating Gardener:&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Extension&lt;/th>
-&lt;th>Version&lt;/th>
-&lt;th>Release Date&lt;/th>
-&lt;th>Pull Request&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>os-gardenlinux&lt;/td>
-&lt;td>v0.9.0&lt;/td>
-&lt;td>2 Jul&lt;/td>
-&lt;td>&lt;a href="https://github.com/gardener/gardener-extension-os-gardenlinux/pull/29">https://github.com/gardener/gardener-extension-os-gardenlinux/pull/29&lt;/a>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>os-suse-chost&lt;/td>
-&lt;td>v1.11.0&lt;/td>
-&lt;td>2 Jul&lt;/td>
-&lt;td>&lt;a href="https://github.com/gardener/gardener-extension-os-suse-chost/pull/41">https://github.com/gardener/gardener-extension-os-suse-chost/pull/41&lt;/a>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>os-ubuntu&lt;/td>
-&lt;td>v1.11.0&lt;/td>
-&lt;td>2 Jul&lt;/td>
-&lt;td>&lt;a href="https://github.com/gardener/gardener-extension-os-ubuntu/pull/42">https://github.com/gardener/gardener-extension-os-ubuntu/pull/42&lt;/a>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>os-flatcar&lt;/td>
-&lt;td>v1.7.0&lt;/td>
-&lt;td>2 Jul&lt;/td>
-&lt;td>&lt;a href="https://github.com/gardener/gardener-extension-os-coreos/pull/24">https://github.com/gardener/gardener-extension-os-coreos/pull/24&lt;/a>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>infrastructure-provider using Machine Controller Manager&lt;/td>
-&lt;td>varies&lt;/td>
-&lt;td>~ end of 2019&lt;/td>
-&lt;td>&lt;a href="https://github.com/gardener/machine-controller-manager/pull/351">https://github.com/gardener/machine-controller-manager/pull/351&lt;/a>&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;p>⚠️ If you run a provider extension that does not use Machine Controller Manager (MCM), you need to implement the functionality of creating a temporary bootstrap-token before updating your Gardener version to v1.35 or higher.
-All provider extensions maintained in the &lt;a href="https://github.com/gardener/">gardener GitHub repo&lt;/a> use MCM.&lt;/p>
 &lt;h2 id="how-does-gardener-update-the-user-data-on-already-existing-machines">How does Gardener update the user-data on already existing machines?&lt;/h2>
 &lt;p>With ongoing development and new releases of Gardener, some new components could be required to get installed onto every shoot worker VM, or existing components might need to be changed.
 Gardener achieves that by simply updating the user-data inside the &lt;code>Secret&lt;/code>s mentioned above (step 1).
@@ -1721,7 +1819,7 @@ This script checks whether the downloaded user-data differs from the one previou
 After that it uses &lt;code>systemctl&lt;/code> to restart the installed &lt;code>systemd&lt;/code> units.&lt;/p>
 &lt;p>With the help of the execution script, Gardener can centrally control how machines are updated without the need of OS providers to (re-)implement that logic.
 However, as stated in the mentioned requirements above, the execution script assumes existence of Docker and &lt;code>systemd&lt;/code>.&lt;/p>
-&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-operating-system">What needs to be implemented to support a new operating system?&lt;/h2>
+&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-operating-system-1">What needs to be implemented to support a new operating system?&lt;/h2>
 &lt;p>As part of the shoot flow Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1

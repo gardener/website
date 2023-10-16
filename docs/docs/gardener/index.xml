@@ -4525,7 +4525,7 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md">&lt;code>shoots/adminkubeconfig&lt;/code>&lt;/a> subresource allows users to dynamically generate temporary &lt;code>kubeconfig&lt;/code>s that can be used to access shoot cluster with &lt;code>cluster-admin&lt;/code> privileges. The credentials associated with this &lt;code>kubeconfig&lt;/code> are client certificates which have a very short validity and must be renewed before they expire (by calling the subresource endpoint again).&lt;/p>
 &lt;p>The username associated with such &lt;code>kubeconfig&lt;/code> will be the same which is used for authenticating to the Gardener API. Apart from this advantage, the created &lt;code>kubeconfig&lt;/code> will not be persisted anywhere.&lt;/p>
 &lt;p>In order to request such a &lt;code>kubeconfig&lt;/code>, you can run the following commands:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=my-namespace
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=garden-my-namespace
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;(printf &lt;span style="color:#a31515">&amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;expirationSeconds&amp;#34;:600}}&amp;#39;&lt;/span>) &lt;span style="color:#a31515">\
@@ -4545,6 +4545,46 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> err
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config = adminKubeconfigRequest.Status.Kubeconfig
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In Python you can use the native &lt;a href="https://github.com/kubernetes-client/python">&lt;code>kubernetes&lt;/code> client&lt;/a> to create such a kubeconfig like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-python" data-lang="python">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># This script first loads an existing kubeconfig from your system, and then sends a request to the Gardener API to create a new kubeconfig for a shoot cluster. &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># The received kubeconfig is then decoded and a new API client is created for interacting with the shoot cluster.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> base64
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> json
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">from&lt;/span> kubernetes &lt;span style="color:#00f">import&lt;/span> client, config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Set configuration options&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot_name=&lt;span style="color:#a31515">&amp;#34;my-shoot&amp;#34;&lt;/span> &lt;span style="color:#008000"># Name of the shoot&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>project_namespace=&lt;span style="color:#a31515">&amp;#34;garden-my-namespace&amp;#34;&lt;/span> &lt;span style="color:#008000"># Namespace of the project&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Load kubeconfig from default ~/.kube/config&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config.load_kube_config()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>api = client.ApiClient()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Create kubeconfig request&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubeconfig_request = {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;apiVersion&amp;#39;&lt;/span>: &lt;span style="color:#a31515">&amp;#39;authentication.gardener.cloud/v1alpha1&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;kind&amp;#39;&lt;/span>: &lt;span style="color:#a31515">&amp;#39;AdminKubeconfigRequest&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;spec&amp;#39;&lt;/span>: {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;expirationSeconds&amp;#39;&lt;/span>: 600
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>response = api.call_api(resource_path=&lt;span style="color:#a31515">f&lt;/span>&lt;span style="color:#a31515">&amp;#39;/apis/core.gardener.cloud/v1beta1/namespaces/&lt;/span>&lt;span style="color:#a31515">{&lt;/span>project_namespace&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/shoots/&lt;/span>&lt;span style="color:#a31515">{&lt;/span>shoot_name&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/adminkubeconfig&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> method=&lt;span style="color:#a31515">&amp;#39;POST&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> body=kubeconfig_request,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> auth_settings=[&lt;span style="color:#a31515">&amp;#39;BearerToken&amp;#39;&lt;/span>],
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> _preload_content=&lt;span style="color:#00f">False&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> _return_http_data_only=&lt;span style="color:#00f">True&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>decoded_kubeconfig = base64.b64decode(json.loads(response.data)[&lt;span style="color:#a31515">&amp;#34;status&amp;#34;&lt;/span>][&lt;span style="color:#a31515">&amp;#34;kubeconfig&amp;#34;&lt;/span>]).decode(&lt;span style="color:#a31515">&amp;#39;utf-8&amp;#39;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>print(decoded_kubeconfig)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Create an API client to interact with the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot_api_client = config.new_client_from_config_dict(yaml.safe_load(decoded_kubeconfig))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>v1 = client.CoreV1Api(shoot_api_client)
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> The &lt;a href="https://github.com/gardener/gardenctl-v2">&lt;code>gardenctl-v2&lt;/code>&lt;/a> tool simplifies targeting shoot clusters. It automatically downloads a kubeconfig that uses the &lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a> kubectl auth plugin. This transparently manages authentication and certificate renewal without containing any credentials.&lt;/p>
 &lt;/blockquote>

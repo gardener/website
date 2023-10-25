@@ -1055,6 +1055,19 @@ After restarting all units, the annotation is removed.&lt;/p>
 &lt;blockquote>
 &lt;p>ℹ️ When the &lt;code>gardener-node-agent&lt;/code> systemd service itself is requested to be restarted, the annotation is removed first to ensure it does not restart itself indefinitely.&lt;/p>
 &lt;/blockquote>
+&lt;h3 id="operating-system-config-controllerhttpsgithubcomgardenergardenertreemasterpkgnodeagentcontrolleroperatingsystemconfig">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/nodeagent/controller/operatingsystemconfig">Operating System Config Controller&lt;/a>&lt;/h3>
+&lt;p>This controller contains the main logic of &lt;code>gardener-node-agent&lt;/code>.
+It watches &lt;code>Secret&lt;/code>s whose &lt;code>data&lt;/code> map contains the &lt;a href="https://gardener.cloud/docs/gardener/extensions/operatingsystemconfig/#reconcile-purpose">&lt;code>OperatingSystemConfig&lt;/code>&lt;/a> which consists of all systemd units and files that are relevant for the node configuration.
+Amongst others, a prominent example is the configuration file for &lt;code>kubelet&lt;/code> and its unit file for the &lt;code>kubelet.service&lt;/code>.&lt;/p>
+&lt;p>The controller decodes the configuration and computes the files and units that have changed since its last reconciliation.
+It writes or update the files and units to the file system, removes no longer needed files and units, reloads the systemd daemon, and starts or stops the units accordingly.&lt;/p>
+&lt;p>After successful reconciliation, it persists the just applied &lt;code>OperatingSystemConfig&lt;/code> into a file on the host.
+This file will be used for future reconciliations to compute file/unit changes.&lt;/p>
+&lt;p>The controller also maintains two annotations on the &lt;code>Node&lt;/code>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>worker.gardener.cloud/kubernetes-version&lt;/code>, describing the version of the installed &lt;code>kubelet&lt;/code>.&lt;/li>
+&lt;li>&lt;code>checksum/cloud-config-data&lt;/code>, describing the checksum of the applied &lt;code>OperatingSystemConfig&lt;/code> (used in future reconciliations to determine whether it needs to reconcile, and to report that this node is up-to-date).&lt;/li>
+&lt;/ul>
 &lt;h3 id="token-controllerhttpsgithubcomgardenergardenertreemasterpkgnodeagentcontrollertoken">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/nodeagent/controller/token">Token Controller&lt;/a>&lt;/h3>
 &lt;p>This controller watches the access token &lt;code>Secret&lt;/code> in the &lt;code>kube-system&lt;/code> namespace whose name is provided via the &lt;code>gardener-node-agent&lt;/code>&amp;rsquo;s component configuration (&lt;code>.accessTokenSecret&lt;/code> field).
 Whenever the &lt;code>.data.token&lt;/code> field changes, it writes the new content to the &lt;code>/var/lib/gardener-node-agent/credentials/token&lt;/code> file on the host file system.

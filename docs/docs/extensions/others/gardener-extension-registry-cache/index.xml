@@ -107,6 +107,8 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;p>This document outlines how the Shoot reconciliation and deletion work for a Shoot with the registry-cache extension enabled.&lt;/p>
 &lt;h2 id="shoot-reconciliation">Shoot reconciliation&lt;/h2>
 &lt;p>This section outlines how the reconciliation works for a Shoot with the registry-cache extension enabled.&lt;/p>
+&lt;h4 id="extension-enablementreconciliation">Extension enablement/reconciliation&lt;/h4>
+&lt;p>This section outlines how the extension enablement/reconciliation works, e.g the extension has beeen added to the Shoot spec.&lt;/p>
 &lt;ol>
 &lt;li>As part of the Shoot reconciliation flow, gardenlet deploys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource.&lt;/li>
 &lt;li>The registry-cache extension reconciles the Extension resource. &lt;a href="https://github.com/gardener/gardener-extension-registry-cache/blob/main/pkg/controller/extension/actuator.go">pkg/controller/extension/actuator.go&lt;/a> contains the implementation of the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/extensions/pkg/controller/extension/actuator.go">extension.Actuator&lt;/a> interface. The reconciliation of an Extension of type &lt;code>registry-cache&lt;/code> consists of the following steps:
@@ -125,12 +127,22 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;/ol>
 &lt;/li>
 &lt;/ol>
+&lt;h4 id="extension-disablement">Extension disablement&lt;/h4>
+&lt;p>This section outlines how the extension disablement works, i.e the extension has be removed from the Shoot spec.&lt;/p>
+&lt;ol>
+&lt;li>As part of the Shoot reconciliation flow, gardenlet destroys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource because it is no longer needed.
+&lt;ol>
+&lt;li>If the Extension resource contains registries in its status, the registry-cache extension deploys the &lt;a href="https://github.com/gardener/gardener-extension-registry-cache/blob/main/pkg/component/registryconfigurationcleaner/registry_configuration_cleaner.go">&lt;code>registry-cleaner&lt;/code> DaemonSet&lt;/a> to the Shoot cluster to clean up the existing registry configuration.&lt;/li>
+&lt;li>The extension deletes the ManagedResource containing the registry cache resources.&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;/ol>
 &lt;h2 id="shoot-deletion">Shoot deletion&lt;/h2>
 &lt;p>This section outlines how the deletion works for a Shoot with the registry-cache extension enabled.&lt;/p>
 &lt;ol>
 &lt;li>As part of the Shoot deletion flow, gardenlet destroys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource.
 &lt;ol>
-&lt;li>If the Extension resource contains registries in its status, the registry-cache extension deploys the &lt;a href="https://github.com/gardener/gardener-extension-registry-cache/blob/main/pkg/component/registryconfigurationcleaner/registry_configuration_cleaner.go">&lt;code>registry-cleaner&lt;/code> DaemonSet&lt;/a> to the Shoot cluster to clean up the existing configuration for the registries.&lt;/li>
+&lt;li>In the Shoot deletion flow the Extension resource is deleted after the Worker resource. Hence, there is no need to deploy the &lt;a href="https://github.com/gardener/gardener-extension-registry-cache/blob/main/pkg/component/registryconfigurationcleaner/registry_configuration_cleaner.go">&lt;code>registry-cleaner&lt;/code> DaemonSet&lt;/a> to the Shoot cluster to clean up the existing registry configuration.&lt;/li>
 &lt;li>The extension deletes the ManagedResource containing the registry cache resources.&lt;/li>
 &lt;/ol>
 &lt;/li>

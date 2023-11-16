@@ -36,6 +36,14 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: quay.io
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: quay-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: quay-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: quay-credentials-v1
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>providerConfig&lt;/code> field is required.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches&lt;/code> field contains information about the registry caches to deploy. It is a required field. At least one cache has to be specified.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].upstream&lt;/code> field is the remote registry host (and optionally port) to cache. It is a required field.
@@ -43,6 +51,10 @@ The desired format is &lt;code>host[:port]&lt;/code>. The value must not include
 &lt;p>The &lt;code>providerConfig.caches[].size&lt;/code> field is the size of the registry cache. Defaults to &lt;code>10Gi&lt;/code>. The size must be a positive quantity (greater than 0).
 The registry-cache extension deploys a StatefulSet with a volume claim template. A PersistentVolumeClaim is created with the default StorageClass and the configured size.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].garbageCollection.enabled&lt;/code> field enables/disables the cache&amp;rsquo;s garbage collection. Defaults to &lt;code>true&lt;/code>. The time to live (ttl) for an image is &lt;code>7d&lt;/code>. See the &lt;a href="#garbage-collection">garbage collection section&lt;/a> for more details.&lt;/p>
+&lt;p>The &lt;code>providerConfig.caches[].secretReferenceName&lt;/code> is the name of the reference for the Secret containing the upstream registry credentials. To cache images from a private registry, credentials to the upstream registry should be supplied. For details see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/#how-to-provide-credentials-for-upstream-registry">How to provide credentials for upstream registry&lt;/a>.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note&lt;/strong>: It&amp;rsquo;s only possible to provide one set of credentials for one private upstream registry.&lt;/p>
+&lt;/blockquote>
 &lt;h2 id="garbage-collection">Garbage Collection&lt;/h2>
 &lt;p>When the registry cache receives a request for an image that is not present in its local store, it fetches the image from the upstream, returns it to the client and stores the image in the local store. The registry cache runs a scheduler that deletes images when their time to live (ttl) expires. When adding an image to the local store, the registry cache also adds a time to live for the image. The ttl value is &lt;code>7d&lt;/code>. Requesting an image from the registry cache does not extend the time to live of the image. Hence, an image is always garbage collected from the registry cache store after &lt;code>7d&lt;/code>.
 At the time of writing this document, there is no functionality for garbage collection based on disk size - e.g. garbage collecting images when a certain disk usage threshold is passed.&lt;/p>
@@ -71,8 +83,8 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;blockquote>
 &lt;p>Drawback of this approach: The cache&amp;rsquo;s size in the Shoot spec (&lt;code>providerConfig.caches[].size&lt;/code>) diverges from the PVC&amp;rsquo;s size.&lt;/p>
 &lt;/blockquote>
-&lt;h4 id="alternative-2-remove-and-readd-the-cache">[Alternative 2] Remove and readd the cache&lt;/h4>
-&lt;p>There is always the option to remove the cache from the Shoot spec and to readd it again with the updated size.&lt;/p>
+&lt;h4 id="alternative-2-remove-and-re-add-the-cache">[Alternative 2] Remove and re-add the cache&lt;/h4>
+&lt;p>There is always the option to remove the cache from the Shoot spec and to re-add it again with the updated size.&lt;/p>
 &lt;blockquote>
 &lt;p>Drawback of this approach: The already cached images get lost and the cache starts with an empty disk.&lt;/p>
 &lt;/blockquote>
@@ -88,7 +100,7 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;li>A registry cache cannot cache content from the Shoot system components if such upstream is requested:
 &lt;ul>
 &lt;li>On Shoot creation with the registry cache extension enabled, a registry cache is unable to cache all of images from the Shoot system components because a registry cache Pod requires its PVC to be provisioned, attached and mounted (the corresponding CSI node plugin needs to be running). Usually, until the registry cache Pod is running containerd falls back to the upstream for pulling the images from the Shoot system components.&lt;/li>
-&lt;li>On new Node creation for existing Shoot with the registry cache extension enabled, a registry cache is unable to cache most of the images from Shoot system components because the containerd registry configuration on that Node is applied after the registry cache Service is reachable from the Node (the &lt;code>configure-containerd-registries.service&lt;/code> unit is the machinery that does this). The reachability of the registry cache Service requires the Service network to be set up, i.e the kube-proxy for that new Node to be running and to have set up iptables/IPVS configuration for the registry cache Service.&lt;/li>
+&lt;li>On new Node creation for existing Shoot with the registry cache extension enabled, a registry cache is unable to cache most of the images from Shoot system components because the containerd registry configuration on that Node is applied after the registry cache Service is reachable from the Node (the &lt;code>configure-containerd-registries.service&lt;/code> unit is the machinery that does this). The reachability of the registry cache Service requires the Service network to be set up, i.e. the kube-proxy for that new Node to be running and to have set up iptables/IPVS configuration for the registry cache Service.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>Services cannot be resolved by DNS from the Node. That&amp;rsquo;s why the registry cache&amp;rsquo;s Service cluster IP is configured in containerd (instead of the Service DNS). A Service&amp;rsquo;s cluster IP is assigned on its creation by the kube-apiserver. Deletion of the registry cache&amp;rsquo;s Service by Shoot owner would lead the Service to be recreated with a new cluster IP. In such case, until the next Shoot reconciliation, containerd will be configured with the old cluster IP. Hence, containerd will fail to pull images from the cache.&lt;/li>
@@ -163,4 +175,64 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tearing-down-the-dev-environment">Tearing Down the Dev Environment&lt;/h2>
 &lt;p>To tear down the development environment delete the Shoot cluster or disable the &lt;code>registry-cache&lt;/code> extension in the Shoot&amp;rsquo;s specification. When the extension is not used by the Shoot anymore, you can run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make extension-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The make target will delete the ControllerDeployment and ControllerRegistration of the extension, and the registry-cache admission helm deployment.&lt;/p></description></item></channel></rss>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The make target will delete the ControllerDeployment and ControllerRegistration of the extension, and the registry-cache admission helm deployment.&lt;/p></description></item><item><title>Docs: Upstream Credentials</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/</guid><description>
+&lt;h1 id="how-to-provide-credentials-for-upstream-registry">How to provide credentials for upstream registry?&lt;/h1>
+&lt;p>In order to pull private images through registry cache, it is required to supply credentials for the private upstream registry.&lt;/p>
+&lt;h2 id="how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>Create an immutable Secret with the upstream registry credentials&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>% kubectl create -f - &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Secret
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: ro-docker-secret-v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: garden-dev
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">type: Opaque
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">immutable: true
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">data:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> username: $(echo -n $USERNAME | base64 -w0)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> password: $(echo -n $PASSWORD | base64 -w0)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For GCR, the username is &lt;code>_json_key&lt;/code> and the password is the service account key in JSON format. To base64 encode the service account key, copy it and run:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>% echo -n $SERVICE_ACCOUNT_KEY_JSON | base64 -w0
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Add the newly created Secret as a reference to the Shoot spec, and then to the registry-cache extension configuration&lt;/p>
+&lt;p>In the registry-cache configuration set the &lt;code>secretReferenceName&lt;/code> field. It should point to a resource reference under &lt;code>spec.resources&lt;/code>. The resource reference itself points to the Secret in project namespace.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: registry-cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: registry.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: RegistryConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> caches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: docker.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: docker-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: docker-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: ro-docker-secret-v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="how-to-rotate-the-registry-credentials">How to rotate the registry credentials?&lt;/h2>
+&lt;p>To rotate registry credentials perform the following steps:&lt;/p>
+&lt;ol>
+&lt;li>Generate new pair of credentials in the cloud provider account. Do not invalidate the old ones.&lt;/li>
+&lt;li>Create a new Secret (e.g. &lt;code>ro-docker-secret-v2&lt;/code>) with the newly generated credentials as described step 1. in &lt;a href="#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.&lt;/li>
+&lt;li>Update the Shoot spec with newly created Secret as described step 2. in &lt;a href="#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.
+1 The above step will trigger a Shoot reconciliation. Wait for the Shoot reconciliation to complete.&lt;/li>
+&lt;li>Make sure that the old Secret is no longer referenced by any Shoot cluster. Finally, delete the Secret containing the old credentials (e.g. &lt;code>ro-docker-secret-v1&lt;/code>).&lt;/li>
+&lt;li>Delete the corresponding old credentials from the cloud provider account.&lt;/li>
+&lt;/ol>
+&lt;h2 id="gotchas">Gotchas&lt;/h2>
+&lt;ul>
+&lt;li>The registry cache provides the credentials for every request against the corresponding upstream. In some cases, misconfigured credentials can prevent the registry cache to pull even public images from the upstream (for example: invalid service account key for GCR). However, this behaviour is controlled by the server-side logic of the upstream registry.&lt;/li>
+&lt;/ul></description></item></channel></rss>

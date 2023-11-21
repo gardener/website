@@ -540,7 +540,99 @@ If &lt;code>.spec.provider.infrastructureConfig.networks.vpc.id&lt;/code> is spe
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get shoot $SHOOT_NAME -n $SHOOT_NAMESPACE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME CLOUDPROFILE VERSION SEED DOMAIN OPERATION PROGRESS APISERVER CONTROL NODES SYSTEM AGE
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;SHOOT_NAME&amp;gt; aws 1.15.0 aws &amp;lt;SHOOT_DOMAIN&amp;gt; Succeeded 100 True True True True 20m
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: GPU Enabled Cluster</title><link>https://gardener.cloud/docs/guides/administer-shoots/gpu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer-shoots/gpu/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Fix Problematic Conversion Webhooks</title><link>https://gardener.cloud/docs/guides/administer-shoots/conversion-webhook/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer-shoots/conversion-webhook/</guid><description>
+&lt;h2 id="reasoning">Reasoning&lt;/h2>
+&lt;p>&lt;strong>Custom Resource Definition (CRD)&lt;/strong> is what you use to define a &lt;code>Custom Resource&lt;/code>. This is a powerful way to extend Kubernetes capabilities beyond the default installation, adding any kind of API objects useful for your application.&lt;/p>
+&lt;p>The CustomResourceDefinition API provides a workflow for introducing and upgrading to new versions of a CustomResourceDefinition. In a scenario where a CRD adds support for a new version and switches its &lt;code>spec.versions.storage&lt;/code> field to it (i.e., from &lt;code>v1beta1&lt;/code> to &lt;code>v1)&lt;/code>, existing objects are not migrated in etcd. For more information, see &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#previous-storage-versions">Versions in CustomResourceDefinitions&lt;/a>.&lt;/p>
+&lt;p>This creates a mismatch between the requested and stored version for all clients (kubectl, KCM, etc.). When the CRD also declares the usage of a conversion webhook, it gets called whenever a client requests information about a resource that still exists in the old version. If the CRD is created by the end-user, the webhook runs on the shoot side, whereas controllers / kapi-servers run separated, as part of the control-plane. For the webhook to be reachable, a working VPN connection &lt;code>seed -&amp;gt; shoot&lt;/code> is essential. In scenarios where the VPN connection is broken, the &lt;strong>kube-controller-manager&lt;/strong> eventually stops its garbage collection, as that requires it to list &lt;code>v1.PartialObjectMetadata&lt;/code> for everything to build a dependency graph. Without the kube-controller-manager&amp;rsquo;s garbage collector, managed resources get stuck during update/rollout.&lt;/p>
+&lt;h2 id="breaking-situations">Breaking Situations&lt;/h2>
+&lt;p>When a user upgrades to &lt;code>failureTolerance: node|zone&lt;/code>, that will cause the VPN &lt;strong>deployments&lt;/strong> to be &lt;em>replaced&lt;/em> by &lt;strong>statefulsets&lt;/strong>. However, as the VPN connection is broken upon teardown of the deployment, garbage collection will fail, leading to a situation that is stuck until an operator manually tackles it.&lt;/p>
+&lt;p>Such a situation can be avoided if the end-user has correctly configured CRDs containing conversion webhooks.&lt;/p>
+&lt;h2 id="checking-problematic-crds">Checking Problematic CRDs&lt;/h2>
+&lt;p>In order to make sure there are no version problematic CRDs, please run the script below in your shoot. It will return the name of the CRDs in case they have one of the 2 problems:&lt;/p>
+&lt;ul>
+&lt;li>the returned version of the CR is different than what is maintained in the &lt;code>status.storedVersions&lt;/code> field of the CRD.&lt;/li>
+&lt;li>the &lt;code>status.storedVersions&lt;/code> field of the CRD has more than 1 version defined.&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>set -e -o pipefail
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#34;Checking all CRDs in the cluster...&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">for&lt;/span> p in &lt;span style="color:#00f">$(&lt;/span>kubectl get crd | awk &lt;span style="color:#a31515">&amp;#39;NR&amp;gt;1&amp;#39;&lt;/span> | awk &lt;span style="color:#a31515">&amp;#39;{print $1}&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>; &lt;span style="color:#00f">do&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> strategy=&lt;span style="color:#00f">$(&lt;/span>kubectl get crd &lt;span style="color:#a31515">&amp;#34;&lt;/span>$p&lt;span style="color:#a31515">&amp;#34;&lt;/span> -o json | jq -r .spec.conversion.strategy&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [ &lt;span style="color:#a31515">&amp;#34;&lt;/span>$strategy&lt;span style="color:#a31515">&amp;#34;&lt;/span> == &lt;span style="color:#a31515">&amp;#34;Webhook&amp;#34;&lt;/span> ]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> crd_name=&lt;span style="color:#00f">$(&lt;/span>kubectl get crd &lt;span style="color:#a31515">&amp;#34;&lt;/span>$p&lt;span style="color:#a31515">&amp;#34;&lt;/span> -o json | jq -r .metadata.name&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> number_of_stored_versions=&lt;span style="color:#00f">$(&lt;/span>kubectl get crd &lt;span style="color:#a31515">&amp;#34;&lt;/span>$crd_name&lt;span style="color:#a31515">&amp;#34;&lt;/span> -o json | jq &lt;span style="color:#a31515">&amp;#39;.status.storedVersions | length&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [[ &lt;span style="color:#a31515">&amp;#34;&lt;/span>$number_of_stored_versions&lt;span style="color:#a31515">&amp;#34;&lt;/span> == 1 ]]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> returned_cr_version=&lt;span style="color:#00f">$(&lt;/span>kubectl get &lt;span style="color:#a31515">&amp;#34;&lt;/span>$crd_name&lt;span style="color:#a31515">&amp;#34;&lt;/span> -A -o json | jq -r &lt;span style="color:#a31515">&amp;#39;.items[] | .apiVersion&amp;#39;&lt;/span> | sed &lt;span style="color:#a31515">&amp;#39;s:.*/::&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [ -z &lt;span style="color:#a31515">&amp;#34;&lt;/span>$returned_cr_version&lt;span style="color:#a31515">&amp;#34;&lt;/span> ]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">continue&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> variable=&lt;span style="color:#00f">$(&lt;/span>echo &lt;span style="color:#a31515">&amp;#34;&lt;/span>$returned_cr_version&lt;span style="color:#a31515">&amp;#34;&lt;/span> | xargs -n1 | sort -u | xargs&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> present_version=&lt;span style="color:#00f">$(&lt;/span>kubectl get crd &lt;span style="color:#a31515">&amp;#34;&lt;/span>$crd_name&lt;span style="color:#a31515">&amp;#34;&lt;/span> -o json | jq -cr &lt;span style="color:#a31515">&amp;#39;.status.storedVersions |.[]&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [[ $variable != &lt;span style="color:#a31515">&amp;#34;&lt;/span>$present_version&lt;span style="color:#a31515">&amp;#34;&lt;/span> ]]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#a31515">&amp;#34;ERROR: Stored version differs from the version that CRs are being returned. &lt;/span>$crd_name&lt;span style="color:#a31515"> with conversion webhook needs to be fixed&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [[ &lt;span style="color:#a31515">&amp;#34;&lt;/span>$number_of_stored_versions&lt;span style="color:#a31515">&amp;#34;&lt;/span> -gt 1 ]]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> returned_cr_version=&lt;span style="color:#00f">$(&lt;/span>kubectl get &lt;span style="color:#a31515">&amp;#34;&lt;/span>$crd_name&lt;span style="color:#a31515">&amp;#34;&lt;/span> -A -o json | jq -r &lt;span style="color:#a31515">&amp;#39;.items[] | .apiVersion&amp;#39;&lt;/span> | sed &lt;span style="color:#a31515">&amp;#39;s:.*/::&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">if&lt;/span> [ -z &lt;span style="color:#a31515">&amp;#34;&lt;/span>$returned_cr_version&lt;span style="color:#a31515">&amp;#34;&lt;/span> ]; &lt;span style="color:#00f">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">continue&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#a31515">&amp;#34;ERROR: Too many stored versions defined. &lt;/span>$crd_name&lt;span style="color:#a31515"> with conversion webhook needs to be fixed&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">done&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>echo &lt;span style="color:#a31515">&amp;#34;Problematic CRDs are reported above.&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h1 id="resolve-crds">Resolve CRDs&lt;/h1>
+&lt;p>Below we give the steps needed to be taken in order to fix the CRDs reported by the script above.&lt;/p>
+&lt;p>Inspect all your CRDs that have conversion webhooks in place. If you have more than 1 version defined in its &lt;code>spec.status.storedVersions&lt;/code> field, then initiate migration as described in &lt;strong>Option 2&lt;/strong> in the &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#upgrade-existing-objects-to-a-new-stored-version">Upgrade existing objects to a new stored version&lt;/a> guide.&lt;/p>
+&lt;p>For convenience, we have provided the necessary steps below.&lt;/p>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+Please test the following steps on a non-productive landscape to make sure that the new CR version doesn’t break any of your existing workloads.
+&lt;/div>
+&lt;ol>
+&lt;li>
+&lt;p>Please check/set the old CR version to &lt;code>storage:false&lt;/code> and set the new CR version to &lt;code>storage:true&lt;/code>.&lt;/p>
+&lt;p>For the sake of an example, let’s consider the two versions &lt;code>v1beta1&lt;/code> (old) and &lt;code>v1&lt;/code> (new).&lt;/p>
+&lt;p>Before:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>......
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>storage: true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>......
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>storage: false
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>After:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>......
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>storage: false
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>......
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>storage: true
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Convert &lt;code>custom-resources&lt;/code> to the newest version.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl get &amp;lt;custom-resource-name&amp;gt; -A -ojson | k apply -f -
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Patch the CRD to keep only the latest version under storedVersions.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl patch customresourcedefinitions &amp;lt;crd-name&amp;gt; --subresource=&lt;span style="color:#a31515">&amp;#39;status&amp;#39;&lt;/span> --type=&lt;span style="color:#a31515">&amp;#39;merge&amp;#39;&lt;/span> -p &lt;span style="color:#a31515">&amp;#39;{&amp;#34;status&amp;#34;:{&amp;#34;storedVersions&amp;#34;:[&amp;#34;your-latest-cr-version&amp;#34;]}}&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol></description></item><item><title>Docs: GPU Enabled Cluster</title><link>https://gardener.cloud/docs/guides/administer-shoots/gpu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/administer-shoots/gpu/</guid><description>
 &lt;h2 id="disclaimer">Disclaimer&lt;/h2>
 &lt;p>Be aware, that the following sections might be opinionated. Kubernetes, and the GPU support in particular,
 are rapidly evolving, which means that this guide is likely to be outdated sometime soon. For this reason,

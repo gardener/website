@@ -445,4 +445,159 @@ Tags in &lt;code>section-3&lt;/code> are defined by the user.&lt;/p>
 &lt;/ol>
 &lt;p>&lt;em>Option #2&lt;/em> - Preferred&lt;/p>
 &lt;p>Leverage &lt;code>Machine.Status.LastOperation&lt;/code> with &lt;code>Type&lt;/code> set to &lt;code>MachineOperationUpdate&lt;/code> and &lt;code>State&lt;/code> set to &lt;code>MachineStateProcessing&lt;/code> This status will be updated just before calling &lt;code>Driver.UpdateMachine&lt;/code>.&lt;/p>
-&lt;p>Semantically &lt;code>LastOperation&lt;/code> captures the details of the operation post-operation and not pre-operation. So this solution would be a divergence from the norm.&lt;/p></description></item></channel></rss>
+&lt;p>Semantically &lt;code>LastOperation&lt;/code> captures the details of the operation post-operation and not pre-operation. So this solution would be a divergence from the norm.&lt;/p></description></item><item><title>Docs: Initialize Machine</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/proposals/initialize-machine/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/proposals/initialize-machine/</guid><description>
+&lt;h1 id="post-create-initialization-of-machine-instance">Post-Create Initialization of Machine Instance&lt;/h1>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>Today the &lt;a href="https://github.com/gardener/machine-controller-manager/blob/rel-v0.49/pkg/util/provider/driver/driver.go#L28">driver.Driver&lt;/a> facade represents the boundary between the the &lt;code>machine-controller&lt;/code> and its various provider specific implementations.&lt;/p>
+&lt;p>We have abstract operations for creation/deletion and listing of machines (actually compute instances) but we do not correctly handle post-creation initialization logic. Nor do we provide an abstract operation to represent the hot update of an instance after creation.&lt;/p>
+&lt;p>We have found this to be necessary for several use cases. Today in the MCM AWS Provider, we already misuse &lt;code>driver.GetMachineStatus&lt;/code> which is supposed to be a read-only operation obtaining the status of an instance.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Each AWS EC2 instance performs source/destination checks by default.
+For &lt;a href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#EIP_Disable_SrcDestCheck">EC2 NAT&lt;/a> instances
+these should be disabled. This is done by issuing
+a &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_ModifyInstanceAttribute.html">ModifyInstanceAttribute&lt;/a> request with the &lt;code>SourceDestCheck&lt;/code> set to &lt;code>false&lt;/code>. The MCM AWS Provider, decodes the &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/39318bb2b5b4a573fdc77eaf400839d12c4abf59/pkg/aws/apis/aws_provider_spec.go#L63">AWSProviderSpec&lt;/a>, reads &lt;code>providerSpec.SrcAndDstChecksEnabled&lt;/code> and correspondingly issues the call to modify the already launched instance. However, this should be done as an action after creating the instance and should not be part of the VM status retrieval.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Similarly, there is a &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/pull/128">pending PR&lt;/a> to add the &lt;code>Ipv6AddessCount&lt;/code> and &lt;code>Ipv6PrefixCount&lt;/code> to enable the assignment of an ipv6 address and an ipv6 prefix to instances. This requires constructing and issuing an &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AssignIpv6Addresses.html">AssignIpv6Addresses&lt;/a> request after the EC2 instance is available.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>We have other uses-cases such as &lt;a href="https://github.com/gardener/machine-controller-manager/issues/750">MCM Issue#750&lt;/a> where there is a requirement to provide a way for consumers to add tags which can be hot-updated onto instances. This requirement can be generalized to also offer a convenient way to specify tags which can be applied to VMs, NICs, Devices etc.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>We have a need for &amp;ldquo;machine-instance-not-ready&amp;rdquo; taint as described in &lt;a href="https://github.com/gardener/machine-controller-manager/issues/740">MCM#740&lt;/a> which should only get removed once the post creation updates are finished.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="objectives">Objectives&lt;/h2>
+&lt;p>We will split the fulfilment of this overall need into 2 stages of implementation.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>Stage-A&lt;/strong>: Support post-VM creation initialization logic of the instance suing a proposed &lt;code>Driver.InitializeMachine&lt;/code> by permitting provider implementors to add initialization logic after VM creation, return with special new error code &lt;code>codes.Initialization&lt;/code> for initialization errors and correspondingly support a new machine operation stage &lt;code>InstanceInitialization&lt;/code> which will be updated in the machine &lt;code>LastOperation&lt;/code>. The &lt;a href="https://github.com/gardener/machine-controller-manager/blob/rel-v0.50/pkg/util/provider/machinecontroller/machine.go#L310">triggerCreationFlow&lt;/a> - a reconciliation sub-flow of the MCM responsible for orchestrating instance creation and updating machine status will be changed to support this behaviour.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Stage-B&lt;/strong>: Introduction of &lt;code>Driver.UpdateMachine&lt;/code> and enhancing the MCM, MCM providers and gardener extension providers to support hot update of instances through &lt;code>Driver.UpdateMachine&lt;/code>. The MCM &lt;a href="https://github.com/gardener/machine-controller-manager/blob/v0.50.1/pkg/util/provider/machinecontroller/machine.go#L531">triggerUpdationFlow&lt;/a> - a reconciliation sub-flow of the MCM which is supposed to be responsible for orchestrating instance update - but currently not used, will be updated to invoke the provider &lt;code>Driver.UpdateMachine&lt;/code> on hot-updates to to the &lt;code>Machine&lt;/code> object&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="stage-a-proposal">Stage-A Proposal&lt;/h2>
+&lt;h3 id="current-mcm-triggercreationflow">Current MCM triggerCreationFlow&lt;/h3>
+&lt;p>Today, &lt;a href="https://github.com/gardener/machine-controller-manager/blob/v0.50.1/pkg/util/provider/machinecontroller/machine.go#L89">reconcileClusterMachine&lt;/a> which is the main routine for the &lt;code>Machine&lt;/code> object reconciliation invokes &lt;a href="https://github.com/gardener/machine-controller-manager/blob/rel-v0.50/pkg/util/provider/machinecontroller/machine.go#L310">triggerCreationFlow&lt;/a> at the end when the &lt;code>machine.Spec.ProviderID&lt;/code> is empty or if the &lt;code>machine.Status.CurrentStatus.Phase&lt;/code> is empty or in &lt;code>CrashLoopBackOff&lt;/code>&lt;/p>
+&lt;pre tabindex="0">&lt;code class="language-mermaid" data-lang="mermaid">%%{ init: {
+&amp;#39;themeVariables&amp;#39;:
+{ &amp;#39;fontSize&amp;#39;: &amp;#39;12px&amp;#39;}
+} }%%
+flowchart LR
+other[&amp;#34;...&amp;#34;]
+--&amp;gt;chk{&amp;#34;machine ProviderID empty
+OR
+Phase empty or CrashLoopBackOff ?
+&amp;#34;}--yes--&amp;gt;triggerCreationFlow
+chk--noo--&amp;gt;LongRetry[&amp;#34;return machineutils.LongRetry&amp;#34;]
+&lt;/code>&lt;/pre>&lt;p>Today, the &lt;code>triggerCreationFlow&lt;/code> is illustrated below with some minor details omitted/compressed for brevity&lt;/p>
+&lt;p>&lt;em>NOTES&lt;/em>&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>lastop&lt;/code> below is an abbreviation for &lt;code>machine.Status.LastOperation&lt;/code>. This, along with the machine phase is generally updated on the &lt;code>Machine&lt;/code> object just before returning from the method.&lt;/li>
+&lt;li>regarding &lt;code>phase=CrashLoopBackOff|Failed&lt;/code>. the machine phase may either be &lt;code>CrashLoopBackOff&lt;/code> or move to &lt;code>Failed&lt;/code> if the difference between current time and the &lt;code>machine.CreationTimestamp&lt;/code> has exceeded the configured &lt;code>MachineCreationTimeout&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code class="language-mermaid" data-lang="mermaid">%%{ init: {
+&amp;#39;themeVariables&amp;#39;:
+{ &amp;#39;fontSize&amp;#39;: &amp;#39;12px&amp;#39;}
+} }%%
+flowchart TD
+end1((&amp;#34;end&amp;#34;))
+begin((&amp;#34; &amp;#34;))
+medretry[&amp;#34;return MediumRetry, err&amp;#34;]
+shortretry[&amp;#34;return ShortRetry, err&amp;#34;]
+medretry--&amp;gt;end1
+shortretry--&amp;gt;end1
+begin--&amp;gt;AddBootstrapTokenToUserData
+--&amp;gt;gms[&amp;#34;statusResp,statusErr=driver.GetMachineStatus(...)&amp;#34;]
+--&amp;gt;chkstatuserr{&amp;#34;Check statusErr&amp;#34;}
+chkstatuserr--notFound--&amp;gt;chknodelbl{&amp;#34;Chk Node Label&amp;#34;}
+chkstatuserr--else--&amp;gt;createFailed[&amp;#34;lastop.Type=Create,lastop.state=Failed,phase=CrashLoopBackOff|Failed&amp;#34;]--&amp;gt;medretry
+chkstatuserr--nil--&amp;gt;initnodename[&amp;#34;nodeName = statusResp.NodeName&amp;#34;]--&amp;gt;setnodename
+chknodelbl--notset--&amp;gt;createmachine[&amp;#34;createResp, createErr=driver.CreateMachine(...)&amp;#34;]--&amp;gt;chkCreateErr{&amp;#34;Check createErr&amp;#34;}
+chkCreateErr--notnil--&amp;gt;createFailed
+chkCreateErr--nil--&amp;gt;getnodename[&amp;#34;nodeName = createResp.NodeName&amp;#34;]
+--&amp;gt;chkstalenode{&amp;#34;nodeName != machine.Name\n//chk stale node&amp;#34;}
+chkstalenode--false--&amp;gt;setnodename[&amp;#34;if unset machine.Labels[&amp;#39;node&amp;#39;]= nodeName&amp;#34;]
+--&amp;gt;machinepending[&amp;#34;if empty/crashloopbackoff lastop.type=Create,lastop.State=Processing,phase=Pending&amp;#34;]
+--&amp;gt;shortretry
+chkstalenode--true--&amp;gt;delmachine[&amp;#34;driver.DeleteMachine(...)&amp;#34;]
+--&amp;gt;permafail[&amp;#34;lastop.type=Create,lastop.state=Failed,Phase=Failed&amp;#34;]
+--&amp;gt;shortretry
+subgraph noteA [&amp;#34; &amp;#34;]
+permafail -.- note1([&amp;#34;VM was referring to stale node obj&amp;#34;])
+end
+style noteA opacity:0
+subgraph noteB [&amp;#34; &amp;#34;]
+setnodename-.- note2([&amp;#34;Proposal: Introduce Driver.InitializeMachine after this&amp;#34;])
+end
+&lt;/code>&lt;/pre>&lt;h3 id="enhancement-of-mcm-triggercreationflow">Enhancement of MCM triggerCreationFlow&lt;/h3>
+&lt;h4 id="relevant-observations-on-current-flow">Relevant Observations on Current Flow&lt;/h4>
+&lt;ol>
+&lt;li>Observe that we always perform a call to &lt;code>Driver.GetMachineStatus&lt;/code> and only then conditionally perform a call to &lt;code>Driver.CreateMachine&lt;/code> if there was was no machine found.&lt;/li>
+&lt;li>Observe that after the call to a successful &lt;code>Driver.CreateMachine&lt;/code>, the machine phase is set to &lt;code>Pending&lt;/code>, the &lt;code>LastOperation.Type&lt;/code> is currently set to &lt;code>Create&lt;/code> and the &lt;code>LastOperation.State&lt;/code> set to &lt;code>Processing&lt;/code> before returning with a &lt;code>ShortRetry&lt;/code>. The &lt;code>LastOperation.Description&lt;/code> is (unfortunately) set to the fixed message: &lt;code>Creating machine on cloud provider&lt;/code>.&lt;/li>
+&lt;li>Observe that after an erroneous call to &lt;code>Driver.CreateMachine&lt;/code>, the machine phase is set to &lt;code>CrashLoopBackOff&lt;/code> or &lt;code>Failed&lt;/code> (in case of creation timeout).&lt;/li>
+&lt;/ol>
+&lt;p>The following changes are proposed with a view towards minimal impact on current code and no introduction of a new Machine Phase.&lt;/p>
+&lt;h4 id="mcm-changes">MCM Changes&lt;/h4>
+&lt;ol>
+&lt;li>We propose introducing a new machine operation &lt;code>Driver.InitializeMachine&lt;/code> with the following signature
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">type&lt;/span> Driver &lt;span style="color:#00f">interface&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// .. existing methods are omitted for brevity.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// InitializeMachine call is responsible for post-create initialization of the provider instance.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> InitializeMachine(context.Context, *InitializeMachineRequest) &lt;span style="color:#2b91af">error&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// InitializeMachineRequest is the initialization request for machine instance initialization
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>&lt;span style="color:#00f">type&lt;/span> InitializeMachineRequest &lt;span style="color:#00f">struct&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// Machine object whose VM instance should be initialized
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Machine *v1alpha1.Machine
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// MachineClass backing the machine object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> MachineClass *v1alpha1.MachineClass
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// Secret backing the machineClass object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Secret *corev1.Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>We propose introducing a new MC error code &lt;code>codes.Initialization&lt;/code> indicating that the VM Instance was created but there was an error in initialization after VM creation. The implementor of &lt;code>Driver.InitializeMachine&lt;/code> can return this error code, indicating that &lt;code>InitializeMachine&lt;/code> needs to be called again. The Machine Controller will change the phase to &lt;code>CrashLoopBackOff&lt;/code> as usual when encountering a &lt;code>codes.Initialization&lt;/code> error.&lt;/li>
+&lt;li>We will introduce a new &lt;em>machine operation&lt;/em> stage &lt;code>InstanceInitialization&lt;/code>. In case of an &lt;code>codes.Initialization&lt;/code> error
+&lt;ol>
+&lt;li>the &lt;code>machine.Status.LastOperation.Description&lt;/code> will be set to &lt;code>InstanceInitialization&lt;/code>,&lt;/li>
+&lt;li>&lt;code>machine.Status.LastOperation.ErrorCode&lt;/code> will be set to &lt;code>codes.Initialization&lt;/code>&lt;/li>
+&lt;li>the &lt;code>LastOperation.Type&lt;/code> will be set to &lt;code>Create&lt;/code>&lt;/li>
+&lt;li>the &lt;code>LastOperation.State&lt;/code> set to &lt;code>Failed&lt;/code> before returning with a &lt;code>ShortRetry&lt;/code>&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;li>The semantics of &lt;code>Driver.GetMachineStatus&lt;/code> will be changed. If the instance associated with machine exists, but the instance was not initialized as expected, the provider implementations of &lt;code>GetMachineStatus&lt;/code> should return an error: &lt;code>status.Error(codes.Initialization)&lt;/code>.&lt;/li>
+&lt;li>If &lt;code>Driver.GetMachineStatus&lt;/code> returned an error encapsulating &lt;code>codes.Initialization&lt;/code> then &lt;code>Driver.InitializeMachine&lt;/code> will be invoked again in the &lt;code>triggerCreationFlow&lt;/code>.&lt;/li>
+&lt;li>As according to the usual logic, the main machine controller reconciliation loop will now re-invoke the &lt;code>triggerCreationFlow&lt;/code> again if the machine phase is &lt;code>CrashLoopBackOff&lt;/code>.&lt;/li>
+&lt;/ol>
+&lt;h4 id="illustration">Illustration&lt;/h4>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/initialize-machine-triggercreationflow_9b7945.svg" alt="Enhanced triggerCreationFlow">&lt;/p>
+&lt;h4 id="aws-provider-changes">AWS Provider Changes&lt;/h4>
+&lt;h5 id="driverinitializemachine">Driver.InitializeMachine&lt;/h5>
+&lt;p>The implementation for the AWS Provider will look something like:&lt;/p>
+&lt;ol>
+&lt;li>After the VM instance is available, check &lt;code>providerSpec.SrcAndDstChecksEnabled&lt;/code>, construct &lt;code>ModifyInstanceAttributeInput&lt;/code> and call &lt;code>ModifyInstanceAttribute&lt;/code>. In case of an error return &lt;code>codes.Initialization&lt;/code> instead of the current &lt;code>codes.Internal&lt;/code>&lt;/li>
+&lt;li>Check &lt;code>providerSpec.NetworkInterfaces&lt;/code> and if &lt;code>Ipv6PrefixCount&lt;/code> is not &lt;code>nil&lt;/code>, then construct &lt;code>AssignIpv6AddressesInput&lt;/code> and call &lt;code>AssignIpv6Addresses&lt;/code>. In case of an error return &lt;code>codes.Initialization&lt;/code>. Don&amp;rsquo;t use the generic &lt;code>codes.Internal&lt;/code>&lt;/li>
+&lt;/ol>
+&lt;p>The &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/pull/128">existing Ipv6 PR&lt;/a> will need modifications.&lt;/p>
+&lt;h5 id="drivergetmachinestatus">Driver.GetMachineStatus&lt;/h5>
+&lt;ol>
+&lt;li>If &lt;code>providerSpec.SrcAndDstChecksEnabled&lt;/code> is &lt;code>false&lt;/code>, check &lt;code>ec2.Instance.SourceDestCheck&lt;/code>. If it does not match then return &lt;code>status.Error(codes.Initialization)&lt;/code>&lt;/li>
+&lt;li>Check &lt;code>providerSpec.NetworkInterfaces&lt;/code> and if &lt;code>Ipv6PrefixCount&lt;/code> is not &lt;code>nil&lt;/code>, check &lt;code>ec2.Instance.NetworkInterfaces&lt;/code> and check if &lt;code>InstanceNetworkInterface.Ipv6Addresses&lt;/code> has a non-nil slice. If this is not the case then return &lt;code>status.Error(codes.Initialization)&lt;/code>&lt;/li>
+&lt;/ol>
+&lt;h3 id="instance-not-ready-taint">Instance Not Ready Taint&lt;/h3>
+&lt;ul>
+&lt;li>Due to the fact that creation flow for machines will now be enhanced to correctly support post-creation startup logic, we should not scheduled workload until this startup logic is complete. Even without this feature we have a need for such a taint as described in &lt;a href="https://github.com/gardener/machine-controller-manager/issues/740">MCM#740&lt;/a>&lt;/li>
+&lt;li>We propose a new taint &lt;code>node.machine.sapcloud.io/instance-not-ready&lt;/code> which will be added as a node startup taint in gardener core &lt;a href="https://github.com/gardener/gardener/blob/v1.83.1/pkg/component/extensions/operatingsystemconfig/original/components/kubelet/config.go#L101">KubeletConfiguration.RegisterWithTaints&lt;/a>&lt;/li>
+&lt;li>The will will then removed by MCM in health check reconciliation, once the machine becomes fully ready. (when moving to &lt;code>Running&lt;/code> phase)&lt;/li>
+&lt;li>We will add this taint as part of &lt;code>--ignore-taint&lt;/code> in CA&lt;/li>
+&lt;li>We will introduce a disclaimer / prerequisite in the MCM FAQ, to add this taint as part of kubelet config under &lt;code>--register-with-taints&lt;/code>, otherwise workload could get scheduled , before machine beomes &lt;code>Running&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h2 id="stage-b-proposal">Stage-B Proposal&lt;/h2>
+&lt;h3 id="enhancement-of-driver-interface-for-hot-updation">Enhancement of Driver Interface for Hot Updation&lt;/h3>
+&lt;p>Kindly refer to the &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/proposals/hotupdate-instances/">Hot-Update Instances&lt;/a> design which provides elaborate detail.&lt;/p></description></item></channel></rss>

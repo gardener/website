@@ -43,43 +43,7 @@ The contents of a .profile file are executed on every log-in of the owner of the
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Enable kubectl completion&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>source &amp;lt;(k completion bash | sed s/kubectl/k/g)
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
-&lt;/div></description></item><item><title>Docs: Automated Deployment</title><link>https://gardener.cloud/docs/guides/client-tools/kubectl-apiserver/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/client-tools/kubectl-apiserver/</guid><description>
-&lt;h2 id="overview">Overview&lt;/h2>
-&lt;p>With kubectl, you can easily deploy an image from your local environment.&lt;/p>
-&lt;p>However, what if you want to use a automated deployment script on a CI server (e.g. Jenkins), but don&amp;rsquo;t want to store
-the KUBECONFIG on that server?&lt;/p>
-&lt;p>You can use kubectl and connect to the API-server of your cluster.&lt;/p>
-&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>Create a service account user:&lt;/p>
-&lt;pre tabindex="0">&lt;code>kubectl create serviceaccount deploy-user -n default
-&lt;/code>&lt;/pre>&lt;/li>
-&lt;li>
-&lt;p>Bind a role to the newly created serviceuser:&lt;/p>
-&lt;div class="alert alert-warning" role="alert">
-&lt;h4 class="alert-heading">Warning&lt;/h4>
-In this example, the preconfigured role &lt;code>edit&lt;/code> and the namespace &lt;code>default&lt;/code> is being used, please adjust the role to a more strict scope! For more information, see &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">Using RBAC Authorization&lt;/a>.
-&lt;/div>
-&lt;pre tabindex="0">&lt;code>kubectl create rolebinding deploy-default-role --clusterrole=edit --serviceaccount=default:deploy-user --namespace=default
-&lt;/code>&lt;/pre>&lt;/li>
-&lt;li>
-&lt;p>Get the URL of your API-server:&lt;/p>
-&lt;pre tabindex="0">&lt;code>APISERVER=$(kubectl config view | grep server | cut -f 2- -d &amp;#34;:&amp;#34; | tr -d &amp;#34; &amp;#34;)
-&lt;/code>&lt;/pre>&lt;/li>
-&lt;li>
-&lt;p>Get the service account:&lt;/p>
-&lt;pre tabindex="0">&lt;code>SERVICEACCOUNT=$(kubectl get serviceaccount deploy-user -n default -o=jsonpath={.secrets[0].name})
-&lt;/code>&lt;/pre>&lt;/li>
-&lt;li>
-&lt;p>Generate a token for the serviceaccount:&lt;/p>
-&lt;pre tabindex="0">&lt;code>TOKEN=$(kubectl get secret -n default $SERVICEACCOUNT -o=jsonpath={.data.token} | base64 -D)
-&lt;/code>&lt;/pre>&lt;/li>
-&lt;/ol>
-&lt;h2 id="usage">Usage&lt;/h2>
-&lt;p>You can deploy your app without setting the kubeconfig locally, you just need to pass the environment variables (e.g. store them in the Jenkins credentials store)&lt;/p>
-&lt;pre tabindex="0">&lt;code>kubectl --server=${APIServer} --token=${TOKEN} --insecure-skip-tls-verify=true apply --filename myapp.yaml
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Kubeconfig Context as bash Prompt</title><link>https://gardener.cloud/docs/guides/client-tools/bash-kubeconfig/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/client-tools/bash-kubeconfig/</guid><description>
+&lt;/div></description></item><item><title>Docs: Kubeconfig Context as bash Prompt</title><link>https://gardener.cloud/docs/guides/client-tools/bash-kubeconfig/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/client-tools/bash-kubeconfig/</guid><description>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Use the Kubernetes command-line tool, &lt;strong>kubectl&lt;/strong>, to deploy and manage applications on Kubernetes.
 Using kubectl, you can inspect cluster resources, as well as create, delete, and update components.&lt;/p>
@@ -305,42 +269,4 @@ within the desired namespace.&lt;/p>
 &lt;td>Allows read-only access to see most objects in a namespace. It does not allow viewing roles or rolebindings. It does not allow viewing secrets, since those are escalating.&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table></description></item><item><title>Docs: Use a Helm Chart to Deploy an Application or Service</title><link>https://gardener.cloud/docs/guides/client-tools/helm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/client-tools/helm/</guid><description>
-&lt;h2 id="overview">Overview&lt;/h2>
-&lt;p>Basically, &lt;a href="https://helm.sh/docs/topics/charts/">Helm Charts&lt;/a> can be installed as described e.g. in the Helm
-&lt;a href="https://helm.sh/docs/intro/quickstart/">QuickStart Guide&lt;/a>. However, our clusters come with
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC&lt;/a> enabled by default, hence Helm must be installed as follows:&lt;/p>
-&lt;h2 id="create-a-service-account">Create a Service Account&lt;/h2>
-&lt;p>Create a service account via the following command:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f -
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: v1
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: ServiceAccount
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: helm
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: kube-system
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">---
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: rbac.authorization.k8s.io/v1beta1
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: ClusterRoleBinding
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: helm
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">roleRef:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kind: ClusterRole
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: cluster-admin
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">subjects:
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - kind: ServiceAccount
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: helm
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: kube-system
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="initialize-helm">Initialize Helm&lt;/h2>
-&lt;p>Initialise Helm via &lt;code>helm init --service-account helm&lt;/code>. You can now use &lt;code>helm&lt;/code>.&lt;/p>
-&lt;h2 id="in-case-of-failure">In Case of Failure&lt;/h2>
-&lt;p>In case you have already executed &lt;code>helm init&lt;/code>, but without the above service account, you will get the following error:&lt;/p>
-&lt;p>&lt;code>Error: User &amp;quot;system:serviceaccount:kube-system:default&amp;quot; cannot list configmaps in the namespace &amp;quot;kube-system&amp;quot;. (get configmaps)&lt;/code>
-(e.g. when you run &lt;code>helm list&lt;/code>). You will now need to delete the Tiller deployment (Helm backend
-implicitly deployed to the Kubernetes cluster when you call &lt;code>helm init&lt;/code>) as well as the local Helm files (usually
-&lt;code>$HELM_HOME&lt;/code> is set to &lt;code>~/.helm&lt;/code>):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>kubectl delete deployment tiller-deploy --namespace=kube-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete service tiller-deploy --namespace=kube-system
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>rm -rf ~/.helm/
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Now follow the instructions above. For more details see this &lt;a href="https://github.com/kubernetes/helm/issues/2687">Kubernetes Helm issue #2687&lt;/a>.&lt;/p></description></item></channel></rss>
+&lt;/table></description></item></channel></rss>

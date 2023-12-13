@@ -2018,7 +2018,23 @@ will be performed anyway. No timeout or 0 means wait forever.&lt;/p>
 &lt;hr/>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
-&lt;/em>&lt;/p></description></item><item><title>Docs: Tutorials</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/tutorials/kubernetes-cluster-on-aws-with-gardener/kubernetes-cluster-on-aws-with-gardener/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/tutorials/kubernetes-cluster-on-aws-with-gardener/kubernetes-cluster-on-aws-with-gardener/</guid><description>
+&lt;/em>&lt;/p></description></item><item><title>Docs: Hibernation</title><link>https://gardener.cloud/docs/getting-started/features/hibernation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/hibernation/</guid><description>
+&lt;h2 id="hibernation">Hibernation&lt;/h2>
+&lt;p>Some clusters need to be up all the time - typically, they would be hosting some kind of production workload. Others might be used for development purposes or testing during business hours only. Keeping them up and running all the time is a waste of money. Gardener can help you here with its &amp;ldquo;hibernation&amp;rdquo; feature. Essentially, hibernation means to shut down all components of a cluster.&lt;/p>
+&lt;h2 id="how-hibernation-works">How Hibernation Works&lt;/h2>
+&lt;p>The hibernation flow for a shoot attempts to reduce the resources consumed as much as possible. Hence everything not state-related is being decommissioned.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/hibernation_21d43d.gif" alt="">&lt;/p>
+&lt;h3 id="data-plane">Data Plane&lt;/h3>
+&lt;p>All nodes will be drained and the VMs will be deleted. As a result, all pods will be &amp;ldquo;stuck&amp;rdquo; in a &lt;code>Pending&lt;/code> state since no new nodes are added. Of course, PVC / PV holding data is not deleted.&lt;/p>
+&lt;p>Services of type &lt;code>LoadBalancer&lt;/code> will keep their external IP addresses.&lt;/p>
+&lt;h3 id="control-plane">Control Plane&lt;/h3>
+&lt;p>All components will be scaled down and no pods will remain running. ETCD data is kept safe on the disk.&lt;/p>
+&lt;p>The DNS records routing traffic for the API server are also destroyed. Trying to connect to a hibernated cluster via kubectl will result in a DNS lookup failure / no-such-host message.&lt;/p>
+&lt;p>When waking up a cluster, all control plane components will be scaled up again and the DNS records will be re-created. Nodes will be created again and pods scheduled to run on them.&lt;/p>
+&lt;h2 id="how-to-configure--trigger-hibernation">How to Configure / Trigger Hibernation&lt;/h2>
+&lt;p>The easiest way to configure hibernation schedules is via the dashboard. Of course, this is reflected in the shoot&amp;rsquo;s spec and can also be maintained there. Before a cluster is hibernated, constraints in the shoot&amp;rsquo;s status will be evaluated. There might be conditions (mostly revolving around mutating / validating webhooks) that would block a successful wake-up. In such a case, the constraint will block hibernation in the first place.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/trigger-hibernation_eef81a.png" alt="">&lt;/p>
+&lt;p>To wake-up or hibernate a shoot immediately, the dashboard can be used or a patch to the shoot&amp;rsquo;s spec can be applied directly.&lt;/p></description></item><item><title>Docs: Tutorials</title><link>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/tutorials/kubernetes-cluster-on-aws-with-gardener/kubernetes-cluster-on-aws-with-gardener/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/tutorials/kubernetes-cluster-on-aws-with-gardener/kubernetes-cluster-on-aws-with-gardener/</guid><description>
 &lt;h3 id="overview">Overview&lt;/h3>
 &lt;p>Gardener allows you to create a Kubernetes cluster on different infrastructure providers. This tutorial will guide you through the process of creating a cluster on AWS.&lt;/p>
 &lt;h3 id="prerequisites">Prerequisites&lt;/h3>
@@ -2122,122 +2138,74 @@ Note: After the user is created, &lt;code>Access key ID&lt;/code> and &lt;code>S
 &lt;/ol>
 &lt;h3 id="result">Result&lt;/h3>
 &lt;p>After completing the steps in this tutorial, you will be able to see and download the kubeconfig of your cluster.&lt;/p>
-&lt;img src="https://gardener.cloud/__resources/copy-kubeconfig_752d59.png"></description></item><item><title>Docs: Gardenctl V2</title><link>https://gardener.cloud/docs/gardenctl-v2/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardenctl-v2/</guid><description>
-&lt;h1 id="gardenctl-v2">gardenctl-v2&lt;/h1>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/logo_gardener_cli_large_6e11b6.png" alt="">&lt;/p>
-&lt;p>&lt;a href="https://goreportcard.com/report/github.com/gardener/gardenctl-v2">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardenctl-v2" alt="Go Report Card">&lt;/a>
-&lt;a href="https://badge.fury.io/gh/gardener%2Fgardenctl-v2">&lt;img src="https://badge.fury.io/gh/gardener%2Fgardenctl-v2.svg" alt="release">&lt;/a>
-&lt;a href="https://reuse.software/">&lt;img src="https://reuse.software/badge/reuse-compliant.svg" alt="reuse compliant">&lt;/a>&lt;/p>
-&lt;h2 id="what-is-gardenctl">What is &lt;code>gardenctl&lt;/code>?&lt;/h2>
-&lt;p>gardenctl is a command-line client for the Gardener. It facilitates the administration of one or many garden, seed and shoot clusters. Use this tool to configure access to clusters and configure cloud provider CLI tools. It also provides support for accessing cluster nodes via ssh.&lt;/p>
-&lt;h2 id="installation">Installation&lt;/h2>
-&lt;p>Install the latest release from &lt;a href="https://brew.sh/">Homebrew&lt;/a>, &lt;a href="https://chocolatey.org/packages/gardenctl-v2">Chocolatey&lt;/a> or &lt;a href="https://github.com/gardener/gardenctl-v2/releases">GitHub Releases&lt;/a>.&lt;/p>
-&lt;h3 id="install-using-package-managers">Install using Package Managers&lt;/h3>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Homebrew (macOS and Linux)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>brew install gardener/tap/gardenctl-v2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Chocolatey (Windows)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># default location C:\ProgramData\chocolatey\bin\gardenctl-v2.exe&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>choco install gardenctl-v2
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Attention &lt;code>brew&lt;/code> users: &lt;code>gardenctl-v2&lt;/code> uses the same binary name as the legacy &lt;code>gardenctl&lt;/code> (&lt;code>gardener/gardenctl&lt;/code>) CLI. If you have an existing installation you should remove it with &lt;code>brew uninstall gardenctl&lt;/code> before attempting to install &lt;code>gardenctl-v2&lt;/code>. Alternatively, you can choose to link the binary using a different name. If you try to install without removing or relinking the old installation, brew will run into an error and provide instructions how to resolve it.&lt;/p>
-&lt;h3 id="install-from-github-release">Install from Github Release&lt;/h3>
-&lt;p>If you install via GitHub releases, you need to&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/copy-kubeconfig_752d59.png"></description></item><item><title>Docs: Workerless Shoots</title><link>https://gardener.cloud/docs/getting-started/features/workerless-shoots/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/workerless-shoots/</guid><description>
+&lt;h2 id="controlplane-as-a-service">Controlplane as a Service&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/workerless-shoots_0af834.png" alt="">&lt;/p>
+&lt;p>Sometimes, there may be use cases for Kubernetes clusters that don&amp;rsquo;t require pods but only features of the control plane. Gardener can create the so-called &amp;ldquo;workerless&amp;rdquo; shoots, which are exactly that. A Kubernetes cluster without nodes (and without any controller related to them).&lt;/p>
+&lt;p>In a scenario where you already have multiple clusters, you can use it for orchestration (leases) or factor out components that require many CRDs.&lt;/p>
+&lt;p>As part of the control plane, the following components are deployed in the seed cluster for workerless Shoot:&lt;/p>
 &lt;ul>
-&lt;li>put the &lt;code>gardenctl&lt;/code> binary on your path&lt;/li>
-&lt;li>and &lt;a href="https://github.com/gardener/gardenlogin#installation">install gardenlogin&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;p>The other install methods do this for you.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Example for macOS&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># set operating system and architecture&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>os=darwin &lt;span style="color:#008000"># choose between darwin, linux, windows&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>arch=amd64 &lt;span style="color:#008000"># choose between amd64, arm64&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Get latest version. Alternatively set your desired version&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>version=&lt;span style="color:#00f">$(&lt;/span>curl -s https://raw.githubusercontent.com/gardener/gardenctl-v2/master/LATEST&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Download gardenctl&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>curl -LO &lt;span style="color:#a31515">&amp;#34;https://github.com/gardener/gardenctl-v2/releases/download/&lt;/span>&lt;span style="color:#a31515">${&lt;/span>version&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Make the gardenctl binary executable&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>chmod +x &lt;span style="color:#a31515">&amp;#34;./gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Move the binary in to your PATH&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>sudo mv &lt;span style="color:#a31515">&amp;#34;./gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span> /usr/local/bin/gardenctl
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="configuration">Configuration&lt;/h2>
-&lt;p>&lt;code>gardenctl&lt;/code> requires a configuration file. The default location is in &lt;code>~/.garden/gardenctl-v2.yaml&lt;/code>.&lt;/p>
-&lt;p>You can modify this file directly using the &lt;code>gardenctl config&lt;/code> command. It allows adding, modifying and deleting gardens.&lt;/p>
-&lt;p>Example &lt;code>config&lt;/code> command:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Adapt the path to your kubeconfig file for the garden cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=~/relative/path/to/kubeconfig.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 1 : Fetch cluster-identity of garden cluster from the configmap&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>kubectl -n kube-system get configmap cluster-identity -ojsonpath={.data.cluster-identity}&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># OR&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 2 : If you don&amp;#39;t have access to the kube-system namespace in the garden cluster, the garden cluster-identity can also be extracted from every shoot&amp;#39;s yaml&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>project=&lt;span style="color:#a31515">&amp;#34;your-project-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to your project name&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot=&lt;span style="color:#a31515">&amp;#34;your-shoot-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to any shoot&amp;#39;s name in your project&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Simply copy/paste the following lines&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ns=&lt;span style="color:#00f">$(&lt;/span>kubectl get project $project -ojsonpath={.spec.namespace}&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>prefix=&lt;span style="color:#a31515">&amp;#34;shoot--&lt;/span>$project&lt;span style="color:#a31515">--&lt;/span>$shoot&lt;span style="color:#a31515">-&amp;#34;&lt;/span>&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.metadata.uid}&lt;span style="color:#00f">)&lt;/span>&lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>identity_status=&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.status.clusterIdentity}&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>echo &lt;span style="color:#a31515">${&lt;/span>identity_status#&lt;span style="color:#a31515">&amp;#34;&lt;/span>$prefix&lt;span style="color:#a31515">&amp;#34;&lt;/span>&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Configure garden cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl config set-garden $cluster_identity --kubeconfig $KUBECONFIG
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command will create or update a garden with the provided identity and kubeconfig path of your garden cluster.&lt;/p>
-&lt;h3 id="example-config">Example Config&lt;/h3>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardens:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - identity: landscape-dev &lt;span style="color:#008000"># Unique identity of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfig: ~/relative/path/to/kubeconfig.yaml
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># name: my-name # An alternative, unique garden name for targeting&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># context: different-context # Overrides the current-context of the garden cluster kubeconfig&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># patterns: ~ # List of regex patterns for pattern targeting&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note: You need to have &lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a> installed as &lt;code>kubectl&lt;/code> plugin in order to use the &lt;code>kubeconfig&lt;/code>s for &lt;code>Shoot&lt;/code> clusters provided by &lt;code>gardenctl&lt;/code>.&lt;/p>
-&lt;h3 id="config-path-overwrite">Config Path Overwrite&lt;/h3>
+&lt;li>etcds&lt;/li>
+&lt;li>kube-apiserver&lt;/li>
+&lt;li>kube-controller-manager&lt;/li>
+&lt;li>gardener-resource-manager&lt;/li>
+&lt;li>Logging and monitoring components&lt;/li>
+&lt;li>Extension components (to find out if they support workerless shoots, see the &lt;a href="https://gardener.cloud/docs/gardener/extensions/extension/#what-is-required-to-register-and-support-an-extension-type">Extensions&lt;/a> documentation)&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Credential Rotation</title><link>https://gardener.cloud/docs/getting-started/features/credential-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/credential-rotation/</guid><description>
+&lt;h2 id="keys">Keys&lt;/h2>
+&lt;p>There are plenty of keys in Gardener. The ETCD needs one to store resources like secrets encrypted at rest. Gardener generates certificate authorities (CAs) to ensure secured communication between the various components and actors and service account tokens are signed with a dedicated key. There is also an SSH key pair to allow debugging of nodes and the observability stack has its own passwords too.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/keys_ef3249.png" alt="">&lt;/p>
+&lt;p>All of these keys share a common property: they are managed by Gardener. Rotating them, however, is potentially very disruptive. Hence, Gardener does not do it automatically, but offers you means to perform these tasks easily. For a single cluster, you may conveniently use the dashboard. Of course, it is also possible to do the same by annotating the shoot resource accordingly:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-credentials-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-credentials-complete​
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Where possible, the rotation happens in two phases. Phase 1 introduces new keys while the old ones are still valid. Users can safely exchange keys / CA bundles wherever they are used. Afterwards, phase 2 will invalidate the old keys / CA bundles.&lt;/p>
+&lt;h2 id="rotation-phases">Rotation Phases&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/rotation-phases_317f9b.png" alt="">&lt;/p>
+&lt;p>At the beginning, only the old set of credentials exists. By triggering the rotation, new credentials are created in phase 1 and both sets are valid. Now, all clients have to update and start using the new credentials. Only afterwards it is safe to trigger phase 2, which invalidates the old credentials.&lt;/p>
+&lt;p>The shoot&amp;rsquo;s status will always show the current status / phase of the rotation.&lt;/p>
+&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/shoot_credentials_rotation/">Credentials Rotation for Shoot Clusters&lt;/a>.&lt;/p>
+&lt;h2 id="user-provided-credentials">User-Provided Credentials&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/user-provided-keys_976909.png" alt="">&lt;/p>
+&lt;p>You grant Gardener permissions to create resources by handing over cloud provider keys. These keys are stored in a Secret and referenced to a shoot via a SecretBinding. Gardener uses the keys to create the network for the cluster resources, routes, VMs, disks, and IP addresses.&lt;/p>
+&lt;p>When you rotate credentials, the new keys have to be stored in the same secret and the shoot needs to reconcile successfully to ensure the replication to every controller. Afterwards, the old keys can be deleted safely from Gardener&amp;rsquo;s perspective.&lt;/p>
+&lt;p>While the reconciliation can be triggered manually, there is no need for it (if you&amp;rsquo;re not in a hurry). Each shoot reconciles once within 24h and the new keys will be picked up during the next maintenance window.&lt;/p>
+&lt;div class="alert alert-info" role="alert">
+&lt;h4 class="alert-heading">Note&lt;/h4>
+It is not possible to move a Shoot to a different infrastructure account (at all!).
+&lt;/div></description></item><item><title>Docs: External DNS Management</title><link>https://gardener.cloud/docs/getting-started/features/dns-management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/dns-management/</guid><description>
+&lt;h2 id="external-dns-management">External DNS Management&lt;/h2>
+&lt;p>When you deploy to Kubernetes, there is no native management of external DNS. Instead, the cloud-controller-manager requests (mostly IPv4) addresses for every service of type LoadBalancer. Of course, the Ingress resource helps here, but how is the external DNS entry for the ingress controller managed?&lt;/p>
+&lt;p>Essentially, some sort of automation for DNS management is missing.&lt;/p>
+&lt;h2 id="automating-dns-management">Automating DNS Management&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/automate-dns-management_f9812b.png" alt="">&lt;/p>
+&lt;p>From a user&amp;rsquo;s perspective, it is desirable to work with already known resources and concepts. Hence, the DNS management offered by Gardener plugs seamlessly into Kubernetes resources and you do not need to &amp;ldquo;leave&amp;rdquo; the context of the shoot cluster.&lt;/p>
+&lt;p>To request a DNS record creation / update, a Service or Ingress resource is annotated accordingly. The shoot-dns-service extension will (if configured) will pick up the request and create a DNSEntry resource + reconcile it to have an actual DNS record created at a configured DNS provider. Gardener supports the following providers:&lt;/p>
 &lt;ul>
-&lt;li>The &lt;code>gardenctl&lt;/code> config path can be overwritten with the environment variable &lt;code>GCTL_HOME&lt;/code>.&lt;/li>
-&lt;li>The &lt;code>gardenctl&lt;/code> config name can be overwritten with the environment variable &lt;code>GCTL_CONFIG_NAME&lt;/code>.&lt;/li>
+&lt;li>aws-route53&lt;/li>
+&lt;li>azure-dns&lt;/li>
+&lt;li>azure-private-dns&lt;/li>
+&lt;li>google-clouddns&lt;/li>
+&lt;li>openstack-designate&lt;/li>
+&lt;li>alicloud-dns&lt;/li>
+&lt;li>cloudflare-dns&lt;/li>
 &lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export GCTL_HOME=/alternate/garden/config/dir
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export GCTL_CONFIG_NAME=myconfig &lt;span style="color:#008000"># without extension!&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># config is expected to be under /alternate/garden/config/dir/myconfig.yaml&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="shell-session">Shell Session&lt;/h3>
-&lt;p>The state of gardenctl is bound to a shell session and is not shared across windows, tabs or panes.
-A shell session is defined by the environment variable &lt;code>GCTL_SESSION_ID&lt;/code>. If this is not defined,
-the value of the &lt;code>TERM_SESSION_ID&lt;/code> environment variable is used instead. If both are not defined,
-this leads to an error and gardenctl cannot be executed. The &lt;code>target.yaml&lt;/code> and temporary
-&lt;code>kubeconfig.*.yaml&lt;/code> files are store in the following directory &lt;code>${TMPDIR}/garden/${GCTL_SESSION_ID}&lt;/code>.&lt;/p>
-&lt;p>You can make sure that &lt;code>GCTL_SESSION_ID&lt;/code> or &lt;code>TERM_SESSION_ID&lt;/code> is always present by adding
-the following code to your terminal profile &lt;code>~/.profile&lt;/code>, &lt;code>~/.bashrc&lt;/code> or comparable file.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>bash and zsh: [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$GCTL_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$TERM_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || export GCTL_SESSION_ID=&lt;span style="color:#00f">$(&lt;/span>uuidgen&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>fish: [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$GCTL_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$TERM_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || set -gx GCTL_SESSION_ID (uuidgen)
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-ps" data-lang="ps">&lt;span style="display:flex;">&lt;span>powershell: if &lt;span style="color:#a31515">( !(Test-Path Env:GCTL_SESSION_ID) -and !(Test-Path Env:TERM_SESSION_ID) )&lt;/span> { $Env:GCTL_SESSION_ID = [guid]::NewGuid&lt;span style="color:#a31515">()&lt;/span>.ToString&lt;span style="color:#a31515">()&lt;/span> }
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="completion">Completion&lt;/h3>
-&lt;p>Gardenctl supports completion that will help you working with the CLI and save you typing effort.
-It will also help you find clusters by providing suggestions for gardener resources such as shoots or projects.
-Completion is supported for &lt;code>bash&lt;/code>, &lt;code>zsh&lt;/code>, &lt;code>fish&lt;/code> and &lt;code>powershell&lt;/code>.
-You will find more information on how to configure your shell completion for gardenctl by executing the help for
-your shell completion command. Example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gardenctl completion bash --help
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="usage">Usage&lt;/h2>
-&lt;h3 id="targeting">Targeting&lt;/h3>
-&lt;p>You can set a target to use it in subsequent commands. You can also overwrite the target for each command individually.&lt;/p>
-&lt;p>Note that this will not affect your KUBECONFIG env variable. To update the KUBECONFIG env for your current target see &lt;a href="#configure-kubeconfig-for-shoot-clusters">Configure KUBECONFIG&lt;/a> section&lt;/p>
-&lt;p>Example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># target control plane&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl target --garden landscape-dev --project my-project --shoot my-shoot --control-plane
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Find more information in the &lt;a href="https://github.com/gardener/gardenctl-v2/blob/master/docs/usage/targeting.md">documentation&lt;/a>.&lt;/p>
-&lt;h3 id="configure-kubeconfig-for-shoot-clusters">Configure KUBECONFIG for Shoot Clusters&lt;/h3>
-&lt;p>Generate a script that points KUBECONFIG to the targeted cluster for the specified shell. Use together with &lt;code>eval&lt;/code> to configure your shell. Example for &lt;code>bash&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>eval &lt;span style="color:#00f">$(&lt;/span>gardenctl kubectl-env bash&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="configure-cloud-provider-clis">Configure Cloud Provider CLIs&lt;/h3>
-&lt;p>Generate the cloud provider CLI configuration script for the specified shell. Use together with &lt;code>eval&lt;/code> to configure your shell. Example for &lt;code>bash&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>eval &lt;span style="color:#00f">$(&lt;/span>gardenctl provider-env bash&lt;span style="color:#00f">)&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ssh">SSH&lt;/h3>
-&lt;p>Establish an SSH connection to a Shoot cluster&amp;rsquo;s node.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gardenctl ssh my-node
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: FAQ</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/faq/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/faq/</guid><description>
+&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/guides/networking/dns-extension/">DNS Names&lt;/a>.&lt;/p>
+&lt;h2 id="dns-provider">DNS Provider&lt;/h2>
+&lt;p>For the above to work, we need some ingredients. Primarily, this is implemented via a so-called DNSProvider. Every shoot has a default provider that is used to set up the API server&amp;rsquo;s public DNS record. It can be used to request sub-domains as well.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/dns-provider_2d18ba.png" alt="">&lt;/p>
+&lt;p>In addition, a shoot can reference credentials to a DNS provider. Those can be used to manage custom domains.&lt;/p>
+&lt;p>Please have a look at the &lt;a href="https://gardener.cloud/docs/guides/networking/dns-extension/">documentation&lt;/a> for further details.&lt;/p></description></item><item><title>Docs: Certificate Management</title><link>https://gardener.cloud/docs/getting-started/features/certificate-management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/certificate-management/</guid><description>
+&lt;h2 id="certificate-management">Certificate Management&lt;/h2>
+&lt;p>For proper consumption, any service should present a TLS certificate to its consumers. However, self-signed certificates are not fit for this purpose - the certificate should be signed by a CA trusted by an application&amp;rsquo;s userbase. Luckily, Issuers like Let&amp;rsquo;s Encrypt and others help here by offering a signing service that issues certificates based on the ACME challenge (Automatic Certificate Management Environment).&lt;/p>
+&lt;p>There are plenty of tools you can use to perform the challenge. For Kubernetes, cert-manager certainly is the most common, however its configuration is rather cumbersome and error prone. So let&amp;rsquo;s see how a Gardener extension can help here.&lt;/p>
+&lt;h2 id="manage-certificates-with-gardener">Manage Certificates with Gardener&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/manage-certificates_b8392b.png" alt="">&lt;/p>
+&lt;p>You may annotate a Service or Ingress to trigger the cert-manager to request a certificate from the any configured issuer (e.g. Let&amp;rsquo;s Encrypt) and perform the challenge. A Gardener operator can add a default issuer for convenience.
+With the DNS extension discussed previously, setting up the DNS TXT record for the ACME challenge is fairly easy. The requested certificate can be customized by the means of several other annotations known to the controller. Most notably, it is possible to specify SANs via &lt;code>cert.gardener.cloud/dnsnames&lt;/code> to accommodate domain names that have more than 64 characters (the limit for the CN field).&lt;/p>
+&lt;p>The user&amp;rsquo;s request for a certificate manifests as a &lt;code>certificate&lt;/code> resource. The status, issuer, and other properties can be checked there.&lt;/p>
+&lt;p>Once successful, the resulting certificate will be stored in a secret and is ready for usage.&lt;/p>
+&lt;p>With additional configuration, it is also possible to define custom issuers of certificates.&lt;/p>
+&lt;p>For more information, see the &lt;a href="https://gardener.cloud/docs/guides/networking/certificate-extension/">Manage certificates with Gardener for public domain&lt;/a> topic and the &lt;a href="https://github.com/gardener/cert-management#follow-cname">cert-management repository&lt;/a>.&lt;/p></description></item><item><title>Docs: FAQ</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/faq/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/faq/</guid><description>
 &lt;h1 id="frequently-asked-questions">Frequently Asked Questions&lt;/h1>
 &lt;p>The answers in this FAQ apply to the newest (HEAD) version of Machine Controller Manager. If
 you&amp;rsquo;re using an older version of MCM please refer to corresponding version of
@@ -2593,7 +2561,143 @@ Developer should add/udpate depedency in the go.mod file. Please run following c
 &lt;li>Gardener creates one &lt;code>MachineDeployment&lt;/code> per zone. Each &lt;code>MachineDeployment&lt;/code> is initiated with the following replica:&lt;/li>
 &lt;/ul>
 &lt;pre tabindex="0">&lt;code>MachineDeployment.Spec.Replicas = (Workers.Minimum)/(Number of availibility zones)
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Gardener Teaser</title><link>https://gardener.cloud/docs/resources/videos/gardener-teaser/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/resources/videos/gardener-teaser/</guid><description>
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Gardenctl V2</title><link>https://gardener.cloud/docs/gardenctl-v2/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardenctl-v2/</guid><description>
+&lt;h1 id="gardenctl-v2">gardenctl-v2&lt;/h1>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/logo_gardener_cli_large_6e11b6.png" alt="">&lt;/p>
+&lt;p>&lt;a href="https://goreportcard.com/report/github.com/gardener/gardenctl-v2">&lt;img src="https://goreportcard.com/badge/github.com/gardener/gardenctl-v2" alt="Go Report Card">&lt;/a>
+&lt;a href="https://badge.fury.io/gh/gardener%2Fgardenctl-v2">&lt;img src="https://badge.fury.io/gh/gardener%2Fgardenctl-v2.svg" alt="release">&lt;/a>
+&lt;a href="https://reuse.software/">&lt;img src="https://reuse.software/badge/reuse-compliant.svg" alt="reuse compliant">&lt;/a>&lt;/p>
+&lt;h2 id="what-is-gardenctl">What is &lt;code>gardenctl&lt;/code>?&lt;/h2>
+&lt;p>gardenctl is a command-line client for the Gardener. It facilitates the administration of one or many garden, seed and shoot clusters. Use this tool to configure access to clusters and configure cloud provider CLI tools. It also provides support for accessing cluster nodes via ssh.&lt;/p>
+&lt;h2 id="installation">Installation&lt;/h2>
+&lt;p>Install the latest release from &lt;a href="https://brew.sh/">Homebrew&lt;/a>, &lt;a href="https://chocolatey.org/packages/gardenctl-v2">Chocolatey&lt;/a> or &lt;a href="https://github.com/gardener/gardenctl-v2/releases">GitHub Releases&lt;/a>.&lt;/p>
+&lt;h3 id="install-using-package-managers">Install using Package Managers&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Homebrew (macOS and Linux)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>brew install gardener/tap/gardenctl-v2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Chocolatey (Windows)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># default location C:\ProgramData\chocolatey\bin\gardenctl-v2.exe&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>choco install gardenctl-v2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Attention &lt;code>brew&lt;/code> users: &lt;code>gardenctl-v2&lt;/code> uses the same binary name as the legacy &lt;code>gardenctl&lt;/code> (&lt;code>gardener/gardenctl&lt;/code>) CLI. If you have an existing installation you should remove it with &lt;code>brew uninstall gardenctl&lt;/code> before attempting to install &lt;code>gardenctl-v2&lt;/code>. Alternatively, you can choose to link the binary using a different name. If you try to install without removing or relinking the old installation, brew will run into an error and provide instructions how to resolve it.&lt;/p>
+&lt;h3 id="install-from-github-release">Install from Github Release&lt;/h3>
+&lt;p>If you install via GitHub releases, you need to&lt;/p>
+&lt;ul>
+&lt;li>put the &lt;code>gardenctl&lt;/code> binary on your path&lt;/li>
+&lt;li>and &lt;a href="https://github.com/gardener/gardenlogin#installation">install gardenlogin&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;p>The other install methods do this for you.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Example for macOS&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># set operating system and architecture&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>os=darwin &lt;span style="color:#008000"># choose between darwin, linux, windows&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>arch=amd64 &lt;span style="color:#008000"># choose between amd64, arm64&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Get latest version. Alternatively set your desired version&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>version=&lt;span style="color:#00f">$(&lt;/span>curl -s https://raw.githubusercontent.com/gardener/gardenctl-v2/master/LATEST&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Download gardenctl&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>curl -LO &lt;span style="color:#a31515">&amp;#34;https://github.com/gardener/gardenctl-v2/releases/download/&lt;/span>&lt;span style="color:#a31515">${&lt;/span>version&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Make the gardenctl binary executable&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>chmod +x &lt;span style="color:#a31515">&amp;#34;./gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Move the binary in to your PATH&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>sudo mv &lt;span style="color:#a31515">&amp;#34;./gardenctl_v2_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>os&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">_&lt;/span>&lt;span style="color:#a31515">${&lt;/span>arch&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span> /usr/local/bin/gardenctl
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="configuration">Configuration&lt;/h2>
+&lt;p>&lt;code>gardenctl&lt;/code> requires a configuration file. The default location is in &lt;code>~/.garden/gardenctl-v2.yaml&lt;/code>.&lt;/p>
+&lt;p>You can modify this file directly using the &lt;code>gardenctl config&lt;/code> command. It allows adding, modifying and deleting gardens.&lt;/p>
+&lt;p>Example &lt;code>config&lt;/code> command:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Adapt the path to your kubeconfig file for the garden cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=~/relative/path/to/kubeconfig.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 1 : Fetch cluster-identity of garden cluster from the configmap&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>kubectl -n kube-system get configmap cluster-identity -ojsonpath={.data.cluster-identity}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># OR&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Method 2 : If you don&amp;#39;t have access to the kube-system namespace in the garden cluster, the garden cluster-identity can also be extracted from every shoot&amp;#39;s yaml&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>project=&lt;span style="color:#a31515">&amp;#34;your-project-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to your project name&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot=&lt;span style="color:#a31515">&amp;#34;your-shoot-name&amp;#34;&lt;/span> &lt;span style="color:#008000"># Change to any shoot&amp;#39;s name in your project&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Simply copy/paste the following lines&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ns=&lt;span style="color:#00f">$(&lt;/span>kubectl get project $project -ojsonpath={.spec.namespace}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>prefix=&lt;span style="color:#a31515">&amp;#34;shoot--&lt;/span>$project&lt;span style="color:#a31515">--&lt;/span>$shoot&lt;span style="color:#a31515">-&amp;#34;&lt;/span>&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.metadata.uid}&lt;span style="color:#00f">)&lt;/span>&lt;span style="color:#a31515">&amp;#34;-&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>identity_status=&lt;span style="color:#00f">$(&lt;/span>kubectl get shoot -n $ns $shoot -ojsonpath={.status.clusterIdentity}&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>cluster_identity=&lt;span style="color:#00f">$(&lt;/span>echo &lt;span style="color:#a31515">${&lt;/span>identity_status#&lt;span style="color:#a31515">&amp;#34;&lt;/span>$prefix&lt;span style="color:#a31515">&amp;#34;&lt;/span>&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Configure garden cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl config set-garden $cluster_identity --kubeconfig $KUBECONFIG
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This command will create or update a garden with the provided identity and kubeconfig path of your garden cluster.&lt;/p>
+&lt;h3 id="example-config">Example Config&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardens:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - identity: landscape-dev &lt;span style="color:#008000"># Unique identity of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfig: ~/relative/path/to/kubeconfig.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># name: my-name # An alternative, unique garden name for targeting&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># context: different-context # Overrides the current-context of the garden cluster kubeconfig&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># patterns: ~ # List of regex patterns for pattern targeting&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Note: You need to have &lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a> installed as &lt;code>kubectl&lt;/code> plugin in order to use the &lt;code>kubeconfig&lt;/code>s for &lt;code>Shoot&lt;/code> clusters provided by &lt;code>gardenctl&lt;/code>.&lt;/p>
+&lt;h3 id="config-path-overwrite">Config Path Overwrite&lt;/h3>
+&lt;ul>
+&lt;li>The &lt;code>gardenctl&lt;/code> config path can be overwritten with the environment variable &lt;code>GCTL_HOME&lt;/code>.&lt;/li>
+&lt;li>The &lt;code>gardenctl&lt;/code> config name can be overwritten with the environment variable &lt;code>GCTL_CONFIG_NAME&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export GCTL_HOME=/alternate/garden/config/dir
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export GCTL_CONFIG_NAME=myconfig &lt;span style="color:#008000"># without extension!&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># config is expected to be under /alternate/garden/config/dir/myconfig.yaml&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="shell-session">Shell Session&lt;/h3>
+&lt;p>The state of gardenctl is bound to a shell session and is not shared across windows, tabs or panes.
+A shell session is defined by the environment variable &lt;code>GCTL_SESSION_ID&lt;/code>. If this is not defined,
+the value of the &lt;code>TERM_SESSION_ID&lt;/code> environment variable is used instead. If both are not defined,
+this leads to an error and gardenctl cannot be executed. The &lt;code>target.yaml&lt;/code> and temporary
+&lt;code>kubeconfig.*.yaml&lt;/code> files are store in the following directory &lt;code>${TMPDIR}/garden/${GCTL_SESSION_ID}&lt;/code>.&lt;/p>
+&lt;p>You can make sure that &lt;code>GCTL_SESSION_ID&lt;/code> or &lt;code>TERM_SESSION_ID&lt;/code> is always present by adding
+the following code to your terminal profile &lt;code>~/.profile&lt;/code>, &lt;code>~/.bashrc&lt;/code> or comparable file.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>bash and zsh: [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$GCTL_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$TERM_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || export GCTL_SESSION_ID=&lt;span style="color:#00f">$(&lt;/span>uuidgen&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>fish: [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$GCTL_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || [ -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>$TERM_SESSION_ID&lt;span style="color:#a31515">&amp;#34;&lt;/span> ] || set -gx GCTL_SESSION_ID (uuidgen)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-ps" data-lang="ps">&lt;span style="display:flex;">&lt;span>powershell: if &lt;span style="color:#a31515">( !(Test-Path Env:GCTL_SESSION_ID) -and !(Test-Path Env:TERM_SESSION_ID) )&lt;/span> { $Env:GCTL_SESSION_ID = [guid]::NewGuid&lt;span style="color:#a31515">()&lt;/span>.ToString&lt;span style="color:#a31515">()&lt;/span> }
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="completion">Completion&lt;/h3>
+&lt;p>Gardenctl supports completion that will help you working with the CLI and save you typing effort.
+It will also help you find clusters by providing suggestions for gardener resources such as shoots or projects.
+Completion is supported for &lt;code>bash&lt;/code>, &lt;code>zsh&lt;/code>, &lt;code>fish&lt;/code> and &lt;code>powershell&lt;/code>.
+You will find more information on how to configure your shell completion for gardenctl by executing the help for
+your shell completion command. Example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gardenctl completion bash --help
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="usage">Usage&lt;/h2>
+&lt;h3 id="targeting">Targeting&lt;/h3>
+&lt;p>You can set a target to use it in subsequent commands. You can also overwrite the target for each command individually.&lt;/p>
+&lt;p>Note that this will not affect your KUBECONFIG env variable. To update the KUBECONFIG env for your current target see &lt;a href="#configure-kubeconfig-for-shoot-clusters">Configure KUBECONFIG&lt;/a> section&lt;/p>
+&lt;p>Example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># target control plane&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardenctl target --garden landscape-dev --project my-project --shoot my-shoot --control-plane
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Find more information in the &lt;a href="https://github.com/gardener/gardenctl-v2/blob/master/docs/usage/targeting.md">documentation&lt;/a>.&lt;/p>
+&lt;h3 id="configure-kubeconfig-for-shoot-clusters">Configure KUBECONFIG for Shoot Clusters&lt;/h3>
+&lt;p>Generate a script that points KUBECONFIG to the targeted cluster for the specified shell. Use together with &lt;code>eval&lt;/code> to configure your shell. Example for &lt;code>bash&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>eval &lt;span style="color:#00f">$(&lt;/span>gardenctl kubectl-env bash&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="configure-cloud-provider-clis">Configure Cloud Provider CLIs&lt;/h3>
+&lt;p>Generate the cloud provider CLI configuration script for the specified shell. Use together with &lt;code>eval&lt;/code> to configure your shell. Example for &lt;code>bash&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>eval &lt;span style="color:#00f">$(&lt;/span>gardenctl provider-env bash&lt;span style="color:#00f">)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ssh">SSH&lt;/h3>
+&lt;p>Establish an SSH connection to a Shoot cluster&amp;rsquo;s node.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>gardenctl ssh my-node
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Vertical Pod Autoscaler</title><link>https://gardener.cloud/docs/getting-started/features/vpa/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/vpa/</guid><description>
+&lt;h2 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/vpa_43b432.gif" alt="">&lt;/p>
+&lt;p>When a pod&amp;rsquo;s resource CPU or memory grows, it will hit a limit eventually. Either the pod has resource limits specified or the node will run short of resources. In both cases, the workload might be throttled or even terminated. When this happens, it is often desirable to increase the request or limits. To do this autonomously within certain boundaries is the goal of the Vertical Pod Autoscaler project.&lt;/p>
+&lt;p>Since it is not part of the standard Kubernetes API, you have to install the CRDs and controller manually. With Gardener, you can simply flip the switch in the shoot&amp;rsquo;s spec and start creating your VPA objects.&lt;/p>
+&lt;p>Please be aware that VPA and HPA operate in similar domains and might interfere.&lt;/p>
+&lt;p>A controller &amp;amp; CRDs for vertical pod auto-scaling can be activated via the shoot&amp;rsquo;s spec.&lt;/p></description></item><item><title>Docs: Cluster Autoscaler</title><link>https://gardener.cloud/docs/getting-started/features/cluster-autoscaler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/features/cluster-autoscaler/</guid><description>
+&lt;h2 id="obtaining-aditional-nodes">Obtaining Aditional Nodes&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/additional-nodes_4a5ea7.gif" alt="">&lt;/p>
+&lt;p>The scheduler will assign pods to nodes, as long as they have capacity (CPU, memory, Pod limit, # attachable disks, &amp;hellip;). But what happens when all nodes are fully utilized and the scheduler does not find any suitable target?&lt;/p>
+&lt;p>&lt;strong>Option 1:&lt;/strong> Evict other pods based on priority. However, this has the downside that other workloads with lower priority might become unschedulable.&lt;/p>
+&lt;p>&lt;strong>Option 2:&lt;/strong> Add more nodes. There is an upstream Cluster Autoscaler project that does exactly this. It simulates the scheduling and reacts to pods not being schedulable events. Gardener has forked it to make it work with machine-controller-manager abstraction of how node (groups) are defined in Gardener.
+The cluster autoscaler respects the limits (min / max) of any worker pool in a shoot&amp;rsquo;s spec. It can also scale down nodes based on utilization thresholds. For more details, see the &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md">autoscaler documentation&lt;/a>.&lt;/p>
+&lt;h2 id="scaling-by-priority">Scaling by Priority&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/priority-scaling_a4bb49.gif" alt="">&lt;/p>
+&lt;p>For clusters with more than one node pool, the cluster autoscaler has to decide which group to scale up. By default, it randomly picks from the available / applicable. However, this behavior is customizable by the use of so-called expanders.&lt;/p>
+&lt;p>This section will focus on the priority based expander.&lt;/p>
+&lt;p>Each worker pool gets a priority and the cluster autoscaler will scale up the one with the highest priority until it reaches its limit.&lt;/p>
+&lt;p>To get more information on the current status of the autoscaler, you can check a &amp;ldquo;status&amp;rdquo; configmap in the &lt;code>kube-system&lt;/code> namespace with the following command:&lt;/p>
+&lt;p>&lt;code>kubectl get cm -n kube-system cluster-autoscaler-status -oyaml&lt;/code>&lt;/p>
+&lt;p>To obtain information about the decision making, you can check the logs of the cluster-autoscaler pod by using the shoot&amp;rsquo;s monitoring stack.&lt;/p>
+&lt;p>For more information, see the &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md#what-are-expanders">cluster-autoscaler FAQ&lt;/a> and the &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/expander/priority/readme.md">Priority based expander for cluster-autoscaler&lt;/a> topic.&lt;/p></description></item><item><title>Docs: Gardener Teaser</title><link>https://gardener.cloud/docs/resources/videos/gardener-teaser/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/resources/videos/gardener-teaser/</guid><description>
 &lt;div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
 &lt;iframe src="https://www.youtube.com/embed/YI-RyfdQNhw" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" allowfullscreen title="Gardener Teaser">&lt;/iframe>
 &lt;/div></description></item><item><title>Docs: From Monolith to Service Mesh - Matt Klein, Lyft</title><link>https://gardener.cloud/docs/resources/videos/envoy-service-mesh/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/resources/videos/envoy-service-mesh/</guid><description>
@@ -4283,7 +4387,22 @@ It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs 
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service: nodes
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> equal: [&lt;span style="color:#a31515">&amp;#39;cluster&amp;#39;&lt;/span>]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Below is a graph visualizing the inhibition rules:&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/alertInhibitionGraph_ceaef0.png" alt="inhibitionGraph">&lt;/p></description></item><item><title>Docs: Api Reference</title><link>https://gardener.cloud/docs/gardener/api-reference/readme/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/api-reference/readme/</guid><description>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/alertInhibitionGraph_ceaef0.png" alt="inhibitionGraph">&lt;/p></description></item><item><title>Docs: Alerts</title><link>https://gardener.cloud/docs/getting-started/observability/alerts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/getting-started/observability/alerts/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>In this overview, we want to present two ways to receive alerts for control plane and Gardener managed system-components:&lt;/p>
+&lt;ul>
+&lt;li>Predefined Gardener alerts&lt;/li>
+&lt;li>Custom alerts&lt;/li>
+&lt;/ul>
+&lt;h3 id="predefined-control-plane-alerts">Predefined Control Plane Alerts&lt;/h3>
+&lt;p>In the shoot spec it is possible to configure &lt;code>emailReceivers&lt;/code>. On this email address you will automatically receive email notifications for 16 predefined alerts of your control plane.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/predefined-alert_a01383.png" alt="">&lt;/p>
+&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/">Alerting&lt;/a>.&lt;/p>
+&lt;h3 id="custom-alerts---federation">Custom Alerts - Federation&lt;/h3>
+&lt;p>If you need more customization for alerts for control plane metrics, you have the option to deploy your own Prometheus into your shoot control plane.&lt;/p>
+&lt;p>Then you can use federation, which is a Prometheus feature, to forward the metrics from the Gardener managed Prometheus to your custom deployed Prometheus. Since as a shoot owner you do not have access to the control plane pods, this is the only way to get those metrics.&lt;/p>
+&lt;p>The credentials and endpoint for the Gardener managed Prometheus are exposed over the Gardener dashboard or programmatically in the garden project as a secret (&lt;code>&amp;lt;shoot-name&amp;gt;.monitoring&lt;/code>).&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/custom-alerts_653ef2.png" alt="">&lt;/p></description></item><item><title>Docs: Api Reference</title><link>https://gardener.cloud/docs/gardener/api-reference/readme/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/api-reference/readme/</guid><description>
 &lt;h1 id="gardener-api-reference">Gardener API Reference&lt;/h1>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/authentication/">&lt;code>authentication.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
@@ -7901,321 +8020,4 @@ They already implement the above requirements based on the &lt;code>Cluster&lt;/
 &lt;li>There should be one &lt;code>SecretsManager&lt;/code> identity per controller (and purpose if applicable) in order to prevent conflicts between different instances.
 E.g., there should be different identities for &lt;code>Infrastructrue&lt;/code>, &lt;code>Worker&lt;/code> controller, etc., and the &lt;code>ControlPlane&lt;/code> controller should use dedicated &lt;code>SecretsManager&lt;/code> identities per purpose (e.g. &lt;code>provider-foo-controlplane&lt;/code> and &lt;code>provider-foo-controlplane-exposure&lt;/code>).&lt;/li>
 &lt;li>All other points in &lt;a href="https://gardener.cloud/docs/gardener/secrets_management/#reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/a>.&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Can I run privileged containers?</title><link>https://gardener.cloud/docs/faq/privileged-containers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/faq/privileged-containers/</guid><description>
-&lt;p>While it is possible, we highly recommend not to use privileged containers in your productive environment.&lt;/p></description></item><item><title>Docs: Can Kubernetes upgrade automatically?</title><link>https://gardener.cloud/docs/faq/automatic-upgrade/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/faq/automatic-upgrade/</guid><description>
-&lt;p>There is no automatic migration of major/minor versions of Kubernetes. You need to update your clusters manually or press the &lt;em>Upgrade&lt;/em> button in the Dashboard.&lt;/p>
-&lt;p>Before updating a cluster you should be aware of the potential errors this might cause. The following video will dive into a Kubernetes outage in production that Monzo experienced, its causes and effects, and the architectural and operational lessons learned.&lt;/p>
-&lt;iframe width="560" height="315" src="https://www.youtube.com/embed/OUYTNywPk-s" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>&lt;/iframe>
-&lt;p>It is therefore recommended to first update your test cluster and validate it before performing changes on a productive environment.&lt;/p></description></item><item><title>Docs: Can you backup your Kubernetes cluster resources?</title><link>https://gardener.cloud/docs/faq/backup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/faq/backup/</guid><description>
-&lt;p>Backing up your Kubernetes cluster is possible through the use of specialized software like &lt;a href="https://velero.io/">Velero&lt;/a>. Velero consists of a server side component and a client tool that allow you to backup or restore all objects in your cluster, as well as the cluster resources and persistent volumes.&lt;/p></description></item><item><title>Docs: Can you migrate the content of one cluster to another cluster?</title><link>https://gardener.cloud/docs/faq/automatic-migrate/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/faq/automatic-migrate/</guid><description>
-&lt;p>The migration of clusters or content from one cluster to another is out of scope for the Gardener project. For such scenarios you may consider using tools like &lt;a href="https://velero.io/">Velero&lt;/a>.&lt;/p></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>
-&lt;h1 id="changing-the-api">Changing the API&lt;/h1>
-&lt;p>This document describes the steps that need to be performed when changing the API.
-It provides guidance for API changes to both (Gardener system in general or component configurations).&lt;/p>
-&lt;p>Generally, as Gardener is a Kubernetes-native extension, it follows the same API conventions and guidelines like Kubernetes itself. The Kubernetes
-&lt;a href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md">API Conventions&lt;/a> as well as &lt;a href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api_changes.md">Changing the API&lt;/a> topics already provide a good overview and general explanation of the basic concepts behind it.
-We are following the same approaches.&lt;/p>
-&lt;h2 id="gardener-api">Gardener API&lt;/h2>
-&lt;p>The Gardener API is defined in the &lt;code>pkg/apis/{core,extensions,settings}&lt;/code> directories and is the main point of interaction with the system.
-It must be ensured that the API is always backwards-compatible.&lt;/p>
-&lt;h3 id="changing-the-api-1">Changing the API&lt;/h3>
-&lt;p>&lt;strong>Checklist&lt;/strong> when changing the API:&lt;/p>
-&lt;ol>
-&lt;li>Modify the field(s) in the respective Golang files of all external versions and the internal version.
-&lt;ol>
-&lt;li>Make sure new fields are being added as &amp;ldquo;optional&amp;rdquo; fields, i.e., they are of pointer types, they have the &lt;code>// +optional&lt;/code> comment, and they have the &lt;code>omitempty&lt;/code> JSON tag.&lt;/li>
-&lt;li>Make sure that the existing field numbers in the protobuf tags are not changed.&lt;/li>
-&lt;li>Do not copy protobuf tags from other fields but create them with &lt;code>make generate WHAT=&amp;quot;protobuf&amp;quot;&lt;/code>.&lt;/li>
-&lt;/ol>
-&lt;/li>
-&lt;li>If necessary, implement/adapt the conversion logic defined in the versioned APIs (e.g., &lt;code>pkg/apis/core/v1beta1/conversions*.go&lt;/code>).&lt;/li>
-&lt;li>If necessary, implement/adapt defaulting logic defined in the versioned APIs (e.g., &lt;code>pkg/apis/core/v1beta1/defaults*.go&lt;/code>).&lt;/li>
-&lt;li>Run the code generation: &lt;code>make generate&lt;/code>&lt;/li>
-&lt;li>If necessary, implement/adapt validation logic defined in the internal API (e.g., &lt;code>pkg/apis/core/validation/validation*.go&lt;/code>).&lt;/li>
-&lt;li>If necessary, adapt the exemplary YAML manifests of the Gardener resources defined in &lt;code>example/*.yaml&lt;/code>.&lt;/li>
-&lt;li>In most cases, it makes sense to add/adapt the documentation for administrators/operators and/or end-users in the &lt;code>docs&lt;/code> folder to provide information on purpose and usage of the added/changed fields.&lt;/li>
-&lt;li>When opening the pull request, always add a release note so that end-users are becoming aware of the changes.&lt;/li>
-&lt;/ol>
-&lt;h3 id="removing-a-field">Removing a Field&lt;/h3>
-&lt;p>If fields shall be removed permanently from the API, then a proper deprecation period must be adhered to so that end-users have enough time to adapt their clients.&lt;/p>
-&lt;p>Once the deprecation period is over, the field should be dropped from the API in a two-step process, i.e., in two release cycles. In the first step, all the usages in the code base should be dropped. In the second step, the field should be dropped from API. We need to follow this two-step process cause there can be the case where &lt;code>gardener-apiserver&lt;/code> is upgraded to a new version in which the field has been removed but other controllers are still on the old version of Gardener. This can lead to &lt;code>nil&lt;/code> pointer exceptions or other unexpected behaviour.&lt;/p>
-&lt;p>The steps for removing a field from the code base is:&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>The field in the external version(s) has to be commented out with appropriate doc string that the protobuf number of the corresponding field is reserved. Example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-diff" data-lang="diff">&lt;span style="display:flex;">&lt;span>- SeedTemplate *gardencorev1beta1.SeedTemplate `json:&amp;#34;seedTemplate,omitempty&amp;#34; protobuf:&amp;#34;bytes,2,opt,name=seedTemplate&amp;#34;`
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+ // SeedTemplate is tombstoned to show why 2 is reserved protobuf tag.
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>+ // SeedTemplate *gardencorev1beta1.SeedTemplate `json:&amp;#34;seedTemplate,omitempty&amp;#34; protobuf:&amp;#34;bytes,2,opt,name=seedTemplate&amp;#34;`
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The reasoning behind this is to prevent the same protobuf number being used by a new field. Introducing a new field with the same protobuf number would be a breaking change for clients still using the old protobuf definitions that have the old field for the given protobuf number.
-The field in the internal version can be removed.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>A unit test has to be added to make sure that a new field does not reuse the already reserved protobuf tag.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;p>Example of field removal can be found in the &lt;a href="https://github.com/gardener/gardener/pull/6972">Remove &lt;code>seedTemplate&lt;/code> field from ManagedSeed API&lt;/a> PR.&lt;/p>
-&lt;h2 id="component-configuration-apis">Component Configuration APIs&lt;/h2>
-&lt;p>Most Gardener components have a component configuration that follows similar principles to the Gardener API.
-Those component configurations are defined in &lt;code>pkg/{controllermanager,gardenlet,scheduler},pkg/apis/config&lt;/code>.
-Hence, the above checklist also applies for changes to those APIs.
-However, since these APIs are only used internally and only during the deployment of Gardener, the guidelines with respect to changes and backwards-compatibility are slightly relaxed.
-If necessary, it is allowed to remove fields without a proper deprecation period if the release note uses the &lt;code>breaking operator&lt;/code> keywords.&lt;/p>
-&lt;p>In addition to the above checklist:&lt;/p>
-&lt;ol>
-&lt;li>If necessary, then adapt the Helm chart of Gardener defined in &lt;code>charts/gardener&lt;/code>. Adapt the &lt;code>values.yaml&lt;/code> file as well as the manifest templates.&lt;/li>
-&lt;/ol></description></item><item><title>Docs: Cluster</title><link>https://gardener.cloud/docs/gardener/extensions/cluster/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/cluster/</guid><description>
-&lt;h1 id="cluster-resource">&lt;code>Cluster&lt;/code> Resource&lt;/h1>
-&lt;p>As part of the extensibility epic, a lot of responsibility that was previously taken over by Gardener directly has now been shifted to extension controllers running in the seed clusters.
-These extensions often serve a well-defined purpose, e.g. the management of &lt;a href="https://gardener.cloud/docs/gardener/extensions/dnsrecord/">DNS records&lt;/a>, &lt;a href="https://gardener.cloud/docs/gardener/extensions/infrastructure/">infrastructure&lt;/a>, etc.
-We have introduced a couple of extension CRDs in the seeds whose specification is written by Gardener, and which are acted up by the extensions.&lt;/p>
-&lt;p>However, the extensions sometimes require more information that is not directly part of the specification.
-One example of that is the GCP infrastructure controller which needs to know the shoot&amp;rsquo;s pod and service network.
-Another example is the Azure infrastructure controller which requires some information out of the &lt;code>CloudProfile&lt;/code> resource.
-The problem is that Gardener does not know which extension requires which information so that it can write it into their specific CRDs.&lt;/p>
-&lt;p>In order to deal with this problem we have introduced the &lt;code>Cluster&lt;/code> extension resource.
-This CRD is written into the seeds, however, it does not contain a &lt;code>status&lt;/code>, so it is not expected that something acts upon it.
-Instead, you can treat it like a &lt;code>ConfigMap&lt;/code> which contains data that might be interesting for you.
-In the context of Gardener, seeds and shoots, and extensibility the &lt;code>Cluster&lt;/code> resource contains the &lt;code>CloudProfile&lt;/code>, &lt;code>Seed&lt;/code>, and &lt;code>Shoot&lt;/code> manifest.
-Extension controllers can take whatever information they want out of it that might help completing their individual tasks.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Cluster
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot--foo--bar
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudProfile:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: CloudProfile
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: core.gardener.cloud/v1beta1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Shoot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The resource is written by Gardener before it starts the reconciliation flow of the shoot.&lt;/p>
-&lt;p>⚠️ All Gardener components use the &lt;code>core.gardener.cloud/v1beta1&lt;/code> version, i.e., the &lt;code>Cluster&lt;/code> resource will contain the objects in this version.&lt;/p>
-&lt;h2 id="important-information-that-should-be-taken-into-account">Important Information that Should Be Taken into Account&lt;/h2>
-&lt;p>There are some fields in the &lt;code>Shoot&lt;/code> specification that might be interesting to take into account.&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>.spec.hibernation.enabled={true,false}&lt;/code>: Extension controllers might want to behave differently if the shoot is hibernated or not (probably they might want to scale down their control plane components, for example).&lt;/li>
-&lt;li>&lt;code>.status.lastOperation.state=Failed&lt;/code>: If Gardener sets the shoot&amp;rsquo;s last operation state to &lt;code>Failed&lt;/code>, it means that Gardener won&amp;rsquo;t automatically retry to finish the reconciliation/deletion flow because an error occurred that could not be resolved within the last &lt;code>24h&lt;/code> (default). In this case, end-users are expected to manually re-trigger the reconciliation flow in case they want Gardener to try again. Extension controllers are expected to follow the same principle. This means they have to read the shoot state out of the &lt;code>Cluster&lt;/code> resource.&lt;/li>
-&lt;/ul>
-&lt;h2 id="extension-resources-not-associated-with-a-shoot">Extension Resources Not Associated with a Shoot&lt;/h2>
-&lt;p>In some cases, Gardener may create extension resources that are not associated with a shoot, but are needed to support some functionality internal to Gardener. Such resources will be created in the &lt;code>garden&lt;/code> namespace of a seed cluster.&lt;/p>
-&lt;p>For example, if the &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">managed ingress controller&lt;/a> is active on the seed, Gardener will create a &lt;a href="https://gardener.cloud/docs/gardener/extensions/dnsrecord/">DNSRecord&lt;/a> resource(s) in the &lt;code>garden&lt;/code> namespace of the seed cluster for the ingress DNS record.&lt;/p>
-&lt;p>Extension controllers that may be expected to reconcile extension resources in the &lt;code>garden&lt;/code> namespace should make sure that they can tolerate the absence of a cluster resource. This means that they should not attempt to read the cluster resource in such cases, or if they do they should ignore the &amp;ldquo;not found&amp;rdquo; error.&lt;/p>
-&lt;h2 id="references-and-additional-resources">References and Additional Resources&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_cluster.go">&lt;code>Cluster&lt;/code> API (Golang Specification)&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Cluster API</title><link>https://gardener.cloud/docs/gardener/concepts/cluster-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/cluster-api/</guid><description>
-&lt;h1 id="relation-between-gardener-api-and-cluster-api-sig-cluster-lifecycle">Relation Between Gardener API and Cluster API (SIG Cluster Lifecycle)&lt;/h1>
-&lt;p>In essence, the Cluster API harmonizes how to get to clusters, while Gardener goes one step further and also harmonizes the clusters themselves. The Cluster API delegates the specifics to so-called providers for infrastructures or control planes via specific CR(D)s, while Gardener only has one cluster CR(D). Different Cluster API providers, e.g. for AWS, Azure, GCP, etc., give you vastly different Kubernetes clusters. In contrast, Gardener gives you the exact same clusters with the exact same K8s version, operating system, control plane configuration like for API server or kubelet, add-ons like overlay network, HPA/VPA, DNS and certificate controllers, ingress and network policy controllers, control plane monitoring and logging stacks, down to the behavior of update procedures, auto-scaling, self-healing, etc., on all supported infrastructures. These homogeneous clusters are an essential goal for Gardener, as its main purpose is to simplify operations for teams that need to develop and ship software on Kubernetes clusters on a plethora of infrastructures (a.k.a. multi-cloud).&lt;/p>
-&lt;p>Incidentally, Gardener influenced the Machine API in the Cluster API with its &lt;a href="https://github.com/gardener/machine-controller-manager">Machine Controller Manager&lt;/a> and was the &lt;a href="https://github.com/kubernetes-sigs/cluster-api/commit/00b1ead264aea6f88585559056c180771cce3815">first to adopt it&lt;/a>. You can find more information on that in the &lt;a href="https://www.youtube.com/watch?v=Mtg8jygK3Hs">joint SIG Cluster Lifecycle KubeCon talk&lt;/a> where @hardikdr from our Gardener team in India spoke.&lt;/p>
-&lt;p>That means that we follow the &lt;a href="https://github.com/kubernetes-sigs/cluster-api#cluster-api">Cluster API&lt;/a> with great interest and are active members. It was completely overhauled from &lt;code>v1alpha1&lt;/code> to &lt;code>v1alpha2&lt;/code>. But because &lt;code>v1alpha2&lt;/code> made too many assumptions about the bring-up of masters and was enforcing master machine operations (for more information, see &lt;a href="https://cluster-api.sigs.k8s.io/user/concepts.html#control-plane">The Cluster API Book&lt;/a>: “As of &lt;code>v1alpha2&lt;/code>, Machine-Based is the only control plane type that Cluster API supports”), services that managed their control planes differently like GKE or Gardener couldn&amp;rsquo;t adopt it (e.g. &lt;a href="https://cloud.google.com/anthos/gke/docs/on-prem/concepts/cluster-api">Google only supports &lt;code>v1alpha1&lt;/code>&lt;/a>). In 2020 &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience/">&lt;code>v1alpha3&lt;/code>&lt;/a> was introduced and made it possible (again) to integrate managed services like GKE or Gardener. The mapping from the Gardener API to the Cluster API is mostly syntactic.&lt;/p>
-&lt;p>To wrap it up, while the Cluster API knows about clusters, it doesn&amp;rsquo;t know about their make-up. With Gardener, we wanted to go beyond that and harmonize the make-up of the clusters themselves and make them homogeneous across all supported infrastructures. Gardener can therefore deliver homogeneous clusters with exactly the same configuration and behavior on all infrastructures (see also &lt;a href="https://testgrid.k8s.io/conformance-gardener">Gardener&amp;rsquo;s coverage in the official conformance test grid&lt;/a>).&lt;/p>
-&lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it has became possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy if the community would be interested to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: Component Checklist</title><link>https://gardener.cloud/docs/gardener/component-checklist/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/component-checklist/</guid><description>
-&lt;h1 id="checklist-for-adding-new-components">Checklist For Adding New Components&lt;/h1>
-&lt;p>Adding new components that run in the garden, seed, or shoot cluster is theoretically quite simple - we just need a &lt;code>Deployment&lt;/code> (or other similar workload resource), the respective container image, and maybe a bit of configuration.
-In practice, however, there are a couple of things to keep in mind in order to make the deployment production-ready.
-This document provides a checklist for them that you can walk through.&lt;/p>
-&lt;h2 id="general">General&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Avoid usage of Helm charts&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/tree/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver">example&lt;/a>)&lt;/p>
-&lt;p>Nowadays, we use &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/interfaces.go">Golang components&lt;/a> instead of Helm charts for deploying components to a cluster.
-Please find a typical structure of such components in the provided &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L80-L97">metrics_server.go&lt;/a> file (configuration values are typically managed in a &lt;code>Values&lt;/code> structure).
-There are a few exceptions (e.g., &lt;a href="https://github.com/gardener/gardener/tree/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/istio">Istio&lt;/a>) still using charts, however the default should be using a Golang-based implementation.
-For the exceptional cases, use Golang&amp;rsquo;s &lt;a href="https://pkg.go.dev/embed">embed&lt;/a> package to embed the Helm chart directory (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/istio/istiod.go#L59-L60">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/istio/istiod.go#L297-L313">example 2&lt;/a>).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Choose the proper deployment way&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L212-L232">example 1 (direct application w/ client)&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L447-L488">example 2 (using &lt;code>ManagedResource&lt;/code>)&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubestatemetrics/kube_state_metrics.go#L120">example 3 (mixed scenario)&lt;/a>)&lt;/p>
-&lt;p>For historic reasons, resources related to shoot control plane components are applied directly with the client.
-All other resources (seed or shoot system components) are deployed via &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#managedresource-controller">Resource controller&lt;/a> (&lt;code>ManagedResource&lt;/code>s) since it performs health checks out-of-the-box and has a lot of other features (see its documentation for more information).
-Components that can run as both seed system component or shoot control plane component (e.g., VPA or &lt;code>kube-state-metrics&lt;/code>) can make use of &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/resourceconfig.go">these utility functions&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Use unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L183-L190">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L353">example 2&lt;/a>)&lt;/p>
-&lt;p>&lt;a href="https://kubernetes.io/docs/concepts/configuration/configmap/#configmap-immutable">Unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s&lt;/a> are immutable for modification and have a unique name.
-This has a couple of benefits, e.g. the &lt;code>kubelet&lt;/code> doesn&amp;rsquo;t watch these resources, and it is always clear which resource contains which data since it cannot be changed.
-As a consequence, unique/immutable &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code> are superior to checksum annotations on the pod templates.
-Stale/unused &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s are garbage-collected by &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#garbage-collector-for-immutable-configmapssecrets">GarbageCollector&lt;/a>.
-There are utility functions (see examples above) for using unique &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s in Golang components.
-It is essential to inject the annotations into the workload resource to make the garbage-collection work.&lt;br>
-Note that some &lt;code>ConfigMap&lt;/code>s/&lt;code>Secret&lt;/code>s should not be unique (e.g., those containing monitoring or logging configuration).
-The reason is that the old revision stays in the cluster even if unused until the garbage-collector acts.
-During this time, they would be wrongly aggregated to the full configuration.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Manage certificates/secrets via &lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/utils/secrets/manager">secrets manager&lt;/a>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L100-L109">example&lt;/a>)&lt;/p>
-&lt;p>You should use the &lt;a href="https://gardener.cloud/docs/gardener/secrets_management/">secrets manager&lt;/a> for the management of any kind of credentials.
-This makes sure that credentials rotation works out-of-the-box without you requiring to think about it.
-Generally, do not use client certificates (see the &lt;a href="#security">Security section&lt;/a>).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Consider hibernation when calculating replica count&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/kubescheduler.go#L36">example&lt;/a>)&lt;/p>
-&lt;p>Shoot clusters can be &lt;a href="https://gardener.cloud/docs/gardener/shoot_hibernate/">hibernated&lt;/a> meaning that all control plane components in the shoot namespace in the seed cluster are scaled down to zero and all worker nodes are terminated.
-If your component runs in the seed cluster then you have to consider this case and provide the proper replica count.
-There is a utility function available (see example).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Ensure task dependencies are as precise as possible in shoot flows&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot/reconciler_reconcile.go#L508-L512">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot/reconciler_delete.go#L368-L372">example 2&lt;/a>)&lt;/p>
-&lt;p>Only define the minimum of needed dependency tasks in the &lt;a href="https://github.com/gardener/gardener/tree/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/shoot/shoot">shoot reconciliation/deletion flows&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Handle shoot system components&lt;/strong>&lt;/p>
-&lt;p>Shoot system components deployed by &lt;code>gardener-resource-manager&lt;/code> are labelled with &lt;code>resource.gardener.cloud/managed-by: gardener&lt;/code>. This makes Gardener adding required label selectors and tolerations so that non-&lt;code>DaemonSet&lt;/code> managed &lt;code>Pod&lt;/code>s will exclusively run on selected nodes (for more information, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#system-components-webhook">System Components Webhook&lt;/a>).
-&lt;code>DaemonSet&lt;/code>s on the other hand, should generally tolerate any &lt;code>NoSchedule&lt;/code> or &lt;code>NoExecute&lt;/code> taints so that they can run on any &lt;code>Node&lt;/code>, regardless of user added taints.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="images">Images&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Do not hard-code container image references&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/charts/images.yaml#L130-L133">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/metricsserver.go#L28-L31">example 2&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L82-L83">example 3&lt;/a>)&lt;/p>
-&lt;p>We define all image references centrally in the &lt;a href="https://github.com/gardener/gardener/blob/master/imagevector/images.yaml">&lt;code>imagevector/images.yaml&lt;/code>&lt;/a> file.
-Hence, the image references must not be hard-coded in the pod template spec but read from this so-called &lt;a href="https://gardener.cloud/docs/gardener/deployment/image_vector/">image vector&lt;/a> instead.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Do not use container images from registries that don&amp;rsquo;t support IPv6&lt;/strong> (example: &lt;a href="https://github.com/gardener/gardener/blob/6f4e64fe9494cafb5c5da9a2c0a491a5690161b6/charts/images.yaml#L619-L622">image vector&lt;/a>, &lt;a href="https://github.com/gardener/ci-infra/blob/92782bedd92815639abf4dc14b2c484f77c6e57d/config/images/images.yaml#L37-L40">prow configuration&lt;/a>)&lt;/p>
-&lt;p>Registries such as ECR, GHCR (&lt;code>ghcr.io&lt;/code>), MCR (&lt;code>mcr.microsoft.com&lt;/code>) don&amp;rsquo;t support pulling images over IPv6.&lt;/p>
-&lt;p>Check if the upstream image is being also maintained in a registry that support IPv6 natively such as Artifact Registry, Quay (&lt;code>quay.io&lt;/code>). If there is such image, use the image from registry with IPv6 support.&lt;/p>
-&lt;p>If the image is not available in a registry with IPv6 then copy the image to the gardener GCR. There is a &lt;a href="https://github.com/gardener/ci-infra/blob/92782bedd92815639abf4dc14b2c484f77c6e57d/config/jobs/ci-infra/copy-images.yaml">prow job&lt;/a> copying images that are needed in gardener components from a source registry to the gardener GCR under the prefix &lt;code>eu.gcr.io/gardener-project/3rd/&lt;/code> (see the &lt;a href="https://github.com/gardener/ci-infra/tree/master/config/images">documentation&lt;/a> or &lt;a href="https://github.com/gardener/ci-infra/issues/619">gardener/ci-infra#619&lt;/a>).&lt;/p>
-&lt;p>If you want to use a new image from a registry without IPv6 support or upgrade an already used image to a newer tag, please open a PR to the ci-infra repository that modifies the job&amp;rsquo;s list of images to copy: &lt;a href="https://github.com/gardener/ci-infra/blob/master/config/images/images.yaml">&lt;code>images.yaml&lt;/code>&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Do not use container images from Docker Hub&lt;/strong> (example: &lt;a href="https://github.com/gardener/gardener/blob/6f4e64fe9494cafb5c5da9a2c0a491a5690161b6/charts/images.yaml#L619-L622">image vector&lt;/a>, &lt;a href="https://github.com/gardener/ci-infra/blob/92782bedd92815639abf4dc14b2c484f77c6e57d/config/images/images.yaml#L37-L40">prow configuration&lt;/a>)&lt;/p>
-&lt;p>There is a strict &lt;a href="https://docs.docker.com/docker-hub/download-rate-limit/">rate-limit&lt;/a> that applies to the Docker Hub registry. As described in 2., use another registry (if possible) or copy the image to the gardener GCR.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Do not use Shoot container images that are not multi-arch&lt;/strong>&lt;/p>
-&lt;p>Gardener supports Shoot clusters with both &lt;code>amd64&lt;/code> and &lt;code>arm64&lt;/code> based worker Nodes. &lt;code>amd64&lt;/code> container images cannot run on &lt;code>arm64&lt;/code> worker Nodes and vice-versa.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="security">Security&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Use a &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">dedicated &lt;code>ServiceAccount&lt;/code>&lt;/a> and disable auto-mount&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L145-L151">example&lt;/a>)&lt;/p>
-&lt;p>Components that need to talk to the API server of their runtime cluster must always use a dedicated &lt;code>ServiceAccount&lt;/code> (do not use &lt;code>default&lt;/code>), with &lt;code>automountServiceAccountToken&lt;/code> set to &lt;code>false&lt;/code>.
-This makes &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokeninvalidator">TokenInvalidator&lt;/a> invalidate the static token secret and its &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#auto-mounting-projected-serviceaccount-tokens">&lt;code>ProjectedTokenMount&lt;/code> webhook&lt;/a> inject a projected token automatically.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Use shoot access tokens instead of a client certificates&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L234-L236">example&lt;/a>)&lt;/p>
-&lt;p>For components that need to talk to a target cluster different from their runtime cluster (e.g., running in seed cluster but talking to shoot) the &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor">TokenRequestor&lt;/a> should be used to manage a so-called &amp;ldquo;shoot access token&amp;rdquo;.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define RBAC roles with minimal privileges&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L153-L223">example&lt;/a>)&lt;/p>
-&lt;p>The component&amp;rsquo;s &lt;code>ServiceAccount&lt;/code> (if it exists) should have as little privileges as possible.
-Consequently, please define proper &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC roles&lt;/a> for it.
-This might include a combination of &lt;code>ClusterRole&lt;/code>s and &lt;code>Role&lt;/code>s.
-Please do not provide elevated privileges due to laziness (e.g., because there is already a &lt;code>ClusterRole&lt;/code> that can be extended vs. creating a &lt;code>Role&lt;/code> only when access to a single namespace is needed).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Use &lt;a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">&lt;code>NetworkPolicy&lt;/code>s&lt;/a> to restrict network traffic&lt;/strong>&lt;/p>
-&lt;p>You should restrict both ingress and egress traffic to/from your component as much as possible to ensure that it only gets access to/from other components if really needed.
-Gardener provides a few default policies for typical usage scenarios. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/network_policies/">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Do not run containers in privileged mode&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/nodelocaldns/nodelocaldns.go#L324-L328">example&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/nodelocaldns/nodelocaldns.go#L501">example 2&lt;/a>)&lt;/p>
-&lt;p>Avoid running containers with &lt;code>privileged=true&lt;/code>. Instead, define the needed &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-capabilities-for-a-container">Linux capabilities&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Do not run containers as root&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/Dockerfile#L12">example&lt;/a>)&lt;/p>
-&lt;p>Avoid runnig containers as root. Usually, components such as Kubernetes controllers and admission webhook servers don&amp;rsquo;t need root user capabilities to do their jobs.&lt;/p>
-&lt;p>The problem with running as root, starts with how the container is first built. Unless a non-privileged user is configured in the &lt;code>Dockerfile&lt;/code>, container build systems by default set up the container with the root user. Add a non-privileged user to your &lt;code>Dockerfile&lt;/code> or use a base image with a non-root user (for example the &lt;code>nonroot&lt;/code> images from &lt;a href="https://github.com/GoogleContainerTools/distroless">distroless&lt;/a> such as &lt;code>gcr.io/distroless/static-debian12:nonroot&lt;/code>).&lt;/p>
-&lt;p>If the image is an upstream one, then consider configuring a securityContext for the container/Pod with a non-privileged user. For more information, see &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/">Configure a Security Context for a Pod or Container&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Choose the proper Seccomp profile&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/nodelocaldns/nodelocaldns.go#L283-L287">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/nginxingress/nginxingress.go#L447">example 2&lt;/a>)&lt;/p>
-&lt;p>For components deployed in the Seed cluster, the &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-seccomp-profile-for-a-container">Seccomp profile&lt;/a> will be defaulted to &lt;code>RuntimeDefault&lt;/code> by &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s SeccompProfile webhook which works well for the majority of components. However, in some special cases you might need to overwrite it.&lt;/p>
-&lt;p>The &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s SeccompProfile webhook is not enabled for a Shoot cluster. For components deployed in the Shoot cluster, it is required [*] to explicitly specify the Seccomp profile.&lt;/p>
-&lt;p>&lt;sub>[*] It is required because if a component deployed in the Shoot cluster does not specify a Seccomp profile and cannot run with the &lt;code>RuntimeDefault&lt;/code> Seccomp profile, then enabling the &lt;code>.spec.kubernetes.kubelet.seccompDefault&lt;/code> field in the Shoot spec would break the corresponding component.&lt;/sub>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define &lt;code>PodSecurityPolicy&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/vpnshoot/vpnshoot.go#L341-L412">example&lt;/a>)&lt;/p>
-&lt;p>&lt;code>PodSecurityPolicy&lt;/code>s are deprecated, however Gardener still supports shoot clusters with older Kubernetes versions (&lt;a href="https://gardener.cloud/docs/gardener/supported_k8s_versions/">ref&lt;/a>).
-To make sure that such clusters can run with &lt;code>.spec.kubernetes.allowPrivilegedContainers=false&lt;/code>, you have to define proper &lt;code>PodSecurityPolicy&lt;/code>s.
-For more information, see &lt;a href="https://gardener.cloud/docs/gardener/pod-security/">Pod Security&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="high-availability--stability">High Availability / Stability&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Specify the component type label for high availability&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L241">example&lt;/a>)&lt;/p>
-&lt;p>To support high-availability deployments, &lt;code>gardener-resource-manager&lt;/code>s &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#high-availability-config">HighAvailabilityConfig&lt;/a> webhook injects the proper specification like replica or topology spread constraints.
-You only need to specify the type label. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/high-availability/">High Availability Of Deployed Components&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define a &lt;code>PodDisruptionBudget&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L384-L408">example&lt;/a>)&lt;/p>
-&lt;p>Closely related to high availability but also to stability in general: The definition of a &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/">&lt;code>PodDisruptionBudget&lt;/code>&lt;/a> with &lt;code>maxUnavailable=1&lt;/code> should be provided by default.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Choose the right &lt;code>PriorityClass&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L307">example&lt;/a>)&lt;/p>
-&lt;p>Each cluster runs many components with different priorities.
-Gardener provides a set of default &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass">&lt;code>PriorityClass&lt;/code>es&lt;/a>. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/priority-classes/">Priority Classes&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Consider defining liveness and readiness probes&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L321-L344">example&lt;/a>)&lt;/p>
-&lt;p>To ensure smooth rolling update behaviour, consider the definition of &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/">liveness and/or readiness probes&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Mark node-critical components&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubeproxy/resources.go#L328">example&lt;/a>)&lt;/p>
-&lt;p>To ensure user workload pods are only scheduled to &lt;code>Nodes&lt;/code> where all node-critical components are ready, these components need to tolerate the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> taint (&lt;code>NoSchedule&lt;/code> effect).
-Also, such &lt;code>DaemonSets&lt;/code> and the included &lt;code>PodTemplates&lt;/code> need to be labelled with &lt;code>node.gardener.cloud/critical-component=true&lt;/code>.
-For more information, see &lt;a href="https://gardener.cloud/docs/gardener/node-readiness/">Readiness of Shoot Worker Nodes&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Consider making a &lt;code>Service&lt;/code> topology-aware&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/vpa/admissioncontroller.go#L154">example&lt;/a>)&lt;/p>
-&lt;p>To reduce costs and to improve the network traffic latency in multi-zone Seed clusters, consider making a &lt;code>Service&lt;/code> topology-aware, if applicable. In short, when a &lt;code>Service&lt;/code> is topology-aware, Kubernetes routes network traffic to the &lt;code>Endpoint&lt;/code>s (&lt;code>Pod&lt;/code>s) which are located in the same zone where the traffic originated from. In this way, the cross availability zone traffic is avoided. See &lt;a href="https://gardener.cloud/docs/gardener/topology_aware_routing/">Topology-Aware Traffic Routing&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="scalability">Scalability&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Provide resource requirements&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L345-L353">example&lt;/a>)&lt;/p>
-&lt;p>All components should have &lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits">resource requirements&lt;/a>.
-Generally, they should always request CPU and memory, while only memory shall be limited (no CPU limits!).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define a &lt;code>VerticalPodAutoscaler&lt;/code>&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L416-L444">example&lt;/a>)&lt;/p>
-&lt;p>We typically perform vertical auto-scaling via the VPA managed by the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Kubernetes community&lt;/a>.
-Each component should have a respective &lt;code>VerticalPodAutoscaler&lt;/code> with &amp;ldquo;min allowed&amp;rdquo; resources, &amp;ldquo;auto update mode&amp;rdquo;, and &amp;ldquo;requests only&amp;rdquo;-mode.
-VPA is always enabled in garden or seed clusters, while it is optional for shoot clusters.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define a &lt;code>HorizontalPodAutoscaler&lt;/code> if needed&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/coredns/coredns.go#L671-L726">example&lt;/a>)&lt;/p>
-&lt;p>If your component is capable of scaling horizontally, you should consider defining a &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/">&lt;code>HorizontalPodAutoscaler&lt;/code>&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;h2 id="observability--operations-productivity">Observability / Operations Productivity&lt;/h2>
-&lt;ol>
-&lt;li>
-&lt;p>&lt;strong>Provide monitoring scrape config and alerting rules&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/coredns/monitoring.go">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/monitoring.go#L97">example 2&lt;/a>)&lt;/p>
-&lt;p>Components should provide scrape configuration and alerting rules for Prometheus/Alertmanager if appropriate.
-This should be done inside a dedicated &lt;code>monitoring.go&lt;/code> file.
-Extensions should follow the guidelines described in &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#extensions-monitoring-integration">Extensions Monitoring Integration&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Provide logging parsers and filters&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/coredns/logging.go">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/gardenlet/controller/seed/seed/reconciler_reconcile.go#L563">example 2&lt;/a>)&lt;/p>
-&lt;p>Components should provide parsers and filters for fluent-bit, if appropriate.
-This should be done inside a dedicated &lt;code>logging.go&lt;/code> file.
-Extensions should follow the guidelines described in &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#fluent-bit-log-parsers-and-filters">Fluent-bit log parsers and filters&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Set the &lt;code>revisionHistoryLimit&lt;/code> to &lt;code>2&lt;/code> for &lt;code>Deployment&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/metricsserver/metrics_server.go#L272">example&lt;/a>)&lt;/p>
-&lt;p>In order to allow easy inspection of two &lt;code>ReplicaSet&lt;/code>s to quickly find the changes that lead to a rolling update, the &lt;a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#revision-history-limit">revision history limit&lt;/a> should be set to &lt;code>2&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define health checks&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/180951eac9b8183175d4dcadc305c7722ce8122d/pkg/gardenlet/controller/shoot/care/health.go#L763-L795">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/180951eac9b8183175d4dcadc305c7722ce8122d/pkg/gardenlet/controller/seed/care/health.go#L48-L55">example 2&lt;/a>)&lt;/p>
-&lt;p>&lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#controllers">care controllers&lt;/a> regularly check the health status of system or control plane components.
-You need to enhance the lists of components to check if your component related to the seed system or shoot control plane (shoot system components are automatically checked via their respective &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#managedresource-controller">&lt;code>ManagedResource&lt;/code> conditions&lt;/a>), see examples above.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Configure automatic restarts in shoot maintenance time window&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/kubescheduler/kube_scheduler.go#L250">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/6a0fea86850ffec8937d1956bdf1a8ca6d074f3b/pkg/operation/botanist/coredns.go#L90-L107">example 2&lt;/a>)&lt;/p>
-&lt;p>Gardener offers to restart components during the maintenance time window. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/#restart-control-plane-controllers">Restart Control Plane Controllers&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/#restart-some-core-addons">Restart Some Core Addons&lt;/a>.
-You can consider adding the needed label to your control plane component to get this automatic restart (probably not needed for most components).&lt;/p>
-&lt;/li>
-&lt;/ol></description></item></channel></rss>
+&lt;/ul></description></item></channel></rss>

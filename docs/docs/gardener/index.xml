@@ -820,7 +820,29 @@ requires that common suffixes contain at least one dot (.) and adds a second dot
 suffix of &lt;code>example.com&lt;/code> in the configuration would match &lt;code>*.example.com&lt;/code>.&lt;/p>
 &lt;p>Since some clients verify the host in the response of a DNS query, the host must also be rewritten.
 For that reason, we can&amp;rsquo;t rewrite a query for &lt;code>service.dst-namespace.svc.cluster.local.src-namespace.svc.cluster.local&lt;/code> or
-&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code>, as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: ExposureClasses</title><link>https://gardener.cloud/docs/gardener/exposureclasses/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/exposureclasses/</guid><description>
+&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code>, as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: Etcd Encryption Config</title><link>https://gardener.cloud/docs/gardener/etcd_encryption_config/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/etcd_encryption_config/</guid><description>
+&lt;h1 id="etcd-encryption-config">ETCD Encryption Config&lt;/h1>
+&lt;p>The &lt;code>spec.kubernetes.kubeAPIServer.encryptionConfig&lt;/code> field in the Shoot API allows users to customize encryption configurations for the API server. It provides options to specify additional resources for encryption beyond secrets.&lt;/p>
+&lt;h2 id="usage-guidelines">Usage Guidelines&lt;/h2>
+&lt;ul>
+&lt;li>The &lt;code>resources&lt;/code> field can be used to specify resources that should be encrypted in addition to secrets. Secrets are always encrypted.&lt;/li>
+&lt;li>Each item is a Kubernetes resource name in plural (resource or resource.group). Wild cards are not supported.&lt;/li>
+&lt;li>Adding an item to this list will cause patch requests for all the resources of that kind to encrypt them in the etcd. See &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data">Encrypting Confidential Data at Rest&lt;/a> for more details.&lt;/li>
+&lt;li>Removing an item from this list will cause patch requests for all the resources of that type to decrypt and rewrite the resource as plain text. See &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/decrypt-data/">Decrypt Confidential Data that is Already Encrypted at Rest&lt;/a> for more details.&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>ℹ️ Note that configuring encryption for a custom resource is only supported for Kubernetes versions &amp;gt;= 1.26.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> encryptionConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - configmaps
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - statefulsets.apps
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - customresource.fancyoperator.io
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: ExposureClasses</title><link>https://gardener.cloud/docs/gardener/exposureclasses/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/exposureclasses/</guid><description>
 &lt;h1 id="exposureclasses">ExposureClasses&lt;/h1>
 &lt;p>The Gardener API server provides a cluster-scoped &lt;code>ExposureClass&lt;/code> resource.
 This resource is used to allow exposing the control plane of a Shoot cluster in various network environments like restricted corporate networks, DMZ, etc.&lt;/p>
@@ -4792,38 +4814,4 @@ It will also be used for the vertical autoscaling of Gardener&amp;rsquo;s system
 &lt;li>&lt;code>.spec.kubernetes.verticalPodAutoscaler.recommenderInterval&lt;/code> is the interval how often metrics should be fetched (default: &lt;code>1m0s&lt;/code>).&lt;/li>
 &lt;/ul>
 &lt;p>⚠️ Please note that if you disable the VPA again, then the related &lt;code>CustomResourceDefinition&lt;/code>s will remain in your shoot cluster (although, nobody will act on them).
-This will also keep all existing &lt;code>VerticalPodAutoscaler&lt;/code> objects in the system, including those that might be created by you. You can delete the &lt;code>CustomResourceDefinition&lt;/code>s yourself using &lt;code>kubectl delete crd&lt;/code> if you want to get rid of them.&lt;/p></description></item><item><title>Docs: Shoot Cleanup</title><link>https://gardener.cloud/docs/gardener/shoot_cleanup/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot_cleanup/</guid><description>
-&lt;h1 id="cleanup-of-shoot-clusters-in-deletion">Cleanup of Shoot Clusters in Deletion&lt;/h1>
-&lt;p>When a shoot cluster is deleted then Gardener tries to gracefully remove most of the Kubernetes resources inside the cluster.
-This is to prevent that any infrastructure or other artefacts remain after the shoot deletion.&lt;/p>
-&lt;p>The cleanup is performed in four steps.
-Some resources are deleted with a grace period, and all resources are forcefully deleted (by removing blocking finalizers) after some time to not block the cluster deletion entirely.&lt;/p>
-&lt;p>&lt;strong>Cleanup steps:&lt;/strong>&lt;/p>
-&lt;ol>
-&lt;li>All &lt;code>ValidatingWebhookConfiguration&lt;/code>s and &lt;code>MutatingWebhookConfiguration&lt;/code>s are deleted with a &lt;code>5m&lt;/code> grace period. Forceful finalization happens after &lt;code>5m&lt;/code>.&lt;/li>
-&lt;li>All &lt;code>APIService&lt;/code>s and &lt;code>CustomResourceDefinition&lt;/code>s are deleted with a &lt;code>5m&lt;/code> grace period. Forceful finalization happens after &lt;code>1h&lt;/code>.&lt;/li>
-&lt;li>All &lt;code>CronJob&lt;/code>s, &lt;code>DaemonSet&lt;/code>s, &lt;code>Deployment&lt;/code>s, &lt;code>Ingress&lt;/code>s, &lt;code>Job&lt;/code>s, &lt;code>Pod&lt;/code>s, &lt;code>ReplicaSet&lt;/code>s, &lt;code>ReplicationController&lt;/code>s, &lt;code>Service&lt;/code>s, &lt;code>StatefulSet&lt;/code>s, &lt;code>PersistentVolumeClaim&lt;/code>s are deleted with a &lt;code>5m&lt;/code> grace period. Forceful finalization happens after &lt;code>5m&lt;/code>.
-&lt;blockquote>
-&lt;p>If the &lt;code>Shoot&lt;/code> is annotated with &lt;code>shoot.gardener.cloud/skip-cleanup=true&lt;/code>, then only &lt;code>Service&lt;/code>s and &lt;code>PersistentVolumeClaim&lt;/code>s are considered.&lt;/p>
-&lt;/blockquote>
-&lt;/li>
-&lt;li>All &lt;code>VolumeSnapshot&lt;/code>s and &lt;code>VolumeSnapshotContent&lt;/code>s are deleted with a &lt;code>5m&lt;/code> grace period. Forceful finalization happens after &lt;code>1h&lt;/code>.&lt;/li>
-&lt;/ol>
-&lt;p>It is possible to override the finalization grace periods via annotations on the &lt;code>Shoot&lt;/code>:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>shoot.gardener.cloud/cleanup-webhooks-finalize-grace-period-seconds&lt;/code> (for the resources handled in step 1)&lt;/li>
-&lt;li>&lt;code>shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds&lt;/code> (for the resources handled in step 2)&lt;/li>
-&lt;li>&lt;code>shoot.gardener.cloud/cleanup-kubernetes-resources-finalize-grace-period-seconds&lt;/code> (for the resources handled in step 3)&lt;/li>
-&lt;/ul>
-&lt;p>⚠️ If &lt;code>&amp;quot;0&amp;quot;&lt;/code> is provided, then all resources are finalized immediately without waiting for any graceful deletion.
-Please be aware that this might lead to orphaned infrastructure artefacts.&lt;/p>
-&lt;h2 id="infrastructure-cleanup-wait-period">Infrastructure Cleanup Wait Period&lt;/h2>
-&lt;p>After all above cleanup steps have been performed and the &lt;code>Infrastructure&lt;/code> extension resource has been deleted, the gardenlet waits for a certain duration to allow controllers to properly cleanup infrastructure resources.&lt;/p>
-&lt;p>By default, this duration is set to &lt;code>5m&lt;/code>. Only after this time has passed, the shoot deletion flow continues with the entire tear-down of the remaining control plane components (including &lt;code>kube-apiserver&lt;/code>s, etc.).&lt;/p>
-&lt;p>It is also possible to override this wait period via an annotations on the &lt;code>Shoot&lt;/code>:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>shoot.gardener.cloud/infrastructure-cleanup-wait-period-seconds&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;blockquote>
-&lt;p>ℹ️️ All provided period values larger than the above mentioned defaults are ignored.&lt;/p>
-&lt;/blockquote></description></item></channel></rss>
+This will also keep all existing &lt;code>VerticalPodAutoscaler&lt;/code> objects in the system, including those that might be created by you. You can delete the &lt;code>CustomResourceDefinition&lt;/code>s yourself using &lt;code>kubectl delete crd&lt;/code> if you want to get rid of them.&lt;/p></description></item></channel></rss>

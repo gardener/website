@@ -4,7 +4,7 @@
 &lt;h3 id="use-case">Use-case&lt;/h3>
 &lt;p>For a Shoot cluster, the containerd daemon of every Node goes to the internet and fetches an image that it doesn&amp;rsquo;t have locally in the Node&amp;rsquo;s image cache. New Nodes are often created due to events such as auto-scaling (scale up), rolling update, or replacement of unhealthy Node. Such a new Node would need to pull all of the images of the Pods running on it from the internet because the Node&amp;rsquo;s cache is initially empty. Pulling an image from a registry produces network traffic and registry costs. To avoid these network traffic and registry costs, you can use the registry-cache extension to run a registry as pull-through cache.&lt;/p>
 &lt;p>The following diagram shows a rough outline of how image pull looks like for a Shoot cluster &lt;strong>without registry cache&lt;/strong>:
-&lt;img src="https://gardener.cloud/__resources/shoot-cluster-without-registry-cache_a0770d.png" alt="shoot-cluster-without-registry-cache">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/shoot-cluster-without-registry-cache_7e2f53.png" alt="shoot-cluster-without-registry-cache">&lt;/p>
 &lt;h3 id="solution">Solution&lt;/h3>
 &lt;p>The registry-cache extension deploys and manages a registry in the Shoot cluster that runs as pull-through cache. The used registry implementation is &lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a>.&lt;/p>
 &lt;h3 id="how-does-it-work">How does it work?&lt;/h3>
@@ -14,7 +14,7 @@
 &lt;p>Note: The used registry implementation (&lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a>) supports mirroring of only one upstream registry.&lt;/p>
 &lt;/blockquote>
 &lt;p>The following diagram shows a rough outline of how image pull looks like for a Shoot cluster &lt;strong>with registry cache&lt;/strong>:
-&lt;img src="https://gardener.cloud/__resources/shoot-cluster-with-registry-cache_9bbc9e.png" alt="shoot-cluster-with-registry-cache">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/shoot-cluster-with-registry-cache_8634e1.png" alt="shoot-cluster-with-registry-cache">&lt;/p>
 &lt;h2 id="shoot-configuration">Shoot Configuration&lt;/h2>
 &lt;p>The extension is not globally enabled and must be configured per Shoot cluster. The Shoot specification has to be adapted to include the &lt;code>registry-cache&lt;/code> extension configuration.&lt;/p>
 &lt;p>Below is an example of &lt;code>registry-cache&lt;/code> extension configuration as part of the Shoot spec:&lt;/p>
@@ -53,10 +53,10 @@ The desired format is &lt;code>host[:port]&lt;/code>. The value must not include
 &lt;p>The &lt;code>providerConfig.caches[].volume&lt;/code> field contains settings for the registry cache volume.
 The registry-cache extension deploys a StatefulSet with a volume claim template. A PersistentVolumeClaim is created with the configured size and StorageClass name.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].volume.size&lt;/code> field is the size of the registry cache. Defaults to &lt;code>10Gi&lt;/code>. The size must be a positive quantity (greater than 0).
-This field is immutable. See &lt;a href="#increase-the-cache-disk-size">Increase the cache disk size&lt;/a> on how to resize the disk.&lt;/p>
+This field is immutable. See &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/configuration/#increase-the-cache-disk-size">Increase the cache disk size&lt;/a> on how to resize the disk.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].volume.storageClassName&lt;/code> field is the name of the StorageClass used by the registry cache volume.
 This field is immutable. If the field is not specified, then the &lt;a href="https://kubernetes.io/docs/concepts/storage/storage-classes/#default-storageclass">default StorageClass&lt;/a> will be used.&lt;/p>
-&lt;p>The &lt;code>providerConfig.caches[].garbageCollection.enabled&lt;/code> field enables/disables the cache&amp;rsquo;s garbage collection. Defaults to &lt;code>true&lt;/code>. The time to live (ttl) for an image is &lt;code>7d&lt;/code>. See the &lt;a href="#garbage-collection">garbage collection section&lt;/a> for more details.&lt;/p>
+&lt;p>The &lt;code>providerConfig.caches[].garbageCollection.enabled&lt;/code> field enables/disables the cache&amp;rsquo;s garbage collection. Defaults to &lt;code>true&lt;/code>. The time to live (ttl) for an image is &lt;code>7d&lt;/code>. See the &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/configuration/#garbage-collection">garbage collection section&lt;/a> for more details.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].secretReferenceName&lt;/code> is the name of the reference for the Secret containing the upstream registry credentials. To cache images from a private registry, credentials to the upstream registry should be supplied. For details see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/#how-to-provide-credentials-for-upstream-registry">How to provide credentials for upstream registry&lt;/a>.&lt;/p>
 &lt;blockquote>
 &lt;p>&lt;strong>Note&lt;/strong>: It&amp;rsquo;s only possible to provide one set of credentials for one private upstream registry.&lt;/p>
@@ -95,7 +95,7 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;p>Drawback of this approach: The already cached images get lost and the cache starts with an empty disk.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="high-availability">High-availability&lt;/h2>
-&lt;p>The registry cache runs with a single replica. This fact may lead to concerns for the high-availability such as &amp;ldquo;What happens when the registry cache is down? Does containerd fail to pull the image?&amp;rdquo;. As outlined in the &lt;a href="#how-does-it-work">How does it work? section&lt;/a>, containerd is configured to fall back to the upstream registry if it fails to pull the image from the registry cache. Hence, when the registry cache is unavailable, the containerd&amp;rsquo;s image pull operations are not affected because containerd falls back to image pull from the upstream registry.&lt;/p>
+&lt;p>The registry cache runs with a single replica. This fact may lead to concerns for the high-availability such as &amp;ldquo;What happens when the registry cache is down? Does containerd fail to pull the image?&amp;rdquo;. As outlined in the &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/configuration/#how-does-it-work">How does it work? section&lt;/a>, containerd is configured to fall back to the upstream registry if it fails to pull the image from the registry cache. Hence, when the registry cache is unavailable, the containerd&amp;rsquo;s image pull operations are not affected because containerd falls back to image pull from the upstream registry.&lt;/p>
 &lt;h2 id="gotchas">Gotchas&lt;/h2>
 &lt;ul>
 &lt;li>The used registry implementation (&lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a>) supports mirroring of only one upstream registry. The extension deploys a pull-through cache for each configured upstream.&lt;/li>
@@ -259,8 +259,8 @@ At the time of writing this document, there is no functionality for garbage coll
 &lt;p>To rotate registry credentials perform the following steps:&lt;/p>
 &lt;ol>
 &lt;li>Generate new pair of credentials in the cloud provider account. Do not invalidate the old ones.&lt;/li>
-&lt;li>Create a new Secret (e.g. &lt;code>ro-docker-secret-v2&lt;/code>) with the newly generated credentials as described step 1. in &lt;a href="#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.&lt;/li>
-&lt;li>Update the Shoot spec with newly created Secret as described step 2. in &lt;a href="#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.
+&lt;li>Create a new Secret (e.g. &lt;code>ro-docker-secret-v2&lt;/code>) with the newly generated credentials as described step 1. in &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.&lt;/li>
+&lt;li>Update the Shoot spec with newly created Secret as described step 2. in &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/upstream-credentials/#how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/a>.
 1 The above step will trigger a Shoot reconciliation. Wait for the Shoot reconciliation to complete.&lt;/li>
 &lt;li>Make sure that the old Secret is no longer referenced by any Shoot cluster. Finally, delete the Secret containing the old credentials (e.g. &lt;code>ro-docker-secret-v1&lt;/code>).&lt;/li>
 &lt;li>Delete the corresponding old credentials from the cloud provider account.&lt;/li>

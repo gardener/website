@@ -25,6 +25,7 @@ this document. Few of the answers assume that the MCM being used is in conjuctio
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#How-to-pause-the-ongoing-rolling-update-of-the-machinedeployment">How to pause the ongoing rolling-update of the machinedeployment?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-to-delete-machine-object-immedietly-if-i-dont-have-access-to-it">How to delete machine object immedietly if I don&amp;rsquo;t have access to it?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#How-to-avoid-garbage-collection-of-your-node">How to avoid garbage collection of your node?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-to-trigger-rolling-update-of-a-machinedeployment">How to trigger rolling update of a machinedeployment?&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>
@@ -41,6 +42,7 @@ this document. Few of the answers assume that the MCM being used is in conjuctio
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-does-rate-limiting-replacement-of-machine-work-in-mcm-how-is-it-related-to-meltdown-protection">How does rate limiting replacement of machine work in MCM ? How is it related to meltdown protection?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-mcm-responds-when-scale-outscale-in-is-done-during-rolling-update-of-a-machinedeployment">How MCM responds when scale-out/scale-in is done during rolling update of a machinedeployment?&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-some-unhealthy-machines-are-drained-quickly-">How some unhealthy machines are drained quickly?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/faq/#how-does-mcm-prioritize-the-machines-for-deletion-on-scale-down-of-machinedeployment">How does MCM prioritize the machines for deletion on scale-down of machinedeployment?&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>
@@ -168,6 +170,12 @@ To do so they should remove/not-use tags on their VMs containing the following s
 &lt;li>&lt;code>kubernetes-io-cluster-&lt;/code>&lt;/li>
 &lt;li>&lt;code>kubernetes-io-role-&lt;/code>&lt;/li>
 &lt;/ol>
+&lt;h3 id="how-to-trigger-rolling-update-of-a-machinedeployment">How to trigger rolling update of a machinedeployment?&lt;/h3>
+&lt;p>Rolling update can be triggered for a machineDeployment by updating one of the following:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.spec.template.annotations&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.template.spec.class.name&lt;/code>&lt;/li>
+&lt;/ul>
 &lt;h1 id="internals">Internals&lt;/h1>
 &lt;h3 id="what-is-the-high-level-design-of-mcm">What is the high level design of MCM?&lt;/h3>
 &lt;p>Please refer the following &lt;a href="https://gardener.cloud/docs/other-components/machine-controller-manager/#design-of-machine-controller-manager">document&lt;/a>.&lt;/p>
@@ -244,6 +252,8 @@ It is implemented in the following manner:&lt;/p>
 &lt;/li>
 &lt;/ul>
 &lt;p>&lt;code>NOTE&lt;/code>: No phase means the machine is being created on the cloud-provider.&lt;/p>
+&lt;p>Below is a simple phase transition diagram:
+&lt;img src="https://gardener.cloud/__resources/machine_phase_transition_b1530f.png" alt="image">&lt;/p>
 &lt;h3 id="what-health-checks-are-performed-on-a-machine">What health checks are performed on a machine?&lt;/h3>
 &lt;p>Health check performed on a machine are:&lt;/p>
 &lt;ul>
@@ -273,6 +283,17 @@ Case &lt;code>scale-in&lt;/code> -&amp;gt; ALL machineSets(new or old) are scale
 &lt;li>&lt;code>deployment.kubernetes.io/desired-replicas&lt;/code> needs update&lt;/li>
 &lt;/ul>
 &lt;p>Once scaling is achieved, rollout continues.&lt;/p>
+&lt;h3 id="how-does-mcm-prioritize-the-machines-for-deletion-on-scale-down-of-machinedeployment">How does MCM prioritize the machines for deletion on scale-down of machinedeployment?&lt;/h3>
+&lt;p>There could be many machines under a machinedeployment with different phases, creationTimestamp. When a scale down is triggered, MCM decides to remove the machine using the following logic:&lt;/p>
+&lt;ul>
+&lt;li>Machine with least value of &lt;code>machinepriority.machine.sapcloud.io&lt;/code> annotation is picked up.&lt;/li>
+&lt;li>If all machines have equal priorities, then following precedence is followed:
+&lt;ul>
+&lt;li>Terminating &amp;gt; Failed &amp;gt; CrashloopBackoff &amp;gt; Unknown &amp;gt; Pending &amp;gt; Available &amp;gt; Running&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>If still there is no match, the machine with oldest creation time (.i.e. creationTimestamp) is picked up.&lt;/li>
+&lt;/ul>
 &lt;h2 id="how-some-unhealthy-machines-are-drained-quickly-">How some unhealthy machines are drained quickly ?&lt;/h2>
 &lt;p>If a node is unhealthy for more than the &lt;code>machine-health-timeout&lt;/code> specified for the &lt;code>machine-controller&lt;/code>, the controller
 health-check moves the machine phase to &lt;code>Failed&lt;/code>. By default, the &lt;code>machine-health-timeout&lt;/code> is 10` minutes.&lt;/p>

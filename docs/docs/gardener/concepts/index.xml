@@ -1575,13 +1575,19 @@ Condition checks will be skipped for such &lt;code>ManagedResource&lt;/code>s.&l
 &lt;p>The mode for a resource can be specified with the &lt;code>resources.gardener.cloud/mode&lt;/code> annotation. The annotation should be specified in the encoded resource manifest in the Secret that is referenced by the &lt;code>ManagedResource&lt;/code>.&lt;/p>
 &lt;h4 id="skipping-health-check">Skipping Health Check&lt;/h4>
 &lt;p>If a resource in the &lt;code>ManagedResource&lt;/code> is annotated with &lt;code>resources.gardener.cloud/skip-health-check=true&lt;/code>, then the resource will be skipped during health checks by the health controller. The &lt;code>ManagedResource&lt;/code> conditions will not reflect the health condition of this resource anymore. The &lt;code>ResourcesProgressing&lt;/code> condition will also be set to &lt;code>False&lt;/code>.&lt;/p>
-&lt;h4 id="resource-class">Resource Class&lt;/h4>
+&lt;h4 id="resource-class-and-reconcilation-scope">Resource Class and Reconcilation Scope&lt;/h4>
 &lt;p>By default, the &lt;code>gardener-resource-manager&lt;/code> controller watches for &lt;code>ManagedResource&lt;/code>s in all namespaces.
 The &lt;code>.sourceClientConnection.namespace&lt;/code> field in the component configuration restricts the watch to &lt;code>ManagedResource&lt;/code>s in a single namespace only.
 Note that this setting also affects all other controllers and webhooks since it&amp;rsquo;s a central configuration.&lt;/p>
 &lt;p>A &lt;code>ManagedResource&lt;/code> has an optional &lt;code>.spec.class&lt;/code> field that allows it to indicate that it belongs to a given class of resources.
 The &lt;code>.controllers.resourceClass&lt;/code> field in the component configuration restricts the watch to &lt;code>ManagedResource&lt;/code>s with the given &lt;code>.spec.class&lt;/code>.
 A default class is assumed if no class is specified.&lt;/p>
+&lt;p>For instance, the &lt;code>gardener-resource-manager&lt;/code> which is deployed in the Shoot’s control plane namespace in the Seed does not specify a &lt;code>.spec.class&lt;/code> and watches only for resources in the control plane namespace by specifying it in the &lt;code>.sourceClientConnection.namespace&lt;/code> field.&lt;/p>
+&lt;p>If the &lt;code>.spec.class&lt;/code> changes this means that the resources have to be handled by a different Gardener Resource Manager. That is achieved by:&lt;/p>
+&lt;ol>
+&lt;li>Cleaning all referenced resources by the Gardener Resource Manager that was responsible for the old class in its target cluster.&lt;/li>
+&lt;li>Creating all referenced resources by the Gardener Resource Manager that is responsible for the new class in its target cluster.&lt;/li>
+&lt;/ol>
 &lt;h4 id="conditionshttpsgithubcomgardenergardenertreemasterpkgresourcemanagercontrollerhealth">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/resourcemanager/controller/health">Conditions&lt;/a>&lt;/h4>
 &lt;p>A &lt;code>ManagedResource&lt;/code> has a &lt;code>ManagedResourceStatus&lt;/code>, which has an array of Conditions. Conditions currently include:&lt;/p>
 &lt;table>

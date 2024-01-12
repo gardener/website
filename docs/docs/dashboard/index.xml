@@ -144,57 +144,101 @@ example &lt;code>values.yaml&lt;/code>:&lt;/li>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/service-account-manager/">Service Account Manager&lt;/a>&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Connect Kubectl</title><link>https://gardener.cloud/docs/dashboard/connect-kubectl/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/dashboard/connect-kubectl/</guid><description>
-&lt;h1 id="connect-kubectl">Connect kubectl&lt;/h1>
-&lt;p>In Kubernetes, the configuration for access to your cluster is a format known as &lt;code>kubeconfig&lt;/code> that is stored as a file. It contains details such as cluster API server addresses and access credentials or a command to get the access credential from a &lt;code>kubectl&lt;/code> credential plugin. In general, treat a &lt;code>kubeconfig&lt;/code> as sensitive data. Tools like &lt;code>kubectl&lt;/code> use the &lt;code>kubeconfig&lt;/code> to connect and authenticate to a cluster and perform operations on it.
+&lt;h1 id="connect-kubectl">Connect Kubectl&lt;/h1>
+&lt;p>In Kubernetes, the configuration for accessing your cluster is in a format known as &lt;code>kubeconfig&lt;/code>, which is stored as a file. It contains details such as cluster API server addresses and access credentials or a command to obtain access credentials from a &lt;code>kubectl&lt;/code> credential plugin. In general, treat a &lt;code>kubeconfig&lt;/code> as sensitive data. Tools like &lt;code>kubectl&lt;/code> use the &lt;code>kubeconfig&lt;/code> to connect and authenticate to a cluster and perform operations on it.
 Learn more about &lt;a href="https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/">kubeconfig&lt;/a> and &lt;a href="https://kubernetes.io/docs/reference/kubectl/">kubectl&lt;/a> on &lt;a href="https://kubernetes.io">kubernetes.io&lt;/a>.&lt;/p>
-&lt;h3 id="prerequisites">Prerequisites&lt;/h3>
+&lt;h2 id="tools">Tools&lt;/h2>
+&lt;p>In this guide, we reference the following tools:&lt;/p>
 &lt;ul>
-&lt;li>You are logged on to the Gardener Dashboard.&lt;/li>
-&lt;li>You have created a cluster and its status is operational.&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/reference/kubectl/">kubectl&lt;/a>: Command-line tool for running commands against Kubernetes clusters. It allows you to control various aspects of your cluster, such as creating or modifying resources, viewing resource status, and debugging your applications.&lt;/li>
+&lt;li>&lt;a href="https://github.com/int128/kubelogin">kubelogin&lt;/a>: &lt;code>kubectl&lt;/code> credential plugin used for OIDC authentication, which is required for the (OIDC) &lt;code>Garden&lt;/code> cluster kubeconfig&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a>: &lt;code>kubectl&lt;/code> credential plugin used for &lt;code>Shoot&lt;/code> authentication as &lt;code>system:masters&lt;/code>, which is required for the (&lt;code>gardenlogin&lt;/code>) &lt;code>Shoot&lt;/code> cluster kubeconfig&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardenctl-v2">gardenctl&lt;/a>: Optional. Command-line tool to administrate one or many &lt;code>Garden&lt;/code>, &lt;code>Seed&lt;/code> and &lt;code>Shoot&lt;/code> clusters. Use this tool to setup &lt;code>gardenlogin&lt;/code> and &lt;code>gardenctl&lt;/code> itself, configure access to clusters and configure cloud provider CLI tools.&lt;/li>
 &lt;/ul>
-&lt;p>On this page:&lt;/p>
+&lt;h2 id="connect-kubectl-to-a-shoot-cluster">Connect Kubectl to a Shoot Cluster&lt;/h2>
+&lt;p>In order to connect to a &lt;code>Shoot&lt;/code> cluster, you first have to &lt;a href="https://github.com/gardener/gardenlogin/blob/master/README.md#installation">install&lt;/a> and &lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#setup-gardenlogin">setup&lt;/a> &lt;code>gardenlogin&lt;/code>.&lt;/p>
+&lt;p>You can obtain the kubeconfig for the &lt;code>Shoot&lt;/code> cluster either by &lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#download-from-dashboard">downloading&lt;/a> it from the Gardener dashboard or by &lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#copy-and-run-gardenctl-target-command">copying&lt;/a> the &lt;code>gardenctl target&lt;/code> command from the dashboard and executing it.&lt;/p>
+&lt;h3 id="setup-gardenlogin">Setup Gardenlogin&lt;/h3>
+&lt;h5 id="prerequisites">Prerequisites&lt;/h5>
 &lt;ul>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#connect-kubectl">Connect kubectl&lt;/a>
+&lt;li>You are logged on to the Gardener dashboard.&lt;/li>
+&lt;li>The dashboard admin has configured OIDC for the dashboard.&lt;/li>
+&lt;li>You have installed &lt;a href="https://github.com/int128/kubelogin/blob/master/README.md#setup">kubelogin&lt;/a>&lt;/li>
+&lt;li>You have installed &lt;a href="https://github.com/gardener/gardenlogin/blob/master/README.md#installation">gardenlogin&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>To setup &lt;code>gardenlogin&lt;/code>, you need to:&lt;/p>
 &lt;ul>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#prerequisites">Prerequisites&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#downloading-kubeconfig-for-a-cluster">Downloading kubeconfig for a cluster&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#connecting-to-the-cluster">Connecting to the cluster&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#exporting-kubeconfig-environment-variable">Exporting KUBECONFIG environment variable&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#whats-next">What&amp;rsquo;s next?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#download-kubeconfig-for-the-garden-cluster">Download the kubeconfig for the &lt;code>Garden&lt;/code> cluster&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#configure-gardenlogin">Configure gardenlogin&lt;/a>&lt;/li>
 &lt;/ul>
-&lt;/li>
+&lt;h5 id="download-kubeconfig-for-the-garden-cluster">Download Kubeconfig for the &lt;code>Garden&lt;/code> Cluster&lt;/h5>
+&lt;ol>
+&lt;li>Navigate to the &lt;code>MY ACCOUNT&lt;/code> page on the dashboard by clicking on the user avatar -&amp;gt; &lt;code>MY ACCOUNT&lt;/code>.&lt;/li>
+&lt;li>Under the &lt;code>Access&lt;/code> section, download the kubeconfig.
+&lt;img width="700" src="https://gardener.cloud/__resources/download-garden-cluster-kubeconfig_13ac16.png">&lt;/li>
+&lt;/ol>
+&lt;h5 id="configure-gardenlogin">Configure Gardenlogin&lt;/h5>
+&lt;p>Configure gardenlogin by following the installation instruction on the dashboard:&lt;/p>
+&lt;ol>
+&lt;li>Select your project from the dropdown on the left&lt;/li>
+&lt;li>Choose &lt;code>CLUSTERS&lt;/code> and select your cluster in the list.&lt;/li>
+&lt;li>Choose the &lt;code>Show information about gardenlogin&lt;/code> info icon and follow the configuration hints.&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>Note: Use the &lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#download-kubeconfig-for-the-garden-cluster">previously downloaded&lt;/a> kubeconfig for the &lt;code>Garden&lt;/code> cluster as the kubeconfig path. Do not use the &lt;code>gardenlogin&lt;/code> &lt;code>Shoot&lt;/code> cluster kubeconfig here.&lt;/p>
+&lt;/blockquote>
+&lt;img width="700" src="https://gardener.cloud/__resources/03-gardenlogin-info_2727a2.png">
+&lt;h3 id="download-and-setup-kubeconfig-for-a-shoot-cluster">Download and Setup Kubeconfig for a &lt;code>Shoot&lt;/code> Cluster&lt;/h3>
+&lt;p>The &lt;code>gardenlogin&lt;/code> kubeconfig for the &lt;code>Shoot&lt;/code> cluster can be obtained in various ways:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#copy-and-run-gardenctl-target-command">Copy and run&lt;/a> the &lt;code>gardenctl target&lt;/code> command from the dashboard&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/dashboard/connect-kubectl/#download-from-dashboard">Download&lt;/a> from the Gardener dashboard&lt;/li>
 &lt;/ul>
-&lt;br/>
-&lt;h3 id="downloading-kubeconfig-for-a-cluster">Downloading kubeconfig for a cluster&lt;/h3>
+&lt;h4 id="copy-and-run-gardenctl-target-command">Copy and Run &lt;code>gardenctl target&lt;/code> Command&lt;/h4>
+&lt;p>Using the &lt;code>gardenctl target&lt;/code> command you can quickly set or switch between clusters. The command sets the scope for the next operation, e.g., it ensures that the &lt;code>KUBECONFIG&lt;/code> env variable always points to the current targeted cluster.&lt;/p>
+&lt;p>To target a &lt;code>Shoot&lt;/code> cluster:&lt;/p>
 &lt;ol>
 &lt;li>
-&lt;p>Select your project from the dropdown on the left, then choose &lt;strong>CLUSTERS&lt;/strong> and locate your cluster in the list. Choose the &lt;em>key&lt;/em> icon to bring up a dialog with the access options.&lt;/p>
+&lt;p>Copy the &lt;code>gardenctl target&lt;/code> command from the dashboard&lt;/p>
+&lt;img width="1000" src="https://gardener.cloud/__resources/copy-target-cluster-command_bd6738.png">
+&lt;/li>
+&lt;li>
+&lt;p>Paste and run the command in the terminal application, for example:&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ gardenctl target --garden landscape-dev --project core --shoot mycluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Successfully targeted shoot &lt;span style="color:#a31515">&amp;#34;mycluster&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Your &lt;code>KUBECONFIG&lt;/code> env variable is now pointing to the current target (also visible with &lt;code>gardenctl target view -o yaml&lt;/code>). You can now run &lt;code>kubectl&lt;/code> commands against your &lt;code>Shoot&lt;/code> cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get namespaces
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command connects to the cluster and list its namespaces.&lt;/p>
+&lt;h5 id="kubeconfig-env-var-not-setup-correctly">KUBECONFIG Env Var not Setup Correctly&lt;/h5>
+&lt;p>If your &lt;code>KUBECONFIG&lt;/code> env variable does not point to the current target, you will see the following message after running the &lt;code>gardenctl target&lt;/code> command:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>WARN The KUBECONFIG environment variable does not point to the current target of gardenctl. Run &lt;span style="color:#a31515">`&lt;/span>gardenctl kubectl-env --help&lt;span style="color:#a31515">`&lt;/span> on how to configure the KUBECONFIG environment variable accordingly
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this case you would need to run the following command (assuming &lt;code>bash&lt;/code> as your current shell). For other shells, consult the &lt;a href="https://github.com/gardener/gardenctl-v2/blob/master/docs/help/gardenctl_kubectl-env.md">gardenctl kubectl-env &amp;ndash;help&lt;/a> documentation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ eval &lt;span style="color:#a31515">&amp;#34;&lt;/span>&lt;span style="color:#00f">$(&lt;/span>gardenctl kubectl-env bash&lt;span style="color:#00f">)&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="download-from-dashboard">Download from Dashboard&lt;/h4>
+&lt;ol>
+&lt;li>
+&lt;p>Select your project from the dropdown on the left, then choose &lt;code>CLUSTERS&lt;/code> and locate your cluster in the list. Choose the &lt;em>key&lt;/em> icon to bring up a dialog with the access options.&lt;/p>
 &lt;img width="1000" src="https://gardener.cloud/__resources/01-select-cluster_8eb669.png">
-&lt;p>In the &lt;strong>Kubeconfig - Gardenlogin&lt;/strong> section the options are to &lt;em>show gardenlogin info&lt;/em>, &lt;em>download&lt;/em>, &lt;em>copy&lt;/em> or &lt;em>view&lt;/em> the &lt;code>kubeconfig&lt;/code> for the cluster.
-The same options are available also in the &lt;strong>Access&lt;/strong> section in the cluster details screen. To find it, choose a cluster from the list.
-Enabling the static token kubeconfig is not recommended and you should consider to disable it for your cluster, if not already done. Instead use the &lt;code>gardenlogin&lt;/code> &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;p>In the &lt;code>Kubeconfig - Gardenlogin&lt;/code> section the options are to &lt;em>show gardenlogin info&lt;/em>, &lt;em>download&lt;/em>, &lt;em>copy&lt;/em> or &lt;em>view&lt;/em> the &lt;code>kubeconfig&lt;/code> for the cluster.&lt;/p>
+&lt;p>The same options are available also in the &lt;code>Access&lt;/code> section in the cluster details screen. To find it, choose a cluster from the list.&lt;/p>
 &lt;img width="1000" src="https://gardener.cloud/__resources/01-access-1_749866.png">
 &lt;/li>
 &lt;li>
 &lt;p>Choose the download icon to download the &lt;code>kubeconfig&lt;/code> as file on your local system.&lt;/p>
 &lt;img width="400" src="https://gardener.cloud/__resources/02-download_b6cebd.png">
 &lt;/li>
-&lt;li>
-&lt;p>If &lt;code>gardenlogin&lt;/code> is not installed or configured, click on the &lt;em>show gardenlogin info&lt;/em> action to follow the installation and configuration hints.&lt;/p>
-&lt;img width="700" src="https://gardener.cloud/__resources/03-gardenlogin-info_2727a2.png">
-&lt;/li>
-&lt;li>
-&lt;p>You might also need to install &lt;a href="https://github.com/int128/kubelogin#setup">kubelogin&lt;/a>&lt;/p>
-&lt;/li>
 &lt;/ol>
-&lt;h3 id="connecting-to-the-cluster">Connecting to the cluster&lt;/h3>
+&lt;h5 id="connecting-to-the-cluster">Connecting to the Cluster&lt;/h5>
 &lt;p>In the following command, change &lt;code>&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt;&lt;/code> with the actual path to the file where you stored the &lt;code>kubeconfig&lt;/code> downloaded in the previous step 2.&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl --kubeconfig=&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt; get namespaces
-&lt;/code>&lt;/pre>&lt;p>The command connects to the cluster and list its namespaces.&lt;/p>
-&lt;h3 id="exporting-kubeconfig-environment-variable">Exporting KUBECONFIG environment variable&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl --kubeconfig=&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt; get namespaces
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The command connects to the cluster and list its namespaces.&lt;/p>
+&lt;h5 id="exporting-kubeconfig-environment-variable">Exporting KUBECONFIG environment variable&lt;/h5>
 &lt;p>Since many &lt;code>kubectl&lt;/code> commands will be used, it’s a good idea to take advantage of every opportunity to shorten the expressions. The &lt;code>kubectl&lt;/code> tool has a fallback strategy for looking up a kubeconfig to work with. For example, it looks for the &lt;code>KUBECONFIG&lt;/code> environment variable with value that is the path to the &lt;code>kubeconfig&lt;/code> file meant to be used. Export the variable:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ export KUBECONFIG=&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt;
-&lt;/code>&lt;/pre>&lt;p>In the previous snippet make sure to change the &lt;code>&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt;&lt;/code> with the path to the kubeconfig for the cluster that you want to connect to on your system.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ export KUBECONFIG=&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Again, replace &lt;code>&amp;lt;path-to-gardenlogin-kubeconfig&amp;gt;&lt;/code> with the actual path to the kubeconfig for the cluster you want to connect to.&lt;/p>
+&lt;br>
 &lt;br>
 &lt;h2 id="whats-next">What&amp;rsquo;s next?&lt;/h2>
 &lt;ul>

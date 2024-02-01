@@ -4299,66 +4299,7 @@ For this, the &lt;code>Seed&lt;/code> has to be annotated with &lt;code>gardener
 &lt;/ol></description></item><item><title>Docs: Admission</title><link>https://gardener.cloud/docs/gardener/extensions/admission/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/admission/</guid><description>
 &lt;h1 id="extension-admission">Extension Admission&lt;/h1>
 &lt;p>The extensions are expected to validate their respective resources for their extension specific configurations, when the resources are newly created or updated. For example, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#infrastructure-provider">provider extensions&lt;/a> would validate &lt;code>spec.provider.infrastructureConfig&lt;/code> and &lt;code>spec.provider.controlPlaneConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource and &lt;code>spec.providerConfig&lt;/code> in the &lt;code>CloudProfile&lt;/code> resource, &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/README.md#network-plugin">networking extensions&lt;/a> would validate &lt;code>spec.networking.providerConfig&lt;/code> in the &lt;code>Shoot&lt;/code> resource. As best practice, the validation should be performed only if there is a change in the &lt;code>spec&lt;/code> of the resource. Please find an exemplary implementation in the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/admission/validator">gardener/gardener-extension-provider-aws&lt;/a> repository.&lt;/p>
-&lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for a provider extension type &lt;code>aws&lt;/code> looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, &lt;code>SecretBinding&lt;/code>s and &lt;code>Shoot&lt;/code>s. Please see the &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/core/v1beta1/constants/types_constants.go">types_constants.go&lt;/a> file for the full list of extension labels.&lt;/p></description></item><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
-&lt;h1 id="gardener-admission-controller">Gardener Admission Controller&lt;/h1>
-&lt;p>While the Gardener API server works with &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/">admission plugins&lt;/a> to validate and mutate resources belonging to Gardener related API groups, e.g. &lt;code>core.gardener.cloud&lt;/code>, the same is needed for resources belonging to non-Gardener API groups as well, e.g. secrets in the &lt;code>core&lt;/code> API group.
-Therefore, the Gardener Admission Controller runs a http(s) server with the following handlers which serve as validating/mutating endpoints for &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a>.
-It is also used to serve http(s) handlers for authorization webhooks.&lt;/p>
-&lt;h2 id="admission-webhook-handlers">Admission Webhook Handlers&lt;/h2>
-&lt;p>This section describes the admission webhook handlers that are currently served.&lt;/p>
-&lt;h3 id="admission-plugin-secret-validator">Admission Plugin Secret Validator&lt;/h3>
-&lt;p>In &lt;code>Shoot&lt;/code>, &lt;code>AdmissionPlugin&lt;/code> can have reference to other files. This validation handler validates the referred admission plugin secret and ensures that the secret always contains the required data &lt;code>kubeconfig&lt;/code>.&lt;/p>
-&lt;h3 id="kubeconfig-secret-validator">Kubeconfig Secret Validator&lt;/h3>
-&lt;p>&lt;a href="https://github.com/kubernetes/kubectl/issues/697">Malicious Kubeconfigs&lt;/a> applied by end users may cause a leakage of sensitive data.
-This handler checks if the incoming request contains a Kubernetes secret with a &lt;code>.data.kubeconfig&lt;/code> field and denies the request if the Kubeconfig structure violates Gardener&amp;rsquo;s security standards.&lt;/p>
-&lt;h3 id="namespace-validator">Namespace Validator&lt;/h3>
-&lt;p>Namespaces are the backing entities of Gardener projects in which shoot cluster objects reside.
-This validation handler protects active namespaces against premature deletion requests.
-Therefore, it denies deletion requests if a namespace still contains shoot clusters or if it belongs to a non-deleting Gardener project (without &lt;code>.metadata.deletionTimestamp&lt;/code>).&lt;/p>
-&lt;h3 id="resource-size-validator">Resource Size Validator&lt;/h3>
-&lt;p>Since users directly apply Kubernetes native objects to the Garden cluster, it also involves the risk of being vulnerable to DoS attacks because these resources are continuously watched and read by controllers.
-One example is the creation of shoot resources with large annotation values (up to 256 kB per value), which can cause severe out-of-memory issues for the gardenlet component.
-&lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Vertical autoscaling&lt;/a> can help to mitigate such situations, but we cannot expect to scale infinitely, and thus need means to block the attack itself.&lt;/p>
-&lt;p>The Resource Size Validator checks arbitrary incoming admission requests against a configured maximum size for the resource&amp;rsquo;s group-version-kind combination. It denies the request if the object exceeds the quota.&lt;/p>
-&lt;p>Example for Gardener Admission Controller configuration:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>server:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceAdmissionConfiguration:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;core.gardener.cloud&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;shoots&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;v1&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;secrets&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> unrestrictedSubjects:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Group
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener.cloud:system:seeds
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: User&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: admin&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: rbac.authorization.k8s.io&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: ServiceAccount&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: &amp;#34;*&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># namespace: garden&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: &amp;#34;&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operationMode: block &lt;span style="color:#008000">#log&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>With the configuration above, the Resource Size Validator denies requests for shoots with Gardener&amp;rsquo;s core API group which exceed a size of 100 kB. The same is done for Kubernetes secrets.&lt;/p>
-&lt;p>As this feature is meant to protect the system from malicious requests sent by users, it is recommended to exclude trusted groups, users or service accounts from the size restriction via &lt;code>resourceAdmissionConfiguration.unrestrictedSubjects&lt;/code>.
-For example, the backing user for the gardenlet should always be capable of changing the shoot resource instead of being blocked due to size restrictions.
-This is because the gardenlet itself occasionally changes the shoot specification, labels or annotations, and might violate the quota if the existing resource is already close to the quota boundary.
-Also, operators are supposed to be trusted users and subjecting them to a size limitation can inhibit important operational tasks.
-Wildcard (&amp;quot;*&amp;quot;) in subject &lt;code>name&lt;/code> is supported.&lt;/p>
-&lt;p>Size limitations depend on the individual Gardener setup and choosing the wrong values can affect the availability of your Gardener service.
-&lt;code>resourceAdmissionConfiguration.operationMode&lt;/code> allows to control if a violating request is actually denied (default) or only logged.
-It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs for exceeding requests, adjust the limits if necessary and finally switch to &lt;code>block&lt;/code>.&lt;/p>
-&lt;h3 id="seedrestriction">SeedRestriction&lt;/h3>
-&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p>
-&lt;h2 id="authorization-webhook-handlers">Authorization Webhook Handlers&lt;/h2>
-&lt;p>This section describes the authorization webhook handlers that are currently served.&lt;/p>
-&lt;h3 id="seedauthorization">SeedAuthorization&lt;/h3>
-&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: Alerting</title><link>https://gardener.cloud/docs/gardener/monitoring/alerting/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/alerting/</guid><description>
+&lt;p>When a resource is newly created or updated, Gardener adds an extension label for all the extension types referenced in the &lt;code>spec&lt;/code> of the resource. This label is of the form &lt;code>&amp;lt;extension-type&amp;gt;.extensions.gardener.cloud/&amp;lt;extension-name&amp;gt; : &amp;quot;true&amp;quot;&lt;/code>. For example, an extension label for a provider extension type &lt;code>aws&lt;/code> looks like &lt;code>provider.extensions.gardener.cloud/aws : &amp;quot;true&amp;quot;&lt;/code>. The extensions should add object selectors in their admission webhooks for these labels, to filter out the objects they are responsible for. At present, these labels are added to &lt;code>BackupEntry&lt;/code>s, &lt;code>BackupBucket&lt;/code>s, &lt;code>CloudProfile&lt;/code>s, &lt;code>Seed&lt;/code>s, &lt;code>SecretBinding&lt;/code>s and &lt;code>Shoot&lt;/code>s. Please see the &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/core/v1beta1/constants/types_constants.go">types_constants.go&lt;/a> file for the full list of extension labels.&lt;/p></description></item><item><title>Docs: Alerting</title><link>https://gardener.cloud/docs/gardener/monitoring/alerting/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/alerting/</guid><description>
 &lt;h1 id="alerting">Alerting&lt;/h1>
 &lt;p>Gardener uses &lt;a href="https://prometheus.io/">Prometheus&lt;/a> to gather metrics from each component. A Prometheus is deployed in each shoot control plane (on the seed) which is responsible for gathering control plane and cluster metrics. Prometheus can be configured to fire alerts based on these metrics and send them to an &lt;a href="https://prometheus.io/docs/alerting/alertmanager/">Alertmanager&lt;/a>. The Alertmanager is responsible for sending the alerts to users and operators. This document describes how to setup alerting for:&lt;/p>
 &lt;ul>
@@ -4485,60 +4426,7 @@ It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs 
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/resources/">&lt;code>resources.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/seedmanagement/">&lt;code>seedmanagement.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/settings/">&lt;code>settings.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: API Server</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver/</guid><description>
-&lt;h1 id="gardener-api-server">Gardener API Server&lt;/h1>
-&lt;p>The Gardener API server is a Kubernetes-native extension based on its &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/apiserver-aggregation/">aggregation layer&lt;/a>.
-It is registered via an &lt;code>APIService&lt;/code> object and designed to run inside a Kubernetes cluster whose API it wants to extend.&lt;/p>
-&lt;p>After registration, it exposes the following resources:&lt;/p>
-&lt;h2 id="cloudprofiles">&lt;code>CloudProfile&lt;/code>s&lt;/h2>
-&lt;p>&lt;code>CloudProfile&lt;/code>s are resources that describe a specific environment of an underlying infrastructure provider, e.g. AWS, Azure, etc.
-Each shoot has to reference a &lt;code>CloudProfile&lt;/code> to declare the environment it should be created in.
-In a &lt;code>CloudProfile&lt;/code>, the gardener operator specifies certain constraints like available machine types, regions, which Kubernetes versions they want to offer, etc.
-End-users can read &lt;code>CloudProfile&lt;/code>s to see these values, but only operators can change the content or create/delete them.
-When a shoot is created or updated, then an admission plugin checks that only allowed values are used via the referenced &lt;code>CloudProfile&lt;/code>.&lt;/p>
-&lt;p>Additionally, a &lt;code>CloudProfile&lt;/code> may contain a &lt;code>providerConfig&lt;/code>, which is a special configuration dedicated for the infrastructure provider.
-Gardener does not evaluate or understand this config, but extension controllers might need it for declaration of provider-specific constraints, or global settings.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">this&lt;/a> example manifest and consult the documentation of your provider extension controller to get information about its &lt;code>providerConfig&lt;/code>.&lt;/p>
-&lt;h2 id="internalsecrets">&lt;code>InternalSecret&lt;/code>s&lt;/h2>
-&lt;p>End-users can read and/or write &lt;code>Secret&lt;/code>s in their project namespaces in the garden cluster. This prevents Gardener components from storing such &amp;ldquo;Gardener-internal&amp;rdquo; secrets in the respective project namespace.
-&lt;code>InternalSecret&lt;/code>s are resources that contain shoot or project-related secrets that are &amp;ldquo;Gardener-internal&amp;rdquo;, i.e., secrets used and managed by the system that end-users don&amp;rsquo;t have access to.
-&lt;code>InternalSecret&lt;/code>s are defined like plain Kubernetes &lt;code>Secret&lt;/code>s, behave exactly like them, and can be used in the same manners. The only difference is, that the &lt;code>InternalSecret&lt;/code> resource is a dedicated API resource (exposed by gardener-apiserver).
-This allows separating access to &amp;ldquo;normal&amp;rdquo; secrets and internal secrets by the usual RBAC means.&lt;/p>
-&lt;p>Gardener uses an &lt;code>InternalSecret&lt;/code> per Shoot for syncing the client CA to the project namespace in the garden cluster (named &lt;code>&amp;lt;shoot-name&amp;gt;.ca-client&lt;/code>). The &lt;a href="https://gardener.cloud/docs/gardener/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> signs short-lived client certificates by retrieving the CA from the &lt;code>InternalSecret&lt;/code>.&lt;/p>
-&lt;p>Operators should configure &lt;code>gardener-apiserver&lt;/code> to encrypt the &lt;code>internalsecrets.core.gardener.cloud&lt;/code> resource in etcd.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/11-internal-secret.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="seeds">&lt;code>Seed&lt;/code>s&lt;/h2>
-&lt;p>&lt;code>Seed&lt;/code>s are resources that represent seed clusters.
-Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.24 and passes the Kubernetes conformance tests.
-The Gardener operator has to either deploy the gardenlet into the cluster they want to use as seed (recommended, then the gardenlet will create the &lt;code>Seed&lt;/code> object itself after bootstrapping) or provide the kubeconfig to the cluster inside a secret (that is referenced by the &lt;code>Seed&lt;/code> resource) and create the &lt;code>Seed&lt;/code> resource themselves.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/45-secret-seed-backup.yaml">this&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">this&lt;/a>, and optionally &lt;a href="https://github.com/gardener/gardener/blob/master/example/40-secret-seed.yaml">this&lt;/a> example manifests.&lt;/p>
-&lt;h2 id="shoot-quotas">Shoot &lt;code>Quota&lt;/code>s&lt;/h2>
-&lt;p>To allow end-users not having their dedicated infrastructure account to try out Gardener, the operator can register an account owned by them that they allow to be used for trial clusters.
-Trial clusters can be put under quota so that they don&amp;rsquo;t consume too many resources (resulting in costs) and that one user cannot consume all resources on their own.
-These clusters are automatically terminated after a specified time, but end-users may extend the lifetime manually if needed.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/60-quota.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="projects">&lt;code>Project&lt;/code>s&lt;/h2>
-&lt;p>The first thing before creating a shoot cluster is to create a &lt;code>Project&lt;/code>.
-A project is used to group multiple shoot clusters together.
-End-users can invite colleagues to the project to enable collaboration, and they can either make them &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code>.
-After an end-user has created a project, they will get a dedicated namespace in the garden cluster for all their shoots.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/05-project-dev.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="secretbindings">&lt;code>SecretBinding&lt;/code>s&lt;/h2>
-&lt;p>Now that the end-user has a namespace the next step is registering their infrastructure provider account.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/70-secret-provider.yaml">this&lt;/a> example manifest and consult the documentation of the extension controller for the respective infrastructure provider to get information about which keys are required in this secret.&lt;/p>
-&lt;p>After the secret has been created, the end-user has to create a special &lt;code>SecretBinding&lt;/code> resource that binds this secret.
-Later, when creating shoot clusters, they will reference such binding.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/80-secretbinding.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="shoots">&lt;code>Shoot&lt;/code>s&lt;/h2>
-&lt;p>Shoot cluster contain various settings that influence how end-user Kubernetes clusters will look like in the end.
-As Gardener heavily relies on extension controllers for operating system configuration, networking, and infrastructure specifics, the end-user has the possibility (and responsibility) to provide these provider-specific configurations as well.
-Such configurations are not evaluated by Gardener (because it doesn&amp;rsquo;t know/understand them), but they are only transported to the respective extension controller.&lt;/p>
-&lt;p>⚠️ This means that any configuration issues/mistake on the end-user side that relates to a provider-specific flag or setting cannot be caught during the update request itself but only later during the reconciliation (unless a validator webhook has been registered in the garden cluster by an operator).&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">this&lt;/a> example manifest and consult the documentation of the provider extension controller to get information about its &lt;code>spec.provider.controlPlaneConfig&lt;/code>, &lt;code>.spec.provider.infrastructureConfig&lt;/code>, and &lt;code>.spec.provider.workers[].providerConfig&lt;/code>.&lt;/p>
-&lt;h2 id="clusteropenidconnectpresets">&lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s&lt;/h2>
-&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/openidconnect-presets/">this&lt;/a> separate documentation file.&lt;/p>
-&lt;h2 id="overview-data-model">Overview Data Model&lt;/h2>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-data-model-overview_05e809.png" alt="Gardener Overview Data Model">&lt;/p></description></item><item><title>Docs: Apis</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/documents/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/documents/apis/</guid><description>
+&lt;/ul></description></item><item><title>Docs: Apis</title><link>https://gardener.cloud/docs/other-components/machine-controller-manager/documents/apis/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/machine-controller-manager/documents/apis/</guid><description>
 &lt;h2 id="specification">Specification&lt;/h2>
 &lt;h3 id="providerspec-schema">ProviderSpec Schema&lt;/h3>
 &lt;br>
@@ -7184,7 +7072,7 @@ at any time during the update is atmost 130% of desired machines.&lt;/p>
 &lt;p>&lt;em>
 Generated with &lt;a href="https://github.com/ahmetb/gen-crd-api-reference-docs">gen-crd-api-reference-docs&lt;/a>
 &lt;/em>&lt;/p></description></item><item><title>Docs: APIServer Admission Plugins</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</guid><description>
-&lt;h1 id="admission-plugins">Admission Plugins&lt;/h1>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Similar to the kube-apiserver, the gardener-apiserver comes with a few in-tree managed admission plugins.
 If you want to get an overview of the what and why of admission plugins then &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/">this document&lt;/a> might be a good start.&lt;/p>
 &lt;p>This document lists all existing admission plugins with a short explanation of what it is responsible for.&lt;/p>
@@ -7956,7 +7844,7 @@ Microsoft.Storage/storageAccounts/listkeys/action
 Microsoft.Storage/storageAccounts/read
 Microsoft.Storage/storageAccounts/write
 &lt;/code>&lt;/pre></description></item><item><title>Docs: Backup and Restore</title><link>https://gardener.cloud/docs/gardener/concepts/backup-restore/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/backup-restore/</guid><description>
-&lt;h1 id="backup-and-restore">Backup and Restore&lt;/h1>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Kubernetes uses &lt;a href="https://etcd.io/">etcd&lt;/a> as the key-value store for its resource definitions. Gardener supports the backup and restore of etcd. It is the responsibility of the shoot owners to backup the workload data.&lt;/p>
 &lt;p>Gardener uses an &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> component to backup the etcd backing the Shoot cluster regularly and restore it in case of disaster. It is deployed as sidecar via &lt;a href="https://github.com/gardener/etcd-druid">etcd-druid&lt;/a>. This doc mainly focuses on the backup and restore configuration used by Gardener when deploying these components. For more details on the design and internal implementation details, please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/06-etcd-druid.md">GEP-06&lt;/a> and the documentation on individual repositories.&lt;/p>
 &lt;h2 id="bucket-provisioning">Bucket Provisioning&lt;/h2>
@@ -8070,4 +7958,110 @@ Now, Gardener commissions an external, provider-specific controller to take over
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">&lt;code>BackupBucket&lt;/code> Resource Documentation&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/02-backupinfra.md">Shared Bucket Proposal&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/controllermanager/apis/config/types.go#L101-%23L107">Gardener-controller-manager-component-config API Specification&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Bastion</title><link>https://gardener.cloud/docs/gardener/extensions/bastion/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/bastion/</guid><description>
+&lt;h1 id="contract-bastion-resource">Contract: &lt;code>Bastion&lt;/code> Resource&lt;/h1>
+&lt;p>The Gardener project allows users to connect to Shoot worker nodes via SSH. As nodes are usually firewalled and not directly accessible from the public internet, &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/15-manage-bastions-and-ssh-key-pair-rotation.md">GEP-15&lt;/a> introduced the concept of &amp;ldquo;Bastions&amp;rdquo;. A bastion is a dedicated server that only serves to allow SSH ingress to the worker nodes.&lt;/p>
+&lt;p>&lt;code>Bastion&lt;/code> resources contain the user&amp;rsquo;s public SSH key and IP address, in order to provision the server accordingly: The public key is put onto the Bastion and SSH ingress is only authorized for the given IP address (in fact, it&amp;rsquo;s not a single IP address, but a set of IP ranges, however for most purposes a single IP is be used).&lt;/p>
+&lt;h2 id="what-is-the-lifespan-of-a-bastion">What Is the Lifespan of a &lt;code>Bastion&lt;/code>?&lt;/h2>
+&lt;p>Once a &lt;code>Bastion&lt;/code> has been created in the garden, it will be replicated to the appropriate seed cluster, where a controller then reconciles a server and firewall rules etc., on the cloud provider used by the target Shoot. When the Bastion is ready (i.e. has a public IP), that IP is stored in the &lt;code>Bastion&lt;/code>&amp;rsquo;s status and from there it is picked up by the garden cluster and &lt;code>gardenctl&lt;/code> eventually.&lt;/p>
+&lt;p>To make multiple SSH sessions possible, the existence of the &lt;code>Bastion&lt;/code> is not directly tied to the execution of &lt;code>gardenctl&lt;/code>: users can exit out of &lt;code>gardenctl&lt;/code> and use &lt;code>ssh&lt;/code> manually to connect to the bastion and worker nodes.&lt;/p>
+&lt;p>However, &lt;code>Bastion&lt;/code>s have an expiry date, after which they will be garbage collected.&lt;/p>
+&lt;p>When SSH access is set to &lt;code>false&lt;/code> for the &lt;code>Shoot&lt;/code> in the workers settings (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_workers_settings/">Shoot Worker Nodes Settings&lt;/a>), &lt;code>Bastion&lt;/code> resources are deleted during &lt;code>Shoot&lt;/code> reconciliation and new &lt;code>Bastion&lt;/code>s are prevented from being created.&lt;/p>
+&lt;h2 id="what-needs-to-be-implemented-to-support-a-new-infrastructure-provider">What Needs to Be Implemented to Support a New Infrastructure Provider?&lt;/h2>
+&lt;p>As part of the shoot flow, Gardener will create a special CRD in the seed cluster that needs to be reconciled by an extension controller, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Bastion
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: mybastion
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># userData is base64-encoded cloud provider user data; this contains the&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># user&amp;#39;s SSH key&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> userData: IyEvYmluL2Jhc2ggL....Nlcgo=
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ipBlock:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cidr: 192.88.99.0/32 &lt;span style="color:#008000"># this is most likely the user&amp;#39;s IP address&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Your controller is supposed to create a new instance at the given cloud provider, firewall it to only allow SSH (TCP port 22) from the given IP blocks, and then configure the firewall for the worker nodes to allow SSH from the bastion instance. When a &lt;code>Bastion&lt;/code> is deleted, all these changes need to be reverted.&lt;/p>
+&lt;h2 id="implementation-details">Implementation Details&lt;/h2>
+&lt;h3 id="configvalidator-interface">&lt;code>ConfigValidator&lt;/code> Interface&lt;/h3>
+&lt;p>For bastion controllers, the generic &lt;code>Reconciler&lt;/code> also delegates to a &lt;a href="https://github.com/gardener/gardener/blob/master/extensions/pkg/controller/bastion/configvalidator.go">&lt;code>ConfigValidator&lt;/code> interface&lt;/a> that contains a single &lt;code>Validate&lt;/code> method. This method is called by the generic &lt;code>Reconciler&lt;/code> at the beginning of every reconciliation, and can be implemented by the extension to validate the &lt;code>.spec.providerConfig&lt;/code> part of the &lt;code>Bastion&lt;/code> resource with the respective cloud provider, typically the existence and validity of cloud provider resources such as VPCs, images, etc.&lt;/p>
+&lt;p>The &lt;code>Validate&lt;/code> method returns a list of errors. If this list is non-empty, the generic &lt;code>Reconciler&lt;/code> will fail with an error. This error will have the error code &lt;code>ERR_CONFIGURATION_PROBLEM&lt;/code>, unless there is at least one error in the list that has its &lt;code>ErrorType&lt;/code> field set to &lt;code>field.ErrorTypeInternal&lt;/code>.&lt;/p>
+&lt;h2 id="references-and-additional-resources">References and Additional Resources&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/extensions/#bastion">&lt;code>Bastion&lt;/code> API Reference&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/bastion">Exemplary Implementation for the AWS Provider&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/15-manage-bastions-and-ssh-key-pair-rotation.md">GEP-15&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: CA Rotation</title><link>https://gardener.cloud/docs/gardener/extensions/ca-rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/ca-rotation/</guid><description>
+&lt;h1 id="ca-rotation-in-extensions">CA Rotation in Extensions&lt;/h1>
+&lt;p>&lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/18-shoot-CA-rotation.md">GEP-18&lt;/a> proposes adding support for automated rotation of Shoot cluster certificate authorities (CAs).
+This document outlines all the requirements that Gardener extensions need to fulfill in order to support the CA rotation feature.&lt;/p>
+&lt;h2 id="requirements-for-shoot-cluster-ca-rotation">Requirements for Shoot Cluster CA Rotation&lt;/h2>
+&lt;ul>
+&lt;li>Extensions must not rely on static CA &lt;code>Secret&lt;/code> names managed by the gardenlet, because their names are changing during CA rotation.&lt;/li>
+&lt;li>Extensions cannot issue or use client certificates for authenticating against shoot API servers. Instead, they should use short-lived auto-rotated &lt;code>ServiceAccount&lt;/code> tokens via gardener-resource-manager&amp;rsquo;s &lt;code>TokenRequestor&lt;/code>. Also see &lt;a href="https://gardener.cloud/docs/gardener/extensions/conventions/">Conventions&lt;/a> and &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor">&lt;code>TokenRequestor&lt;/code>&lt;/a> documents.&lt;/li>
+&lt;li>Extensions need to generate dedicated CAs for signing server certificates (e.g. &lt;code>cloud-controller-manager&lt;/code>). There should be one CA per controller and purpose in order to bind the lifecycle to the reconciliation cycle of the respective object for which it is created.&lt;/li>
+&lt;li>CAs managed by extensions should be rotated in lock-step with the shoot cluster CA.
+When the user triggers a rotation, the gardenlet writes phase and initiation time to &lt;code>Shoot.status.credentials.rotation.certificateAuthorities.{phase,lastInitiationTime}&lt;/code>. See &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/18-shoot-CA-rotation.md#rotation-sequence-for-cluster-and-client-ca">GEP-18&lt;/a> for a detailed description on what needs to happen in each phase.
+Extensions can retrieve this information from &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster.shoot.status&lt;/code>&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;h2 id="utilities-for-secrets-management">Utilities for Secrets Management&lt;/h2>
+&lt;p>In order to fulfill the requirements listed above, extension controllers can reuse the &lt;a href="https://gardener.cloud/docs/gardener/secrets_management/">&lt;code>SecretsManager&lt;/code>&lt;/a> that the gardenlet uses to manage all shoot cluster CAs, certificates, and other secrets as well.
+It implements the core logic for managing secrets that need to be rotated, auto-renewed, etc.&lt;/p>
+&lt;p>Additionally, there are utilities for reusing &lt;code>SecretsManager&lt;/code> in extension controllers.
+They already implement the above requirements based on the &lt;code>Cluster&lt;/code> resource and allow focusing on the extension controllers&amp;rsquo; business logic.&lt;/p>
+&lt;p>For example, a simple &lt;code>SecretsManager&lt;/code> usage in an extension controller could look like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">const&lt;/span> (
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// identity for SecretsManager instance in ControlPlane controller
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> identity = &lt;span style="color:#a31515">&amp;#34;provider-foo-controlplane&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// secret config name of the dedicated CA
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> caControlPlaneName = &lt;span style="color:#a31515">&amp;#34;ca-provider-foo-controlplane&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">func&lt;/span> Reconcile() {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">var&lt;/span> (
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cluster *extensionscontroller.Cluster
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> client client.Client
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// define wanted secrets with options
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> secretConfigs = []extensionssecretsmanager.SecretConfigWithOptions{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// dedicated CA for ControlPlane controller
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Config: &amp;amp;secretutils.CertificateSecretConfig{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name: caControlPlaneName,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CommonName: &lt;span style="color:#a31515">&amp;#34;ca-provider-foo-controlplane&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CertType: secretutils.CACert,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// persist CA so that it gets restored on control plane migration
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Options: []secretsmanager.GenerateOption{secretsmanager.Persist()},
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// server cert for control plane component
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Config: &amp;amp;secretutils.CertificateSecretConfig{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Name: &lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CommonName: &lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> DNSNames: kutil.DNSNamesForService(&lt;span style="color:#a31515">&amp;#34;cloud-controller-manager&amp;#34;&lt;/span>, namespace),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CertType: secretutils.ServerCert,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// sign with our dedicated CA
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Options: []secretsmanager.GenerateOption{secretsmanager.SignedByCA(caControlPlaneName)},
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// initialize SecretsManager based on Cluster object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> sm, err := extensionssecretsmanager.SecretsManagerForCluster(ctx, logger.WithName(&lt;span style="color:#a31515">&amp;#34;secretsmanager&amp;#34;&lt;/span>), clock.RealClock{}, client, cluster, identity, secretConfigs)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// generate all wanted secrets (first CAs, then the rest)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> secrets, err := extensionssecretsmanager.GenerateAllSecrets(ctx, sm, secretConfigs)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000">// cleanup any secrets that are not needed any more (e.g. after rotation)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> err = sm.Cleanup(ctx)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please pay attention to the following points:&lt;/p>
+&lt;ul>
+&lt;li>There should be one &lt;code>SecretsManager&lt;/code> identity per controller (and purpose if applicable) in order to prevent conflicts between different instances.
+E.g., there should be different identities for &lt;code>Infrastructrue&lt;/code>, &lt;code>Worker&lt;/code> controller, etc., and the &lt;code>ControlPlane&lt;/code> controller should use dedicated &lt;code>SecretsManager&lt;/code> identities per purpose (e.g. &lt;code>provider-foo-controlplane&lt;/code> and &lt;code>provider-foo-controlplane-exposure&lt;/code>).&lt;/li>
+&lt;li>All other points in &lt;a href="https://gardener.cloud/docs/gardener/secrets_management/#reusing-the-secretsmanager-in-other-components">Reusing the SecretsManager in Other Components&lt;/a>.&lt;/li>
 &lt;/ul></description></item></channel></rss>

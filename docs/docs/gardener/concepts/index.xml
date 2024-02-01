@@ -1,117 +1,5 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Concepts</title><link>https://gardener.cloud/docs/gardener/concepts/</link><description>Recent content in Concepts on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/concepts/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
-&lt;h1 id="gardener-admission-controller">Gardener Admission Controller&lt;/h1>
-&lt;p>While the Gardener API server works with &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/">admission plugins&lt;/a> to validate and mutate resources belonging to Gardener related API groups, e.g. &lt;code>core.gardener.cloud&lt;/code>, the same is needed for resources belonging to non-Gardener API groups as well, e.g. secrets in the &lt;code>core&lt;/code> API group.
-Therefore, the Gardener Admission Controller runs a http(s) server with the following handlers which serve as validating/mutating endpoints for &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a>.
-It is also used to serve http(s) handlers for authorization webhooks.&lt;/p>
-&lt;h2 id="admission-webhook-handlers">Admission Webhook Handlers&lt;/h2>
-&lt;p>This section describes the admission webhook handlers that are currently served.&lt;/p>
-&lt;h3 id="admission-plugin-secret-validator">Admission Plugin Secret Validator&lt;/h3>
-&lt;p>In &lt;code>Shoot&lt;/code>, &lt;code>AdmissionPlugin&lt;/code> can have reference to other files. This validation handler validates the referred admission plugin secret and ensures that the secret always contains the required data &lt;code>kubeconfig&lt;/code>.&lt;/p>
-&lt;h3 id="kubeconfig-secret-validator">Kubeconfig Secret Validator&lt;/h3>
-&lt;p>&lt;a href="https://github.com/kubernetes/kubectl/issues/697">Malicious Kubeconfigs&lt;/a> applied by end users may cause a leakage of sensitive data.
-This handler checks if the incoming request contains a Kubernetes secret with a &lt;code>.data.kubeconfig&lt;/code> field and denies the request if the Kubeconfig structure violates Gardener&amp;rsquo;s security standards.&lt;/p>
-&lt;h3 id="namespace-validator">Namespace Validator&lt;/h3>
-&lt;p>Namespaces are the backing entities of Gardener projects in which shoot cluster objects reside.
-This validation handler protects active namespaces against premature deletion requests.
-Therefore, it denies deletion requests if a namespace still contains shoot clusters or if it belongs to a non-deleting Gardener project (without &lt;code>.metadata.deletionTimestamp&lt;/code>).&lt;/p>
-&lt;h3 id="resource-size-validator">Resource Size Validator&lt;/h3>
-&lt;p>Since users directly apply Kubernetes native objects to the Garden cluster, it also involves the risk of being vulnerable to DoS attacks because these resources are continuously watched and read by controllers.
-One example is the creation of shoot resources with large annotation values (up to 256 kB per value), which can cause severe out-of-memory issues for the gardenlet component.
-&lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Vertical autoscaling&lt;/a> can help to mitigate such situations, but we cannot expect to scale infinitely, and thus need means to block the attack itself.&lt;/p>
-&lt;p>The Resource Size Validator checks arbitrary incoming admission requests against a configured maximum size for the resource&amp;rsquo;s group-version-kind combination. It denies the request if the object exceeds the quota.&lt;/p>
-&lt;p>Example for Gardener Admission Controller configuration:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>server:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceAdmissionConfiguration:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;core.gardener.cloud&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;shoots&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;v1&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;secrets&amp;#34;&lt;/span>]
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> unrestrictedSubjects:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Group
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener.cloud:system:seeds
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: User&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: admin&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: rbac.authorization.k8s.io&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: ServiceAccount&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: &amp;#34;*&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># namespace: garden&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: &amp;#34;&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operationMode: block &lt;span style="color:#008000">#log&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>With the configuration above, the Resource Size Validator denies requests for shoots with Gardener&amp;rsquo;s core API group which exceed a size of 100 kB. The same is done for Kubernetes secrets.&lt;/p>
-&lt;p>As this feature is meant to protect the system from malicious requests sent by users, it is recommended to exclude trusted groups, users or service accounts from the size restriction via &lt;code>resourceAdmissionConfiguration.unrestrictedSubjects&lt;/code>.
-For example, the backing user for the gardenlet should always be capable of changing the shoot resource instead of being blocked due to size restrictions.
-This is because the gardenlet itself occasionally changes the shoot specification, labels or annotations, and might violate the quota if the existing resource is already close to the quota boundary.
-Also, operators are supposed to be trusted users and subjecting them to a size limitation can inhibit important operational tasks.
-Wildcard (&amp;quot;*&amp;quot;) in subject &lt;code>name&lt;/code> is supported.&lt;/p>
-&lt;p>Size limitations depend on the individual Gardener setup and choosing the wrong values can affect the availability of your Gardener service.
-&lt;code>resourceAdmissionConfiguration.operationMode&lt;/code> allows to control if a violating request is actually denied (default) or only logged.
-It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs for exceeding requests, adjust the limits if necessary and finally switch to &lt;code>block&lt;/code>.&lt;/p>
-&lt;h3 id="seedrestriction">SeedRestriction&lt;/h3>
-&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p>
-&lt;h2 id="authorization-webhook-handlers">Authorization Webhook Handlers&lt;/h2>
-&lt;p>This section describes the authorization webhook handlers that are currently served.&lt;/p>
-&lt;h3 id="seedauthorization">SeedAuthorization&lt;/h3>
-&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: API Server</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver/</guid><description>
-&lt;h1 id="gardener-api-server">Gardener API Server&lt;/h1>
-&lt;p>The Gardener API server is a Kubernetes-native extension based on its &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/apiserver-aggregation/">aggregation layer&lt;/a>.
-It is registered via an &lt;code>APIService&lt;/code> object and designed to run inside a Kubernetes cluster whose API it wants to extend.&lt;/p>
-&lt;p>After registration, it exposes the following resources:&lt;/p>
-&lt;h2 id="cloudprofiles">&lt;code>CloudProfile&lt;/code>s&lt;/h2>
-&lt;p>&lt;code>CloudProfile&lt;/code>s are resources that describe a specific environment of an underlying infrastructure provider, e.g. AWS, Azure, etc.
-Each shoot has to reference a &lt;code>CloudProfile&lt;/code> to declare the environment it should be created in.
-In a &lt;code>CloudProfile&lt;/code>, the gardener operator specifies certain constraints like available machine types, regions, which Kubernetes versions they want to offer, etc.
-End-users can read &lt;code>CloudProfile&lt;/code>s to see these values, but only operators can change the content or create/delete them.
-When a shoot is created or updated, then an admission plugin checks that only allowed values are used via the referenced &lt;code>CloudProfile&lt;/code>.&lt;/p>
-&lt;p>Additionally, a &lt;code>CloudProfile&lt;/code> may contain a &lt;code>providerConfig&lt;/code>, which is a special configuration dedicated for the infrastructure provider.
-Gardener does not evaluate or understand this config, but extension controllers might need it for declaration of provider-specific constraints, or global settings.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">this&lt;/a> example manifest and consult the documentation of your provider extension controller to get information about its &lt;code>providerConfig&lt;/code>.&lt;/p>
-&lt;h2 id="internalsecrets">&lt;code>InternalSecret&lt;/code>s&lt;/h2>
-&lt;p>End-users can read and/or write &lt;code>Secret&lt;/code>s in their project namespaces in the garden cluster. This prevents Gardener components from storing such &amp;ldquo;Gardener-internal&amp;rdquo; secrets in the respective project namespace.
-&lt;code>InternalSecret&lt;/code>s are resources that contain shoot or project-related secrets that are &amp;ldquo;Gardener-internal&amp;rdquo;, i.e., secrets used and managed by the system that end-users don&amp;rsquo;t have access to.
-&lt;code>InternalSecret&lt;/code>s are defined like plain Kubernetes &lt;code>Secret&lt;/code>s, behave exactly like them, and can be used in the same manners. The only difference is, that the &lt;code>InternalSecret&lt;/code> resource is a dedicated API resource (exposed by gardener-apiserver).
-This allows separating access to &amp;ldquo;normal&amp;rdquo; secrets and internal secrets by the usual RBAC means.&lt;/p>
-&lt;p>Gardener uses an &lt;code>InternalSecret&lt;/code> per Shoot for syncing the client CA to the project namespace in the garden cluster (named &lt;code>&amp;lt;shoot-name&amp;gt;.ca-client&lt;/code>). The &lt;a href="https://gardener.cloud/docs/gardener/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> signs short-lived client certificates by retrieving the CA from the &lt;code>InternalSecret&lt;/code>.&lt;/p>
-&lt;p>Operators should configure &lt;code>gardener-apiserver&lt;/code> to encrypt the &lt;code>internalsecrets.core.gardener.cloud&lt;/code> resource in etcd.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/11-internal-secret.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="seeds">&lt;code>Seed&lt;/code>s&lt;/h2>
-&lt;p>&lt;code>Seed&lt;/code>s are resources that represent seed clusters.
-Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.24 and passes the Kubernetes conformance tests.
-The Gardener operator has to either deploy the gardenlet into the cluster they want to use as seed (recommended, then the gardenlet will create the &lt;code>Seed&lt;/code> object itself after bootstrapping) or provide the kubeconfig to the cluster inside a secret (that is referenced by the &lt;code>Seed&lt;/code> resource) and create the &lt;code>Seed&lt;/code> resource themselves.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/45-secret-seed-backup.yaml">this&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">this&lt;/a>, and optionally &lt;a href="https://github.com/gardener/gardener/blob/master/example/40-secret-seed.yaml">this&lt;/a> example manifests.&lt;/p>
-&lt;h2 id="shoot-quotas">Shoot &lt;code>Quota&lt;/code>s&lt;/h2>
-&lt;p>To allow end-users not having their dedicated infrastructure account to try out Gardener, the operator can register an account owned by them that they allow to be used for trial clusters.
-Trial clusters can be put under quota so that they don&amp;rsquo;t consume too many resources (resulting in costs) and that one user cannot consume all resources on their own.
-These clusters are automatically terminated after a specified time, but end-users may extend the lifetime manually if needed.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/60-quota.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="projects">&lt;code>Project&lt;/code>s&lt;/h2>
-&lt;p>The first thing before creating a shoot cluster is to create a &lt;code>Project&lt;/code>.
-A project is used to group multiple shoot clusters together.
-End-users can invite colleagues to the project to enable collaboration, and they can either make them &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code>.
-After an end-user has created a project, they will get a dedicated namespace in the garden cluster for all their shoots.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/05-project-dev.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="secretbindings">&lt;code>SecretBinding&lt;/code>s&lt;/h2>
-&lt;p>Now that the end-user has a namespace the next step is registering their infrastructure provider account.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/70-secret-provider.yaml">this&lt;/a> example manifest and consult the documentation of the extension controller for the respective infrastructure provider to get information about which keys are required in this secret.&lt;/p>
-&lt;p>After the secret has been created, the end-user has to create a special &lt;code>SecretBinding&lt;/code> resource that binds this secret.
-Later, when creating shoot clusters, they will reference such binding.&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/80-secretbinding.yaml">this&lt;/a> example manifest.&lt;/p>
-&lt;h2 id="shoots">&lt;code>Shoot&lt;/code>s&lt;/h2>
-&lt;p>Shoot cluster contain various settings that influence how end-user Kubernetes clusters will look like in the end.
-As Gardener heavily relies on extension controllers for operating system configuration, networking, and infrastructure specifics, the end-user has the possibility (and responsibility) to provide these provider-specific configurations as well.
-Such configurations are not evaluated by Gardener (because it doesn&amp;rsquo;t know/understand them), but they are only transported to the respective extension controller.&lt;/p>
-&lt;p>⚠️ This means that any configuration issues/mistake on the end-user side that relates to a provider-specific flag or setting cannot be caught during the update request itself but only later during the reconciliation (unless a validator webhook has been registered in the garden cluster by an operator).&lt;/p>
-&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">this&lt;/a> example manifest and consult the documentation of the provider extension controller to get information about its &lt;code>spec.provider.controlPlaneConfig&lt;/code>, &lt;code>.spec.provider.infrastructureConfig&lt;/code>, and &lt;code>.spec.provider.workers[].providerConfig&lt;/code>.&lt;/p>
-&lt;h2 id="clusteropenidconnectpresets">&lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s&lt;/h2>
-&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/openidconnect-presets/">this&lt;/a> separate documentation file.&lt;/p>
-&lt;h2 id="overview-data-model">Overview Data Model&lt;/h2>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-data-model-overview_05e809.png" alt="Gardener Overview Data Model">&lt;/p></description></item><item><title>Docs: APIServer Admission Plugins</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</guid><description>
-&lt;h1 id="admission-plugins">Admission Plugins&lt;/h1>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Concepts</title><link>https://gardener.cloud/docs/gardener/concepts/</link><description>Recent content in Concepts on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/concepts/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: APIServer Admission Plugins</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Similar to the kube-apiserver, the gardener-apiserver comes with a few in-tree managed admission plugins.
 If you want to get an overview of the what and why of admission plugins then &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/">this document&lt;/a> might be a good start.&lt;/p>
 &lt;p>This document lists all existing admission plugins with a short explanation of what it is responsible for.&lt;/p>
@@ -252,7 +140,7 @@ Already existing &lt;code>Shoot&lt;/code>s will not be affected by this admissio
 &lt;h2 id="detailed-architecture-diagram">Detailed Architecture Diagram&lt;/h2>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-architecture-detailed_8da60e.png" alt="Gardener Detailed Architecture Diagram">&lt;/p>
 &lt;p>Note: The &lt;code>kubelet&lt;/code>, as well as the pods inside the &amp;ldquo;shoot&amp;rdquo; cluster, talks through the front-door (load balancer IP; public Internet) to its &amp;ldquo;shoot&amp;rdquo; cluster API server running in the &amp;ldquo;seed&amp;rdquo; cluster. The reverse communication from the API server to the pod, service, and node networks happens through a VPN connection that we deploy into the &amp;ldquo;seed&amp;rdquo; and &amp;ldquo;shoot&amp;rdquo; clusters.&lt;/p></description></item><item><title>Docs: Backup and Restore</title><link>https://gardener.cloud/docs/gardener/concepts/backup-restore/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/backup-restore/</guid><description>
-&lt;h1 id="backup-and-restore">Backup and Restore&lt;/h1>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Kubernetes uses &lt;a href="https://etcd.io/">etcd&lt;/a> as the key-value store for its resource definitions. Gardener supports the backup and restore of etcd. It is the responsibility of the shoot owners to backup the workload data.&lt;/p>
 &lt;p>Gardener uses an &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> component to backup the etcd backing the Shoot cluster regularly and restore it in case of disaster. It is deployed as sidecar via &lt;a href="https://github.com/gardener/etcd-druid">etcd-druid&lt;/a>. This doc mainly focuses on the backup and restore configuration used by Gardener when deploying these components. For more details on the design and internal implementation details, please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/06-etcd-druid.md">GEP-06&lt;/a> and the documentation on individual repositories.&lt;/p>
 &lt;h2 id="bucket-provisioning">Bucket Provisioning&lt;/h2>
@@ -296,13 +184,171 @@ Already existing &lt;code>Shoot&lt;/code>s will not be affected by this admissio
 &lt;h2 id="restoration">Restoration&lt;/h2>
 &lt;p>The restoration process of etcd is automated through the etcd-backup-restore component from the latest snapshot. Gardener doesn&amp;rsquo;t support Point-In-Time-Recovery (PITR) of etcd. In case of an etcd disaster, the etcd is recovered from the latest backup automatically. For further details, please refer the &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/proposals/restoration.md">Restoration&lt;/a> topic. Post restoration of etcd, the Shoot reconciliation loop brings the cluster back to its previous state.&lt;/p>
 &lt;p>Again, the Shoot owner is responsible for maintaining the backup/restore of his workload. Gardener only takes care of the cluster&amp;rsquo;s etcd.&lt;/p></description></item><item><title>Docs: Cluster API</title><link>https://gardener.cloud/docs/gardener/concepts/cluster-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/cluster-api/</guid><description>
-&lt;h1 id="relation-between-gardener-api-and-cluster-api-sig-cluster-lifecycle">Relation Between Gardener API and Cluster API (SIG Cluster Lifecycle)&lt;/h1>
+&lt;h2 id="relation-between-gardener-api-and-cluster-api-sig-cluster-lifecycle">Relation Between Gardener API and Cluster API (SIG Cluster Lifecycle)&lt;/h2>
 &lt;p>In essence, the Cluster API harmonizes how to get to clusters, while Gardener goes one step further and also harmonizes the clusters themselves. The Cluster API delegates the specifics to so-called providers for infrastructures or control planes via specific CR(D)s, while Gardener only has one cluster CR(D). Different Cluster API providers, e.g. for AWS, Azure, GCP, etc., give you vastly different Kubernetes clusters. In contrast, Gardener gives you the exact same clusters with the exact same K8s version, operating system, control plane configuration like for API server or kubelet, add-ons like overlay network, HPA/VPA, DNS and certificate controllers, ingress and network policy controllers, control plane monitoring and logging stacks, down to the behavior of update procedures, auto-scaling, self-healing, etc., on all supported infrastructures. These homogeneous clusters are an essential goal for Gardener, as its main purpose is to simplify operations for teams that need to develop and ship software on Kubernetes clusters on a plethora of infrastructures (a.k.a. multi-cloud).&lt;/p>
 &lt;p>Incidentally, Gardener influenced the Machine API in the Cluster API with its &lt;a href="https://github.com/gardener/machine-controller-manager">Machine Controller Manager&lt;/a> and was the &lt;a href="https://github.com/kubernetes-sigs/cluster-api/commit/00b1ead264aea6f88585559056c180771cce3815">first to adopt it&lt;/a>. You can find more information on that in the &lt;a href="https://www.youtube.com/watch?v=Mtg8jygK3Hs">joint SIG Cluster Lifecycle KubeCon talk&lt;/a> where @hardikdr from our Gardener team in India spoke.&lt;/p>
 &lt;p>That means that we follow the &lt;a href="https://github.com/kubernetes-sigs/cluster-api#cluster-api">Cluster API&lt;/a> with great interest and are active members. It was completely overhauled from &lt;code>v1alpha1&lt;/code> to &lt;code>v1alpha2&lt;/code>. But because &lt;code>v1alpha2&lt;/code> made too many assumptions about the bring-up of masters and was enforcing master machine operations (for more information, see &lt;a href="https://cluster-api.sigs.k8s.io/user/concepts.html#control-plane">The Cluster API Book&lt;/a>: “As of &lt;code>v1alpha2&lt;/code>, Machine-Based is the only control plane type that Cluster API supports”), services that managed their control planes differently like GKE or Gardener couldn&amp;rsquo;t adopt it (e.g. &lt;a href="https://cloud.google.com/anthos/gke/docs/on-prem/concepts/cluster-api">Google only supports &lt;code>v1alpha1&lt;/code>&lt;/a>). In 2020 &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience/">&lt;code>v1alpha3&lt;/code>&lt;/a> was introduced and made it possible (again) to integrate managed services like GKE or Gardener. The mapping from the Gardener API to the Cluster API is mostly syntactic.&lt;/p>
 &lt;p>To wrap it up, while the Cluster API knows about clusters, it doesn&amp;rsquo;t know about their make-up. With Gardener, we wanted to go beyond that and harmonize the make-up of the clusters themselves and make them homogeneous across all supported infrastructures. Gardener can therefore deliver homogeneous clusters with exactly the same configuration and behavior on all infrastructures (see also &lt;a href="https://testgrid.k8s.io/conformance-gardener">Gardener&amp;rsquo;s coverage in the official conformance test grid&lt;/a>).&lt;/p>
-&lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it has became possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy if the community would be interested to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
-&lt;h1 id="gardener-controller-manager">Gardener Controller Manager&lt;/h1>
+&lt;p>With &lt;a href="https://kubernetes.io/blog/2020/04/21/cluster-api-v1alpha3-delivers-new-features-and-an-improved-user-experience">Cluster API &lt;code>v1alpha3&lt;/code>&lt;/a> and the support for declarative control plane management, it has became possible (again) to enable Kubernetes managed services like GKE or Gardener. We would be more than happy if the community would be interested to contribute a Gardener control plane provider.&lt;/p></description></item><item><title>Docs: etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
+&lt;h2 id="etcd---key-value-store-for-kubernetes">etcd - Key-Value Store for Kubernetes&lt;/h2>
+&lt;p>&lt;a href="https://etcd.io/">etcd&lt;/a> is a strongly consistent key-value store and the most prevalent choice for the Kubernetes
+persistence layer. All API cluster objects like &lt;code>Pod&lt;/code>s, &lt;code>Deployment&lt;/code>s, &lt;code>Secret&lt;/code>s, etc., are stored in &lt;code>etcd&lt;/code>, which
+makes it an essential part of a &lt;a href="https://kubernetes.io/docs/concepts/overview/components/#control-plane-components">Kubernetes control plane&lt;/a>.&lt;/p>
+&lt;h2 id="garden-or-shoot-cluster-persistence">Garden or Shoot Cluster Persistence&lt;/h2>
+&lt;p>Each garden or shoot cluster gets its very own persistence for the control plane.
+It runs in the shoot namespace on the respective seed cluster (or in the &lt;code>garden&lt;/code> namespace in the garden cluster, respectively).
+Concretely, there are two etcd instances per shoot cluster, which the &lt;code>kube-apiserver&lt;/code> is configured to use in the following way:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>etcd-main&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>A store that contains all &amp;ldquo;cluster critical&amp;rdquo; or &amp;ldquo;long-term&amp;rdquo; objects.
+These object kinds are typically considered for a backup to prevent any data loss.&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>etcd-events&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>A store that contains all &lt;code>Event&lt;/code> objects (&lt;code>events.k8s.io&lt;/code>) of a cluster.
+&lt;code>Events&lt;/code> usually have a short retention period and occur frequently, but are not essential for a disaster recovery.&lt;/p>
+&lt;p>The setup above prevents both, the critical &lt;code>etcd-main&lt;/code> is not flooded by Kubernetes &lt;code>Events&lt;/code>, as well as backup space is not occupied by non-critical data.
+This separation saves time and resources.&lt;/p>
+&lt;h2 id="etcd-operator">etcd Operator&lt;/h2>
+&lt;p>Configuring, maintaining, and health-checking etcd is outsourced to a dedicated operator called &lt;a href="https://github.com/gardener/etcd-druid/">etcd Druid&lt;/a>.
+When a &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">&lt;code>gardenlet&lt;/code>&lt;/a> reconciles a &lt;code>Shoot&lt;/code> resource or a &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/">&lt;code>gardener-operator&lt;/code>&lt;/a> reconciles a &lt;code>Garden&lt;/code> resource, they manage an &lt;a href="https://github.com/gardener/etcd-druid/blob/1d427e9167adac1476d1847c0e265c2c09d6bc62/config/samples/druid_v1alpha1_etcd.yaml">&lt;code>Etcd&lt;/code>&lt;/a> resource in the seed or garden cluster, containing necessary information (backup information, defragmentation schedule, resources, etc.).
+&lt;code>etcd-druid&lt;/code> needs to manage the lifecycle of the desired etcd instance (today &lt;code>main&lt;/code> or &lt;code>events&lt;/code>).
+Likewise, when the &lt;code>Shoot&lt;/code> or &lt;code>Garden&lt;/code> is deleted, &lt;code>gardenlet&lt;/code> or &lt;code>gardener-operator&lt;/code> deletes the &lt;code>Etcd&lt;/code> resources and &lt;a href="https://github.com/gardener/etcd-druid/">etcd Druid&lt;/a> takes care of cleaning up all related objects, e.g. the backing &lt;code>StatefulSet&lt;/code>s.&lt;/p>
+&lt;h2 id="autoscaling">Autoscaling&lt;/h2>
+&lt;p>Gardenlet maintains &lt;a href="https://github.com/gardener/hvpa-controller/blob/master/config/samples/autoscaling_v1alpha1_hvpa.yaml">&lt;code>HVPA&lt;/code>&lt;/a> objects for etcd &lt;code>StatefulSet&lt;/code>s if the corresponding &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/">feature gate&lt;/a> is enabled.
+This enables a vertical scaling for etcd.
+Downscaling is handled more pessimistically to prevent many subsequent etcd restarts.
+Thus, for &lt;code>production&lt;/code> and &lt;code>infrastructure&lt;/code> shoot clusters (or all garden clusters), downscaling is deactivated for the main etcd.
+For all other shoot clusters, lower advertised requests/limits are only applied during a shoot&amp;rsquo;s maintenance time window.&lt;/p>
+&lt;h2 id="backup">Backup&lt;/h2>
+&lt;p>If &lt;code>Seed&lt;/code>s specify backups for etcd (&lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">example&lt;/a>), then Gardener and the respective &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">provider extensions&lt;/a> are responsible for creating a bucket on the cloud provider&amp;rsquo;s side (modelled through a &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">BackupBucket resource&lt;/a>).
+The bucket stores backups of &lt;code>Shoot&lt;/code>s scheduled on that &lt;code>Seed&lt;/code>.
+Furthermore, Gardener creates a &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">BackupEntry&lt;/a>, which subdivides the bucket and thus makes it possible to store backups of multiple shoot clusters.&lt;/p>
+&lt;p>How long backups are stored in the bucket after a shoot has been deleted depends on the configured &lt;em>retention period&lt;/em> in the &lt;code>Seed&lt;/code> resource.
+Please see this &lt;a href="https://github.com/gardener/gardener/blob/849cd857d0d20e5dde26b9740ca2814603a56dfd/example/20-componentconfig-gardenlet.yaml#L20">example configuration&lt;/a> for more information.&lt;/p>
+&lt;p>For &lt;code>Garden&lt;/code>s specifying backups for etcd (&lt;a href="https://github.com/gardener/gardener/blob/master/example/operator/20-garden.yaml">example&lt;/a>), the bucket must be pre-created externally and provided via the &lt;code>Garden&lt;/code> specification.&lt;/p>
+&lt;p>Both etcd instances are configured to run with a special backup-restore &lt;em>sidecar&lt;/em>.
+It takes care about regularly backing up etcd data and restoring it in case of data loss (in the main etcd only).
+The sidecar also performs defragmentation and other house-keeping tasks.
+More information can be found in the &lt;a href="https://github.com/gardener/etcd-backup-restore">component&amp;rsquo;s GitHub repository&lt;/a>.&lt;/p>
+&lt;h2 id="housekeeping">Housekeeping&lt;/h2>
+&lt;p>&lt;a href="https://etcd.io/docs/v3.3/op-guide/maintenance/">etcd maintenance tasks&lt;/a> must be performed from time to time in order to re-gain database storage and to ensure the system&amp;rsquo;s reliability.
+The &lt;a href="https://github.com/gardener/etcd-backup-restore">backup-restore&lt;/a> &lt;em>sidecar&lt;/em> takes care about this job as well.&lt;/p>
+&lt;p>For both &lt;code>Shoot&lt;/code>s and &lt;code>Garden&lt;/code>s, a random time &lt;strong>within the shoot&amp;rsquo;s maintenance time&lt;/strong> is chosen for scheduling these tasks.&lt;/p></description></item><item><title>Docs: Gardener Admission Controller</title><link>https://gardener.cloud/docs/gardener/concepts/admission-controller/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/admission-controller/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>While the Gardener API server works with &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver_admission_plugins/">admission plugins&lt;/a> to validate and mutate resources belonging to Gardener related API groups, e.g. &lt;code>core.gardener.cloud&lt;/code>, the same is needed for resources belonging to non-Gardener API groups as well, e.g. secrets in the &lt;code>core&lt;/code> API group.
+Therefore, the Gardener Admission Controller runs a http(s) server with the following handlers which serve as validating/mutating endpoints for &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a>.
+It is also used to serve http(s) handlers for authorization webhooks.&lt;/p>
+&lt;h2 id="admission-webhook-handlers">Admission Webhook Handlers&lt;/h2>
+&lt;p>This section describes the admission webhook handlers that are currently served.&lt;/p>
+&lt;h3 id="admission-plugin-secret-validator">Admission Plugin Secret Validator&lt;/h3>
+&lt;p>In &lt;code>Shoot&lt;/code>, &lt;code>AdmissionPlugin&lt;/code> can have reference to other files. This validation handler validates the referred admission plugin secret and ensures that the secret always contains the required data &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;h3 id="kubeconfig-secret-validator">Kubeconfig Secret Validator&lt;/h3>
+&lt;p>&lt;a href="https://github.com/kubernetes/kubectl/issues/697">Malicious Kubeconfigs&lt;/a> applied by end users may cause a leakage of sensitive data.
+This handler checks if the incoming request contains a Kubernetes secret with a &lt;code>.data.kubeconfig&lt;/code> field and denies the request if the Kubeconfig structure violates Gardener&amp;rsquo;s security standards.&lt;/p>
+&lt;h3 id="namespace-validator">Namespace Validator&lt;/h3>
+&lt;p>Namespaces are the backing entities of Gardener projects in which shoot cluster objects reside.
+This validation handler protects active namespaces against premature deletion requests.
+Therefore, it denies deletion requests if a namespace still contains shoot clusters or if it belongs to a non-deleting Gardener project (without &lt;code>.metadata.deletionTimestamp&lt;/code>).&lt;/p>
+&lt;h3 id="resource-size-validator">Resource Size Validator&lt;/h3>
+&lt;p>Since users directly apply Kubernetes native objects to the Garden cluster, it also involves the risk of being vulnerable to DoS attacks because these resources are continuously watched and read by controllers.
+One example is the creation of shoot resources with large annotation values (up to 256 kB per value), which can cause severe out-of-memory issues for the gardenlet component.
+&lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Vertical autoscaling&lt;/a> can help to mitigate such situations, but we cannot expect to scale infinitely, and thus need means to block the attack itself.&lt;/p>
+&lt;p>The Resource Size Validator checks arbitrary incoming admission requests against a configured maximum size for the resource&amp;rsquo;s group-version-kind combination. It denies the request if the object exceeds the quota.&lt;/p>
+&lt;p>Example for Gardener Admission Controller configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>server:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceAdmissionConfiguration:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> limits:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;core.gardener.cloud&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;shoots&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiGroups: [&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;v1&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;secrets&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 100k
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> unrestrictedSubjects:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kind: Group
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener.cloud:system:seeds
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: User&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: admin&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: rbac.authorization.k8s.io&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - kind: ServiceAccount&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: &amp;#34;*&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># namespace: garden&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># apiGroup: &amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operationMode: block &lt;span style="color:#008000">#log&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>With the configuration above, the Resource Size Validator denies requests for shoots with Gardener&amp;rsquo;s core API group which exceed a size of 100 kB. The same is done for Kubernetes secrets.&lt;/p>
+&lt;p>As this feature is meant to protect the system from malicious requests sent by users, it is recommended to exclude trusted groups, users or service accounts from the size restriction via &lt;code>resourceAdmissionConfiguration.unrestrictedSubjects&lt;/code>.
+For example, the backing user for the gardenlet should always be capable of changing the shoot resource instead of being blocked due to size restrictions.
+This is because the gardenlet itself occasionally changes the shoot specification, labels or annotations, and might violate the quota if the existing resource is already close to the quota boundary.
+Also, operators are supposed to be trusted users and subjecting them to a size limitation can inhibit important operational tasks.
+Wildcard (&amp;quot;*&amp;quot;) in subject &lt;code>name&lt;/code> is supported.&lt;/p>
+&lt;p>Size limitations depend on the individual Gardener setup and choosing the wrong values can affect the availability of your Gardener service.
+&lt;code>resourceAdmissionConfiguration.operationMode&lt;/code> allows to control if a violating request is actually denied (default) or only logged.
+It&amp;rsquo;s recommended to start with &lt;code>log&lt;/code>, check the logs for exceeding requests, adjust the limits if necessary and finally switch to &lt;code>block&lt;/code>.&lt;/p>
+&lt;h3 id="seedrestriction">SeedRestriction&lt;/h3>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p>
+&lt;h2 id="authorization-webhook-handlers">Authorization Webhook Handlers&lt;/h2>
+&lt;p>This section describes the authorization webhook handlers that are currently served.&lt;/p>
+&lt;h3 id="seedauthorization">SeedAuthorization&lt;/h3>
+&lt;p>Please refer to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a> for more information.&lt;/p></description></item><item><title>Docs: Gardener API Server</title><link>https://gardener.cloud/docs/gardener/concepts/apiserver/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/apiserver/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>The Gardener API server is a Kubernetes-native extension based on its &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/apiserver-aggregation/">aggregation layer&lt;/a>.
+It is registered via an &lt;code>APIService&lt;/code> object and designed to run inside a Kubernetes cluster whose API it wants to extend.&lt;/p>
+&lt;p>After registration, it exposes the following resources:&lt;/p>
+&lt;h2 id="cloudprofiles">&lt;code>CloudProfile&lt;/code>s&lt;/h2>
+&lt;p>&lt;code>CloudProfile&lt;/code>s are resources that describe a specific environment of an underlying infrastructure provider, e.g. AWS, Azure, etc.
+Each shoot has to reference a &lt;code>CloudProfile&lt;/code> to declare the environment it should be created in.
+In a &lt;code>CloudProfile&lt;/code>, the gardener operator specifies certain constraints like available machine types, regions, which Kubernetes versions they want to offer, etc.
+End-users can read &lt;code>CloudProfile&lt;/code>s to see these values, but only operators can change the content or create/delete them.
+When a shoot is created or updated, then an admission plugin checks that only allowed values are used via the referenced &lt;code>CloudProfile&lt;/code>.&lt;/p>
+&lt;p>Additionally, a &lt;code>CloudProfile&lt;/code> may contain a &lt;code>providerConfig&lt;/code>, which is a special configuration dedicated for the infrastructure provider.
+Gardener does not evaluate or understand this config, but extension controllers might need it for declaration of provider-specific constraints, or global settings.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/30-cloudprofile.yaml">this&lt;/a> example manifest and consult the documentation of your provider extension controller to get information about its &lt;code>providerConfig&lt;/code>.&lt;/p>
+&lt;h2 id="internalsecrets">&lt;code>InternalSecret&lt;/code>s&lt;/h2>
+&lt;p>End-users can read and/or write &lt;code>Secret&lt;/code>s in their project namespaces in the garden cluster. This prevents Gardener components from storing such &amp;ldquo;Gardener-internal&amp;rdquo; secrets in the respective project namespace.
+&lt;code>InternalSecret&lt;/code>s are resources that contain shoot or project-related secrets that are &amp;ldquo;Gardener-internal&amp;rdquo;, i.e., secrets used and managed by the system that end-users don&amp;rsquo;t have access to.
+&lt;code>InternalSecret&lt;/code>s are defined like plain Kubernetes &lt;code>Secret&lt;/code>s, behave exactly like them, and can be used in the same manners. The only difference is, that the &lt;code>InternalSecret&lt;/code> resource is a dedicated API resource (exposed by gardener-apiserver).
+This allows separating access to &amp;ldquo;normal&amp;rdquo; secrets and internal secrets by the usual RBAC means.&lt;/p>
+&lt;p>Gardener uses an &lt;code>InternalSecret&lt;/code> per Shoot for syncing the client CA to the project namespace in the garden cluster (named &lt;code>&amp;lt;shoot-name&amp;gt;.ca-client&lt;/code>). The &lt;a href="https://gardener.cloud/docs/gardener/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> signs short-lived client certificates by retrieving the CA from the &lt;code>InternalSecret&lt;/code>.&lt;/p>
+&lt;p>Operators should configure &lt;code>gardener-apiserver&lt;/code> to encrypt the &lt;code>internalsecrets.core.gardener.cloud&lt;/code> resource in etcd.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/11-internal-secret.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="seeds">&lt;code>Seed&lt;/code>s&lt;/h2>
+&lt;p>&lt;code>Seed&lt;/code>s are resources that represent seed clusters.
+Gardener does not care about how a seed cluster got created - the only requirement is that it is of at least Kubernetes v1.24 and passes the Kubernetes conformance tests.
+The Gardener operator has to either deploy the gardenlet into the cluster they want to use as seed (recommended, then the gardenlet will create the &lt;code>Seed&lt;/code> object itself after bootstrapping) or provide the kubeconfig to the cluster inside a secret (that is referenced by the &lt;code>Seed&lt;/code> resource) and create the &lt;code>Seed&lt;/code> resource themselves.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/45-secret-seed-backup.yaml">this&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">this&lt;/a>, and optionally &lt;a href="https://github.com/gardener/gardener/blob/master/example/40-secret-seed.yaml">this&lt;/a> example manifests.&lt;/p>
+&lt;h2 id="shoot-quotas">Shoot &lt;code>Quota&lt;/code>s&lt;/h2>
+&lt;p>To allow end-users not having their dedicated infrastructure account to try out Gardener, the operator can register an account owned by them that they allow to be used for trial clusters.
+Trial clusters can be put under quota so that they don&amp;rsquo;t consume too many resources (resulting in costs) and that one user cannot consume all resources on their own.
+These clusters are automatically terminated after a specified time, but end-users may extend the lifetime manually if needed.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/60-quota.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="projects">&lt;code>Project&lt;/code>s&lt;/h2>
+&lt;p>The first thing before creating a shoot cluster is to create a &lt;code>Project&lt;/code>.
+A project is used to group multiple shoot clusters together.
+End-users can invite colleagues to the project to enable collaboration, and they can either make them &lt;code>admin&lt;/code> or &lt;code>viewer&lt;/code>.
+After an end-user has created a project, they will get a dedicated namespace in the garden cluster for all their shoots.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/05-project-dev.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="secretbindings">&lt;code>SecretBinding&lt;/code>s&lt;/h2>
+&lt;p>Now that the end-user has a namespace the next step is registering their infrastructure provider account.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/70-secret-provider.yaml">this&lt;/a> example manifest and consult the documentation of the extension controller for the respective infrastructure provider to get information about which keys are required in this secret.&lt;/p>
+&lt;p>After the secret has been created, the end-user has to create a special &lt;code>SecretBinding&lt;/code> resource that binds this secret.
+Later, when creating shoot clusters, they will reference such binding.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/80-secretbinding.yaml">this&lt;/a> example manifest.&lt;/p>
+&lt;h2 id="shoots">&lt;code>Shoot&lt;/code>s&lt;/h2>
+&lt;p>Shoot cluster contain various settings that influence how end-user Kubernetes clusters will look like in the end.
+As Gardener heavily relies on extension controllers for operating system configuration, networking, and infrastructure specifics, the end-user has the possibility (and responsibility) to provide these provider-specific configurations as well.
+Such configurations are not evaluated by Gardener (because it doesn&amp;rsquo;t know/understand them), but they are only transported to the respective extension controller.&lt;/p>
+&lt;p>⚠️ This means that any configuration issues/mistake on the end-user side that relates to a provider-specific flag or setting cannot be caught during the update request itself but only later during the reconciliation (unless a validator webhook has been registered in the garden cluster by an operator).&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">this&lt;/a> example manifest and consult the documentation of the provider extension controller to get information about its &lt;code>spec.provider.controlPlaneConfig&lt;/code>, &lt;code>.spec.provider.infrastructureConfig&lt;/code>, and &lt;code>.spec.provider.workers[].providerConfig&lt;/code>.&lt;/p>
+&lt;h2 id="clusteropenidconnectpresets">&lt;code>(Cluster)OpenIDConnectPreset&lt;/code>s&lt;/h2>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/openidconnect-presets/">this&lt;/a> separate documentation file.&lt;/p>
+&lt;h2 id="overview-data-model">Overview Data Model&lt;/h2>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardener-data-model-overview_05e809.png" alt="Gardener Overview Data Model">&lt;/p></description></item><item><title>Docs: Gardener Controller Manager</title><link>https://gardener.cloud/docs/gardener/concepts/controller-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/controller-manager/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The &lt;code>gardener-controller-manager&lt;/code> (often refered to as &amp;ldquo;GCM&amp;rdquo;) is a component that runs next to the Gardener API server, similar to the Kubernetes Controller Manager.
 It runs several controllers that do not require talking to any seed or shoot cluster.
 Also, as of today, it exposes an HTTP server that is serving several health check endpoints and metrics.&lt;/p>
@@ -577,458 +623,8 @@ When an object is not actively referenced anymore because the &lt;code>Shoot&lt;
 &lt;p>This reconciler is responsible for retrying certain failed &lt;code>Shoot&lt;/code>s.
 Currently, the reconciler retries only failed &lt;code>Shoot&lt;/code>s with an error code &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>. See &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#error-codes">Shoot Status&lt;/a> for more details.&lt;/p>
 &lt;h4 id="status-label-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollershootstatuslabel">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/shoot/statuslabel">&amp;ldquo;Status Label&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler is responsible for maintaining the &lt;code>shoot.gardener.cloud/status&lt;/code> label on &lt;code>Shoot&lt;/code>s. See &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#status-label">Shoot Status&lt;/a> for more details.&lt;/p></description></item><item><title>Docs: etcd</title><link>https://gardener.cloud/docs/gardener/concepts/etcd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/etcd/</guid><description>
-&lt;h1 id="etcd---key-value-store-for-kubernetes">etcd - Key-Value Store for Kubernetes&lt;/h1>
-&lt;p>&lt;a href="https://etcd.io/">etcd&lt;/a> is a strongly consistent key-value store and the most prevalent choice for the Kubernetes
-persistence layer. All API cluster objects like &lt;code>Pod&lt;/code>s, &lt;code>Deployment&lt;/code>s, &lt;code>Secret&lt;/code>s, etc., are stored in &lt;code>etcd&lt;/code>, which
-makes it an essential part of a &lt;a href="https://kubernetes.io/docs/concepts/overview/components/#control-plane-components">Kubernetes control plane&lt;/a>.&lt;/p>
-&lt;h2 id="garden-or-shoot-cluster-persistence">Garden or Shoot Cluster Persistence&lt;/h2>
-&lt;p>Each garden or shoot cluster gets its very own persistence for the control plane.
-It runs in the shoot namespace on the respective seed cluster (or in the &lt;code>garden&lt;/code> namespace in the garden cluster, respectively).
-Concretely, there are two etcd instances per shoot cluster, which the &lt;code>kube-apiserver&lt;/code> is configured to use in the following way:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>etcd-main&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>A store that contains all &amp;ldquo;cluster critical&amp;rdquo; or &amp;ldquo;long-term&amp;rdquo; objects.
-These object kinds are typically considered for a backup to prevent any data loss.&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>etcd-events&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>A store that contains all &lt;code>Event&lt;/code> objects (&lt;code>events.k8s.io&lt;/code>) of a cluster.
-&lt;code>Events&lt;/code> usually have a short retention period and occur frequently, but are not essential for a disaster recovery.&lt;/p>
-&lt;p>The setup above prevents both, the critical &lt;code>etcd-main&lt;/code> is not flooded by Kubernetes &lt;code>Events&lt;/code>, as well as backup space is not occupied by non-critical data.
-This separation saves time and resources.&lt;/p>
-&lt;h2 id="etcd-operator">etcd Operator&lt;/h2>
-&lt;p>Configuring, maintaining, and health-checking etcd is outsourced to a dedicated operator called &lt;a href="https://github.com/gardener/etcd-druid/">etcd Druid&lt;/a>.
-When a &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">&lt;code>gardenlet&lt;/code>&lt;/a> reconciles a &lt;code>Shoot&lt;/code> resource or a &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/">&lt;code>gardener-operator&lt;/code>&lt;/a> reconciles a &lt;code>Garden&lt;/code> resource, they manage an &lt;a href="https://github.com/gardener/etcd-druid/blob/1d427e9167adac1476d1847c0e265c2c09d6bc62/config/samples/druid_v1alpha1_etcd.yaml">&lt;code>Etcd&lt;/code>&lt;/a> resource in the seed or garden cluster, containing necessary information (backup information, defragmentation schedule, resources, etc.).
-&lt;code>etcd-druid&lt;/code> needs to manage the lifecycle of the desired etcd instance (today &lt;code>main&lt;/code> or &lt;code>events&lt;/code>).
-Likewise, when the &lt;code>Shoot&lt;/code> or &lt;code>Garden&lt;/code> is deleted, &lt;code>gardenlet&lt;/code> or &lt;code>gardener-operator&lt;/code> deletes the &lt;code>Etcd&lt;/code> resources and &lt;a href="https://github.com/gardener/etcd-druid/">etcd Druid&lt;/a> takes care of cleaning up all related objects, e.g. the backing &lt;code>StatefulSet&lt;/code>s.&lt;/p>
-&lt;h2 id="autoscaling">Autoscaling&lt;/h2>
-&lt;p>Gardenlet maintains &lt;a href="https://github.com/gardener/hvpa-controller/blob/master/config/samples/autoscaling_v1alpha1_hvpa.yaml">&lt;code>HVPA&lt;/code>&lt;/a> objects for etcd &lt;code>StatefulSet&lt;/code>s if the corresponding &lt;a href="https://gardener.cloud/docs/gardener/deployment/feature_gates/">feature gate&lt;/a> is enabled.
-This enables a vertical scaling for etcd.
-Downscaling is handled more pessimistically to prevent many subsequent etcd restarts.
-Thus, for &lt;code>production&lt;/code> and &lt;code>infrastructure&lt;/code> shoot clusters (or all garden clusters), downscaling is deactivated for the main etcd.
-For all other shoot clusters, lower advertised requests/limits are only applied during a shoot&amp;rsquo;s maintenance time window.&lt;/p>
-&lt;h2 id="backup">Backup&lt;/h2>
-&lt;p>If &lt;code>Seed&lt;/code>s specify backups for etcd (&lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">example&lt;/a>), then Gardener and the respective &lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">provider extensions&lt;/a> are responsible for creating a bucket on the cloud provider&amp;rsquo;s side (modelled through a &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">BackupBucket resource&lt;/a>).
-The bucket stores backups of &lt;code>Shoot&lt;/code>s scheduled on that &lt;code>Seed&lt;/code>.
-Furthermore, Gardener creates a &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">BackupEntry&lt;/a>, which subdivides the bucket and thus makes it possible to store backups of multiple shoot clusters.&lt;/p>
-&lt;p>How long backups are stored in the bucket after a shoot has been deleted depends on the configured &lt;em>retention period&lt;/em> in the &lt;code>Seed&lt;/code> resource.
-Please see this &lt;a href="https://github.com/gardener/gardener/blob/849cd857d0d20e5dde26b9740ca2814603a56dfd/example/20-componentconfig-gardenlet.yaml#L20">example configuration&lt;/a> for more information.&lt;/p>
-&lt;p>For &lt;code>Garden&lt;/code>s specifying backups for etcd (&lt;a href="https://github.com/gardener/gardener/blob/master/example/operator/20-garden.yaml">example&lt;/a>), the bucket must be pre-created externally and provided via the &lt;code>Garden&lt;/code> specification.&lt;/p>
-&lt;p>Both etcd instances are configured to run with a special backup-restore &lt;em>sidecar&lt;/em>.
-It takes care about regularly backing up etcd data and restoring it in case of data loss (in the main etcd only).
-The sidecar also performs defragmentation and other house-keeping tasks.
-More information can be found in the &lt;a href="https://github.com/gardener/etcd-backup-restore">component&amp;rsquo;s GitHub repository&lt;/a>.&lt;/p>
-&lt;h2 id="housekeeping">Housekeeping&lt;/h2>
-&lt;p>&lt;a href="https://etcd.io/docs/v3.3/op-guide/maintenance/">etcd maintenance tasks&lt;/a> must be performed from time to time in order to re-gain database storage and to ensure the system&amp;rsquo;s reliability.
-The &lt;a href="https://github.com/gardener/etcd-backup-restore">backup-restore&lt;/a> &lt;em>sidecar&lt;/em> takes care about this job as well.&lt;/p>
-&lt;p>For both &lt;code>Shoot&lt;/code>s and &lt;code>Garden&lt;/code>s, a random time &lt;strong>within the shoot&amp;rsquo;s maintenance time&lt;/strong> is chosen for scheduling these tasks.&lt;/p></description></item><item><title>Docs: gardenlet</title><link>https://gardener.cloud/docs/gardener/concepts/gardenlet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/gardenlet/</guid><description>
-&lt;h1 id="gardenlet">gardenlet&lt;/h1>
-&lt;p>Gardener is implemented using the &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/">operator pattern&lt;/a>:
-It uses custom controllers that act on our own custom resources,
-and apply Kubernetes principles to manage clusters instead of containers.
-Following this analogy, you can recognize components of the Gardener architecture
-as well-known Kubernetes components, for example, shoot clusters can be compared with pods,
-and seed clusters can be seen as worker nodes.&lt;/p>
-&lt;p>The following Gardener components play a similar role as the corresponding components
-in the Kubernetes architecture:&lt;/p>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Gardener Component&lt;/th>
-&lt;th>Kubernetes Component&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>&lt;code>gardener-apiserver&lt;/code>&lt;/td>
-&lt;td>&lt;code>kube-apiserver&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>gardener-controller-manager&lt;/code>&lt;/td>
-&lt;td>&lt;code>kube-controller-manager&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>gardener-scheduler&lt;/code>&lt;/td>
-&lt;td>&lt;code>kube-scheduler&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>&lt;code>gardenlet&lt;/code>&lt;/td>
-&lt;td>&lt;code>kubelet&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table>
-&lt;p>Similar to how the &lt;code>kube-scheduler&lt;/code> of Kubernetes finds an appropriate node
-for newly created pods, the &lt;code>gardener-scheduler&lt;/code> of Gardener finds an appropriate seed cluster
-to host the control plane for newly ordered clusters.
-By providing multiple seed clusters for a region or provider, and distributing the workload,
-Gardener also reduces the blast radius of potential issues.&lt;/p>
-&lt;p>Kubernetes runs a primary &amp;ldquo;agent&amp;rdquo; on every node, the kubelet,
-which is responsible for managing pods and containers on its particular node.
-Decentralizing the responsibility to the kubelet has the advantage that the overall system
-is scalable. Gardener achieves the same for cluster management by using a &lt;strong>gardenlet&lt;/strong>
-as а primary &amp;ldquo;agent&amp;rdquo; on every seed cluster, and is only responsible for shoot clusters
-located in its particular seed cluster:&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-similarities_cfec02.png" alt="Counterparts in the Gardener Architecture and the Kubernetes Architecture">&lt;/p>
-&lt;p>The &lt;code>gardener-controller-manager&lt;/code> has controllers to manage resources of the Gardener API. However, instead of letting the &lt;code>gardener-controller-manager&lt;/code> talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It&amp;rsquo;s up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed clusters.&lt;/p>
-&lt;p>Reversing the control flow allows placing seed clusters or shoot clusters behind firewalls without the necessity of direct access via VPN tunnels anymore.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-detailed_358df2.png" alt="Reversed Control Flow Using a gardenlet">&lt;/p>
-&lt;h2 id="tls-bootstrapping">TLS Bootstrapping&lt;/h2>
-&lt;p>Kubernetes doesn’t manage worker nodes itself, and it’s also not
-responsible for the lifecycle of the kubelet running on the workers.
-Similarly, Gardener doesn’t manage seed clusters itself,
-so it is also not responsible for the lifecycle of the gardenlet running on the seeds.
-As a consequence, both the gardenlet and the kubelet need to prepare
-a trusted connection to the Gardener API server
-and the Kubernetes API server correspondingly.&lt;/p>
-&lt;p>To prepare a trusted connection between the gardenlet
-and the Gardener API server, the gardenlet initializes
-a bootstrapping process after you deployed it into your seed clusters:&lt;/p>
-&lt;ol>
-&lt;li>
-&lt;p>The gardenlet starts up with a bootstrap &lt;code>kubeconfig&lt;/code>
-having a bootstrap token that allows to create &lt;code>CertificateSigningRequest&lt;/code> (CSR) resources.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>After the CSR is signed, the gardenlet downloads
-the created client certificate, creates a new &lt;code>kubeconfig&lt;/code> with it,
-and stores it inside a &lt;code>Secret&lt;/code> in the seed cluster.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The gardenlet deletes the bootstrap &lt;code>kubeconfig&lt;/code> secret,
-and starts up with its new &lt;code>kubeconfig&lt;/code>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The gardenlet starts normal operation.&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;p>The &lt;code>gardener-controller-manager&lt;/code> runs a control loop
-that automatically signs CSRs created by gardenlets.&lt;/p>
-&lt;blockquote>
-&lt;p>The gardenlet bootstrapping process is based on the
-kubelet bootstrapping process. More information:
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">Kubelet&amp;rsquo;s TLS bootstrapping&lt;/a>.&lt;/p>
-&lt;/blockquote>
-&lt;p>If you don&amp;rsquo;t want to run this bootstrap process, you can create
-a &lt;code>kubeconfig&lt;/code> pointing to the garden cluster for the gardenlet yourself,
-and use the field &lt;code>gardenClientConnection.kubeconfig&lt;/code> in the
-gardenlet configuration to share it with the gardenlet.&lt;/p>
-&lt;h2 id="gardenlet-certificate-rotation">gardenlet Certificate Rotation&lt;/h2>
-&lt;p>The certificate used to authenticate the gardenlet against the API server
-has a certain validity based on the configuration of the garden cluster
-(&lt;code>--cluster-signing-duration&lt;/code> flag of the &lt;code>kube-controller-manager&lt;/code> (default &lt;code>1y&lt;/code>)).&lt;/p>
-&lt;blockquote>
-&lt;p>You can also configure the validity for the client certificate by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.validity&lt;/code> in the gardenlet&amp;rsquo;s component configuration.
-Note that changing this value will only take effect when the kubeconfig is rotated again (it is not picked up immediately).
-The minimum validity is &lt;code>10m&lt;/code> (that&amp;rsquo;s what is enforced by the &lt;code>CertificateSigningRequest&lt;/code> API in Kubernetes which is used by the gardenlet).&lt;/p>
-&lt;/blockquote>
-&lt;p>By default, after about 70-90% of the validity has expired, the gardenlet tries to automatically replace
-the current certificate with a new one (certificate rotation).&lt;/p>
-&lt;blockquote>
-&lt;p>You can change these boundaries by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.autoRotationJitterPercentage{Min,Max}&lt;/code> in the gardenlet&amp;rsquo;s component configuration.&lt;/p>
-&lt;/blockquote>
-&lt;p>To use a certificate rotation, you need to specify the secret to store
-the &lt;code>kubeconfig&lt;/code> with the rotated certificate in the field
-&lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> of the
-gardenlet &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#component-configuration">component configuration&lt;/a>.&lt;/p>
-&lt;h3 id="rotate-certificates-using-bootstrap-kubeconfig">Rotate Certificates Using Bootstrap &lt;code>kubeconfig&lt;/code>&lt;/h3>
-&lt;p>If the gardenlet created the certificate during the initial TLS Bootstrapping
-using the Bootstrap &lt;code>kubeconfig&lt;/code>, certificates can be rotated automatically.
-The same control loop in the &lt;code>gardener-controller-manager&lt;/code> that signs
-the CSRs during the initial TLS Bootstrapping also automatically signs
-the CSR during a certificate rotation.&lt;/p>
-&lt;p>ℹ️ You can trigger an immediate renewal by annotating the &lt;code>Secret&lt;/code> in the seed
-cluster stated in the &lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> field with
-&lt;code>gardener.cloud/operation=renew&lt;/code>. Within &lt;code>10s&lt;/code>, gardenlet detects this and terminates
-itself to request new credentials. After it has booted up again, gardenlet will issue a
-new certificate independent of the remaining validity of the existing one.&lt;/p>
-&lt;p>ℹ️ Alternatively, annotate the respective &lt;code>Seed&lt;/code> with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>.
-This will make gardenlet annotate its own kubeconfig secret with &lt;code>gardener.cloud/operation=renew&lt;/code>
-and triggers the process described in the previous paragraph.&lt;/p>
-&lt;h3 id="rotate-certificates-using-custom-kubeconfig">Rotate Certificates Using Custom &lt;code>kubeconfig&lt;/code>&lt;/h3>
-&lt;p>When trying to rotate a custom certificate that wasn’t created by gardenlet
-as part of the TLS Bootstrap, the x509 certificate&amp;rsquo;s &lt;code>Subject&lt;/code> field
-needs to conform to the following:&lt;/p>
-&lt;ul>
-&lt;li>the Common Name (CN) is prefixed with &lt;code>gardener.cloud:system:seed:&lt;/code>&lt;/li>
-&lt;li>the Organization (O) equals &lt;code>gardener.cloud:system:seeds&lt;/code>&lt;/li>
-&lt;/ul>
-&lt;p>Otherwise, the &lt;code>gardener-controller-manager&lt;/code> doesn’t automatically
-sign the CSR.
-In this case, an external component or user needs to approve the CSR manually,
-for example, using the command &lt;code>kubectl certificate approve seed-csr-&amp;lt;...&amp;gt;&lt;/code>).
-If that doesn’t happen within 15 minutes,
-the gardenlet repeats the process and creates another CSR.&lt;/p>
-&lt;h2 id="configuring-the-seed-to-work-with-gardenlet">Configuring the Seed to Work with gardenlet&lt;/h2>
-&lt;p>The gardenlet works with a single seed, which must be configured in the
-&lt;code>GardenletConfiguration&lt;/code> under &lt;code>.seedConfig&lt;/code>. This must be a copy of the
-&lt;code>Seed&lt;/code> resource, for example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: gardenlet.config.gardener.cloud/v1alpha1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: GardenletConfiguration
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>seedConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-seed
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduling:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> visible: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">this yaml file&lt;/a> for a more complete example)&lt;/p>
-&lt;p>On startup, gardenlet registers a &lt;code>Seed&lt;/code> resource using the given template
-in the &lt;code>seedConfig&lt;/code> if it&amp;rsquo;s not present already.&lt;/p>
-&lt;h2 id="component-configuration">Component Configuration&lt;/h2>
-&lt;p>In the component configuration for the gardenlet, it’s possible to define:&lt;/p>
-&lt;ul>
-&lt;li>settings for the Kubernetes clients interacting with the various clusters&lt;/li>
-&lt;li>settings for the controllers inside the gardenlet&lt;/li>
-&lt;li>settings for leader election and log levels, feature gates, and seed selection or seed configuration.&lt;/li>
-&lt;/ul>
-&lt;p>More information: &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Example gardenlet Component Configuration&lt;/a>.&lt;/p>
-&lt;h2 id="heartbeats">Heartbeats&lt;/h2>
-&lt;p>Similar to how Kubernetes uses &lt;code>Lease&lt;/code> objects for node heart beats
-(see &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/589-efficient-node-heartbeats/README.md">KEP&lt;/a>),
-the gardenlet is using &lt;code>Lease&lt;/code> objects for heart beats of the seed cluster.
-Every two seconds, the gardenlet checks that the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code>
-endpoint returns HTTP status code 200.
-If that is the case, the gardenlet renews the lease in the Garden cluster in the &lt;code>gardener-system-seed-lease&lt;/code> namespace and updates
-the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#lease-reconciler">this section&lt;/a>.&lt;/p>
-&lt;p>Similar to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
-the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-lifecycle-controller&lt;/code> that sets
-the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
-As a consequence, the &lt;code>gardener-scheduler&lt;/code> doesn’t consider this seed cluster for newly created shoot clusters anymore.&lt;/p>
-&lt;h3 id="healthz-endpoint">&lt;code>/healthz&lt;/code> Endpoint&lt;/h3>
-&lt;p>The gardenlet includes an HTTP server that serves a &lt;code>/healthz&lt;/code> endpoint.
-It’s used as a liveness probe in the &lt;code>Deployment&lt;/code> of the gardenlet.
-If the gardenlet fails to renew its lease,
-then the endpoint returns &lt;code>500 Internal Server Error&lt;/code>, otherwise it returns &lt;code>200 OK&lt;/code>.&lt;/p>
-&lt;p>Please note that the &lt;code>/healthz&lt;/code> only indicates whether the gardenlet
-could successfully probe the Seed&amp;rsquo;s API server and renew the lease with
-the Garden cluster.
-It does &lt;em>not&lt;/em> show that the Gardener extension API server (with the Gardener resource groups)
-is available.
-However, the gardenlet is designed to withstand such connection outages and
-retries until the connection is reestablished.&lt;/p>
-&lt;h2 id="controllers">Controllers&lt;/h2>
-&lt;p>The gardenlet consists out of several controllers which are now described in more detail.&lt;/p>
-&lt;h3 id="backupbucket-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupbucket">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupbucket">&lt;code>BackupBucket&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>BackupBucket&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of the &lt;code>Seed&lt;/code> the respective &lt;code>gardenlet&lt;/code> is responsible for.
-A &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resource is created by the &lt;code>Seed&lt;/code> controller if &lt;code>.spec.backup&lt;/code> is defined in the &lt;code>Seed&lt;/code>.&lt;/p>
-&lt;p>The controller adds finalizers to the &lt;code>BackupBucket&lt;/code> and the secret mentioned in the &lt;code>.spec.secretRef&lt;/code> of the &lt;code>BackupBucket&lt;/code>. The controller also copies this secret to the seed cluster. Additionally, it creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciles it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">Contract: BackupBucket Resource&lt;/a> for more details).
-The status from the reconciliation is reported in the &lt;code>.status.lastOperation&lt;/code> field. Once the extension resource is ready and the &lt;code>.status.generatedSecretRef&lt;/code> is set by the extension controller, the &lt;code>gardenlet&lt;/code> copies the referenced secret to the &lt;code>garden&lt;/code> namespace in the garden cluster. An owner reference to the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is added to this secret.&lt;/p>
-&lt;p>If the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is deleted, the controller deletes the generated secret in the garden cluster and the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource in the seed cluster and it waits for the respective extension controller to remove its finalizers from the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code>. Then it deletes the secret in the seed cluster and finally removes the finalizers from the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> and the referred secret.&lt;/p>
-&lt;h3 id="backupentry-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupentry">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupentry">&lt;code>BackupEntry&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
-Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
-&lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">Contract: BackupEntry Resource&lt;/a> for more details).
-The status is populated in the &lt;code>.status.lastOperation&lt;/code> field.&lt;/p>
-&lt;p>The &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource has an owner reference pointing to the corresponding &lt;code>Shoot&lt;/code>.
-Hence, if the &lt;code>Shoot&lt;/code> is deleted, the &lt;code>BackupEntry&lt;/code> resource also gets deleted.
-In this case, the controller deletes the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource in the seed cluster and waits until the responsible extension controller has deleted it.
-Afterwards, the finalizer of the &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource is released so that it finally disappears from the system.&lt;/p>
-&lt;p>If the &lt;code>spec.seedName&lt;/code> and &lt;code>.status.seedName&lt;/code> of the &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> are different, the controller will migrate it by annotating the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> in the &lt;code>Source Seed&lt;/code> with &lt;code>gardener.cloud/operation: migrate&lt;/code>, waiting for it to be migrated successfully and eventually deleting it from the &lt;code>Source Seed&lt;/code> cluster. Afterwards, the controller will recreate the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> in the &lt;code>Destination Seed&lt;/code>, annotate it with &lt;code>gardener.cloud/operation: restore&lt;/code> and wait for the restore operation to finish. For more details about control plane migration, please read &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Shoot Control Plane Migration&lt;/a>.&lt;/p>
-&lt;h5 id="keep-backup-for-deleted-shoots">Keep Backup for Deleted Shoots&lt;/h5>
-&lt;p>In some scenarios it might be beneficial to not immediately delete the &lt;code>BackupEntry&lt;/code>s (and with them, the etcd backup) for deleted &lt;code>Shoot&lt;/code>s.&lt;/p>
-&lt;p>In this case you can configure the &lt;code>.controllers.backupEntry.deletionGracePeriodHours&lt;/code> field in the component configuration of the gardenlet.
-For example, if you set it to &lt;code>48&lt;/code>, then the &lt;code>BackupEntry&lt;/code>s for deleted &lt;code>Shoot&lt;/code>s will only be deleted &lt;code>48&lt;/code> hours after the &lt;code>Shoot&lt;/code> was deleted.&lt;/p>
-&lt;p>Additionally, you can limit the &lt;a href="https://gardener.cloud/docs/gardener/shoot_purposes/">shoot purposes&lt;/a> for which this applies by setting &lt;code>.controllers.backupEntry.deletionGracePeriodShootPurposes[]&lt;/code>.
-For example, if you set it to &lt;code>[production]&lt;/code> then only the &lt;code>BackupEntry&lt;/code>s for &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose=production&lt;/code> will be deleted after the configured grace period. All others will be deleted immediately after the &lt;code>Shoot&lt;/code> deletion.&lt;/p>
-&lt;p>In case a &lt;code>BackupEntry&lt;/code> is scheduled for future deletion but you want to delete it immediately, add the annotation &lt;code>backupentry.core.gardener.cloud/force-deletion=true&lt;/code>.&lt;/p>
-&lt;h3 id="bastion-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbastion">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/bastion">&lt;code>Bastion&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>Bastion&lt;/code> controller reconciles those &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.&lt;/p>
-&lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.Bastion&lt;/code> resource in the seed cluster in the shoot namespace with the same name as &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code>. Then it waits until the responsible extension controller has reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/bastion/">Contract: Bastion Resource&lt;/a> for more details). The status is populated in the &lt;code>.status.conditions&lt;/code> and &lt;code>.status.ingress&lt;/code> fields.&lt;/p>
-&lt;p>During the deletion of &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resources, the controller first sets the &lt;code>Ready&lt;/code> condition to &lt;code>False&lt;/code> and then deletes the &lt;code>extensions.gardener.cloud/v1alpha1.Bastion&lt;/code> resource in the seed cluster.
-Once this resource is gone, the finalizer of the &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resource is released, so it finally disappears from the system.&lt;/p>
-&lt;h3 id="controllerinstallation-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation">&lt;code>ControllerInstallation&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>ControllerInstallation&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ControllerInstallation&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationcontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/controllerinstallation">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler is responsible for &lt;code>ControllerInstallation&lt;/code>s referencing a &lt;code>ControllerDeployment&lt;/code> whose &lt;code>type=helm&lt;/code>.&lt;/p>
-&lt;p>For each &lt;code>ControllerInstallation&lt;/code>, it creates a namespace on the seed cluster named &lt;code>extension-&amp;lt;controller-installation-name&amp;gt;&lt;/code>.
-Then, it creates a generic garden kubeconfig and garden access secret for the extension for &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/">accessing the garden cluster&lt;/a>.&lt;/p>
-&lt;p>After that, it unpacks the Helm chart tarball in the &lt;code>ControllerDeployment&lt;/code>s &lt;code>.providerConfig.chart&lt;/code> field and deploys the rendered resources to the seed cluster.
-The Helm chart values in &lt;code>.providerConfig.values&lt;/code> will be used and extended with some information about the Gardener environment and the seed cluster:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: &amp;lt;gardenlet-version&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-garden-cluster&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> genericKubeconfigSecretName: &amp;lt;secret-name&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardenlet:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Foo: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Bar: &lt;span style="color:#00f">false&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;seed-name&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-seed-cluster&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations: &amp;lt;seed-annotations&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels: &amp;lt;seed-labels&amp;gt;
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec: &amp;lt;seed-specification&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As of today, there are a few more fields in &lt;code>.gardener.seed&lt;/code>, but it is recommended to use the &lt;code>.gardener.seed.spec&lt;/code> if the Helm chart needs more information about the seed configuration.&lt;/p>
-&lt;p>The rendered chart will be deployed via a &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
-It is labeled with &lt;code>controllerinstallation-name=&amp;lt;name&amp;gt;&lt;/code> so that one can easily find the owning &lt;code>ControllerInstallation&lt;/code> for an existing &lt;code>ManagedResource&lt;/code>.&lt;/p>
-&lt;p>The reconciler maintains the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> and sets it to &lt;code>False&lt;/code> if the rendering or deployment fails.&lt;/p>
-&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler reconciles &lt;code>ControllerInstallation&lt;/code> objects and checks whether they are in a healthy state.
-It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.&lt;/p>
-&lt;ul>
-&lt;li>If the &lt;code>ResourcesApplied&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
-&lt;li>If the &lt;code>ResourcesHealthy&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Healthy&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
-&lt;li>If the &lt;code>ResourcesProgressing&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Progressing&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
-&lt;/ul>
-&lt;p>A &lt;code>ControllerInstallation&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if &lt;code>Applied=Healthy=True&lt;/code> and &lt;code>Progressing=False&lt;/code>.&lt;/p>
-&lt;h4 id="required-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationrequired">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/required">&amp;ldquo;Required&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler watches all resources in the &lt;code>extensions.gardener.cloud&lt;/code> API group in the seed cluster.
-It is responsible for maintaining the &lt;code>Required&lt;/code> condition on &lt;code>ControllerInstallation&lt;/code>s.
-Concretely, when there is at least one extension resource in the seed cluster a &lt;code>ControllerInstallation&lt;/code> is responsible for, then the status of the &lt;code>Required&lt;/code> condition will be &lt;code>True&lt;/code>.
-If there are no extension resources anymore, its status will be &lt;code>False&lt;/code>.&lt;/p>
-&lt;p>This condition is taken into account by the &lt;code>ControllerRegistration&lt;/code> controller part of &lt;code>gardener-controller-manager&lt;/code> when it computes which extensions have to be deployed to which seed cluster. See &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#controllerregistration-controller">Gardener Controller Manager&lt;/a> for more details.&lt;/p>
-&lt;h3 id="managedseed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollermanagedseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/managedseed">&lt;code>ManagedSeed&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>ManagedSeed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ManagedSeed&lt;/code> that refers to &lt;code>Shoot&lt;/code> scheduled on &lt;code>Seed&lt;/code> the gardenlet is responsible for. Additionally, the controller monitors &lt;code>Seed&lt;/code>s, which are owned by &lt;code>ManagedSeed&lt;/code>s for which the gardenlet is responsible.&lt;/p>
-&lt;p>On &lt;code>ManagedSeed&lt;/code> reconciliation, the controller first waits for the referenced Shoot to undergo a reconciliation process. Once the Shoot is successfully reconciled, the controller sets the &lt;code>ShootReconciled&lt;/code> status of the ManagedSeed to &lt;code>true&lt;/code>. Then, it creates &lt;code>garden&lt;/code> namespace within the target Shoot cluster. The controller also manages secrets related to Seeds, such as the &lt;code>backup&lt;/code> and &lt;code>kubeconfig&lt;/code> secrets. It ensures that these secrets are created and updated according to the ManagedSeed spec. Finally, it deploys the &lt;code>gardenlet&lt;/code> within the specified Shoot cluster which registers the &lt;code>Seed&lt;/code> cluster.&lt;/p>
-&lt;p>On &lt;code>ManagedSeed&lt;/code> deletion, the controller first deletes the corresponding &lt;code>Seed&lt;/code> that was originally created by the controller. Subsequently, it deletes the &lt;code>gardenlet&lt;/code> instance within the Shoot cluster. The controller also ensures the deletion of related Seed secrets. Finally, the dedicated &lt;code>garden&lt;/code> namespace within the Shoot cluster is deleted.&lt;/p>
-&lt;h3 id="networkpolicy-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>NetworkPolicy&lt;/code> controller reconciles &lt;code>NetworkPolicy&lt;/code>s in all relevant namespaces in the seed cluster and provides so-called &amp;ldquo;general&amp;rdquo; policies for access to the runtime cluster&amp;rsquo;s API server, DNS, public networks, etc.&lt;/p>
-&lt;p>The controller resolves the IP address of the Kubernetes service in the &lt;code>default&lt;/code> namespace and creates an egress &lt;code>NetworkPolicy&lt;/code>s for it.&lt;/p>
-&lt;p>For more details about &lt;code>NetworkPolicy&lt;/code>s in Gardener, please see &lt;a href="https://gardener.cloud/docs/gardener/network_policies/">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/a>.&lt;/p>
-&lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>Seed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/seed">&amp;ldquo;Main Reconciler&amp;rdquo;&lt;/a>&lt;/h4>
-&lt;p>This reconciler is responsible for managing the seed&amp;rsquo;s system components.
-Those comprise CA certificates, the various &lt;code>CustomResourceDefinition&lt;/code>s, the logging and monitoring stacks, and few central components like &lt;code>gardener-resource-manager&lt;/code>, &lt;code>etcd-druid&lt;/code>, &lt;code>istio&lt;/code>, etc.&lt;/p>
-&lt;p>The reconciler also deploys a &lt;code>BackupBucket&lt;/code> resource in the garden cluster in case the &lt;code>Seed'&lt;/code>s &lt;code>.spec.backup&lt;/code> is set.
-It also checks whether the seed cluster&amp;rsquo;s Kubernetes version is at least the &lt;a href="https://gardener.cloud/docs/gardener/supported_k8s_versions/#seed-cluster-versions">minimum supported version&lt;/a> and errors in case this constraint is not met.&lt;/p>
-&lt;p>This reconciler maintains the &lt;code>.status.lastOperation&lt;/code> field, i.e. it sets it:&lt;/p>
-&lt;ul>
-&lt;li>to &lt;code>state=Progressing&lt;/code> before it executes its reconciliation flow.&lt;/li>
-&lt;li>to &lt;code>state=Error&lt;/code> in case an error occurs.&lt;/li>
-&lt;li>to &lt;code>state=Succeeded&lt;/code> in case the reconciliation succeeded.&lt;/li>
-&lt;/ul>
-&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler checks whether the seed system components (deployed by the &amp;ldquo;main&amp;rdquo; reconciler) are healthy.
-It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
-A &lt;code>ManagedResource&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if the conditions &lt;code>ResourcesApplied=ResourcesHealthy=True&lt;/code> and &lt;code>ResourcesProgressing=False&lt;/code>.&lt;/p>
-&lt;p>If all &lt;code>ManagedResource&lt;/code>s are healthy, then the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition of the &lt;code>Seed&lt;/code> will be set to &lt;code>True&lt;/code>.
-Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
-&lt;p>If at least one &lt;code>ManagedResource&lt;/code> is unhealthy and there is threshold configuration for the conditions (in &lt;code>.controllers.seedCare.conditionThresholds&lt;/code>), then the status of the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition will be set:&lt;/p>
-&lt;ul>
-&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
-&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
-&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition exceeds the configured threshold duration.&lt;/li>
-&lt;/ul>
-&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
-Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
-&lt;h4 id="lease-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedlease">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/lease">&amp;ldquo;Lease&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler checks whether the connection to the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint works.
-If this succeeds, then it renews a &lt;code>Lease&lt;/code> resource in the garden cluster&amp;rsquo;s &lt;code>gardener-system-seed-lease&lt;/code> namespace.
-This indicates a heartbeat to the external world, and internally the &lt;code>gardenlet&lt;/code> sets its health status to &lt;code>true&lt;/code>.
-In addition, the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status&lt;/code> of the &lt;code>Seed&lt;/code> is set to &lt;code>True&lt;/code>.
-The whole process is similar to what the &lt;code>kubelet&lt;/code> does to report heartbeats for its &lt;code>Node&lt;/code> resource and its &lt;code>KubeletReady&lt;/code> condition. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#heartbeats">this section&lt;/a>.&lt;/p>
-&lt;p>If the connection to the &lt;code>/healthz&lt;/code> endpoint or the update of the &lt;code>Lease&lt;/code> fails, then the internal health status of &lt;code>gardenlet&lt;/code> is set to &lt;code>false&lt;/code>.
-Also, this internal health status is set to &lt;code>false&lt;/code> automatically after some time, in case the controller gets stuck for whatever reason.
-This internal health status is available via the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint and is used for the &lt;code>livenessProbe&lt;/code> in the &lt;code>gardenlet&lt;/code> pod.&lt;/p>
-&lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>Shoot&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Shoot&lt;/code> objects with the help of the following reconcilers.&lt;/p>
-&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootshoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/shoot">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler is responsible for managing all shoot cluster components and implements the core logic for creating, updating, hibernating, deleting, and migrating shoot clusters.
-It is also responsible for syncing the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> cluster&lt;/a> to the seed cluster before and after each successful shoot reconciliation.&lt;/p>
-&lt;p>The main reconciliation logic is performed in 3 different task flows dedicated to specific operation types:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>reconcile&lt;/code> (operations: create, reconcile, restore): this is the main flow responsible for creation and regular reconciliation of shoots. Hibernating a shoot also triggers this flow. It is also used for restoration of the shoot control plane on the new seed (second half of a &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>)&lt;/li>
-&lt;li>&lt;code>migrate&lt;/code>: this flow is triggered when &lt;code>spec.seedName&lt;/code> specifies a different seed than &lt;code>status.seedName&lt;/code>. It performs the first half of the &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>, i.e., a backup (&lt;code>migrate&lt;/code> operation) of all control plane components followed by a &amp;ldquo;shallow delete&amp;rdquo;.&lt;/li>
-&lt;li>&lt;code>delete&lt;/code>: this flow is triggered when the shoot&amp;rsquo;s &lt;code>deletionTimestamp&lt;/code> is set, i.e., when it is deleted.&lt;/li>
-&lt;/ul>
-&lt;p>The gardenlet takes special care to prevent unnecessary shoot reconciliations.
-This is important for several reasons, e.g., to not overload the seed API servers and to not exhaust infrastructure rate limits too fast.
-The gardenlet performs shoot reconciliations according to the following rules:&lt;/p>
-&lt;ul>
-&lt;li>If &lt;code>status.observedGeneration&lt;/code> is less than &lt;code>metadata.generation&lt;/code>: this is the case, e.g., when the spec was changed, a &lt;a href="https://gardener.cloud/docs/gardener/shoot_operations/">manual reconciliation operation&lt;/a> was triggered, or the shoot was deleted.&lt;/li>
-&lt;li>If the &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">last operation&lt;/a> was not successful.&lt;/li>
-&lt;li>If the shoot is in a &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">failed state&lt;/a>, the gardenlet does not perform any reconciliation on the shoot (unless the retry operation was triggered). However, it syncs the &lt;code>Cluster&lt;/code> resource to the seed in order to inform the extension controllers about the failed state.&lt;/li>
-&lt;li>Regular reconciliations are performed with every &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> (defaults to &lt;code>1h&lt;/code>).&lt;/li>
-&lt;li>Shoot reconciliations are not performed if the assigned seed cluster is not healthy or has not been reconciled by the current gardenlet version yet (determined by the &lt;code>Seed.status.gardener&lt;/code> section). This is done to make sure that shoots are reconciled with fully rolled out seed system components after a Gardener upgrade. Otherwise, the gardenlet might perform operations of the new version that doesn&amp;rsquo;t match the old version of the deployed seed system components, which might lead to unspecified behavior.&lt;/li>
-&lt;/ul>
-&lt;p>There are a few special cases that overwrite or confine how often and under which circumstances periodic shoot reconciliations are performed:&lt;/p>
-&lt;ul>
-&lt;li>In case the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), the sync period for a shoot can be increased individually by setting the &lt;code>shoot.gardener.cloud/sync-period&lt;/code> annotation. This is always allowed for shoots in the &lt;code>garden&lt;/code> namespace. Shoots are not reconciled with a higher frequency than specified in &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code>.&lt;/li>
-&lt;li>In case the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), shoots can be marked as &amp;ldquo;ignored&amp;rdquo; by setting the &lt;code>shoot.gardener.cloud/ignore&lt;/code> annotation. In this case, the gardenlet does not perform any reconciliation for the shoot.&lt;/li>
-&lt;li>In case &lt;code>GardenletConfiguration.controllers.shoot.reconcileInMaintenanceOnly&lt;/code> is enabled (disabled by default), the gardenlet performs regular shoot reconciliations only once in the respective maintenance time window (&lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> is ignored). The gardenlet randomly distributes shoot reconciliations over the maintenance time window to avoid high bursts of reconciliations (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/#cluster-reconciliation">Shoot Maintenance&lt;/a>).&lt;/li>
-&lt;li>In case &lt;code>Shoot.spec.maintenance.confineSpecUpdateRollout&lt;/code> is enabled (disabled by default), changes to the shoot specification are not rolled out immediately but only during the respective maintenance time window (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/">Shoot Maintenance&lt;/a>).&lt;/li>
-&lt;/ul>
-&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler performs three &amp;ldquo;care&amp;rdquo; actions related to &lt;code>Shoot&lt;/code>s.&lt;/p>
-&lt;h5 id="conditions">Conditions&lt;/h5>
-&lt;p>It maintains the following conditions:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>APIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the shoot&amp;rsquo;s &lt;code>kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
-&lt;li>&lt;code>ControlPlaneHealthy&lt;/code>: The control plane is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>kube-apiserver&lt;/code>,&lt;code>kube-controller-manager&lt;/code>), and &lt;code>Etcd&lt;/code>s (for example &lt;code>etcd-main&lt;/code>) exist and are healthy.&lt;/li>
-&lt;li>&lt;code>ObservabilityComponentsHealthy&lt;/code>: This condition is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>plutono&lt;/code>) and &lt;code>StatefulSet&lt;/code>s (for example &lt;code>prometheus&lt;/code>,&lt;code>vali&lt;/code>) exist and are healthy.&lt;/li>
-&lt;li>&lt;code>EveryNodyReady&lt;/code>: The conditions of the worker nodes are checked (e.g., &lt;code>Ready&lt;/code>, &lt;code>MemoryPressure&lt;/code>). Also, it&amp;rsquo;s checked whether the Kubernetes version of the installed &lt;code>kubelet&lt;/code> matches the desired version specified in the &lt;code>Shoot&lt;/code> resource.&lt;/li>
-&lt;li>&lt;code>SystemComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s are checked (e.g., &lt;code>ResourcesApplied&lt;/code>). Also, it is verified whether the VPN tunnel connection is established (which is required for the &lt;code>kube-apiserver&lt;/code> to communicate with the worker nodes).&lt;/li>
-&lt;/ul>
-&lt;p>Sometimes, &lt;code>ManagedResource&lt;/code>s can have both &lt;code>Healthy&lt;/code> and &lt;code>Progressing&lt;/code> conditions set to &lt;code>True&lt;/code> (e.g., when a &lt;code>DaemonSet&lt;/code> rolls out one-by-one on a large cluster with many nodes) while this is not reflected in the &lt;code>Shoot&lt;/code> status. In order to catch issues where the rollout gets stuck, one can set &lt;code>.controllers.shootCare.managedResourceProgressingThreshold&lt;/code> in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s component configuration. If the &lt;code>Progressing&lt;/code> condition is still &lt;code>True&lt;/code> for more than the configured duration, the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>Shoot&lt;/code> is set to &lt;code>False&lt;/code>, eventually.&lt;/p>
-&lt;p>Each condition can optionally also have error &lt;code>codes&lt;/code> in order to indicate which type of issue was detected (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">Shoot Status&lt;/a> for more details).&lt;/p>
-&lt;p>Apart from the above, extension controllers can also contribute to the &lt;code>status&lt;/code> or error &lt;code>codes&lt;/code> of these conditions (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/shoot-health-status-conditions/">Contributing to Shoot Health Status Conditions&lt;/a> for more details).&lt;/p>
-&lt;p>If all checks for a certain conditions are succeeded, then its &lt;code>status&lt;/code> will be set to &lt;code>True&lt;/code>.
-Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
-&lt;p>If at least one check fails and there is threshold configuration for the conditions (in &lt;code>.controllers.seedCare.conditionThresholds&lt;/code>), then the status will be set:&lt;/p>
-&lt;ul>
-&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
-&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
-&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition exceeds the configured threshold duration.&lt;/li>
-&lt;/ul>
-&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
-Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
-&lt;h5 id="constraints-and-automatic-webhook-remediation">Constraints And Automatic Webhook Remediation&lt;/h5>
-&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#constraints">Shoot Status&lt;/a> for more details.&lt;/p>
-&lt;h5 id="garbage-collection">Garbage Collection&lt;/h5>
-&lt;p>Stale pods in the shoot namespace in the seed cluster and in the &lt;code>kube-system&lt;/code> namespace in the shoot cluster are deleted.
-A pod is considered stale when:&lt;/p>
-&lt;ul>
-&lt;li>it was terminated with reason &lt;code>Evicted&lt;/code>.&lt;/li>
-&lt;li>it was terminated with reason starting with &lt;code>OutOf&lt;/code> (e.g., &lt;code>OutOfCpu&lt;/code>).&lt;/li>
-&lt;li>it is stuck in termination (i.e., if its &lt;code>deletionTimestamp&lt;/code> is more than &lt;code>5m&lt;/code> ago).&lt;/li>
-&lt;/ul>
-&lt;h4 id="state-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootstate">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/state">&amp;ldquo;State&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler periodically (default: every &lt;code>6h&lt;/code>) performs backups of the state of &lt;code>Shoot&lt;/code> clusters and persists them into &lt;code>ShootState&lt;/code> resources into the same namespace as the &lt;code>Shoot&lt;/code>s in the garden cluster.
-It is only started in case the &lt;code>gardenlet&lt;/code> is responsible for an unmanaged &lt;code>Seed&lt;/code>, i.e. a &lt;code>Seed&lt;/code> which is not backed by a &lt;code>seedmanagement.gardener.cloud/v1alpha1.ManagedSeed&lt;/code> object.
-Alternatively, it can be disabled by setting the &lt;code>concurrentSyncs=0&lt;/code> for the controller in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s component configuration.&lt;/p>
-&lt;p>Please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/22-improved-usage-of-shootstate-api.md">GEP-22: Improved Usage of the &lt;code>ShootState&lt;/code> API&lt;/a> for all information.&lt;/p>
-&lt;h3 id="tokenrequestor-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollertokenrequestor">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/tokenrequestor">&lt;code>TokenRequestor&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>gardenlet&lt;/code> uses an instance of the &lt;code>TokenRequestor&lt;/code> controller which initially was developed in the context of the &lt;code>gardener-resource-manager&lt;/code>, please read &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor-controller">this document&lt;/a> for further information.&lt;/p>
-&lt;p>&lt;code>gardenlet&lt;/code> uses it for requesting tokens for components running in the seed cluster that need to communicate with the garden cluster.
-The mechanism works the same way as for shoot control plane components running in the seed which need to communicate with the shoot cluster.
-However, &lt;code>gardenlet&lt;/code>&amp;rsquo;s instance of the &lt;code>TokenRequestor&lt;/code> controller is restricted to &lt;code>Secret&lt;/code>s labeled with &lt;code>resources.gardener.cloud/class=garden&lt;/code>.
-Furthermore, it doesn&amp;rsquo;t respect the &lt;code>serviceaccount.resources.gardener.cloud/namespace&lt;/code> annotation. Instead, it always uses the seed&amp;rsquo;s namespace in the garden cluster for managing &lt;code>ServiceAccounts&lt;/code> and their tokens.&lt;/p>
-&lt;h2 id="managed-seeds">Managed Seeds&lt;/h2>
-&lt;p>Gardener users can use shoot clusters as seed clusters, so-called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;),
-by creating &lt;code>ManagedSeed&lt;/code> resources.
-By default, the gardenlet that manages this shoot cluster then automatically
-creates a clone of itself with the same version and the same configuration
-that it currently has.
-Then it deploys the gardenlet clone into the managed seed cluster.&lt;/p>
-&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">Register Shoot as Seed&lt;/a>.&lt;/p>
-&lt;h2 id="migrating-from-previous-gardener-versions">Migrating from Previous Gardener Versions&lt;/h2>
-&lt;p>If your Gardener version doesn’t support gardenlets yet,
-no special migration is required, but the following prerequisites must be met:&lt;/p>
-&lt;ul>
-&lt;li>Your Gardener version is at least 0.31 before upgrading to v1.&lt;/li>
-&lt;li>You have to make sure that your garden cluster is exposed in a way
-that it’s reachable from all your seed clusters.&lt;/li>
-&lt;/ul>
-&lt;p>With previous Gardener versions, you had deployed the Gardener Helm chart
-(incorporating the API server, &lt;code>controller-manager&lt;/code>, and scheduler).
-With v1, this stays the same, but you now have to deploy the gardenlet Helm chart as well
-into all of your seeds (if they aren’t managed, as mentioned earlier).&lt;/p>
-&lt;p>See &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/">Deploy a gardenlet&lt;/a> for all instructions.&lt;/p>
-&lt;h2 id="related-links">Related Links&lt;/h2>
-&lt;ul>
-&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">Gardener Architecture&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/issues/356">#356: Implement Gardener Scheduler&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/pull/2309">#2309: Add /healthz endpoint for gardenlet&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Node Agent</title><link>https://gardener.cloud/docs/gardener/concepts/node-agent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/node-agent/</guid><description>
-&lt;h1 id="gardener-node-agent">Gardener Node Agent&lt;/h1>
+&lt;p>This reconciler is responsible for maintaining the &lt;code>shoot.gardener.cloud/status&lt;/code> label on &lt;code>Shoot&lt;/code>s. See &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#status-label">Shoot Status&lt;/a> for more details.&lt;/p></description></item><item><title>Docs: Gardener Node Agent</title><link>https://gardener.cloud/docs/gardener/concepts/node-agent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/node-agent/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The goal of the &lt;code>gardener-node-agent&lt;/code> is to bootstrap a machine into a worker node and maintain node-specific components, which run on the node and are unmanaged by Kubernetes (e.g. the &lt;code>kubelet&lt;/code> service, systemd units, &amp;hellip;).&lt;/p>
 &lt;p>It effectively is a Kubernetes controller deployed onto the worker node.&lt;/p>
 &lt;h2 id="architecture-and-basic-design">Architecture and Basic Design&lt;/h2>
@@ -1099,8 +695,8 @@ Because actual and previous configuration are compared, removed files and units 
 &lt;p>Previously, the &lt;code>cloud-config-downloader&lt;/code> simply restarted the systemd units on every change to the &lt;code>OSC&lt;/code>, regardless which of the services changed. The &lt;code>gardener-node-agent&lt;/code> first checks which systemd unit was changed, and will only restart these. This will prevent unneeded &lt;code>kubelet&lt;/code> restarts.&lt;/p>
 &lt;h3 id="future-development">Future Development&lt;/h3>
 &lt;p>The &lt;code>gardener-node-agent&lt;/code> opens up the possibilty for further improvements.&lt;/p>
-&lt;p>Necessary restarts of the &lt;code>kubelet&lt;/code> could be deterministic instead of the aforementioned random jittering. In that case, the &lt;code>gardenlet&lt;/code> could add annotations across all nodes. As the &lt;code>gardener-node-agent&lt;/code> watches the &lt;code>Node&lt;/code> object, it could wait with &lt;code>kubelet&lt;/code> restarts, OSC changes or react immediately. Critical changes could be performed in chunks of nodes in serial order, but an equal time spread is possible, too.&lt;/p></description></item><item><title>Docs: Operator</title><link>https://gardener.cloud/docs/gardener/concepts/operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/operator/</guid><description>
-&lt;h1 id="gardener-operator">Gardener Operator&lt;/h1>
+&lt;p>Necessary restarts of the &lt;code>kubelet&lt;/code> could be deterministic instead of the aforementioned random jittering. In that case, the &lt;code>gardenlet&lt;/code> could add annotations across all nodes. As the &lt;code>gardener-node-agent&lt;/code> watches the &lt;code>Node&lt;/code> object, it could wait with &lt;code>kubelet&lt;/code> restarts, OSC changes or react immediately. Critical changes could be performed in chunks of nodes in serial order, but an equal time spread is possible, too.&lt;/p></description></item><item><title>Docs: Gardener Operator</title><link>https://gardener.cloud/docs/gardener/concepts/operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/operator/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The &lt;code>gardener-operator&lt;/code> is responsible for the garden cluster environment.
 Without this component, users must deploy ETCD, the Gardener control plane, etc., manually and with separate mechanisms (not maintained in this repository).
 This is quite unfortunate since this requires separate tooling, processes, etc.
@@ -1462,8 +1058,8 @@ Hence, if you want to access the virtual garden cluster, you have to run the fol
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="tear-down-the-gardener-operator-environment">Tear Down the Gardener Operator Environment&lt;/h3>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-down
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-operator-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
-&lt;h1 id="gardener-resource-manager">Gardener Resource Manager&lt;/h1>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Gardener Resource Manager</title><link>https://gardener.cloud/docs/gardener/concepts/resource-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/resource-manager/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>Initially, the &lt;code>gardener-resource-manager&lt;/code> was a project similar to the &lt;a href="https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/addon-manager">kube-addon-manager&lt;/a>.
 It manages Kubernetes resources in a target cluster which means that it creates, updates, and deletes them.
 Also, it makes sure that manual modifications to these resources are reconciled back to the desired state.&lt;/p>
@@ -2431,8 +2027,8 @@ This prevents that undesired &lt;code>kubectl delete &amp;lt;...&amp;gt;&lt;/cod
 &lt;h4 id="extension-resource-validation">Extension Resource Validation&lt;/h4>
 &lt;p>When this webhook is activated, it reacts for most of the custom resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group.
 It also reacts for the &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> resources.&lt;/p>
-&lt;p>The webhook validates the resources specifications for &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> requests.&lt;/p></description></item><item><title>Docs: Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
-&lt;h1 id="gardener-scheduler">Gardener Scheduler&lt;/h1>
+&lt;p>The webhook validates the resources specifications for &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> requests.&lt;/p></description></item><item><title>Docs: Gardener Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>
 &lt;p>Either the scheduling strategy or the shoot cluster purpose hereby determines how the scheduler is operating.
@@ -2560,4 +2156,408 @@ The reason for the failure will be reported in the &lt;code>Shoot&lt;/code>&amp;
 &lt;h2 id="current-limitation--future-plans">Current Limitation / Future Plans&lt;/h2>
 &lt;ul>
 &lt;li>Azure unfortunately has a geographically non-hierarchical naming pattern and does not start with the continent. This is the reason why we will exchange the implementation of the &lt;code>MinimalDistance&lt;/code> strategy with a more suitable one in the future.&lt;/li>
+&lt;/ul></description></item><item><title>Docs: gardenlet</title><link>https://gardener.cloud/docs/gardener/concepts/gardenlet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/gardenlet/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>Gardener is implemented using the &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/">operator pattern&lt;/a>:
+It uses custom controllers that act on our own custom resources,
+and apply Kubernetes principles to manage clusters instead of containers.
+Following this analogy, you can recognize components of the Gardener architecture
+as well-known Kubernetes components, for example, shoot clusters can be compared with pods,
+and seed clusters can be seen as worker nodes.&lt;/p>
+&lt;p>The following Gardener components play a similar role as the corresponding components
+in the Kubernetes architecture:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Gardener Component&lt;/th>
+&lt;th>Kubernetes Component&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>gardener-apiserver&lt;/code>&lt;/td>
+&lt;td>&lt;code>kube-apiserver&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-controller-manager&lt;/code>&lt;/td>
+&lt;td>&lt;code>kube-controller-manager&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardener-scheduler&lt;/code>&lt;/td>
+&lt;td>&lt;code>kube-scheduler&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>gardenlet&lt;/code>&lt;/td>
+&lt;td>&lt;code>kubelet&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Similar to how the &lt;code>kube-scheduler&lt;/code> of Kubernetes finds an appropriate node
+for newly created pods, the &lt;code>gardener-scheduler&lt;/code> of Gardener finds an appropriate seed cluster
+to host the control plane for newly ordered clusters.
+By providing multiple seed clusters for a region or provider, and distributing the workload,
+Gardener also reduces the blast radius of potential issues.&lt;/p>
+&lt;p>Kubernetes runs a primary &amp;ldquo;agent&amp;rdquo; on every node, the kubelet,
+which is responsible for managing pods and containers on its particular node.
+Decentralizing the responsibility to the kubelet has the advantage that the overall system
+is scalable. Gardener achieves the same for cluster management by using a &lt;strong>gardenlet&lt;/strong>
+as а primary &amp;ldquo;agent&amp;rdquo; on every seed cluster, and is only responsible for shoot clusters
+located in its particular seed cluster:&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-similarities_cfec02.png" alt="Counterparts in the Gardener Architecture and the Kubernetes Architecture">&lt;/p>
+&lt;p>The &lt;code>gardener-controller-manager&lt;/code> has controllers to manage resources of the Gardener API. However, instead of letting the &lt;code>gardener-controller-manager&lt;/code> talk directly to seed clusters or shoot clusters, the responsibility isn’t only delegated to the gardenlet, but also managed using a reversed control flow: It&amp;rsquo;s up to the gardenlet to contact the Gardener API server, for example, to share a status for its managed seed clusters.&lt;/p>
+&lt;p>Reversing the control flow allows placing seed clusters or shoot clusters behind firewalls without the necessity of direct access via VPN tunnels anymore.&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/gardenlet-architecture-detailed_358df2.png" alt="Reversed Control Flow Using a gardenlet">&lt;/p>
+&lt;h2 id="tls-bootstrapping">TLS Bootstrapping&lt;/h2>
+&lt;p>Kubernetes doesn’t manage worker nodes itself, and it’s also not
+responsible for the lifecycle of the kubelet running on the workers.
+Similarly, Gardener doesn’t manage seed clusters itself,
+so it is also not responsible for the lifecycle of the gardenlet running on the seeds.
+As a consequence, both the gardenlet and the kubelet need to prepare
+a trusted connection to the Gardener API server
+and the Kubernetes API server correspondingly.&lt;/p>
+&lt;p>To prepare a trusted connection between the gardenlet
+and the Gardener API server, the gardenlet initializes
+a bootstrapping process after you deployed it into your seed clusters:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>The gardenlet starts up with a bootstrap &lt;code>kubeconfig&lt;/code>
+having a bootstrap token that allows to create &lt;code>CertificateSigningRequest&lt;/code> (CSR) resources.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>After the CSR is signed, the gardenlet downloads
+the created client certificate, creates a new &lt;code>kubeconfig&lt;/code> with it,
+and stores it inside a &lt;code>Secret&lt;/code> in the seed cluster.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The gardenlet deletes the bootstrap &lt;code>kubeconfig&lt;/code> secret,
+and starts up with its new &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>The gardenlet starts normal operation.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>The &lt;code>gardener-controller-manager&lt;/code> runs a control loop
+that automatically signs CSRs created by gardenlets.&lt;/p>
+&lt;blockquote>
+&lt;p>The gardenlet bootstrapping process is based on the
+kubelet bootstrapping process. More information:
+&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">Kubelet&amp;rsquo;s TLS bootstrapping&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;p>If you don&amp;rsquo;t want to run this bootstrap process, you can create
+a &lt;code>kubeconfig&lt;/code> pointing to the garden cluster for the gardenlet yourself,
+and use the field &lt;code>gardenClientConnection.kubeconfig&lt;/code> in the
+gardenlet configuration to share it with the gardenlet.&lt;/p>
+&lt;h2 id="gardenlet-certificate-rotation">gardenlet Certificate Rotation&lt;/h2>
+&lt;p>The certificate used to authenticate the gardenlet against the API server
+has a certain validity based on the configuration of the garden cluster
+(&lt;code>--cluster-signing-duration&lt;/code> flag of the &lt;code>kube-controller-manager&lt;/code> (default &lt;code>1y&lt;/code>)).&lt;/p>
+&lt;blockquote>
+&lt;p>You can also configure the validity for the client certificate by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.validity&lt;/code> in the gardenlet&amp;rsquo;s component configuration.
+Note that changing this value will only take effect when the kubeconfig is rotated again (it is not picked up immediately).
+The minimum validity is &lt;code>10m&lt;/code> (that&amp;rsquo;s what is enforced by the &lt;code>CertificateSigningRequest&lt;/code> API in Kubernetes which is used by the gardenlet).&lt;/p>
+&lt;/blockquote>
+&lt;p>By default, after about 70-90% of the validity has expired, the gardenlet tries to automatically replace
+the current certificate with a new one (certificate rotation).&lt;/p>
+&lt;blockquote>
+&lt;p>You can change these boundaries by specifying &lt;code>.gardenClientConnection.kubeconfigValidity.autoRotationJitterPercentage{Min,Max}&lt;/code> in the gardenlet&amp;rsquo;s component configuration.&lt;/p>
+&lt;/blockquote>
+&lt;p>To use a certificate rotation, you need to specify the secret to store
+the &lt;code>kubeconfig&lt;/code> with the rotated certificate in the field
+&lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> of the
+gardenlet &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#component-configuration">component configuration&lt;/a>.&lt;/p>
+&lt;h3 id="rotate-certificates-using-bootstrap-kubeconfig">Rotate Certificates Using Bootstrap &lt;code>kubeconfig&lt;/code>&lt;/h3>
+&lt;p>If the gardenlet created the certificate during the initial TLS Bootstrapping
+using the Bootstrap &lt;code>kubeconfig&lt;/code>, certificates can be rotated automatically.
+The same control loop in the &lt;code>gardener-controller-manager&lt;/code> that signs
+the CSRs during the initial TLS Bootstrapping also automatically signs
+the CSR during a certificate rotation.&lt;/p>
+&lt;p>ℹ️ You can trigger an immediate renewal by annotating the &lt;code>Secret&lt;/code> in the seed
+cluster stated in the &lt;code>.gardenClientConnection.kubeconfigSecret&lt;/code> field with
+&lt;code>gardener.cloud/operation=renew&lt;/code>. Within &lt;code>10s&lt;/code>, gardenlet detects this and terminates
+itself to request new credentials. After it has booted up again, gardenlet will issue a
+new certificate independent of the remaining validity of the existing one.&lt;/p>
+&lt;p>ℹ️ Alternatively, annotate the respective &lt;code>Seed&lt;/code> with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>.
+This will make gardenlet annotate its own kubeconfig secret with &lt;code>gardener.cloud/operation=renew&lt;/code>
+and triggers the process described in the previous paragraph.&lt;/p>
+&lt;h3 id="rotate-certificates-using-custom-kubeconfig">Rotate Certificates Using Custom &lt;code>kubeconfig&lt;/code>&lt;/h3>
+&lt;p>When trying to rotate a custom certificate that wasn’t created by gardenlet
+as part of the TLS Bootstrap, the x509 certificate&amp;rsquo;s &lt;code>Subject&lt;/code> field
+needs to conform to the following:&lt;/p>
+&lt;ul>
+&lt;li>the Common Name (CN) is prefixed with &lt;code>gardener.cloud:system:seed:&lt;/code>&lt;/li>
+&lt;li>the Organization (O) equals &lt;code>gardener.cloud:system:seeds&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Otherwise, the &lt;code>gardener-controller-manager&lt;/code> doesn’t automatically
+sign the CSR.
+In this case, an external component or user needs to approve the CSR manually,
+for example, using the command &lt;code>kubectl certificate approve seed-csr-&amp;lt;...&amp;gt;&lt;/code>).
+If that doesn’t happen within 15 minutes,
+the gardenlet repeats the process and creates another CSR.&lt;/p>
+&lt;h2 id="configuring-the-seed-to-work-with-gardenlet">Configuring the Seed to Work with gardenlet&lt;/h2>
+&lt;p>The gardenlet works with a single seed, which must be configured in the
+&lt;code>GardenletConfiguration&lt;/code> under &lt;code>.seedConfig&lt;/code>. This must be a copy of the
+&lt;code>Seed&lt;/code> resource, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: gardenlet.config.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: GardenletConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>seedConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduling:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> visible: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>(see &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">this yaml file&lt;/a> for a more complete example)&lt;/p>
+&lt;p>On startup, gardenlet registers a &lt;code>Seed&lt;/code> resource using the given template
+in the &lt;code>seedConfig&lt;/code> if it&amp;rsquo;s not present already.&lt;/p>
+&lt;h2 id="component-configuration">Component Configuration&lt;/h2>
+&lt;p>In the component configuration for the gardenlet, it’s possible to define:&lt;/p>
+&lt;ul>
+&lt;li>settings for the Kubernetes clients interacting with the various clusters&lt;/li>
+&lt;li>settings for the controllers inside the gardenlet&lt;/li>
+&lt;li>settings for leader election and log levels, feature gates, and seed selection or seed configuration.&lt;/li>
+&lt;/ul>
+&lt;p>More information: &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Example gardenlet Component Configuration&lt;/a>.&lt;/p>
+&lt;h2 id="heartbeats">Heartbeats&lt;/h2>
+&lt;p>Similar to how Kubernetes uses &lt;code>Lease&lt;/code> objects for node heart beats
+(see &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/589-efficient-node-heartbeats/README.md">KEP&lt;/a>),
+the gardenlet is using &lt;code>Lease&lt;/code> objects for heart beats of the seed cluster.
+Every two seconds, the gardenlet checks that the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code>
+endpoint returns HTTP status code 200.
+If that is the case, the gardenlet renews the lease in the Garden cluster in the &lt;code>gardener-system-seed-lease&lt;/code> namespace and updates
+the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status.conditions&lt;/code> field of the &lt;code>Seed&lt;/code> resource. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#lease-reconciler">this section&lt;/a>.&lt;/p>
+&lt;p>Similar to the &lt;code>node-lifecycle-controller&lt;/code> inside the &lt;code>kube-controller-manager&lt;/code>,
+the &lt;code>gardener-controller-manager&lt;/code> features a &lt;code>seed-lifecycle-controller&lt;/code> that sets
+the &lt;code>GardenletReady&lt;/code> condition to &lt;code>Unknown&lt;/code> in case the gardenlet fails to renew the lease.
+As a consequence, the &lt;code>gardener-scheduler&lt;/code> doesn’t consider this seed cluster for newly created shoot clusters anymore.&lt;/p>
+&lt;h3 id="healthz-endpoint">&lt;code>/healthz&lt;/code> Endpoint&lt;/h3>
+&lt;p>The gardenlet includes an HTTP server that serves a &lt;code>/healthz&lt;/code> endpoint.
+It’s used as a liveness probe in the &lt;code>Deployment&lt;/code> of the gardenlet.
+If the gardenlet fails to renew its lease,
+then the endpoint returns &lt;code>500 Internal Server Error&lt;/code>, otherwise it returns &lt;code>200 OK&lt;/code>.&lt;/p>
+&lt;p>Please note that the &lt;code>/healthz&lt;/code> only indicates whether the gardenlet
+could successfully probe the Seed&amp;rsquo;s API server and renew the lease with
+the Garden cluster.
+It does &lt;em>not&lt;/em> show that the Gardener extension API server (with the Gardener resource groups)
+is available.
+However, the gardenlet is designed to withstand such connection outages and
+retries until the connection is reestablished.&lt;/p>
+&lt;h2 id="controllers">Controllers&lt;/h2>
+&lt;p>The gardenlet consists out of several controllers which are now described in more detail.&lt;/p>
+&lt;h3 id="backupbucket-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupbucket">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupbucket">&lt;code>BackupBucket&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>BackupBucket&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of the &lt;code>Seed&lt;/code> the respective &lt;code>gardenlet&lt;/code> is responsible for.
+A &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> resource is created by the &lt;code>Seed&lt;/code> controller if &lt;code>.spec.backup&lt;/code> is defined in the &lt;code>Seed&lt;/code>.&lt;/p>
+&lt;p>The controller adds finalizers to the &lt;code>BackupBucket&lt;/code> and the secret mentioned in the &lt;code>.spec.secretRef&lt;/code> of the &lt;code>BackupBucket&lt;/code>. The controller also copies this secret to the seed cluster. Additionally, it creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciles it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupbucket/">Contract: BackupBucket Resource&lt;/a> for more details).
+The status from the reconciliation is reported in the &lt;code>.status.lastOperation&lt;/code> field. Once the extension resource is ready and the &lt;code>.status.generatedSecretRef&lt;/code> is set by the extension controller, the &lt;code>gardenlet&lt;/code> copies the referenced secret to the &lt;code>garden&lt;/code> namespace in the garden cluster. An owner reference to the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is added to this secret.&lt;/p>
+&lt;p>If the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> is deleted, the controller deletes the generated secret in the garden cluster and the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code> resource in the seed cluster and it waits for the respective extension controller to remove its finalizers from the &lt;code>extensions.gardener.cloud/v1alpha1.BackupBucket&lt;/code>. Then it deletes the secret in the seed cluster and finally removes the finalizers from the &lt;code>core.gardener.cloud/v1beta1.BackupBucket&lt;/code> and the referred secret.&lt;/p>
+&lt;h3 id="backupentry-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbackupentry">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/backupentry">&lt;code>BackupEntry&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>BackupEntry&lt;/code> controller reconciles those &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.
+Those resources are created by the &lt;code>Shoot&lt;/code> controller (only if backup is enabled for the respective &lt;code>Seed&lt;/code>) and there is exactly one &lt;code>BackupEntry&lt;/code> per &lt;code>Shoot&lt;/code>.&lt;/p>
+&lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource (non-namespaced) in the seed cluster and waits until the responsible extension controller reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/backupentry/">Contract: BackupEntry Resource&lt;/a> for more details).
+The status is populated in the &lt;code>.status.lastOperation&lt;/code> field.&lt;/p>
+&lt;p>The &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource has an owner reference pointing to the corresponding &lt;code>Shoot&lt;/code>.
+Hence, if the &lt;code>Shoot&lt;/code> is deleted, the &lt;code>BackupEntry&lt;/code> resource also gets deleted.
+In this case, the controller deletes the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> resource in the seed cluster and waits until the responsible extension controller has deleted it.
+Afterwards, the finalizer of the &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> resource is released so that it finally disappears from the system.&lt;/p>
+&lt;p>If the &lt;code>spec.seedName&lt;/code> and &lt;code>.status.seedName&lt;/code> of the &lt;code>core.gardener.cloud/v1beta1.BackupEntry&lt;/code> are different, the controller will migrate it by annotating the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> in the &lt;code>Source Seed&lt;/code> with &lt;code>gardener.cloud/operation: migrate&lt;/code>, waiting for it to be migrated successfully and eventually deleting it from the &lt;code>Source Seed&lt;/code> cluster. Afterwards, the controller will recreate the &lt;code>extensions.gardener.cloud/v1alpha1.BackupEntry&lt;/code> in the &lt;code>Destination Seed&lt;/code>, annotate it with &lt;code>gardener.cloud/operation: restore&lt;/code> and wait for the restore operation to finish. For more details about control plane migration, please read &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Shoot Control Plane Migration&lt;/a>.&lt;/p>
+&lt;h5 id="keep-backup-for-deleted-shoots">Keep Backup for Deleted Shoots&lt;/h5>
+&lt;p>In some scenarios it might be beneficial to not immediately delete the &lt;code>BackupEntry&lt;/code>s (and with them, the etcd backup) for deleted &lt;code>Shoot&lt;/code>s.&lt;/p>
+&lt;p>In this case you can configure the &lt;code>.controllers.backupEntry.deletionGracePeriodHours&lt;/code> field in the component configuration of the gardenlet.
+For example, if you set it to &lt;code>48&lt;/code>, then the &lt;code>BackupEntry&lt;/code>s for deleted &lt;code>Shoot&lt;/code>s will only be deleted &lt;code>48&lt;/code> hours after the &lt;code>Shoot&lt;/code> was deleted.&lt;/p>
+&lt;p>Additionally, you can limit the &lt;a href="https://gardener.cloud/docs/gardener/shoot_purposes/">shoot purposes&lt;/a> for which this applies by setting &lt;code>.controllers.backupEntry.deletionGracePeriodShootPurposes[]&lt;/code>.
+For example, if you set it to &lt;code>[production]&lt;/code> then only the &lt;code>BackupEntry&lt;/code>s for &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose=production&lt;/code> will be deleted after the configured grace period. All others will be deleted immediately after the &lt;code>Shoot&lt;/code> deletion.&lt;/p>
+&lt;p>In case a &lt;code>BackupEntry&lt;/code> is scheduled for future deletion but you want to delete it immediately, add the annotation &lt;code>backupentry.core.gardener.cloud/force-deletion=true&lt;/code>.&lt;/p>
+&lt;h3 id="bastion-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerbastion">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/bastion">&lt;code>Bastion&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>Bastion&lt;/code> controller reconciles those &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resources whose &lt;code>.spec.seedName&lt;/code> value is equal to the name of a &lt;code>Seed&lt;/code> the respective gardenlet is responsible for.&lt;/p>
+&lt;p>The controller creates an &lt;code>extensions.gardener.cloud/v1alpha1.Bastion&lt;/code> resource in the seed cluster in the shoot namespace with the same name as &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code>. Then it waits until the responsible extension controller has reconciled it (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/bastion/">Contract: Bastion Resource&lt;/a> for more details). The status is populated in the &lt;code>.status.conditions&lt;/code> and &lt;code>.status.ingress&lt;/code> fields.&lt;/p>
+&lt;p>During the deletion of &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resources, the controller first sets the &lt;code>Ready&lt;/code> condition to &lt;code>False&lt;/code> and then deletes the &lt;code>extensions.gardener.cloud/v1alpha1.Bastion&lt;/code> resource in the seed cluster.
+Once this resource is gone, the finalizer of the &lt;code>operations.gardener.cloud/v1alpha1.Bastion&lt;/code> resource is released, so it finally disappears from the system.&lt;/p>
+&lt;h3 id="controllerinstallation-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation">&lt;code>ControllerInstallation&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>ControllerInstallation&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ControllerInstallation&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationcontrollerinstallation">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/controllerinstallation">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler is responsible for &lt;code>ControllerInstallation&lt;/code>s referencing a &lt;code>ControllerDeployment&lt;/code> whose &lt;code>type=helm&lt;/code>.&lt;/p>
+&lt;p>For each &lt;code>ControllerInstallation&lt;/code>, it creates a namespace on the seed cluster named &lt;code>extension-&amp;lt;controller-installation-name&amp;gt;&lt;/code>.
+Then, it creates a generic garden kubeconfig and garden access secret for the extension for &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/">accessing the garden cluster&lt;/a>.&lt;/p>
+&lt;p>After that, it unpacks the Helm chart tarball in the &lt;code>ControllerDeployment&lt;/code>s &lt;code>.providerConfig.chart&lt;/code> field and deploys the rendered resources to the seed cluster.
+The Helm chart values in &lt;code>.providerConfig.values&lt;/code> will be used and extended with some information about the Gardener environment and the seed cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: &amp;lt;gardenlet-version&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garden:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-garden-cluster&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> genericKubeconfigSecretName: &amp;lt;secret-name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardenlet:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Foo: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Bar: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seed:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;seed-name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterIdentity: &amp;lt;identity-of-seed-cluster&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations: &amp;lt;seed-annotations&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels: &amp;lt;seed-labels&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec: &amp;lt;seed-specification&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As of today, there are a few more fields in &lt;code>.gardener.seed&lt;/code>, but it is recommended to use the &lt;code>.gardener.seed.spec&lt;/code> if the Helm chart needs more information about the seed configuration.&lt;/p>
+&lt;p>The rendered chart will be deployed via a &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
+It is labeled with &lt;code>controllerinstallation-name=&amp;lt;name&amp;gt;&lt;/code> so that one can easily find the owning &lt;code>ControllerInstallation&lt;/code> for an existing &lt;code>ManagedResource&lt;/code>.&lt;/p>
+&lt;p>The reconciler maintains the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> and sets it to &lt;code>False&lt;/code> if the rendering or deployment fails.&lt;/p>
+&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler reconciles &lt;code>ControllerInstallation&lt;/code> objects and checks whether they are in a healthy state.
+It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.&lt;/p>
+&lt;ul>
+&lt;li>If the &lt;code>ResourcesApplied&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Installed&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;li>If the &lt;code>ResourcesHealthy&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Healthy&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;li>If the &lt;code>ResourcesProgressing&lt;/code> condition of the &lt;code>ManagedResource&lt;/code> is &lt;code>True&lt;/code>, then the &lt;code>Progressing&lt;/code> condition of the &lt;code>ControllerInstallation&lt;/code> will be set to &lt;code>True&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>A &lt;code>ControllerInstallation&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if &lt;code>Applied=Healthy=True&lt;/code> and &lt;code>Progressing=False&lt;/code>.&lt;/p>
+&lt;h4 id="required-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollercontrollerinstallationrequired">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/controllerinstallation/required">&amp;ldquo;Required&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler watches all resources in the &lt;code>extensions.gardener.cloud&lt;/code> API group in the seed cluster.
+It is responsible for maintaining the &lt;code>Required&lt;/code> condition on &lt;code>ControllerInstallation&lt;/code>s.
+Concretely, when there is at least one extension resource in the seed cluster a &lt;code>ControllerInstallation&lt;/code> is responsible for, then the status of the &lt;code>Required&lt;/code> condition will be &lt;code>True&lt;/code>.
+If there are no extension resources anymore, its status will be &lt;code>False&lt;/code>.&lt;/p>
+&lt;p>This condition is taken into account by the &lt;code>ControllerRegistration&lt;/code> controller part of &lt;code>gardener-controller-manager&lt;/code> when it computes which extensions have to be deployed to which seed cluster. See &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#controllerregistration-controller">Gardener Controller Manager&lt;/a> for more details.&lt;/p>
+&lt;h3 id="managedseed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollermanagedseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/managedseed">&lt;code>ManagedSeed&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>ManagedSeed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ManagedSeed&lt;/code> that refers to &lt;code>Shoot&lt;/code> scheduled on &lt;code>Seed&lt;/code> the gardenlet is responsible for. Additionally, the controller monitors &lt;code>Seed&lt;/code>s, which are owned by &lt;code>ManagedSeed&lt;/code>s for which the gardenlet is responsible.&lt;/p>
+&lt;p>On &lt;code>ManagedSeed&lt;/code> reconciliation, the controller first waits for the referenced Shoot to undergo a reconciliation process. Once the Shoot is successfully reconciled, the controller sets the &lt;code>ShootReconciled&lt;/code> status of the ManagedSeed to &lt;code>true&lt;/code>. Then, it creates &lt;code>garden&lt;/code> namespace within the target Shoot cluster. The controller also manages secrets related to Seeds, such as the &lt;code>backup&lt;/code> and &lt;code>kubeconfig&lt;/code> secrets. It ensures that these secrets are created and updated according to the ManagedSeed spec. Finally, it deploys the &lt;code>gardenlet&lt;/code> within the specified Shoot cluster which registers the &lt;code>Seed&lt;/code> cluster.&lt;/p>
+&lt;p>On &lt;code>ManagedSeed&lt;/code> deletion, the controller first deletes the corresponding &lt;code>Seed&lt;/code> that was originally created by the controller. Subsequently, it deletes the &lt;code>gardenlet&lt;/code> instance within the Shoot cluster. The controller also ensures the deletion of related Seed secrets. Finally, the dedicated &lt;code>garden&lt;/code> namespace within the Shoot cluster is deleted.&lt;/p>
+&lt;h3 id="networkpolicy-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>NetworkPolicy&lt;/code> controller reconciles &lt;code>NetworkPolicy&lt;/code>s in all relevant namespaces in the seed cluster and provides so-called &amp;ldquo;general&amp;rdquo; policies for access to the runtime cluster&amp;rsquo;s API server, DNS, public networks, etc.&lt;/p>
+&lt;p>The controller resolves the IP address of the Kubernetes service in the &lt;code>default&lt;/code> namespace and creates an egress &lt;code>NetworkPolicy&lt;/code>s for it.&lt;/p>
+&lt;p>For more details about &lt;code>NetworkPolicy&lt;/code>s in Gardener, please see &lt;a href="https://gardener.cloud/docs/gardener/network_policies/">&lt;code>NetworkPolicy&lt;/code>s In Garden, Seed, Shoot Clusters&lt;/a>.&lt;/p>
+&lt;h3 id="seed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed">&lt;code>Seed&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>Seed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Seed&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/seed">&amp;ldquo;Main Reconciler&amp;rdquo;&lt;/a>&lt;/h4>
+&lt;p>This reconciler is responsible for managing the seed&amp;rsquo;s system components.
+Those comprise CA certificates, the various &lt;code>CustomResourceDefinition&lt;/code>s, the logging and monitoring stacks, and few central components like &lt;code>gardener-resource-manager&lt;/code>, &lt;code>etcd-druid&lt;/code>, &lt;code>istio&lt;/code>, etc.&lt;/p>
+&lt;p>The reconciler also deploys a &lt;code>BackupBucket&lt;/code> resource in the garden cluster in case the &lt;code>Seed'&lt;/code>s &lt;code>.spec.backup&lt;/code> is set.
+It also checks whether the seed cluster&amp;rsquo;s Kubernetes version is at least the &lt;a href="https://gardener.cloud/docs/gardener/supported_k8s_versions/#seed-cluster-versions">minimum supported version&lt;/a> and errors in case this constraint is not met.&lt;/p>
+&lt;p>This reconciler maintains the &lt;code>.status.lastOperation&lt;/code> field, i.e. it sets it:&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>state=Progressing&lt;/code> before it executes its reconciliation flow.&lt;/li>
+&lt;li>to &lt;code>state=Error&lt;/code> in case an error occurs.&lt;/li>
+&lt;li>to &lt;code>state=Succeeded&lt;/code> in case the reconciliation succeeded.&lt;/li>
+&lt;/ul>
+&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler checks whether the seed system components (deployed by the &amp;ldquo;main&amp;rdquo; reconciler) are healthy.
+It checks the &lt;code>.status.conditions&lt;/code> of the backing &lt;code>ManagedResource&lt;/code> created in the &lt;code>garden&lt;/code> namespace of the seed cluster.
+A &lt;code>ManagedResource&lt;/code> is considered &amp;ldquo;healthy&amp;rdquo; if the conditions &lt;code>ResourcesApplied=ResourcesHealthy=True&lt;/code> and &lt;code>ResourcesProgressing=False&lt;/code>.&lt;/p>
+&lt;p>If all &lt;code>ManagedResource&lt;/code>s are healthy, then the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition of the &lt;code>Seed&lt;/code> will be set to &lt;code>True&lt;/code>.
+Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
+&lt;p>If at least one &lt;code>ManagedResource&lt;/code> is unhealthy and there is threshold configuration for the conditions (in &lt;code>.controllers.seedCare.conditionThresholds&lt;/code>), then the status of the &lt;code>SeedSystemComponentsHealthy&lt;/code> condition will be set:&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
+&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition exceeds the configured threshold duration.&lt;/li>
+&lt;/ul>
+&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
+Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h4 id="lease-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedlease">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/lease">&amp;ldquo;Lease&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler checks whether the connection to the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint works.
+If this succeeds, then it renews a &lt;code>Lease&lt;/code> resource in the garden cluster&amp;rsquo;s &lt;code>gardener-system-seed-lease&lt;/code> namespace.
+This indicates a heartbeat to the external world, and internally the &lt;code>gardenlet&lt;/code> sets its health status to &lt;code>true&lt;/code>.
+In addition, the &lt;code>GardenletReady&lt;/code> condition in the &lt;code>status&lt;/code> of the &lt;code>Seed&lt;/code> is set to &lt;code>True&lt;/code>.
+The whole process is similar to what the &lt;code>kubelet&lt;/code> does to report heartbeats for its &lt;code>Node&lt;/code> resource and its &lt;code>KubeletReady&lt;/code> condition. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#heartbeats">this section&lt;/a>.&lt;/p>
+&lt;p>If the connection to the &lt;code>/healthz&lt;/code> endpoint or the update of the &lt;code>Lease&lt;/code> fails, then the internal health status of &lt;code>gardenlet&lt;/code> is set to &lt;code>false&lt;/code>.
+Also, this internal health status is set to &lt;code>false&lt;/code> automatically after some time, in case the controller gets stuck for whatever reason.
+This internal health status is available via the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint and is used for the &lt;code>livenessProbe&lt;/code> in the &lt;code>gardenlet&lt;/code> pod.&lt;/p>
+&lt;h3 id="shoot-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot">&lt;code>Shoot&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>Shoot&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>Shoot&lt;/code> objects with the help of the following reconcilers.&lt;/p>
+&lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootshoot">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/shoot">&amp;ldquo;Main&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler is responsible for managing all shoot cluster components and implements the core logic for creating, updating, hibernating, deleting, and migrating shoot clusters.
+It is also responsible for syncing the &lt;a href="https://gardener.cloud/docs/gardener/extensions/cluster/">&lt;code>Cluster&lt;/code> cluster&lt;/a> to the seed cluster before and after each successful shoot reconciliation.&lt;/p>
+&lt;p>The main reconciliation logic is performed in 3 different task flows dedicated to specific operation types:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>reconcile&lt;/code> (operations: create, reconcile, restore): this is the main flow responsible for creation and regular reconciliation of shoots. Hibernating a shoot also triggers this flow. It is also used for restoration of the shoot control plane on the new seed (second half of a &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>)&lt;/li>
+&lt;li>&lt;code>migrate&lt;/code>: this flow is triggered when &lt;code>spec.seedName&lt;/code> specifies a different seed than &lt;code>status.seedName&lt;/code>. It performs the first half of the &lt;a href="https://gardener.cloud/docs/gardener/control_plane_migration/#shoot-control-plane-migration">Control Plane Migration&lt;/a>, i.e., a backup (&lt;code>migrate&lt;/code> operation) of all control plane components followed by a &amp;ldquo;shallow delete&amp;rdquo;.&lt;/li>
+&lt;li>&lt;code>delete&lt;/code>: this flow is triggered when the shoot&amp;rsquo;s &lt;code>deletionTimestamp&lt;/code> is set, i.e., when it is deleted.&lt;/li>
+&lt;/ul>
+&lt;p>The gardenlet takes special care to prevent unnecessary shoot reconciliations.
+This is important for several reasons, e.g., to not overload the seed API servers and to not exhaust infrastructure rate limits too fast.
+The gardenlet performs shoot reconciliations according to the following rules:&lt;/p>
+&lt;ul>
+&lt;li>If &lt;code>status.observedGeneration&lt;/code> is less than &lt;code>metadata.generation&lt;/code>: this is the case, e.g., when the spec was changed, a &lt;a href="https://gardener.cloud/docs/gardener/shoot_operations/">manual reconciliation operation&lt;/a> was triggered, or the shoot was deleted.&lt;/li>
+&lt;li>If the &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">last operation&lt;/a> was not successful.&lt;/li>
+&lt;li>If the shoot is in a &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">failed state&lt;/a>, the gardenlet does not perform any reconciliation on the shoot (unless the retry operation was triggered). However, it syncs the &lt;code>Cluster&lt;/code> resource to the seed in order to inform the extension controllers about the failed state.&lt;/li>
+&lt;li>Regular reconciliations are performed with every &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> (defaults to &lt;code>1h&lt;/code>).&lt;/li>
+&lt;li>Shoot reconciliations are not performed if the assigned seed cluster is not healthy or has not been reconciled by the current gardenlet version yet (determined by the &lt;code>Seed.status.gardener&lt;/code> section). This is done to make sure that shoots are reconciled with fully rolled out seed system components after a Gardener upgrade. Otherwise, the gardenlet might perform operations of the new version that doesn&amp;rsquo;t match the old version of the deployed seed system components, which might lead to unspecified behavior.&lt;/li>
+&lt;/ul>
+&lt;p>There are a few special cases that overwrite or confine how often and under which circumstances periodic shoot reconciliations are performed:&lt;/p>
+&lt;ul>
+&lt;li>In case the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), the sync period for a shoot can be increased individually by setting the &lt;code>shoot.gardener.cloud/sync-period&lt;/code> annotation. This is always allowed for shoots in the &lt;code>garden&lt;/code> namespace. Shoots are not reconciled with a higher frequency than specified in &lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code>.&lt;/li>
+&lt;li>In case the gardenlet config allows it (&lt;code>controllers.shoot.respectSyncPeriodOverwrite&lt;/code>, disabled by default), shoots can be marked as &amp;ldquo;ignored&amp;rdquo; by setting the &lt;code>shoot.gardener.cloud/ignore&lt;/code> annotation. In this case, the gardenlet does not perform any reconciliation for the shoot.&lt;/li>
+&lt;li>In case &lt;code>GardenletConfiguration.controllers.shoot.reconcileInMaintenanceOnly&lt;/code> is enabled (disabled by default), the gardenlet performs regular shoot reconciliations only once in the respective maintenance time window (&lt;code>GardenletConfiguration.controllers.shoot.syncPeriod&lt;/code> is ignored). The gardenlet randomly distributes shoot reconciliations over the maintenance time window to avoid high bursts of reconciliations (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/#cluster-reconciliation">Shoot Maintenance&lt;/a>).&lt;/li>
+&lt;li>In case &lt;code>Shoot.spec.maintenance.confineSpecUpdateRollout&lt;/code> is enabled (disabled by default), changes to the shoot specification are not rolled out immediately but only during the respective maintenance time window (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/">Shoot Maintenance&lt;/a>).&lt;/li>
+&lt;/ul>
+&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootcare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/care">&amp;ldquo;Care&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler performs three &amp;ldquo;care&amp;rdquo; actions related to &lt;code>Shoot&lt;/code>s.&lt;/p>
+&lt;h5 id="conditions">Conditions&lt;/h5>
+&lt;p>It maintains the following conditions:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>APIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the shoot&amp;rsquo;s &lt;code>kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
+&lt;li>&lt;code>ControlPlaneHealthy&lt;/code>: The control plane is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>kube-apiserver&lt;/code>,&lt;code>kube-controller-manager&lt;/code>), and &lt;code>Etcd&lt;/code>s (for example &lt;code>etcd-main&lt;/code>) exist and are healthy.&lt;/li>
+&lt;li>&lt;code>ObservabilityComponentsHealthy&lt;/code>: This condition is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>plutono&lt;/code>) and &lt;code>StatefulSet&lt;/code>s (for example &lt;code>prometheus&lt;/code>,&lt;code>vali&lt;/code>) exist and are healthy.&lt;/li>
+&lt;li>&lt;code>EveryNodyReady&lt;/code>: The conditions of the worker nodes are checked (e.g., &lt;code>Ready&lt;/code>, &lt;code>MemoryPressure&lt;/code>). Also, it&amp;rsquo;s checked whether the Kubernetes version of the installed &lt;code>kubelet&lt;/code> matches the desired version specified in the &lt;code>Shoot&lt;/code> resource.&lt;/li>
+&lt;li>&lt;code>SystemComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s are checked (e.g., &lt;code>ResourcesApplied&lt;/code>). Also, it is verified whether the VPN tunnel connection is established (which is required for the &lt;code>kube-apiserver&lt;/code> to communicate with the worker nodes).&lt;/li>
+&lt;/ul>
+&lt;p>Sometimes, &lt;code>ManagedResource&lt;/code>s can have both &lt;code>Healthy&lt;/code> and &lt;code>Progressing&lt;/code> conditions set to &lt;code>True&lt;/code> (e.g., when a &lt;code>DaemonSet&lt;/code> rolls out one-by-one on a large cluster with many nodes) while this is not reflected in the &lt;code>Shoot&lt;/code> status. In order to catch issues where the rollout gets stuck, one can set &lt;code>.controllers.shootCare.managedResourceProgressingThreshold&lt;/code> in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s component configuration. If the &lt;code>Progressing&lt;/code> condition is still &lt;code>True&lt;/code> for more than the configured duration, the &lt;code>SystemComponentsHealthy&lt;/code> condition in the &lt;code>Shoot&lt;/code> is set to &lt;code>False&lt;/code>, eventually.&lt;/p>
+&lt;p>Each condition can optionally also have error &lt;code>codes&lt;/code> in order to indicate which type of issue was detected (see &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/">Shoot Status&lt;/a> for more details).&lt;/p>
+&lt;p>Apart from the above, extension controllers can also contribute to the &lt;code>status&lt;/code> or error &lt;code>codes&lt;/code> of these conditions (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/shoot-health-status-conditions/">Contributing to Shoot Health Status Conditions&lt;/a> for more details).&lt;/p>
+&lt;p>If all checks for a certain conditions are succeeded, then its &lt;code>status&lt;/code> will be set to &lt;code>True&lt;/code>.
+Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
+&lt;p>If at least one check fails and there is threshold configuration for the conditions (in &lt;code>.controllers.seedCare.conditionThresholds&lt;/code>), then the status will be set:&lt;/p>
+&lt;ul>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>True&lt;/code> before.&lt;/li>
+&lt;li>to &lt;code>Progressing&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition does not exceed the configured threshold duration yet.&lt;/li>
+&lt;li>to &lt;code>False&lt;/code> if it was &lt;code>Progressing&lt;/code> before and the &lt;code>lastUpdateTime&lt;/code> of the condition exceeds the configured threshold duration.&lt;/li>
+&lt;/ul>
+&lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
+Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;h5 id="constraints-and-automatic-webhook-remediation">Constraints And Automatic Webhook Remediation&lt;/h5>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#constraints">Shoot Status&lt;/a> for more details.&lt;/p>
+&lt;h5 id="garbage-collection">Garbage Collection&lt;/h5>
+&lt;p>Stale pods in the shoot namespace in the seed cluster and in the &lt;code>kube-system&lt;/code> namespace in the shoot cluster are deleted.
+A pod is considered stale when:&lt;/p>
+&lt;ul>
+&lt;li>it was terminated with reason &lt;code>Evicted&lt;/code>.&lt;/li>
+&lt;li>it was terminated with reason starting with &lt;code>OutOf&lt;/code> (e.g., &lt;code>OutOfCpu&lt;/code>).&lt;/li>
+&lt;li>it is stuck in termination (i.e., if its &lt;code>deletionTimestamp&lt;/code> is more than &lt;code>5m&lt;/code> ago).&lt;/li>
+&lt;/ul>
+&lt;h4 id="state-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootstate">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/state">&amp;ldquo;State&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler periodically (default: every &lt;code>6h&lt;/code>) performs backups of the state of &lt;code>Shoot&lt;/code> clusters and persists them into &lt;code>ShootState&lt;/code> resources into the same namespace as the &lt;code>Shoot&lt;/code>s in the garden cluster.
+It is only started in case the &lt;code>gardenlet&lt;/code> is responsible for an unmanaged &lt;code>Seed&lt;/code>, i.e. a &lt;code>Seed&lt;/code> which is not backed by a &lt;code>seedmanagement.gardener.cloud/v1alpha1.ManagedSeed&lt;/code> object.
+Alternatively, it can be disabled by setting the &lt;code>concurrentSyncs=0&lt;/code> for the controller in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s component configuration.&lt;/p>
+&lt;p>Please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/22-improved-usage-of-shootstate-api.md">GEP-22: Improved Usage of the &lt;code>ShootState&lt;/code> API&lt;/a> for all information.&lt;/p>
+&lt;h3 id="tokenrequestor-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollertokenrequestor">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controller/tokenrequestor">&lt;code>TokenRequestor&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>gardenlet&lt;/code> uses an instance of the &lt;code>TokenRequestor&lt;/code> controller which initially was developed in the context of the &lt;code>gardener-resource-manager&lt;/code>, please read &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor-controller">this document&lt;/a> for further information.&lt;/p>
+&lt;p>&lt;code>gardenlet&lt;/code> uses it for requesting tokens for components running in the seed cluster that need to communicate with the garden cluster.
+The mechanism works the same way as for shoot control plane components running in the seed which need to communicate with the shoot cluster.
+However, &lt;code>gardenlet&lt;/code>&amp;rsquo;s instance of the &lt;code>TokenRequestor&lt;/code> controller is restricted to &lt;code>Secret&lt;/code>s labeled with &lt;code>resources.gardener.cloud/class=garden&lt;/code>.
+Furthermore, it doesn&amp;rsquo;t respect the &lt;code>serviceaccount.resources.gardener.cloud/namespace&lt;/code> annotation. Instead, it always uses the seed&amp;rsquo;s namespace in the garden cluster for managing &lt;code>ServiceAccounts&lt;/code> and their tokens.&lt;/p>
+&lt;h2 id="managed-seeds">Managed Seeds&lt;/h2>
+&lt;p>Gardener users can use shoot clusters as seed clusters, so-called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;),
+by creating &lt;code>ManagedSeed&lt;/code> resources.
+By default, the gardenlet that manages this shoot cluster then automatically
+creates a clone of itself with the same version and the same configuration
+that it currently has.
+Then it deploys the gardenlet clone into the managed seed cluster.&lt;/p>
+&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">Register Shoot as Seed&lt;/a>.&lt;/p>
+&lt;h2 id="migrating-from-previous-gardener-versions">Migrating from Previous Gardener Versions&lt;/h2>
+&lt;p>If your Gardener version doesn’t support gardenlets yet,
+no special migration is required, but the following prerequisites must be met:&lt;/p>
+&lt;ul>
+&lt;li>Your Gardener version is at least 0.31 before upgrading to v1.&lt;/li>
+&lt;li>You have to make sure that your garden cluster is exposed in a way
+that it’s reachable from all your seed clusters.&lt;/li>
+&lt;/ul>
+&lt;p>With previous Gardener versions, you had deployed the Gardener Helm chart
+(incorporating the API server, &lt;code>controller-manager&lt;/code>, and scheduler).
+With v1, this stays the same, but you now have to deploy the gardenlet Helm chart as well
+into all of your seeds (if they aren’t managed, as mentioned earlier).&lt;/p>
+&lt;p>See &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/">Deploy a gardenlet&lt;/a> for all instructions.&lt;/p>
+&lt;h2 id="related-links">Related Links&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/concepts/architecture/">Gardener Architecture&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/issues/356">#356: Implement Gardener Scheduler&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/pull/2309">#2309: Add /healthz endpoint for gardenlet&lt;/a>&lt;/li>
 &lt;/ul></description></item></channel></rss>

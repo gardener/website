@@ -400,14 +400,23 @@ For the configuration options, please see this &lt;a href="https://gardener.clou
 The controller then creates or updates the required &lt;code>ControllerInstallation&lt;/code> objects for the given seed.
 It also deletes every existing &lt;code>ControllerInstallation&lt;/code> whose referenced &lt;code>ControllerRegistration&lt;/code> is not part of the required list.
 For example, if the shoots in the seed are no longer using the DNS provider &lt;code>aws-route53&lt;/code>, then the controller proceeds to delete the respective &lt;code>ControllerInstallation&lt;/code> object.&lt;/p>
-&lt;h4 id="controllerregistration-finalizer-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercontrollerregistrationcontrollerregistrationfinalizer">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/controllerregistration/controllerregistrationfinalizer">&amp;ldquo;ControllerRegistration Finalizer&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;h4 id="controllerregistration-finalizer-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercontrollerregistrationcontrollerregistrationfinalizer">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/controllerregistration/controllerregistrationfinalizer">&amp;quot;&lt;code>ControllerRegistration&lt;/code> Finalizer&amp;quot; Reconciler&lt;/a>&lt;/h4>
 &lt;p>This reconciliation loop watches the &lt;code>ControllerRegistration&lt;/code> resource and adds finalizers to it when they are created.
 In case a deletion request comes in for the resource, i.e., if a &lt;code>.metadata.deletionTimestamp&lt;/code> is set, it actively scans for a &lt;code>ControllerInstallation&lt;/code> resource using this &lt;code>ControllerRegistration&lt;/code>, and decides whether the deletion can be allowed.
 In case no related &lt;code>ControllerInstallation&lt;/code> is present, it removes the finalizer and marks it for deletion.&lt;/p>
-&lt;h4 id="seed-finalizer-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercontrollerregistrationseedfinalizer">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/controllerregistration/seedfinalizer">&amp;ldquo;Seed Finalizer&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;h4 id="seed-finalizer-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercontrollerregistrationseedfinalizer">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/controllerregistration/seedfinalizer">&amp;quot;&lt;code>Seed&lt;/code> Finalizer&amp;quot; Reconciler&lt;/a>&lt;/h4>
 &lt;p>This loop also watches the &lt;code>Seed&lt;/code> object and adds finalizers to it at creation.
 If a &lt;code>.metadata.deletionTimestamp&lt;/code> is set for the seed, then the controller checks for existing &lt;code>ControllerInstallation&lt;/code> objects which reference this seed.
 If no such objects exist, then it removes the finalizer and allows the deletion.&lt;/p>
+&lt;h4 id="extension-clusterrole-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercontrollerregistrationextensionclusterrole">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/controllerregistration/extensionclusterrole">&amp;ldquo;Extension &lt;code>ClusterRole&lt;/code>&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
+&lt;p>This reconciler watches two resources in the garden cluster:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>ClusterRole&lt;/code>s labelled with &lt;code>authorization.gardener.cloud/custom-extensions-permissions=true&lt;/code>&lt;/li>
+&lt;li>&lt;code>ServiceAccount&lt;/code>s in seed namespaces matching the selector provided via the &lt;code>authorization.gardener.cloud/extensions-serviceaccount-selector&lt;/code> annotation of such &lt;code>ClusterRole&lt;/code>s.&lt;/li>
+&lt;/ul>
+&lt;p>Its core task is to maintain a &lt;code>ClusterRoleBinding&lt;/code> resource referencing the respective &lt;code>ClusterRole&lt;/code>.
+This gets bound to all &lt;code>ServiceAccount&lt;/code>s in seed namespaces whose labels match the selector provided via the &lt;code>authorization.gardener.cloud/extensions-serviceaccount-selector&lt;/code> annotation of such &lt;code>ClusterRole&lt;/code>s.&lt;/p>
+&lt;p>You can read more about the purpose of this reconciler in &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/#additional-permissions">this document&lt;/a>.&lt;/p>
 &lt;h3 id="event-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerevent">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/event">&lt;code>Event&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>With the Gardener Event Controller, you can prolong the lifespan of events related to Shoot clusters.
 This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
@@ -1452,7 +1461,9 @@ See &lt;a href="https://github.com/gardener/gardener/blob/master/example/resourc
 &lt;p>The controller ensures a &lt;code>ServiceAccount&lt;/code> exists in the target cluster as specified in the annotations of the &lt;code>Secret&lt;/code> in the source cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>serviceaccount.resources.gardener.cloud/name: &amp;lt;sa-name&amp;gt;
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>serviceaccount.resources.gardener.cloud/namespace: &amp;lt;sa-namespace&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The requested tokens will act with the privileges which are assigned to this &lt;code>ServiceAccount&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can optionally annotate the &lt;code>Secret&lt;/code> with &lt;code>serviceaccount.resources.gardener.cloud/labels&lt;/code>, e.g. &lt;code>serviceaccount.resources.gardener.cloud/labels={&amp;quot;some&amp;quot;:&amp;quot;labels&amp;quot;,&amp;quot;foo&amp;quot;:&amp;quot;bar&amp;quot;}&lt;/code>.
+This will make the &lt;code>ServiceAccount&lt;/code> getting labelled accordingly.&lt;/p>
+&lt;p>The requested tokens will act with the privileges which are assigned to this &lt;code>ServiceAccount&lt;/code>.&lt;/p>
 &lt;p>The controller will then request a token via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">&lt;code>TokenRequest&lt;/code> API&lt;/a> and populate it into the &lt;code>.data.token&lt;/code> field to the &lt;code>Secret&lt;/code> in the source cluster.&lt;/p>
 &lt;p>Alternatively, the client can provide a raw kubeconfig (in YAML or JSON format) via the &lt;code>Secret&lt;/code>&amp;rsquo;s &lt;code>.data.kubeconfig&lt;/code> field.
 The controller will then populate the requested token in the kubeconfig for the user used in the &lt;code>.current-context&lt;/code>.

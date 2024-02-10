@@ -1357,7 +1357,7 @@ They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions
 &lt;/ul></description></item><item><title>Docs: Logging And Monitoring</title><link>https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/</guid><description>
 &lt;h1 id="logging-and-monitoring-for-extensions">Logging and Monitoring for Extensions&lt;/h1>
 &lt;p>Gardener provides an integrated logging and monitoring stack for alerting, monitoring, and troubleshooting of its managed components by operators or end users. For further information how to make use of it in these roles, refer to the corresponding guides for &lt;a href="https://github.com/gardener/logging/tree/master/docs/usage/README.md">exploring logs&lt;/a> and for &lt;a href="https://github.com/credativ/plutono">monitoring with Plutono&lt;/a>.&lt;/p>
-&lt;p>The components that constitute the logging and monitoring stack are managed by Gardener. By default, it deploys &lt;a href="https://prometheus.io/">Prometheus&lt;/a>, &lt;a href="https://prometheus.io/docs/alerting/latest/alertmanager/">Alertmanager&lt;/a>, and &lt;a href="https://github.com/credativ/plutono">Plutono&lt;/a> into the &lt;code>garden&lt;/code> namespace of all seed clusters. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>), it will deploy &lt;a href="https://github.com/fluent/fluent-operator">fluent-operator&lt;/a> and &lt;a href="https://github.com/credativ/plutono">Vali&lt;/a> in the &lt;code>garden&lt;/code> namespace too.&lt;/p>
+&lt;p>The components that constitute the logging and monitoring stack are managed by Gardener. By default, it deploys &lt;a href="https://prometheus.io/">Prometheus&lt;/a> and &lt;a href="https://prometheus.io/docs/alerting/latest/alertmanager/">Alertmanager&lt;/a> (managed via &lt;a href="https://github.com/prometheus-operator/prometheus-operator">&lt;code>prometheus-operator&lt;/code>&lt;/a>, and &lt;a href="https://github.com/credativ/plutono">Plutono&lt;/a> into the &lt;code>garden&lt;/code> namespace of all seed clusters. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>), it will deploy &lt;a href="https://github.com/fluent/fluent-operator">fluent-operator&lt;/a> and &lt;a href="https://github.com/credativ/plutono">Vali&lt;/a> in the &lt;code>garden&lt;/code> namespace too.&lt;/p>
 &lt;p>Each shoot namespace hosts managed logging and monitoring components. As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus, Plutono and, if configured, an Alertmanager into the shoot namespace, next to the other control plane components. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>) and the &lt;a href="https://gardener.cloud/docs/gardener/shoot_purposes/#behavioral-differences">shoot purpose&lt;/a> is not &lt;code>testing&lt;/code>, it deploys a shoot-specific Vali in the shoot namespace too.&lt;/p>
 &lt;p>The logging and monitoring stack is extensible by configuration. Gardener extensions can take advantage of that and contribute monitoring configurations encoded in &lt;code>ConfigMap&lt;/code>s for their own, specific dashboards, alerts and other supported assets and integrate with it. As with other Gardener resources, they will be continuously reconciled. The extensions can also deploy directly fluent-operator custom resources which will be created in the seed cluster and plugged into the fluent-bit instance.&lt;/p>
 &lt;p>This guide is about the roles and extensibility options of the logging and monitoring stack components, and how to integrate extensions with:&lt;/p>
@@ -1366,13 +1366,34 @@ They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#logging">Logging&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;h2 id="monitoring">Monitoring&lt;/h2>
-&lt;p>The central Prometheus instance in the &lt;code>garden&lt;/code> namespace fetches metrics and data from all seed cluster nodes and all seed cluster pods.
+&lt;h3 id="cache-prometheus">Cache Prometheus&lt;/h3>
+&lt;p>The central Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;cache Prometheus&amp;rdquo;) fetches metrics and data from all seed cluster nodes and all seed cluster pods.
 It uses the &lt;a href="https://prometheus.io/docs/prometheus/latest/federation/">federation&lt;/a> concept to allow the shoot-specific instances to scrape only the metrics for the pods of the control plane they are responsible for.
 This mechanism allows to scrape the metrics for the nodes/pods once for the whole cluster, and to have them distributed afterwards.&lt;/p>
+&lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this cache Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=cache&lt;/code>, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: cache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cache-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="shoot-cluster-prometheus">Shoot Cluster Prometheus&lt;/h3>
 &lt;p>The shoot-specific metrics are then made available to operators and users in the shoot Plutono, using the shoot Prometheus as data source.&lt;/p>
 &lt;p>Extension controllers might deploy components as part of their reconciliation next to the shoot&amp;rsquo;s control plane.
 Examples for this would be a cloud-controller-manager or CSI controller deployments. Extensions that want to have their managed control plane components integrated with monitoring can contribute their per-shoot configuration for scraping Prometheus metrics, Alertmanager alerts or Plutono dashboards.&lt;/p>
-&lt;h3 id="extensions-monitoring-integration">Extensions Monitoring Integration&lt;/h3>
+&lt;h4 id="extensions-monitoring-integration">Extensions Monitoring Integration&lt;/h4>
 &lt;p>Before deploying the shoot-specific Prometheus instance, Gardener will read all &lt;code>ConfigMap&lt;/code>s in the shoot namespace, which are labeled with &lt;code>extensions.gardener.cloud/configuration=monitoring&lt;/code>.
 Such &lt;code>ConfigMap&lt;/code>s may contain four fields in their &lt;code>data&lt;/code>:&lt;/p>
 &lt;ul>

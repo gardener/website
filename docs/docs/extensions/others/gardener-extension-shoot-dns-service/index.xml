@@ -225,7 +225,7 @@ shoot manifest, e.g.&lt;/p>
 &lt;li>cloudflare-dns&lt;/li>
 &lt;/ul>
 &lt;h3 id="request-dns-records-for-ingress-resources">Request DNS records for Ingress resources&lt;/h3>
-&lt;p>To request a DNS name for an Ingress or Service object in the shoot cluster it must be annotated with the DNS class &lt;code>garden&lt;/code> and an annotation denoting the desired DNS names.&lt;/p>
+&lt;p>To request a DNS name for &lt;code>Ingress&lt;/code>, &lt;code>Service&lt;/code> or &lt;code>Gateway&lt;/code> (Istio or Gateway API) objects in the shoot cluster it must be annotated with the DNS class &lt;code>garden&lt;/code> and an annotation denoting the desired DNS names.&lt;/p>
 &lt;p>Example for an annotated Ingress resource:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: networking.k8s.io/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Ingress
@@ -276,7 +276,9 @@ shoot manifest, e.g.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 80
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetPort: 8080
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: LoadBalancer
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="creating-a-dnsentry-resource-explicitly">Creating a DNSEntry resource explicitly&lt;/h4>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="request-dns-records-for-gateway-resources">Request DNS records for Gateway resources&lt;/h3>
+&lt;p>Please see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/istio-gateways/">Istio Gateways&lt;/a> or &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/gateway-api-gateways/">Gateway API&lt;/a> for details.&lt;/p>
+&lt;h3 id="creating-a-dnsentry-resource-explicitly">Creating a DNSEntry resource explicitly&lt;/h3>
 &lt;p>It is also possible to create a DNS entry via the Kubernetes resource called &lt;code>DNSEntry&lt;/code>:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: dns.gardener.cloud/v1alpha1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: DNSEntry
@@ -475,4 +477,269 @@ with &lt;code>Secret&lt;/code> containing the credentials.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> AWS_SECRET_ACCESS_KEY: ...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;strong>External-DNS-Management&lt;/strong> project provides examples with more details for &lt;code>DNSProviders&lt;/code> (30-provider-&amp;lt;provider-name&amp;gt;.yaml)
 and credential &lt;code>Secrets&lt;/code> (20-secret-&amp;lt;provider-name&amp;gt;.yaml) at &lt;a href="https://github.com/gardener/external-dns-management/tree/master/examples">https://github.com/gardener/external-dns-management//examples&lt;/a>
-for all supported provider types.&lt;/p></description></item></channel></rss>
+for all supported provider types.&lt;/p></description></item><item><title>Docs: Gateway Api Gateways</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/gateway-api-gateways/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/gateway-api-gateways/</guid><description>
+&lt;h1 id="using-annotated-gateway-api-gateway-andor-httproutes-as-source">Using annotated Gateway API Gateway and/or HTTPRoutes as Source&lt;/h1>
+&lt;p>This tutorial describes how to use annotated Gateway API resources as source for DNSEntries with the Gardener shoot-dns-service extension.&lt;/p>
+&lt;p>The dns-controller-manager supports the resources &lt;code>Gateway&lt;/code> and &lt;code>HTTPRoute&lt;/code>.&lt;/p>
+&lt;h2 id="install-istio-on-your-cluster">Install Istio on your cluster&lt;/h2>
+&lt;p>Using a new or existing shoot cluster, follow the Istio &lt;a href="https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/">Kubernetes Gateway API&lt;/a> to
+install the Gateway API and to install Istio.&lt;/p>
+&lt;p>These are the typical commands for the Istio installation with the Kubernetes Gateway API:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export KUEBCONFIG=...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>curl -L https://istio.io/downloadIstio | sh -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl get crd gateways.gateway.networking.k8s.io &amp;amp;&amp;gt; /dev/null || &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> { kubectl kustomize &lt;span style="color:#a31515">&amp;#34;github.com/kubernetes-sigs/gateway-api/config/crd?ref=v1.0.0&amp;#34;&lt;/span> | kubectl apply -f -; }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>istioctl install --set profile=minimal -y
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl label namespace default istio-injection=enabled
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="verify-that-gateway-source-works">Verify that Gateway Source works&lt;/h2>
+&lt;h3 id="install-a-sample-service">Install a sample service&lt;/h3>
+&lt;p>With automatic sidecar injection:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/httpbin/httpbin.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-a-gateway-as-a-source">Using a Gateway as a source&lt;/h3>
+&lt;p>Deploy the Gateway API configuration including a single exposed route (i.e., /get):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl create namespace istio-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f - &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: gateway.networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-ingress
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;*.example.com&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> gatewayClassName: istio
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> listeners:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hostname: &amp;#34;*.example.com&amp;#34; # this is used by dns-controller-manager to extract DNS names
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port: 80
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> protocol: HTTP
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> allowedRoutes:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespaces:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> from: All
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">---
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: gateway.networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: HTTPRoute
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: http
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> parentRefs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-ingress
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hostnames: [&amp;#34;httpbin.example.com&amp;#34;] # this is used by dns-controller-manager to extract DNS names too
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> rules:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - matches:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - path:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: PathPrefix
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> value: /get
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> backendRefs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port: 8000
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You should now see events in the namespace of the gateway:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl -n istio-system get events --sort-by={.metadata.creationTimestamp}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>LAST SEEN TYPE REASON OBJECT MESSAGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation service/gateway-istio httpbin.example.com: created dns entry object shoot--foo--bar/gateway-istio-service-zpf8n
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation service/gateway-istio httpbin.example.com: dns entry pending: waiting &lt;span style="color:#00f">for&lt;/span> dns reconciliation
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation service/gateway-istio httpbin.example.com: dns entry is pending
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>36s Normal dns-annotation service/gateway-istio httpbin.example.com: dns entry active
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="using-a-httproute-as-a-source">Using a HTTPRoute as a source&lt;/h4>
+&lt;p>If the &lt;code>Gateway&lt;/code> resource is annotated with &lt;code>dns.gardener.cloud/dnsnames: &amp;quot;*&amp;quot;&lt;/code>, hostnames from all referencing &lt;code>HTTPRoute&lt;/code> resources
+are automatically extracted. These resources don&amp;rsquo;t need an additional annotation.&lt;/p>
+&lt;p>Deploy the Gateway API configuration including a single exposed route (i.e., /get):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl create namespace istio-ingress
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f - &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: gateway.networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-ingress
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;*&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> gatewayClassName: istio
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> listeners:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hostname: null # not set
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port: 80
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> protocol: HTTP
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> allowedRoutes:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespaces:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> from: All
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">---
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: gateway.networking.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: HTTPRoute
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: http
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> parentRefs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-ingress
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hostnames: [&amp;#34;httpbin.example.com&amp;#34;] # this is used by dns-controller-manager to extract DNS names too
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> rules:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - matches:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - path:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> type: PathPrefix
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> value: /get
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> backendRefs:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - name: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port: 8000
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This should show a similar events as above.&lt;/p>
+&lt;h4 id="access-the-sample-service-using-curl">Access the sample service using &lt;code>curl&lt;/code>&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ curl -I http://httpbin.example.com/get
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>HTTP/1.1 200 OK
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>server: istio-envoy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>date: Tue, 13 Feb 2024 08:09:41 GMT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>content-type: application/json
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>content-length: 701
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>access-control-allow-origin: *
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>access-control-allow-credentials: true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>x-envoy-upstream-service-time: 19
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Accessing any other URL that has not been explicitly exposed should return an HTTP 404 error:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ curl -I http://httpbin.example.com/headers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>HTTP/1.1 404 Not Found
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>date: Tue, 13 Feb 2024 08:09:41 GMT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>server: istio-envoy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>transfer-encoding: chunked
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Istio Gateways</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/istio-gateways/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-dns-service/tutorials/istio-gateways/</guid><description>
+&lt;h1 id="using-annotated-istio-gateway-andor-istio-virtual-service-as-source">Using annotated Istio Gateway and/or Istio Virtual Service as Source&lt;/h1>
+&lt;p>This tutorial describes how to use annotated Istio Gateway resources as source for DNSEntries with the Gardener shoot-dns-service extension.&lt;/p>
+&lt;h2 id="install-istio-on-your-cluster">Install Istio on your cluster&lt;/h2>
+&lt;p>Using a new or existing shoot cluster, follow the &lt;a href="https://istio.io/latest/docs/setup/getting-started/">Istio Getting Started&lt;/a> to download and install Istio.&lt;/p>
+&lt;p>These are the typical commands for the istio demo installation&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export KUEBCONFIG=...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>curl -L https://istio.io/downloadIstio | sh -
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>istioctl install --set profile=demo -y
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl label namespace default istio-injection=enabled
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="verify-that-istio-gatewayvirtualservice-source-works">Verify that Istio Gateway/VirtualService Source works&lt;/h2>
+&lt;h3 id="install-a-sample-service">Install a sample service&lt;/h3>
+&lt;p>With automatic sidecar injection:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/httpbin/httpbin.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-a-gateway-as-a-source">Using a Gateway as a source&lt;/h3>
+&lt;h4 id="create-an-istio-gateway">Create an Istio Gateway:&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl apply -f -
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: httpbin-gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-system
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;*&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> selector:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> istio: ingressgateway # use Istio default gateway implementation
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> servers:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - port:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> number: 80
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: http
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> protocol: HTTP
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hosts:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - &amp;#34;httpbin.example.com&amp;#34; # this is used by the dns-controller-manager to extract DNS names
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="configure-routes-for-traffic-entering-via-the-gateway">Configure routes for traffic entering via the Gateway:&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl apply -f -
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: VirtualService
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hosts:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - &amp;#34;httpbin.example.com&amp;#34; # this is also used by the dns-controller-manager to extract DNS names
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> gateways:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - istio-system/httpbin-gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> http:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - match:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - uri:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> prefix: /status
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - uri:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> prefix: /delay
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> route:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - destination:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> number: 8000
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> host: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You should now see events in the namespace of the gateway:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl -n istio-system get events --sort-by={.metadata.creationTimestamp}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>LAST SEEN TYPE REASON OBJECT MESSAGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation gateway/httpbin-gateway httpbin.example.com: created dns entry object shoot--foo--bar/httpbin-gateway-gateway-zpf8n
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation gateway/httpbin-gateway httpbin.example.com: dns entry pending: waiting &lt;span style="color:#00f">for&lt;/span> dns reconciliation
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>38s Normal dns-annotation gateway/httpbin-gateway httpbin.example.com: dns entry is pending
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>36s Normal dns-annotation gateway/httpbin-gateway httpbin.example.com: dns entry active
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="using-a-virtualservice-as-a-source">Using a VirtualService as a source&lt;/h3>
+&lt;p>If the &lt;code>Gateway&lt;/code> resource is annotated with &lt;code>dns.gardener.cloud/dnsnames: &amp;quot;*&amp;quot;&lt;/code>, hosts from all referencing &lt;code>VirtualServices&lt;/code> resources
+are automatically extracted. These resources don&amp;rsquo;t need an additional annotation.&lt;/p>
+&lt;h4 id="create-an-istio-gateway-1">Create an Istio Gateway:&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl apply -f -
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: Gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: httpbin-gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: istio-system
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/dnsnames: &amp;#34;*&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> selector:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> istio: ingressgateway # use Istio default gateway implementation
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> servers:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - port:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> number: 80
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: http
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> protocol: HTTP
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hosts:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - &amp;#34;*&amp;#34;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="configure-routes-for-traffic-entering-via-the-gateway-1">Configure routes for traffic entering via the Gateway:&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl apply -f -
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">apiVersion: networking.istio.io/v1alpha3
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">kind: VirtualService
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">metadata:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> namespace: default
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">spec:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> hosts:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - &amp;#34;httpbin.example.com&amp;#34; # this is used by dns-controller-manager to extract DNS names
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> gateways:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - istio-system/httpbin-gateway
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> http:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - match:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - uri:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> prefix: /status
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - uri:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> prefix: /delay
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> route:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - destination:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> port:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> number: 8000
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> host: httpbin
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This should show a similar events as above.&lt;/p>
+&lt;p>To get the targets to the extracted DNS names, the shoot-dns-service controller is able to gather information from the kubernetes service of the Istio Ingress Gateway.&lt;/p>
+&lt;p>&lt;strong>Note&lt;/strong>: It is also possible to set the targets my specifying an Ingress resource using the &lt;code>dns.gardener.cloud/ingress&lt;/code> annotation on the Istio Ingress Gateway resource.&lt;/p>
+&lt;p>&lt;strong>Note&lt;/strong>: It is also possible to set the targets manually by using the &lt;code>dns.gardener.cloud/targets&lt;/code> annotation on the Istio Ingress Gateway resource.&lt;/p>
+&lt;h3 id="access-the-sample-service-using-curl">Access the sample service using &lt;code>curl&lt;/code>&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ curl -I http://httpbin.example.com/status/200
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>HTTP/1.1 200 OK
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>server: istio-envoy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>date: Tue, 13 Feb 2024 07:49:37 GMT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>content-type: text/html; charset=utf-8
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>access-control-allow-origin: *
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>access-control-allow-credentials: true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>content-length: 0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>x-envoy-upstream-service-time: 15
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Accessing any other URL that has not been explicitly exposed should return an HTTP 404 error:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ curl -I http://httpbin.example.com/headers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>HTTP/1.1 404 Not Found
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>date: Tue, 13 Feb 2024 08:09:41 GMT
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>server: istio-envoy
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>transfer-encoding: chunked
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

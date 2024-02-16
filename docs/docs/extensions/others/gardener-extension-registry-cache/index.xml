@@ -4,7 +4,7 @@
 &lt;h3 id="use-case">Use-case&lt;/h3>
 &lt;p>For a Shoot cluster, the containerd daemon of every Node goes to the internet and fetches an image that it doesn&amp;rsquo;t have locally in the Node&amp;rsquo;s image cache. New Nodes are often created due to events such as auto-scaling (scale up), rolling update, or replacement of unhealthy Node. Such a new Node would need to pull all of the images of the Pods running on it from the internet because the Node&amp;rsquo;s cache is initially empty. Pulling an image from a registry produces network traffic and registry costs. To avoid these network traffic and registry costs, you can use the registry-cache extension to run a registry as pull-through cache.&lt;/p>
 &lt;p>The following diagram shows a rough outline of how image pull looks like for a Shoot cluster &lt;strong>without registry cache&lt;/strong>:
-&lt;img src="https://gardener.cloud/__resources/shoot-cluster-without-registry-cache_7e2f53.png" alt="shoot-cluster-without-registry-cache">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/shoot-cluster-without-registry-cache_e59a94.png" alt="shoot-cluster-without-registry-cache">&lt;/p>
 &lt;h3 id="solution">Solution&lt;/h3>
 &lt;p>The registry-cache extension deploys and manages a registry in the Shoot cluster that runs as pull-through cache. The used registry implementation is &lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a>.&lt;/p>
 &lt;h3 id="how-does-it-work">How does it work?&lt;/h3>
@@ -14,7 +14,7 @@
 &lt;p>Note: The used registry implementation (&lt;a href="https://github.com/distribution/distribution">distribution/distribution&lt;/a>) supports mirroring of only one upstream registry.&lt;/p>
 &lt;/blockquote>
 &lt;p>The following diagram shows a rough outline of how image pull looks like for a Shoot cluster &lt;strong>with registry cache&lt;/strong>:
-&lt;img src="https://gardener.cloud/__resources/shoot-cluster-with-registry-cache_8634e1.png" alt="shoot-cluster-with-registry-cache">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/shoot-cluster-with-registry-cache_ca1763.png" alt="shoot-cluster-with-registry-cache">&lt;/p>
 &lt;h2 id="shoot-configuration">Shoot Configuration&lt;/h2>
 &lt;p>The extension is not globally enabled and must be configured per Shoot cluster. The Shoot specification has to be adapted to include the &lt;code>registry-cache&lt;/code> extension configuration.&lt;/p>
 &lt;p>Below is an example of &lt;code>registry-cache&lt;/code> extension configuration as part of the Shoot spec:&lt;/p>
@@ -27,7 +27,7 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: registry-cache
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: registry.extensions.gardener.cloud/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: registry.extensions.gardener.cloud/v1alpha3
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: RegistryConfig
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> caches:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: docker.io
@@ -37,7 +37,7 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: ghcr.io
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: quay.io
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 0s
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: quay-credentials
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
@@ -56,13 +56,13 @@ The registry-cache extension deploys a StatefulSet with a volume claim template.
 This field is immutable. See &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/configuration/#increase-the-cache-disk-size">Increase the cache disk size&lt;/a> on how to resize the disk.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].volume.storageClassName&lt;/code> field is the name of the StorageClass used by the registry cache volume.
 This field is immutable. If the field is not specified, then the &lt;a href="https://kubernetes.io/docs/concepts/storage/storage-classes/#default-storageclass">default StorageClass&lt;/a> will be used.&lt;/p>
-&lt;p>The &lt;code>providerConfig.caches[].garbageCollection.enabled&lt;/code> field enables/disables the cache&amp;rsquo;s garbage collection. Defaults to &lt;code>true&lt;/code>. The time to live (ttl) for an image is &lt;code>7d&lt;/code>. See the &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/configuration/#garbage-collection">garbage collection section&lt;/a> for more details.&lt;/p>
+&lt;p>The &lt;code>providerConfig.caches[].garbageCollection.ttl&lt;/code> field is the time to live of a blob in the cache. If the field is set to &lt;code>0s&lt;/code>, the garbage collection is disabled. Defaults to &lt;code>168h&lt;/code> (7 days). See the &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/configuration/#garbage-collection">garbage collection section&lt;/a> for more details.&lt;/p>
 &lt;p>The &lt;code>providerConfig.caches[].secretReferenceName&lt;/code> is the name of the reference for the Secret containing the upstream registry credentials. To cache images from a private registry, credentials to the upstream registry should be supplied. For details see &lt;a href="https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/upstream-credentials/#how-to-provide-credentials-for-upstream-registry">How to provide credentials for upstream registry&lt;/a>.&lt;/p>
 &lt;blockquote>
 &lt;p>&lt;strong>Note&lt;/strong>: It&amp;rsquo;s only possible to provide one set of credentials for one private upstream registry.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="garbage-collection">Garbage Collection&lt;/h2>
-&lt;p>When the registry cache receives a request for an image that is not present in its local store, it fetches the image from the upstream, returns it to the client and stores the image in the local store. The registry cache runs a scheduler that deletes images when their time to live (ttl) expires. When adding an image to the local store, the registry cache also adds a time to live for the image. The ttl value is &lt;code>7d&lt;/code>. Requesting an image from the registry cache does not extend the time to live of the image. Hence, an image is always garbage collected from the registry cache store after &lt;code>7d&lt;/code>.
+&lt;p>When the registry cache receives a request for an image that is not present in its local store, it fetches the image from the upstream, returns it to the client and stores the image in the local store. The registry cache runs a scheduler that deletes images when their time to live (ttl) expires. When adding an image to the local store, the registry cache also adds a time to live for the image. The ttl defaults to &lt;code>168h&lt;/code> (7 days) and is configurable. The garbage collection can be disabled by setting the ttl to &lt;code>0s&lt;/code>. Requesting an image from the registry cache does not extend the time to live of the image. Hence, an image is always garbage collected from the registry cache store when its ttl expires.
 At the time of writing this document, there is no functionality for garbage collection based on disk size - e.g. garbage collecting images when a certain disk usage threshold is passed.
 The garbage collection cannot be enabled once it is disabled. This constraint is added to mitigate &lt;a href="https://github.com/distribution/distribution/issues/4249">distribution/distribution#4249&lt;/a>.&lt;/p>
 &lt;h2 id="increase-the-cache-disk-size">Increase the cache disk size&lt;/h2>
@@ -212,7 +212,7 @@ See the &lt;a href="https://github.com/containerd/containerd/blob/v1.7.0/docs/ho
 &lt;h1 id="deploying-registry-cache-extension-locally">Deploying Registry Cache Extension Locally&lt;/h1>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;ul>
-&lt;li>Make sure that you have a running local Gardener setup. The steps to complete this can be found in the &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/">Deploying Gardener Locally guide&lt;/a>.&lt;/li>
+&lt;li>Make sure that you have a running local Gardener setup. The steps to complete this can be found in the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/deployment/getting_started_locally.md">Deploying Gardener Locally guide&lt;/a>.&lt;/li>
 &lt;/ul>
 &lt;h2 id="setting-up-the-registry-cache-extension">Setting up the Registry Cache Extension&lt;/h2>
 &lt;p>Make sure that your &lt;code>KUBECONFIG&lt;/code> environment variable is targeting the local Gardener cluster. When this is ensured, run:&lt;/p>
@@ -228,7 +228,39 @@ See the &lt;a href="https://github.com/containerd/containerd/blob/v1.7.0/docs/ho
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tearing-down-the-dev-environment">Tearing Down the Dev Environment&lt;/h2>
 &lt;p>To tear down the development environment delete the Shoot cluster or disable the &lt;code>registry-cache&lt;/code> extension in the Shoot&amp;rsquo;s specification. When the extension is not used by the Shoot anymore, you can run:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make extension-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The make target will delete the ControllerDeployment and ControllerRegistration of the extension, and the registry-cache admission helm deployment.&lt;/p></description></item><item><title>Docs: Upstream Credentials</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/upstream-credentials/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/upstream-credentials/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The make target will delete the ControllerDeployment and ControllerRegistration of the extension, and the registry-cache admission helm deployment.&lt;/p></description></item><item><title>Docs: Migration From V1alpha2 To V1alpha3</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/migration-from-v1alpha2-to-v1alpha3/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/migration-from-v1alpha2-to-v1alpha3/</guid><description>
+&lt;h1 id="migration-from-v1alpha2-to-v1alpha3">Migration from &lt;code>v1alpha2&lt;/code> to &lt;code>v1alpha3&lt;/code>&lt;/h1>
+&lt;p>This document descibres how to migrate from API version &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code> of the &lt;code>RegistryConfig&lt;/code> to &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code>.&lt;/p>
+&lt;p>The &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code> is deprecated and will be removed in a future version. Use &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> instead.&lt;/p>
+&lt;p>Let&amp;rsquo;s first inspect how the &lt;code>RegistryConfig&lt;/code> looks like in API version &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: registry.extensions.gardener.cloud/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RegistryConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>caches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- upstream: docker.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 10Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClassName: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: docker-credentials
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The translation of the above &lt;code>RegistryConfig&lt;/code> in API version &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> is:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: registry.extensions.gardener.cloud/v1alpha3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RegistryConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>caches:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- upstream: docker.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 10Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClassName: default
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 168h
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: docker-credentials
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As you can notice, there is one breaking change in API version &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> - the &lt;code>caches[].garbageCollection.enabled&lt;/code> field is replaced by &lt;code>caches[].garbageCollection.ttl&lt;/code>.&lt;/p>
+&lt;p>&lt;code>v1alpha2&lt;/code> was an API created against &lt;code>distribution/distribution@2.8&lt;/code>. The registry-cache evolves and upgraded recently to &lt;code>distribution/distribution@3.0&lt;/code>. In &lt;code>distribution/distribution@2.8&lt;/code> the ttl is not configurable and it is hard-coded to &lt;code>168h&lt;/code> (7 days). That&amp;rsquo;s why in versions prior to &lt;code>v1alpha3&lt;/code> the &lt;code>storage.delete.enabled&lt;/code> config field in the &lt;code>distribution/distribution&lt;/code> configuration was used to control deletion of blobs. &lt;code>distribution/distribution@3.0&lt;/code> exposes the &lt;code>proxy.ttl&lt;/code> config field. It is now possible to natively disable the garbage collection (expiration of blobs) by setting &lt;code>proxy.ttl=0&lt;/code>.&lt;/p>
+&lt;p>Conversions are as follows:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>garbageCollection.enable=true&lt;/code> gets converted to &lt;code>garbageCollection.ttl=168h&lt;/code> and vice versa (a positive &lt;code>garbageCollection.ttl&lt;/code> duration is considered &lt;code>garbageCollection.enable=true&lt;/code>)&lt;/li>
+&lt;li>&lt;code>garbageCollection.enable=false&lt;/code> gets converted to &lt;code>garbageCollection.ttl=0&lt;/code> vice versa&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Upstream Credentials</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/upstream-credentials/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/upstream-credentials/</guid><description>
 &lt;h1 id="how-to-provide-credentials-for-upstream-registry">How to provide credentials for upstream registry?&lt;/h1>
 &lt;p>In order to pull private images through registry cache, it is required to supply credentials for the private upstream registry.&lt;/p>
 &lt;h2 id="how-to-configure-the-registry-cache-to-use-upstream-registry-credentials">How to configure the registry cache to use upstream registry credentials?&lt;/h2>
@@ -260,7 +292,7 @@ See the &lt;a href="https://github.com/containerd/containerd/blob/v1.7.0/docs/ho
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: registry-cache
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: registry.extensions.gardener.cloud/v1alpha2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: registry.extensions.gardener.cloud/v1alpha3
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: RegistryConfig
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> caches:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - upstream: docker.io

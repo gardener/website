@@ -1384,7 +1384,8 @@ They are part of the &lt;a href="https://github.com/gardener/gardener/blob/maste
 &lt;h3 id="cache-prometheus">Cache Prometheus&lt;/h3>
 &lt;p>The central Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;cache Prometheus&amp;rdquo;) fetches metrics and data from all seed cluster nodes and all seed cluster pods.
 It uses the &lt;a href="https://prometheus.io/docs/prometheus/latest/federation/">federation&lt;/a> concept to allow the shoot-specific instances to scrape only the metrics for the pods of the control plane they are responsible for.
-This mechanism allows to scrape the metrics for the nodes/pods once for the whole cluster, and to have them distributed afterwards.&lt;/p>
+This mechanism allows to scrape the metrics for the nodes/pods once for the whole cluster, and to have them distributed afterwards.
+For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/monitoring-stack.md#overview">here&lt;/a>.&lt;/p>
 &lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this cache Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=cache&lt;/code>, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
@@ -1392,6 +1393,29 @@ This mechanism allows to scrape the metrics for the nodes/pods once for the whol
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: cache
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cache-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="seed-prometheus">Seed Prometheus&lt;/h3>
+&lt;p>Another Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;seed Prometheus&amp;rdquo;) fetches metrics and data from seed system components, kubelets, cAdvisors, and extensions.
+If you want your extension pods to be scraped then they must be annotated with &lt;code>prometheus.io/scrape=true&lt;/code> and &lt;code>prometheus.io/port=&amp;lt;metrics-port&amp;gt;&lt;/code>.
+For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/monitoring-stack.md#overview">here&lt;/a>.&lt;/p>
+&lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this seed Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=seed&lt;/code>, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed-my-component
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:

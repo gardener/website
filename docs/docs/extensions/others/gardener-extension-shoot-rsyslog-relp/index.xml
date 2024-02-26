@@ -1,0 +1,249 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Node Audit Logging</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/</link><description>Recent content in Node Audit Logging on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Configuration</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/configuration/</guid><description>
+&lt;h1 id="configuring-the-rsyslog-relp-extension">Configuring the Rsyslog Relp Extension&lt;/h1>
+&lt;h2 id="introduction">Introduction&lt;/h2>
+&lt;p>As a cluster owner, you might need audit logs on shoot node level. With these audit logs you can track actions on your nodes like privilege escalation, file integrity, process executions and who is the user that performed these actions. Such information is essential for the security of your shoot cluster. Linux operating systems collect such logs via the &lt;code>auditd&lt;/code> and &lt;code>journald&lt;/code> daemons. However, these logs can be lost if they are only kept locally on the operating system. You need a reliable way to send them to a remote server where they can be stored for longer time periods and retrieved when necessary.&lt;/p>
+&lt;p>&lt;a href="https://www.rsyslog.com/">Rsyslog&lt;/a> offers a solution for that. It gathers and process logs from &lt;code>auditd&lt;/code> and &lt;code>journald&lt;/code> and then forwards them to a remote server. Moreover, &lt;code>rsyslog&lt;/code> can make use of the RELP protocol so that logs are sent reliably and no messages are lost.&lt;/p>
+&lt;p>The &lt;code>shoot-rsyslog-relp&lt;/code> extension is used to configure &lt;code>rsyslog&lt;/code> on each &lt;code>Shoot&lt;/code> node so that the following can take place:&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>Rsyslog&lt;/code> reads logs from the &lt;code>auditd&lt;/code> and &lt;code>journald&lt;/code> sockets.&lt;/li>
+&lt;li>The logs are filtered based on the program name and syslog severity of the message.&lt;/li>
+&lt;li>The logs are enriched with metadata containing the name of the &lt;code>Project&lt;/code> in which the shoot is created, the name of the &lt;code>Shoot&lt;/code>, the UID of the &lt;code>Shoot&lt;/code> and the hostname of the &lt;code>Node&lt;/code> on which the log event occurred.&lt;/li>
+&lt;li>The enriched logs are sent to the target remote server via the RELP protocol.&lt;/li>
+&lt;/ol>
+&lt;p>The following graph shows a rough outline of how that looks in a shoot cluster:
+&lt;img src="https://gardener.cloud/__resources/rsyslog-logging-architecture_ec3137.png" alt="rsyslog-logging-architecture">&lt;/p>
+&lt;h2 id="shoot-configuration">Shoot Configuration&lt;/h2>
+&lt;p>The extension is not globally enabled and must be configured per &lt;code>Shoot&lt;/code> cluster. The &lt;code>Shoot&lt;/code> specification has to be adapted to include the &lt;code>shoot-rsyslog-relp&lt;/code> extension configuration which specifies the target server to which logs are forwarded, its port and some optional rsyslog settings described in the examples below.&lt;/p>
+&lt;p>Below is an example &lt;code>shoot-rsyslog-relp&lt;/code> extension configuration as part of the &lt;code>Shoot&lt;/code> spec:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-foo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-rsyslog-relp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: rsyslog-relp.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: RsyslogRelpConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Set the target server to which logs are sent. The server must support the RELP protocol.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target: some.rsyslog-rlep.server
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Set the port of the target server.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 10250
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Define rules to select logs from which programs and with what syslog severity&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># are forwarded to the target server.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loggingRules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - severity: 4
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> programNames: [&lt;span style="color:#a31515">&amp;#34;kubelet&amp;#34;&lt;/span>, &lt;span style="color:#a31515">&amp;#34;audisp-syslog&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - severity: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> programNames: [&lt;span style="color:#a31515">&amp;#34;audisp-syslog&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Define an interval of 90 seconds at which the current connection is broken and re-established.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># By default this value is 0 which means that the connection is never broken and re-established.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rebindInterval: 90
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Set the timeout for relp sessions to 90 seconds. If set too low, valid sessions may be considered&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># dead and tried to recover.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeout: 90
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Set how often an action is retried before it is considered to have failed.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Failed actions discard log messages. Setting `-1` here means that messages are never discarded.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resumeRetryCount: -1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Configures rsyslog to report continuation of action suspension, e.g. when the connection to the target&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># server is broken.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reportSuspensionContinuation: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Add tls settings if tls should be used to encrypt the connection to the target server.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Use `name` authentication mode for the tls connection.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authMode: name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Only allow connections if the server&amp;#39;s name is `some.rsyslog-rlep.server`&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> permittedPeer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;some.rsyslog-rlep.server&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Reference to the resource which contains certificates used for the tls connection.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># It must be added to the `.spec.resources` field of the `Shoot`.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: rsyslog-relp-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Instruct librelp on the shoot nodes to use the gnutls tls library.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsLib: gnutls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Add the rsyslog-relp-tls secret in the resources field of the shoot spec.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: rsyslog-relp-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: rsyslog-relp-tls-v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="choosing-which-log-messages-to-send-to-the-target-server">Choosing Which Log Messages to Send to the Target Server&lt;/h3>
+&lt;p>The &lt;code>.loggingRules&lt;/code> field defines rules about which logs should be sent to the target server. When a log is processed by rsyslog it is compared against the list of rules in order. If the program name and the syslog severity of the log messages matches the rule, the message is forwarded to the target server. The following table describes the syslog severity and their corresponding codes:&lt;/p>
+&lt;pre tabindex="0">&lt;code>Numerical Severity
+Code
+0 Emergency: system is unusable
+1 Alert: action must be taken immediately
+2 Critical: critical conditions
+3 Error: error conditions
+4 Warning: warning conditions
+5 Notice: normal but significant condition
+6 Informational: informational messages
+7 Debug: debug-level messages
+&lt;/code>&lt;/pre>&lt;p>Below is an example with a &lt;code>.loggingRules&lt;/code> section that will only forward logs from the &lt;code>kubelet&lt;/code> program with syslog severity of 6 or lower and any other program with syslog severity of 2 or lower:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: rsyslog-relp.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RsyslogRelpConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>target: localhost
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>port: 1520
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>loggingRules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- severity: 6
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> programNames: [&lt;span style="color:#a31515">&amp;#34;kubelet&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- severity: 2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can use a minimal &lt;code>shoot-rsyslog-relp&lt;/code> extension configuration to forward all logs to the target server:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: rsyslog-relp.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RsyslogRelpConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>target: some.rsyslog-rlep.server
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>port: 10250
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>loggingRules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- severity: 7
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="securing-the-communication-to-the-target-server-with-tls">Securing the Communication to the Target Server with TLS&lt;/h3>
+&lt;p>The communication to the target server is not encrypted by default. To enable encryption set the &lt;code>.tls.enabled&lt;/code> field in the &lt;code>shoot-rsyslog-relp&lt;/code> extension configuration to &lt;code>true&lt;/code>. In this case, a &lt;code>Secret&lt;/code> which contains the TLS certificates used to establish the TLS connection to the server must be created in the same project namespace as your &lt;code>Shoot&lt;/code>.&lt;/p>
+&lt;p>An example &lt;code>Secret&lt;/code> is given below:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: rsyslog-relp-tls-v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-foo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----BEGIN BEGIN RSA PRIVATE KEY-----
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----END RSA PRIVATE KEY-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> crt: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----BEGIN BEGIN RSA PRIVATE KEY-----
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----END RSA PRIVATE KEY-----&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----BEGIN BEGIN RSA PRIVATE KEY-----
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> -----END RSA PRIVATE KEY-----&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>Secret&lt;/code> must be referenced in the &lt;code>Shoot&lt;/code>&amp;rsquo;s &lt;code>.spec.resources&lt;/code> field and the corresponding resource entry must be referenced in the &lt;code>.tls.secretReferenceName&lt;/code> of the &lt;code>shoot-rsyslog-relp&lt;/code> extension configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-foo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: shoot-rsyslog-relp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: rsyslog-relp.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: RsyslogRelpConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target: some.rsyslog-rlep.server
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: 10250
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loggingRules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - severity: 7
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tls:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: rsyslog-relp-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: rsyslog-relp-tls
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourceRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: rsyslog-relp-tls-v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You can set a few additional parameters for the TLS connection: &lt;code>.tls.authMode&lt;/code>, &lt;code>tls.permittedPeer&lt;/code> and &lt;code>tls.tlsLib&lt;/code>. Refer to the rsyslog documentation for more information on both:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.tls.authMode&lt;/code>: &lt;a href="https://www.rsyslog.com/doc/v8-stable/configuration/modules/omrelp.html#tls-authmode">https://www.rsyslog.com/doc/v8-stable/configuration/modules/omrelp.html#tls-authmode&lt;/a>&lt;/li>
+&lt;li>&lt;code>.tls.permittedPeer&lt;/code>: &lt;a href="https://www.rsyslog.com/doc/v8-stable/configuration/modules/omrelp.html#tls-permittedpeer">https://www.rsyslog.com/doc/v8-stable/configuration/modules/omrelp.html#tls-permittedpeer&lt;/a>&lt;/li>
+&lt;li>&lt;code>.tls.tlsLib&lt;/code>: &lt;a href="https://www.rsyslog.com/doc/v8-stable/configuration/modules/imrelp.html#tls-tlslib">https://www.rsyslog.com/doc/v8-stable/configuration/modules/imrelp.html#tls-tlslib&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Getting Started</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/getting-started/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/getting-started/</guid><description>
+&lt;h1 id="deploying-rsyslog-relp-extension-locally">Deploying Rsyslog Relp Extension Locally&lt;/h1>
+&lt;p>This document will walk you through running the Rsyslog Relp extension and a fake rsyslog relp service on your local machine for development purposes. This guide uses the Gardener&amp;rsquo;s local development setup and builds on top of it.
+If you encounter difficulties, please open an issue so that we can make this process easier.&lt;/p>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;ul>
+&lt;li>Make sure that you have a running local Gardener setup. The steps to complete this can be found &lt;a href="https://github.com/gardener/gardener/blob/master/docs/deployment/getting_started_locally.md">here&lt;/a>.&lt;/li>
+&lt;li>Make sure you are running Gardener version &amp;gt;= 1.74.0 or the latest version of the master branch.&lt;/li>
+&lt;/ul>
+&lt;h2 id="setting-up-the-rsyslog-relp-extension">Setting up the Rsyslog Relp Extension&lt;/h2>
+&lt;p>&lt;strong>Important:&lt;/strong> Make sure that your &lt;code>KUBECONFIG&lt;/code> env variable is targeting the local Gardener cluster!&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make extension-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will build the &lt;code>shoot-rsyslog-relp&lt;/code>, &lt;code>shoot-rsyslog-relp-admission&lt;/code> and &lt;code>shoot-rsyslog-relp-echo-server&lt;/code> images and deploy the needed resources and configurations in the Garden cluster. The &lt;code>shoot-rsyslog-relp-echo-server&lt;/code> will act as development replacement of a real rsyslog relp server.&lt;/p>
+&lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> cluster&lt;/h2>
+&lt;p>Once the above step is completed we can deploy and configure a shoot cluster with a default rsyslog relp settings.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f ./example/shoot.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Once the shoot&amp;rsquo;s namespace is created we can create a &lt;code>networkpolicy&lt;/code> that will allow egress traffic from the &lt;code>rsyslog&lt;/code> on the &lt;code>Shoot&lt;/code>&amp;rsquo;s nodes to the &lt;code>rsyslog-relp-echo-server&lt;/code> that serves as a fake rsyslog target server.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f ./example/local/allow-machine-to-rsyslog-relp-echo-server-netpol.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Currently the shoot&amp;rsquo;s nodes run Ubuntu which does not have the &lt;code>rsyslog-relp&lt;/code> and &lt;code>auditd&lt;/code> packages installed, so the configuration done by the extension has no effect.
+Once the shoot is created, we have to manually install the &lt;code>rsyslog-relp&lt;/code> and &lt;code>auditd&lt;/code> packages:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n shoot--local--local exec -it &amp;lt;name of pod backing the shoot node&amp;gt; -- bash
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Then from inside the node:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>apt-get update &amp;amp;&amp;amp; apt-get install -y rsyslog-relp auditd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>systemctl start rsyslog
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Once that is done we can verify that log messages are forwarded to the &lt;code>rsyslog-relp-echo-server&lt;/code> by checking its logs.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n rsyslog-relp-echo-server logs deployment/rsyslog-relp-echo-server
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="making-changes-to-the-rsyslog-relp-extension">Making changes to the Rsyslog Relp Extension&lt;/h2>
+&lt;p>Changes to the rsyslog relp extension can be applied to the local environment by repeatedly running the &lt;code>make&lt;/code> recipe.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make extension-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="tearing-down-the-dev-environment">Tearing down the dev environment&lt;/h2>
+&lt;p>To tear down the development environment delete the &lt;code>Shoot&lt;/code> cluster or disable the &lt;code>shoot-rsyslog-relp&lt;/code> extension in th &lt;code>Shoot&lt;/code>&amp;rsquo;s spec. When the extension is not used by the &lt;code>Shoot&lt;/code> anymore, you can run:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make extension-down
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will delete the &lt;code>ControllerRegistration&lt;/code> and &lt;code>ControllerDeployment&lt;/code> of the extension, the &lt;code>shoot-rsyslog-relp-admission&lt;/code> deployment and the &lt;code>rsyslog-relp-echo-server&lt;/code> deployment.&lt;/p>
+&lt;h1 id="maintaining-the-publicly-available-image-for-the-rsyslog-relp-echo-server">Maintaining the publicly available image for the rsyslog-relp echo server&lt;/h1>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/tree/main/test/testmachinery/shoot">testmachinery tests&lt;/a> use an &lt;code>rsyslog-relp-echo-server&lt;/code> image from a publicly available repository. The one which is currently used is &lt;code>eu.gcr.io/gardener-project/gardener/extensions/shoot-rsyslog-relp-echo-server:v0.1.0&lt;/code>.&lt;/p>
+&lt;p>Sometimes it might be necessary to update the image and publish it, e.g. when updating the &lt;code>alpine&lt;/code> base image version specified in the repository&amp;rsquo;s &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/Dockerfile#L34">Dokerfile&lt;/a>.&lt;/p>
+&lt;p>To do that:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Bump the version with which the image is built in the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/Makefile#L14">Makefile&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Build the &lt;code>shoot-rsyslog-relp-echo-server&lt;/code> image:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make echo-server-docker-image
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Once the image is built, push it to &lt;code>gcr&lt;/code> with:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make push-echo-server-image
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>Finally, bump the version of the image used by the &lt;code>testmachinery&lt;/code> tests &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/test/testmachinery/shoot/common_test.go">here&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Create a PR with the changes.&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Docs: Shoot Rsyslog Relp</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</guid><description>
+&lt;h1 id="developer-docs-for-gardener-shoot-rsyslog-relp-extension">Developer Docs for Gardener Shoot Rsyslog Relp Extension&lt;/h1>
+&lt;p>This document outlines how the Shoot reconciliation and deletion work for a Shoot with the shoot-rsyslog-relp extension enabled.&lt;/p>
+&lt;h2 id="shoot-reconciliation">Shoot reconciliation&lt;/h2>
+&lt;p>This section outlines how the reconciliation works for a Shoot with the shoot-rsyslog-relp extension enabled.&lt;/p>
+&lt;h4 id="extension-enablementreconciliation">Extension enablement/reconciliation&lt;/h4>
+&lt;p>This section outlines how the extension enablement/reconciliation works, e.g the extension has been added to the Shoot spec.&lt;/p>
+&lt;ol>
+&lt;li>As part of the Shoot reconciliation flow, gardenlet deploys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource.&lt;/li>
+&lt;li>The shoot-rsyslog-relp extension reconciles the Extension resource. &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/controller/extension/actuator.go">pkg/controller/lifecycle/actuator.go&lt;/a> contains the implementation of the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/extensions/pkg/controller/extension/actuator.go">extension.Actuator&lt;/a> interface. The reconciliation of an Extension of type &lt;code>shoot-rsyslog-relp&lt;/code> only deploys the necessary monitoring configuration - the &lt;code>shoot-rsyslog-relp-prometheus&lt;/code> ConfigMap which contains the definitions for: scraping metrics by prometheus, alerting rules and the plutono dashboard for the Rsyslog component.&lt;/li>
+&lt;li>As part of the Shoot reconciliation flow, gardenlet deploys the OperatingSystemConfig resource.&lt;/li>
+&lt;li>The shoot-rsyslog-relp extension serves a webhook that mutates the OperatingSystemConfig resource for Shoots having the shoot-rsyslog-relp extension enabled (the corresponding namespace gets labeled by gardenlet with &lt;code>extensions.gardener.cloud/shoot-rsyslog-relp=true&lt;/code>). &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/webhook/operatingsystemconfig/ensurer.go">pkg/webhook/operatingsystemconfig/ensurer.go&lt;/a> contains implementation of the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/extensions/pkg/webhook/controlplane/genericmutator/mutator.go">genericmutator.Ensurer&lt;/a> interface.
+&lt;ol>
+&lt;li>The webhook renders the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/webhook/operatingsystemconfig/resources/templates/scripts/configure-rsyslog.tpl.sh">60-audit.conf.tpl&lt;/a> template script and appends it to the OperatingSystemConfig files. When rendering the template, the configuration of the shoot-rsyslog-relp extension is used to fill in the required template values. The file is installed as &lt;code>/var/lib/rsyslog-relp-configurator/rsyslog.d/60-audit.conf&lt;/code> on the host os.&lt;/li>
+&lt;li>The webhook appends the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/tree/main/pkg/webhook/operatingsystemconfig/resources/auditrules">audit rules&lt;/a> to the OperatingSystemConfig. The files are installed under &lt;code>/var/lib/rsyslog-relp-configurator/rules.d&lt;/code> on the host os.&lt;/li>
+&lt;li>The webhook renders the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/webhook/operatingsystemconfig/resources/templates/scripts/configure-rsyslog.tpl.sh">configure-rsyslog.tpl.sh&lt;/a> script and appends it to the OperatingSystemConfig files. This script is installed as &lt;code>/var/lib/rsyslog-relp-configurator/configure-rsyslog.sh&lt;/code> on the host os. It keeps the configuration of the &lt;code>rsyslog&lt;/code> systemd service up-to-date by copying &lt;code>/var/lib/rsyslog-relp-configurator/rsyslog.d/60-audit.conf&lt;/code> to &lt;code>/etc/rsyslog.d/60-audit.conf&lt;/code>, if &lt;code>/etc/rsyslog.d/60-audit.conf&lt;/code> does not exist or the files differ. The script also takes care of syncing the audit rules in &lt;code>/etc/audit/rules.d&lt;/code> with the ones installed in &lt;code>/var/lib/rsyslog-relp-configurator/rules.d&lt;/code> and restarts the auditd systemd service if necessary.&lt;/li>
+&lt;li>The webhook renders the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/webhook/operatingsystemconfig/resources/templates/scripts/process-rsyslog-pstats.tpl.sh">process-rsyslog-pstats.tpl.sh&lt;/a> and appends it to the OperatingSystemConfig files. This script receives metrics from the &lt;code>rsyslog&lt;/code> process, transforms them and writes them to &lt;code>/var/lib/node-exporter/textfile-collector/rsyslog_pstats.prom&lt;/code> so that they can be collected by the &lt;code>node-exporter&lt;/code>.&lt;/li>
+&lt;li>As part of the Shoot reconciliation, before the shoot-rsyslog-relp extension is deployed, gardenlet copies all Secret and ConfigMap resources referenced in &lt;code>.spec.resources[]&lt;/code> to the Shoot&amp;rsquo;s control plane namespace on the Seed.
+When the &lt;code>.tls.enabled&lt;/code> field is &lt;code>true&lt;/code> in the shoot-rsyslog-relp extension configuration, a value for &lt;code>.tls.secretReferenceName&lt;/code> must also be specified so that it references a &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/pkg/apis/core/v1beta1/types_shoot.go#L487">named resource reference&lt;/a> in the shoot&amp;rsquo;s &lt;code>.spec.resources[]&lt;/code> array.
+The webhook appends the data of the referenced secret in the Shoot&amp;rsquo;s control plane namespace to the OperatingSystemConfig files.&lt;/li>
+&lt;li>The webhook appends the &lt;code>rsyslog-configurator.service&lt;/code> unit to the OperatingSystemConfig units. The unit invokes the &lt;code>configure-rsyslog.sh&lt;/code> script every 15 seconds.&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;/ol>
+&lt;h4 id="extension-disablement">Extension disablement&lt;/h4>
+&lt;p>This section outlines how the extension disablement works, i.e the extension has be removed from the Shoot spec.&lt;/p>
+&lt;ol>
+&lt;li>As part of the Shoot reconciliation flow, gardenlet destroys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource because it is no longer needed.
+&lt;ol>
+&lt;li>As part of the deletion flow, the shoot-rsyslog-relp extension deploys the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/component/rsyslogrelpconfigcleaner/rsyslog_relp_config_cleaner.go">&lt;code>rsyslog-relp-configuration-cleaner&lt;/code> DaemonSet&lt;/a> to the Shoot cluster to clean up the existing rsyslog configuration and revert the audit rules.&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="shoot-deletion">Shoot deletion&lt;/h2>
+&lt;p>This section outlines how the deletion works for a Shoot with the shoot-rsyslog-relp extension enabled.&lt;/p>
+&lt;ol>
+&lt;li>As part of the Shoot deletion flow, gardenlet destroys the &lt;a href="https://github.com/gardener/gardener/blob/v1.82.0/docs/extensions/extension.md">Extension&lt;/a> resource.
+&lt;ol>
+&lt;li>In the Shoot deletion flow the Extension resource is deleted after the Worker resource. Hence, there is no need to deploy the &lt;a href="https://github.com/gardener/gardener-extension-shoot-rsyslog-relp/blob/main/pkg/component/rsyslogrelpconfigcleaner/rsyslog_relp_config_cleaner.go">&lt;code>rsyslog-relp-configuration-cleaner&lt;/code> DaemonSet&lt;/a> to the Shoot cluster to clean up the existing rsyslog configuration and revert the audit rules.&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;/ol></description></item></channel></rss>

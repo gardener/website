@@ -223,12 +223,6 @@ Gardener provides a few default policies for typical usage scenarios. For more i
 &lt;p>The &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s SeccompProfile webhook is not enabled for a Shoot cluster. For components deployed in the Shoot cluster, it is required [*] to explicitly specify the Seccomp profile.&lt;/p>
 &lt;p>&lt;sub>[*] It is required because if a component deployed in the Shoot cluster does not specify a Seccomp profile and cannot run with the &lt;code>RuntimeDefault&lt;/code> Seccomp profile, then enabling the &lt;code>.spec.kubernetes.kubelet.seccompDefault&lt;/code> field in the Shoot spec would break the corresponding component.&lt;/sub>&lt;/p>
 &lt;/li>
-&lt;li>
-&lt;p>&lt;strong>Define &lt;code>PodSecurityPolicy&lt;/code>s&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/vpnshoot/vpnshoot.go#L341-L412">example&lt;/a>)&lt;/p>
-&lt;p>&lt;code>PodSecurityPolicy&lt;/code>s are deprecated, however Gardener still supports shoot clusters with older Kubernetes versions (&lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/supported_k8s_versions.md">ref&lt;/a>).
-To make sure that such clusters can run with &lt;code>.spec.kubernetes.allowPrivilegedContainers=false&lt;/code>, you have to define proper &lt;code>PodSecurityPolicy&lt;/code>s.
-For more information, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/pod-security.md">Pod Security&lt;/a>.&lt;/p>
-&lt;/li>
 &lt;/ol>
 &lt;h2 id="high-availability--stability">High Availability / Stability&lt;/h2>
 &lt;ol>
@@ -592,9 +586,7 @@ This can be done by setting the option (&lt;code>spec.systemComponents.nodeLocal
 &lt;p>[1] &lt;a href="https://github.com/coredns/coredns/tree/master/plugin/import">Import plugin&lt;/a>
 [2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item><item><title>Docs: Default Seccomp Profile</title><link>https://gardener.cloud/docs/gardener/default_seccomp_profile/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/default_seccomp_profile/</guid><description>
 &lt;h1 id="default-seccomp-profile-and-configuration">Default Seccomp Profile and Configuration&lt;/h1>
-&lt;p>This is a short guide describing how to enable the defaulting of seccomp profiles for Gardener managed workloads in the seed.&lt;/p>
-&lt;h2 id="default-kubernetes-behavior">Default Kubernetes Behavior&lt;/h2>
-&lt;p>The state of Kubernetes in versions &amp;lt; 1.25 is such that all workloads by default run in &lt;code>Unconfined&lt;/code> (seccomp disabled) mode. This is undesirable since this is the least restrictive profile. Also, mind that any privileged container will always run as &lt;code>Unconfined&lt;/code>. More information about seccomp can be found in this &lt;a href="https://kubernetes.io/docs/tutorials/security/seccomp/">Kubernetes tutorial&lt;/a>.&lt;/p>
+&lt;p>This is a short guide describing how to enable the defaulting of seccomp profiles for Gardener managed workloads in the seed. Running pods in &lt;code>Unconfined&lt;/code> (seccomp disabled) mode is undesirable since this is the least restrictive profile. Also, mind that any privileged container will always run as &lt;code>Unconfined&lt;/code>. More information about seccomp can be found in this &lt;a href="https://kubernetes.io/docs/tutorials/security/seccomp/">Kubernetes tutorial&lt;/a>.&lt;/p>
 &lt;h2 id="setting-the-seccomp-profile-to-runtimedefault-for-seed-clusters">Setting the Seccomp Profile to RuntimeDefault for Seed Clusters&lt;/h2>
 &lt;p>To address the above issue, Gardener provides a webhook that is capable of mutating pods in the seed clusters, explicitly providing them with a seccomp profile type of &lt;code>RuntimeDefault&lt;/code>. This profile is defined by the container runtime and represents a set of default syscalls that are allowed or not.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
@@ -617,8 +609,8 @@ This can be done by setting the option (&lt;code>spec.systemComponents.nodeLocal
 &lt;p>&lt;strong>Note:&lt;/strong> Please note that this feature is still in Alpha, so you might see instabilities every now and then.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="setting-the-seccomp-profile-to-runtimedefault-for-shoot-clusters">Setting the Seccomp Profile to RuntimeDefault for Shoot Clusters&lt;/h2>
-&lt;p>For Kubernetes shoot versions &amp;gt;= 1.25, you can enable the use of &lt;code>RuntimeDefault&lt;/code> as the default seccomp profile for all workloads. If enabled, the kubelet will use the &lt;code>RuntimeDefault&lt;/code> seccomp profile by default, which is defined by the container runtime, instead of using the &lt;code>Unconfined&lt;/code> mode. More information for this feature can be found in the &lt;a href="https://kubernetes.io/docs/tutorials/security/seccomp/#enable-the-use-of-runtimedefault-as-the-default-seccomp-profile-for-all-workloads">Kubernetes documentation&lt;/a>.&lt;/p>
-&lt;p>To use seccomp profile defaulting, you must run the kubelet with the &lt;code>SeccompDefault&lt;/code> feature gate enabled (this is the default for k8s versions &amp;gt;= 1.25).&lt;/p>
+&lt;p>You can enable the use of &lt;code>RuntimeDefault&lt;/code> as the default seccomp profile for all workloads. If enabled, the kubelet will use the &lt;code>RuntimeDefault&lt;/code> seccomp profile by default, which is defined by the container runtime, instead of using the &lt;code>Unconfined&lt;/code> mode. More information for this feature can be found in the &lt;a href="https://kubernetes.io/docs/tutorials/security/seccomp/#enable-the-use-of-runtimedefault-as-the-default-seccomp-profile-for-all-workloads">Kubernetes documentation&lt;/a>.&lt;/p>
+&lt;p>To use seccomp profile defaulting, you must run the kubelet with the &lt;code>SeccompDefault&lt;/code> feature gate enabled (this is the default).&lt;/p>
 &lt;h3 id="how-to-configure-1">How to Configure&lt;/h3>
 &lt;p>To enable this feature, the kubelet &lt;code>seccompDefault&lt;/code> configuration parameter must be set to &lt;code>true&lt;/code> in the shoot&amp;rsquo;s spec.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
@@ -1709,7 +1701,7 @@ That means that the Gardener runs outside a Kubernetes cluster which requires pr
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install go
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check &lt;a href="https://golang.org/doc/install">Go installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-kubectl">Installing kubectl&lt;/h2>
-&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.24.x&lt;/code>. On macOS run&lt;/p>
+&lt;p>Install &lt;code>kubectl&lt;/code>. Please make sure that the version of &lt;code>kubectl&lt;/code> is at least &lt;code>v1.25.x&lt;/code>. On macOS run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>brew install kubernetes-cli
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For other OS, please check the &lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">kubectl installation documentation&lt;/a>.&lt;/p>
 &lt;h2 id="installing-docker">Installing Docker&lt;/h2>
@@ -3211,17 +3203,6 @@ Please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/doc
 &lt;p>For example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>--disable-admission-plugins=ClusterOpenIDConnectPreset
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Pod Security</title><link>https://gardener.cloud/docs/gardener/pod-security/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/pod-security/</guid><description>
-&lt;h1 id="migrating-from-podsecuritypolicys-to-podsecurity-admission-controller">Migrating from &lt;code>PodSecurityPolicy&lt;/code>s to PodSecurity Admission Controller&lt;/h1>
-&lt;p>Kubernetes has deprecated the &lt;code>PodSecurityPolicy&lt;/code> API in &lt;code>v1.21&lt;/code> and it will be removed in &lt;code>v1.25&lt;/code>. With &lt;code>v1.23&lt;/code>, a new feature called &lt;a href="https://kubernetes.io/docs/concepts/security/pod-security-admission/">&lt;code>PodSecurity&lt;/code>&lt;/a> was promoted to beta. From &lt;code>v1.25&lt;/code> onwards, there will be no API serving &lt;code>PodSecurityPolicy&lt;/code>s, so you have to cleanup all the existing PSPs before upgrading your cluster. Detailed migration steps are described in &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/migrate-from-psp/">Migrate from PodSecurityPolicy to the Built-In PodSecurity Admission Controller&lt;/a>.&lt;/p>
-&lt;p>After migration, you should disable the &lt;code>PodSecurityPolicy&lt;/code> admission plugin. To do so, you have to add:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>admissionPlugins:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: PodSecurityPolicy
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> disabled: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>in &lt;code>spec.kubernetes.kubeAPIServer.admissionPlugins&lt;/code> field in the &lt;code>Shoot&lt;/code> resource. Please refer the example &lt;code>Shoot&lt;/code> manifest in &lt;a href="https://github.com/gardener/gardener/blob/master/example/90-shoot.yaml">90-shoot.yaml&lt;/a>.&lt;/p>
-&lt;p>Only if the &lt;code>PodSecurityPolicy&lt;/code> admission plugin is disabled the cluster can be upgraded to &lt;code>v1.25&lt;/code>.&lt;/p>
-&lt;blockquote>
-&lt;p>⚠️ You should disable the admission plugin and wait until Gardener finishes at least one &lt;code>Shoot&lt;/code> reconciliation before upgrading to &lt;code>v1.25&lt;/code>. This is to make sure all the &lt;code>PodSecurityPolicy&lt;/code> related resources deployed by Gardener are cleaned up.&lt;/p>
-&lt;/blockquote>
 &lt;h2 id="admission-configuration-for-the-podsecurity-admission-plugin">Admission Configuration for the &lt;code>PodSecurity&lt;/code> Admission Plugin&lt;/h2>
 &lt;p>If you wish to add your custom configuration for the &lt;code>PodSecurity&lt;/code> plugin, you can do so in the Shoot spec under &lt;code>.spec.kubernetes.kubeAPIServer.admissionPlugins&lt;/code> by adding:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>admissionPlugins:
@@ -3253,13 +3234,7 @@ Please refer to &lt;a href="https://github.com/gardener/gardener/blob/master/doc
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeClasses: []
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Array of namespaces to exempt.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaces: []
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>⚠️ Note that the &lt;code>pod-security.admission.config.k8s.io/v1&lt;/code> configuration requires &lt;code>v1.25&lt;/code>+. For &lt;code>v1.24&lt;/code>, use &lt;code>pod-security.admission.config.k8s.io/v1beta1&lt;/code>.&lt;/p>
-&lt;p>For proper functioning of Gardener, &lt;code>kube-system&lt;/code> namespace will also be automatically added to the &lt;code>exemptions.namespaces&lt;/code> list.&lt;/p>
-&lt;h2 id="speckubernetesallowprivilegedcontainers-in-the-shoot-spec">&lt;code>.spec.kubernetes.allowPrivilegedContainers&lt;/code> in the Shoot Spec&lt;/h2>
-&lt;p>If this field is set to &lt;code>true&lt;/code>, then all authenticated users can use the &amp;ldquo;gardener.privileged&amp;rdquo; &lt;code>PodSecurityPolicy&lt;/code>, allowing full unrestricted access to Pod features. However, the &lt;code>PodSecurityPolicy&lt;/code> admission plugin is removed in Kubernetes &lt;code>v1.25&lt;/code> and &lt;code>PodSecurity&lt;/code> has taken its place as its successor. Therefore, this field doesn&amp;rsquo;t have any relevance in versions &lt;code>&amp;gt;= v1.25&lt;/code> anymore. If you need to set a default pod admission level for your cluster, follow &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/pod-security.md#admission-configuration-for-the-podsecurity-admission-plugin">this documentation&lt;/a>.&lt;/p>
-&lt;blockquote>
-&lt;p>&lt;strong>Note:&lt;/strong> You should remove this field from the &lt;code>Shoot&lt;/code> spec for &lt;code>v1.24&lt;/code> clusters only after migrating to the new &lt;code>PodSecurity&lt;/code> admission controller, i.e. after disabling the old &lt;code>PodSecurityPolicy&lt;/code> admission plugin (see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/pod-security.md#migrating-from-podsecuritypolicys-to-podsecurity-admission-controller">Migrating from &lt;code>PodSecurityPolicy&lt;/code>s to PodSecurity Admission Controller&lt;/a>). Otherwise the field is defaulted by the Gardener API Server. This is intentional because if we allow the field to be removed when &lt;code>PodSecurityPolicy&lt;/code> admission plugin is active, the existing pods running in the cluster which need privileges can fail.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Priority Classes</title><link>https://gardener.cloud/docs/gardener/priority-classes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/priority-classes/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For proper functioning of Gardener, &lt;code>kube-system&lt;/code> namespace will also be automatically added to the &lt;code>exemptions.namespaces&lt;/code> list.&lt;/p></description></item><item><title>Docs: Priority Classes</title><link>https://gardener.cloud/docs/gardener/priority-classes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/priority-classes/</guid><description>
 &lt;h1 id="priorityclasses-in-gardener-clusters">&lt;code>PriorityClass&lt;/code>es in Gardener Clusters&lt;/h1>
 &lt;p>Gardener makes use of &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/">&lt;code>PriorityClass&lt;/code>es&lt;/a> to improve the overall robustness of the system.
 In order to benefit from the full potential of &lt;code>PriorityClass&lt;/code>es, the gardenlet manages a set of well-known &lt;code>PriorityClass&lt;/code>es with fine-granular priority values.&lt;/p>
@@ -4603,7 +4578,7 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;p>Refer to the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/operations/topology_aware_routing.md">Topology-Aware Traffic Routing documentation&lt;/a> as this document contains the documentation for the topology-aware routing Seed setting.&lt;/p></description></item><item><title>Docs: Service Account Manager</title><link>https://gardener.cloud/docs/gardener/service-account-manager/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/service-account-manager/</guid><description>
 &lt;h1 id="service-account-manager">Service Account Manager&lt;/h1>
 &lt;h2 id="overview">Overview&lt;/h2>
-&lt;p>With Gardener &lt;code>v1.47&lt;/code>, a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace, as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically with Kubernetes &lt;code>v1.24+&lt;/code>.&lt;/p>
+&lt;p>With Gardener &lt;code>v1.47&lt;/code>, a new role called &lt;code>serviceaccountmanager&lt;/code> was introduced. This role allows to fully manage &lt;code>ServiceAccount&lt;/code>&amp;rsquo;s in the project namespace and request tokens for them. This is the preferred way of managing the access to a project namespace, as it aims to replace the usage of the default &lt;code>ServiceAccount&lt;/code> secrets that will no longer be generated automatically.&lt;/p>
 &lt;h2 id="actions">Actions&lt;/h2>
 &lt;p>Once assigned the &lt;code>serviceaccountmanager&lt;/code> role, a user can create/update/delete &lt;code>ServiceAccount&lt;/code>s in the project namespace.&lt;/p>
 &lt;h3 id="create-a-service-account">Create a Service Account&lt;/h3>
@@ -4611,22 +4586,7 @@ By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/c
 &lt;pre tabindex="0">&lt;code class="language-code" data-lang="code">kubectl -n project-abc create sa robot-user
 &lt;/code>&lt;/pre>&lt;h3 id="request-a-token-for-a-service-account">Request a Token for a Service Account&lt;/h3>
 &lt;p>A token for the &amp;ldquo;robot-user&amp;rdquo; &lt;code>ServiceAccount&lt;/code> can be requested via the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">TokenRequest API&lt;/a> in several ways:&lt;/p>
-&lt;ul>
-&lt;li>using &lt;code>kubectl&lt;/code> &amp;gt;= v1.24&lt;/li>
-&lt;/ul>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n project-abc create token robot-user --duration=3600s
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
-&lt;li>using &lt;code>kubectl&lt;/code> &amp;lt; v1.24&lt;/li>
-&lt;/ul>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>cat &lt;span style="color:#a31515">&amp;lt;&amp;lt;EOF | kubectl create -f - --raw /api/v1/namespaces/project-abc/serviceaccounts/robot-user/token
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">{
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;apiVersion&amp;#34;: &amp;#34;authentication.k8s.io/v1&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;kind&amp;#34;: &amp;#34;TokenRequest&amp;#34;,
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;spec&amp;#34;: {
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &amp;#34;expirationSeconds&amp;#34;: 3600
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">}
-&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">EOF&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
 &lt;li>directly calling the Kubernetes HTTP API&lt;/li>
 &lt;/ul>

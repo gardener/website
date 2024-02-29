@@ -1385,7 +1385,7 @@ They are part of the &lt;a href="https://github.com/gardener/gardener/blob/maste
 &lt;p>The central Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;cache Prometheus&amp;rdquo;) fetches metrics and data from all seed cluster nodes and all seed cluster pods.
 It uses the &lt;a href="https://prometheus.io/docs/prometheus/latest/federation/">federation&lt;/a> concept to allow the shoot-specific instances to scrape only the metrics for the pods of the control plane they are responsible for.
 This mechanism allows to scrape the metrics for the nodes/pods once for the whole cluster, and to have them distributed afterwards.
-For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/monitoring-stack.md#overview">here&lt;/a>.&lt;/p>
+For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/monitoring/README.md#prometheus">here&lt;/a>.&lt;/p>
 &lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this cache Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=cache&lt;/code>, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
@@ -1408,7 +1408,7 @@ For more details, continue reading &lt;a href="https://github.com/gardener/garde
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="seed-prometheus">Seed Prometheus&lt;/h3>
 &lt;p>Another Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;seed Prometheus&amp;rdquo;) fetches metrics and data from seed system components, kubelets, cAdvisors, and extensions.
 If you want your extension pods to be scraped then they must be annotated with &lt;code>prometheus.io/scrape=true&lt;/code> and &lt;code>prometheus.io/port=&amp;lt;metrics-port&amp;gt;&lt;/code>.
-For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/development/monitoring-stack.md#overview">here&lt;/a>.&lt;/p>
+For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/monitoring/README.md#seed-prometheus">here&lt;/a>.&lt;/p>
 &lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this seed Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=seed&lt;/code>, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
@@ -1416,6 +1416,29 @@ For more details, continue reading &lt;a href="https://github.com/gardener/garde
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: seed
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: seed-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="aggregate-prometheus">Aggregate Prometheus&lt;/h3>
+&lt;p>Another Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;aggregate Prometheus&amp;rdquo;) stores pre-aggregated data from the cache Prometheus and shoot Prometheis.
+An ingress exposes this Prometheus instance allowing it to be scraped from another cluster.
+For more details, continue reading &lt;a href="https://github.com/gardener/gardener/blob/master/docs/monitoring/README.md#aggregate-prometheus">here&lt;/a>.&lt;/p>
+&lt;p>Typically, this is not necessary, but in case an extension wants to extend the configuration for this aggregate Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=aggregate&lt;/code>, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: aggregate
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: aggregate-my-component
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
@@ -1503,14 +1526,14 @@ Such &lt;code>ConfigMap&lt;/code>s may contain four fields in their &lt;code>dat
 &lt;li>Fluent-bit DaemonSets deployed by the fluent-operator on each seed node collect logs from it. A custom plugin takes care to distribute the collected log messages to the Vali instances that they are intended for. This allows to fetch the logs once for the whole cluster, and to distribute them afterwards.&lt;/li>
 &lt;li>Plutono is the UI component used to explore monitoring and log data together for easier troubleshooting and in context. Plutono instances are configured to use the corresponding Vali instances, sharing the same namespace as data providers. There is one Plutono Deployment in the &lt;code>garden&lt;/code> namespace and one Deployment per shoot namespace (exposed to the end users and to the operators).&lt;/li>
 &lt;/ul>
-&lt;p>Logs can be produced from various sources, such as containers or systemd, and in different formats. The fluent-bit design supports configurable &lt;a href="https://docs.fluentbit.io/manual/concepts/data-pipeline">data pipeline&lt;/a> to address that problem. Gardener provides such &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/kubeapiserver/logging.go">configuration&lt;/a> for logs produced by all its core managed components as &lt;code>ClusterFilters&lt;/code> and &lt;code>ClusterParsers&lt;/code> . Extensions can contribute their own, specific configurations as fluent-operator custom resources too. See for example the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/charts/gardener-extension-provider-aws/templates/clusterfilters-logging.yaml">logging configuration&lt;/a> for the Gardener AWS provider extension.&lt;/p>
+&lt;p>Logs can be produced from various sources, such as containers or systemd, and in different formats. The fluent-bit design supports configurable &lt;a href="https://docs.fluentbit.io/manual/concepts/data-pipeline">data pipeline&lt;/a> to address that problem. Gardener provides such &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/kubernetes/apiserver/logging.go">configuration&lt;/a> for logs produced by all its core managed components as &lt;code>ClusterFilters&lt;/code> and &lt;code>ClusterParsers&lt;/code> . Extensions can contribute their own, specific configurations as fluent-operator custom resources too. See for example the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/charts/gardener-extension-provider-aws/templates/clusterfilters-logging.yaml">logging configuration&lt;/a> for the Gardener AWS provider extension.&lt;/p>
 &lt;h3 id="fluent-bit-log-parsers-and-filters">Fluent-bit Log Parsers and Filters&lt;/h3>
 &lt;p>To integrate with Gardener logging, extensions can and &lt;em>should&lt;/em> specify how fluent-bit will handle the logs produced by the managed components that they contribute to Gardener. Normally, that would require to configure a &lt;em>parser&lt;/em> for the specific logging format, if none of the available is applicable, and a &lt;em>filter&lt;/em> defining how to apply it. For a complete reference for the configuration options, refer to fluent-bit&amp;rsquo;s &lt;a href="https://docs.fluentbit.io/manual/">documentation&lt;/a>.&lt;/p>
 &lt;p>To contribute its own configuration to the fluent-bit agents data pipelines, an extension must deploy a &lt;code>fluent-operator&lt;/code> custom resource labeled with &lt;code>fluentbit.gardener/type: seed&lt;/code> in the seed cluster.&lt;/p>
 &lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> Take care to provide the correct data pipeline elements in the corresponding fields and not to mix them.&lt;/p>
 &lt;/blockquote>
-&lt;p>&lt;strong>Example:&lt;/strong> Logging configuration for provider-specific &lt;code>cloud-controller-manager&lt;/code> deployed into shoot namespaces that reuses the &lt;code>kube-apiserver-parser&lt;/code> defined in &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/kubeapiserver/logging.go">logging.go&lt;/a> to parse the component logs:&lt;/p>
+&lt;p>&lt;strong>Example:&lt;/strong> Logging configuration for provider-specific &lt;code>cloud-controller-manager&lt;/code> deployed into shoot namespaces that reuses the &lt;code>kube-apiserver-parser&lt;/code> defined in &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/kubernetes/apiserver/logging.go">logging.go&lt;/a> to parse the component logs:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: fluentbit.fluent.io/v1alpha2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterFilter
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -1530,9 +1553,9 @@ Such &lt;code>ConfigMap&lt;/code>s may contain four fields in their &lt;code>dat
 &lt;ul>
 &lt;li>Garden Plutono dashboards expose logs from non-shoot namespaces of the seed clusters
 &lt;ul>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/plutono/dashboards/seed/pod-logs.json">Pod Logs&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/plutono/dashboards/seed/extensions-dashboard.json">Extensions&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/plutono/dashboards/seed/systemd-logs.json">Systemd Logs&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/observability/plutono/dashboards/seed/pod-logs.json">Pod Logs&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/observability/plutono/dashboards/seed/extensions-dashboard.json">Extensions&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/observability/plutono/dashboards/seed/systemd-logs.json">Systemd Logs&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>Shoot Plutono dashboards expose logs from the shoot cluster namespace where they belong
@@ -1542,7 +1565,7 @@ Such &lt;code>ConfigMap&lt;/code>s may contain four fields in their &lt;code>dat
 &lt;li>Kube Scheduler&lt;/li>
 &lt;li>Cluster Autoscaler&lt;/li>
 &lt;li>VPA components&lt;/li>
-&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/plutono/dashboards/shoot/owners/kubernetes-pods-dashboard.json">Kubernetes Pods&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/observability/plutono/dashboards/shoot/owners/kubernetes-pods-dashboard.json">Kubernetes Pods&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
@@ -2579,6 +2602,12 @@ You can read up &lt;a href="https://github.com/gardener/machine-controller-manag
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - ReadonlyFilesystem
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - DiskPressure
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - KernelDeadlock
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> clusterAutoscaler:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleDownUtilizationThreshold: 0.5
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleDownGpuUtilizationThreshold: 0.5
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleDownUnneededTime: 30m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleDownUnreadyTime: 1h
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxNodeProvisionTime: 15m
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.spec.secretRef&lt;/code> contains a reference to the provider secret pointing to the account that shall be used to create the needed virtual machines.
 Also, as you can see, Gardener copies the output of the infrastructure creation (&lt;code>.spec.infrastructureProviderStatus&lt;/code>, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/extensions/infrastructure.md">&lt;code>Infrastructure&lt;/code> resource&lt;/a>), into the &lt;code>.spec&lt;/code>.&lt;/p>
 &lt;p>In the &lt;code>.spec.pools[]&lt;/code> field, the desired worker pools are listed.
@@ -2591,6 +2620,7 @@ Nevertheless, this is only effective when bootstrapping new nodes.
 The provider extension (respectively, machine-controller-manager) is still responsible for updating the labels of existing &lt;code>Nodes&lt;/code> when the worker specification changes.&lt;/p>
 &lt;p>The &lt;code>spec.pools[].nodeTemplate.capacity&lt;/code> field contains the resource information of the machine like &lt;code>cpu&lt;/code>, &lt;code>gpu&lt;/code>, and &lt;code>memory&lt;/code>. This info is used by Cluster Autoscaler to generate &lt;code>nodeTemplate&lt;/code> during scaling the &lt;code>nodeGroup&lt;/code> from zero.&lt;/p>
 &lt;p>The &lt;code>spec.pools[].machineControllerManager&lt;/code> field allows to configure the settings for machine-controller-manager component. Providers must populate these settings on worker-pool to the related &lt;a href="https://github.com/gardener/machine-controller-manager/blob/master/kubernetes/machine_objects/machine-deployment.yaml#L30-L34">fields&lt;/a> in MachineDeployment.&lt;/p>
+&lt;p>The &lt;code>spec.pools[].clusterAutoscaler&lt;/code> field contains &lt;code>cluster-autoscaler&lt;/code> settings that are to be applied only to specific worker group. &lt;code>cluster-autoscaler&lt;/code> expects to find these settings as annotations on the &lt;code>MachineDeployment&lt;/code>, and so providers must pass these values to the corresponding &lt;code>MachineDeployment&lt;/code> via annotations. The keys for these annotations can be found &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/types_worker.go">here&lt;/a> and the values for the corresponding annotations should be the same as what is passed into the field. Providers can use the helper function &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/apis/extensions/v1alpha1/helper/helper.go#L73">&lt;code>extensionsv1alpha1helper.GetMachineDeploymentClusterAutoscalerAnnotations&lt;/code>&lt;/a> that returns the annotation map to be used.&lt;/p>
 &lt;p>The controller must only inject its provider-specific sidecar container into the &lt;code>machine-controller-manager&lt;/code> &lt;code>Deployment&lt;/code> managed by &lt;code>gardenlet&lt;/code>.&lt;/p>
 &lt;p>After that, it must compute the desired machine classes and the desired machine deployments.
 Typically, one class maps to one deployment, and one class/deployment is created per availability zone.
@@ -2764,7 +2794,7 @@ You can take a look at the below referenced example implementation for the AWS p
 &lt;p>All of the described behaviour is mostly the same for every provider.
 The only difference is maybe the version/configuration of the provider-specific &lt;code>machine-controller-manager&lt;/code> sidecar container, and the machine class specification itself.
 You can take a look at our &lt;a href="https://github.com/gardener/gardener/tree/master/extensions">extension library&lt;/a>, especially the &lt;a href="https://github.com/gardener/gardener/tree/master/extensions/pkg/controller/worker">worker controller&lt;/a> part where you will find a lot of utilities that you can use.
-Note that there are also utility functions for getting the default sidecar container specification or corresponding VPA container policy in the &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/component/machinecontrollermanager">&lt;code>machinecontrollermanager&lt;/code> package&lt;/a> called &lt;code>ProviderSidecarContainer&lt;/code> and &lt;code>ProviderSidecarVPAContainerPolicy&lt;/code>.
+Note that there are also utility functions for getting the default sidecar container specification or corresponding VPA container policy in the &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/component/nodemanagement/machinecontrollermanager">&lt;code>machinecontrollermanager&lt;/code> package&lt;/a> called &lt;code>ProviderSidecarContainer&lt;/code> and &lt;code>ProviderSidecarVPAContainerPolicy&lt;/code>.
 Also, using the library you only need to implement your provider specifics - all the things that can be handled generically can be taken for free and do not need to be re-implemented.
 Take a look at the &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/tree/master/pkg/controller/worker">AWS worker controller&lt;/a> for finding an example.&lt;/p>
 &lt;h2 id="non-provider-specific-information-required-for-worker-creation">Non-provider specific information required for worker creation&lt;/h2>

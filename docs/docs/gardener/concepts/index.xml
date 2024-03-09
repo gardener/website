@@ -721,15 +721,16 @@ However, when there already is a VPA available, then set &lt;code>.spec.runtimeC
 &lt;/blockquote>
 &lt;h2 id="garden-resources">&lt;code>Garden&lt;/code> Resources&lt;/h2>
 &lt;p>Please find an exemplary &lt;code>Garden&lt;/code> resource &lt;a href="https://github.com/gardener/gardener/blob/master/example/operator/20-garden.yaml">here&lt;/a>.&lt;/p>
-&lt;h3 id="settings-for-runtime-cluster">Settings For Runtime Cluster&lt;/h3>
+&lt;h3 id="configuration-for-runtime-cluster">Configuration For Runtime Cluster&lt;/h3>
+&lt;h4 id="settings">Settings&lt;/h4>
 &lt;p>The &lt;code>Garden&lt;/code> resource offers a few settings that are used to control the behaviour of &lt;code>gardener-operator&lt;/code> in the runtime cluster.
 This section provides an overview over the available settings in &lt;code>.spec.runtimeCluster.settings&lt;/code>:&lt;/p>
-&lt;h4 id="load-balancer-services">Load Balancer Services&lt;/h4>
+&lt;h5 id="load-balancer-services">Load Balancer Services&lt;/h5>
 &lt;p>&lt;code>gardener-operator&lt;/code> deploys Istio and relevant resources to the runtime cluster in order to expose the &lt;code>virtual-garden-kube-apiserver&lt;/code> service (similar to how the &lt;code>kube-apiservers&lt;/code> of shoot clusters are exposed).
 In most cases, the &lt;code>cloud-controller-manager&lt;/code> (responsible for managing these load balancers on the respective underlying infrastructure) supports certain customization and settings via annotations.
 &lt;a href="https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer">This document&lt;/a> provides a good overview and many examples.&lt;/p>
 &lt;p>By setting the &lt;code>.spec.settings.loadBalancerServices.annotations&lt;/code> field the Gardener administrator can specify a list of annotations which will be injected into the &lt;code>Service&lt;/code>s of type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
-&lt;h4 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h4>
+&lt;h5 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h5>
 &lt;p>&lt;code>gardener-operator&lt;/code> heavily relies on the Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">&lt;code>vertical-pod-autoscaler&lt;/code> component&lt;/a>.
 By default, the &lt;code>Garden&lt;/code> controller deploys the VPA components into the &lt;code>garden&lt;/code> namespace of the respective runtime cluster.
 In case you want to manage the VPA deployment on your own or have a custom one, then you might want to disable the automatic deployment of &lt;code>gardener-operator&lt;/code>.
@@ -737,8 +738,12 @@ Otherwise, you might end up with two VPAs which will cause erratic behaviour.
 By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/code> you can disable the automatic deployment.&lt;/p>
 &lt;p>⚠️ In any case, there must be a VPA available for your runtime cluster.
 Using a runtime cluster without VPA is not supported.&lt;/p>
-&lt;h4 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h4>
+&lt;h5 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h5>
 &lt;p>Refer to the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/operations/topology_aware_routing.md">Topology-Aware Traffic Routing documentation&lt;/a> as this document contains the documentation for the topology-aware routing setting for the garden runtime cluster.&lt;/p>
+&lt;h4 id="volumes">Volumes&lt;/h4>
+&lt;p>It is possible to define the minimum size for &lt;code>PersistentVolumeClaim&lt;/code>s in the runtime cluster created by &lt;code>gardener-operator&lt;/code> via the &lt;code>.spec.runtimeCluster.volume.minimumSize&lt;/code> field.
+This can be relevant in case the runtime cluster runs on an infrastructure that does only support disks of at least a certain size.&lt;/p>
+&lt;h3 id="configuration-for-virtual-cluster">Configuration For Virtual Cluster&lt;/h3>
 &lt;h4 id="etcd-encryption-config">ETCD Encryption Config&lt;/h4>
 &lt;p>The &lt;code>spec.virtualCluster.kubernetes.kubeAPIServer.encryptionConfig&lt;/code> field in the Garden API allows operators to customize encryption configurations for the &lt;code>kube-apiserver&lt;/code> of the virtual cluster. It provides options to specify additional resources for encryption. Similarly &lt;code>spec.virtualCluster.gardener.gardenerAPIServer.encryptionConfig&lt;/code> field allows operators to customize encryption configurations for the &lt;code>gardener-apiserver&lt;/code>.&lt;/p>
 &lt;ul>
@@ -823,17 +828,60 @@ This drastically simplifies backup and restore capabilities (e.g., moving the vi
 &lt;li>&lt;code>plutono&lt;/code>&lt;/li>
 &lt;li>&lt;code>vali&lt;/code>&lt;/li>
 &lt;li>&lt;code>prometheus-operator&lt;/code>&lt;/li>
+&lt;li>&lt;code>alertmanager-garden&lt;/code> (read more &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/operator.md#observability">here&lt;/a>)&lt;/li>
 &lt;/ul>
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>.status.lastOperation&lt;/code> which indicates the status of an operation.&lt;/p>
-&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardencare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/care">&lt;code>Care&lt;/code> Reconciler&lt;/a>&lt;/h4>
+&lt;h5 id="observability">Observability&lt;/h5>
+&lt;p>By default, the &lt;code>alertmanager-garden&lt;/code> deployed by &lt;code>gardener-operator&lt;/code> does not come with any configuration.
+It is the responsibility of the human operators to design and provide it.
+This can be done by creating &lt;code>monitoring.coreos.com/v1alpha1.AlertmanagerConfig&lt;/code> resources labeled with &lt;code>alertmanager=garden&lt;/code> (read more about them &lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/design.md#alertmanagerconfig">here&lt;/a>), for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: AlertmanagerConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alertmanager: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> route:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> receiver: dev-null
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groupBy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - alertname
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - landscape
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> routes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - continue: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groupWait: 3m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groupInterval: 5m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> repeatInterval: 12h
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> routes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - receiver: ops
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: severity
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: warning
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchType: =
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: topology
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchType: =
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> receivers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: dev-null
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: ops
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> slackConfigs:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiURL: https://&amp;lt;slack-api-url&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> channel: &amp;lt;channel-name&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> username: Gardener-Alertmanager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iconEmoji: &lt;span style="color:#a31515">&amp;#34;:alert:&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> title: &lt;span style="color:#a31515">&amp;#34;[{{ .Status | toUpper }}] Gardener Alert(s)&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> text: &lt;span style="color:#a31515">&amp;#34;{{ range .Alerts }}*{{ .Annotations.summary }} ({{ .Status }})*\n{{ .Annotations.description }}\n\n{{ end }}&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sendResolved: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="care-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardencare">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/care">&lt;code>Care&lt;/code> Reconciler&lt;/a>&lt;/h4>
 &lt;p>This reconciler performs four &amp;ldquo;care&amp;rdquo; actions related to &lt;code>Garden&lt;/code>s.&lt;/p>
 &lt;p>It maintains the following conditions:&lt;/p>
 &lt;ul>
+&lt;li>&lt;code>VirtualGardenAPIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the garden&amp;rsquo;s &lt;code>virtual-garden-kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
 &lt;li>&lt;code>RuntimeComponentsHealthy&lt;/code>: The conditions of the &lt;code>ManagedResource&lt;/code>s applied to the runtime cluster are checked (e.g., &lt;code>ResourcesApplied&lt;/code>).&lt;/li>
 &lt;li>&lt;code>VirtualComponentsHealthy&lt;/code>: The virtual components are considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>virtual-garden-kube-apiserver&lt;/code>,&lt;code>virtual-garden-kube-controller-manager&lt;/code>), and &lt;code>Etcd&lt;/code>s (for example &lt;code>virtual-garden-etcd-main&lt;/code>) exist and are healthy. Additionally, the conditions of the &lt;code>ManagedResource&lt;/code>s applied to the virtual cluster are checked (e.g., &lt;code>ResourcesApplied&lt;/code>).&lt;/li>
-&lt;li>&lt;code>VirtualGardenAPIServerAvailable&lt;/code>: The &lt;code>/healthz&lt;/code> endpoint of the garden&amp;rsquo;s &lt;code>virtual-garden-kube-apiserver&lt;/code> is called and considered healthy when it responds with &lt;code>200 OK&lt;/code>.&lt;/li>
 &lt;li>&lt;code>ObservabilityComponentsHealthy&lt;/code>: This condition is considered healthy when the respective &lt;code>Deployment&lt;/code>s (for example &lt;code>plutono&lt;/code>) and &lt;code>StatefulSet&lt;/code>s (for example &lt;code>prometheus&lt;/code>, &lt;code>vali&lt;/code>) exist and are healthy.&lt;/li>
 &lt;/ul>
 &lt;p>If all checks for a certain condition are succeeded, then its &lt;code>status&lt;/code> will be set to &lt;code>True&lt;/code>.
@@ -846,6 +894,30 @@ Otherwise, it will be set to &lt;code>False&lt;/code> or &lt;code>Progressing&lt
 &lt;/ul>
 &lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
 Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;p>In order to compute the condition statuses, this reconciler considers &lt;code>ManagedResource&lt;/code>s (in the &lt;code>garden&lt;/code> and &lt;code>istio-system&lt;/code> namespace) and their status, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#conditions">this document&lt;/a> for more information.
+The following table explains which &lt;code>ManagedResource&lt;/code>s are considered for which condition type:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Condition Type&lt;/th>
+&lt;th>&lt;code>ManagedResource&lt;/code>s are considered when&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>RuntimeComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>.spec.class=seed&lt;/code> and &lt;code>care.gardener.cloud/condition-type&lt;/code> label either unset, or set to &lt;code>RuntimeComponentsHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>VirtualComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>.spec.class&lt;/code> unset or &lt;code>care.gardener.cloud/condition-type&lt;/code> label set to &lt;code>VirtualComponentsHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ObservabilityComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>care.gardener.cloud/condition-type&lt;/code> label set to &lt;code>ObservabilityComponentsHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
 &lt;h4 id="reference-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardenreference">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/reference">&lt;code>Reference&lt;/code> Reconciler&lt;/a>&lt;/h4>
 &lt;p>&lt;code>Garden&lt;/code> objects may specify references to other objects in the Garden cluster which are required for certain features.
 For example, operators can configure a secret for ETCD backup via &lt;code>.spec.virtualCluster.etcd.main.backup.secretRef.name&lt;/code> or an audit policy &lt;code>ConfigMap&lt;/code> via &lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.auditConfig.auditPolicy.configMapRef.name&lt;/code>.
@@ -2463,6 +2535,22 @@ Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
 &lt;/ul>
 &lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
 Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;p>In order to compute the condition statuses, this reconciler considers &lt;code>ManagedResource&lt;/code>s (in the &lt;code>garden&lt;/code> and &lt;code>istio-system&lt;/code> namespace) and their status, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#conditions">this document&lt;/a> for more information.
+The following table explains which &lt;code>ManagedResource&lt;/code>s are considered for which condition type:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Condition Type&lt;/th>
+&lt;th>&lt;code>ManagedResource&lt;/code>s are considered when&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>SeedSystemComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>.spec.class&lt;/code> is set&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
 &lt;h4 id="lease-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollerseedlease">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/seed/lease">&amp;ldquo;Lease&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
 &lt;p>This reconciler checks whether the connection to the seed cluster&amp;rsquo;s &lt;code>/healthz&lt;/code> endpoint works.
 If this succeeds, then it renews a &lt;code>Lease&lt;/code> resource in the garden cluster&amp;rsquo;s &lt;code>gardener-system-seed-lease&lt;/code> namespace.
@@ -2524,6 +2612,30 @@ Otherwise, it will be set to &lt;code>False&lt;/code>.&lt;/p>
 &lt;/ul>
 &lt;p>The condition thresholds can be used to prevent reporting issues too early just because there is a rollout or a short disruption.
 Only if the unhealthiness persists for at least the configured threshold duration, then the issues will be reported (by setting the status to &lt;code>False&lt;/code>).&lt;/p>
+&lt;p>Besides directly checking the status of &lt;code>Deployment&lt;/code>s, &lt;code>Etcd&lt;/code>s, &lt;code>StatefulSet&lt;/code>s in the shoot namespace, this reconciler also considers &lt;code>ManagedResource&lt;/code>s (in the shoot namespace) and their status in order to compute the condition statuses, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#conditions">this document&lt;/a> for more information.
+The following table explains which &lt;code>ManagedResource&lt;/code>s are considered for which condition type:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Condition Type&lt;/th>
+&lt;th>&lt;code>ManagedResource&lt;/code>s are considered when&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>ControlPlaneHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>.spec.class=seed&lt;/code> and &lt;code>care.gardener.cloud/condition-type&lt;/code> label either unset, or set to &lt;code>ControlPlaneHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ObservabilityComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>care.gardener.cloud/condition-type&lt;/code> label set to &lt;code>ObservabilityComponentsHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>SystemComponentsHealthy&lt;/code>&lt;/td>
+&lt;td>&lt;code>.spec.class&lt;/code> unset or &lt;code>care.gardener.cloud/condition-type&lt;/code> label set to &lt;code>SystemComponentsHealthy&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
 &lt;h5 id="constraints-and-automatic-webhook-remediation">Constraints And Automatic Webhook Remediation&lt;/h5>
 &lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot_status.md#constraints">Shoot Status&lt;/a> for more details.&lt;/p>
 &lt;h5 id="garbage-collection">Garbage Collection&lt;/h5>

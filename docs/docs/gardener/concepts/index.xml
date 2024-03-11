@@ -729,13 +729,13 @@ This section provides an overview over the available settings in &lt;code>.spec.
 &lt;p>&lt;code>gardener-operator&lt;/code> deploys Istio and relevant resources to the runtime cluster in order to expose the &lt;code>virtual-garden-kube-apiserver&lt;/code> service (similar to how the &lt;code>kube-apiservers&lt;/code> of shoot clusters are exposed).
 In most cases, the &lt;code>cloud-controller-manager&lt;/code> (responsible for managing these load balancers on the respective underlying infrastructure) supports certain customization and settings via annotations.
 &lt;a href="https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer">This document&lt;/a> provides a good overview and many examples.&lt;/p>
-&lt;p>By setting the &lt;code>.spec.settings.loadBalancerServices.annotations&lt;/code> field the Gardener administrator can specify a list of annotations which will be injected into the &lt;code>Service&lt;/code>s of type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
+&lt;p>By setting the &lt;code>.spec.runtimeCluster.settings.loadBalancerServices.annotations&lt;/code> field the Gardener administrator can specify a list of annotations which will be injected into the &lt;code>Service&lt;/code>s of type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
 &lt;h5 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h5>
 &lt;p>&lt;code>gardener-operator&lt;/code> heavily relies on the Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">&lt;code>vertical-pod-autoscaler&lt;/code> component&lt;/a>.
 By default, the &lt;code>Garden&lt;/code> controller deploys the VPA components into the &lt;code>garden&lt;/code> namespace of the respective runtime cluster.
 In case you want to manage the VPA deployment on your own or have a custom one, then you might want to disable the automatic deployment of &lt;code>gardener-operator&lt;/code>.
 Otherwise, you might end up with two VPAs which will cause erratic behaviour.
-By setting the &lt;code>.spec.settings.verticalPodAutoscaler.enabled=false&lt;/code> you can disable the automatic deployment.&lt;/p>
+By setting the &lt;code>.spec.runtimeCluster.settings.verticalPodAutoscaler.enabled=false&lt;/code> you can disable the automatic deployment.&lt;/p>
 &lt;p>⚠️ In any case, there must be a VPA available for your runtime cluster.
 Using a runtime cluster without VPA is not supported.&lt;/p>
 &lt;h5 id="topology-aware-traffic-routing">Topology-Aware Traffic Routing&lt;/h5>
@@ -796,18 +796,17 @@ The &lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;a href="https:/
 &lt;blockquote>
 &lt;p>If once set, removing &lt;code>.spec.virtualCluster.controlPlane.highAvailability&lt;/code> again is not supported.&lt;/p>
 &lt;/blockquote>
-&lt;p>The &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Deployment&lt;/code> is exposed via a &lt;code>Service&lt;/code> of type &lt;code>LoadBalancer&lt;/code> with the same name.
-In the future, we will switch to exposing it via Istio, similar to how the &lt;code>kube-apiservers&lt;/code> of shoot clusters are exposed.&lt;/p>
+&lt;p>The &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Deployment&lt;/code> is exposed via Istio, similar to how the &lt;code>kube-apiservers&lt;/code> of shoot clusters are exposed.&lt;/p>
 &lt;p>Similar to the &lt;code>Shoot&lt;/code> API, the version of the virtual garden cluster is controlled via &lt;code>.spec.virtualCluster.kubernetes.version&lt;/code>.
 Likewise, specific configuration for the control plane components can be provided in the same section, e.g. via &lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer&lt;/code> for the &lt;code>kube-apiserver&lt;/code> or &lt;code>.spec.virtualCluster.kubernetes.kubeControllerManager&lt;/code> for the &lt;code>kube-controller-manager&lt;/code>.&lt;/p>
-&lt;p>The &lt;code>kube-controller-manager&lt;/code> only runs a very few controllers that are necessary in the scenario of the virtual garden.
+&lt;p>The &lt;code>kube-controller-manager&lt;/code> only runs a few controllers that are necessary in the scenario of the virtual garden.
 Most prominently, &lt;strong>the &lt;code>serviceaccount-token&lt;/code> controller is unconditionally disabled&lt;/strong>.
 Hence, the usage of static &lt;code>ServiceAccount&lt;/code> secrets is not supported generally.
 Instead, the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">&lt;code>TokenRequest&lt;/code> API&lt;/a> should be used.
 Third-party components that need to communicate with the virtual cluster can leverage the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#tokenrequestor-controller">&lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;code>TokenRequestor&lt;/code> controller&lt;/a> and the generic kubeconfig, just like it works for &lt;code>Shoot&lt;/code>s.
 Please note, that this functionality is restricted to the &lt;code>garden&lt;/code> namespace. The current &lt;code>Secret&lt;/code> name of the generic kubeconfig can be found in the annotations (key: &lt;code>generic-token-kubeconfig.secret.gardener.cloud/name&lt;/code>) of the &lt;code>Garden&lt;/code> resource.&lt;/p>
-&lt;p>For the virtual cluster, it is essential to provide a DNS domain via &lt;code>.spec.virtualCluster.dns.domain&lt;/code>.
-&lt;strong>The respective DNS record is not managed by &lt;code>gardener-operator&lt;/code> and should be manually created and pointed to the load balancer IP of the &lt;code>virtual-garden-kube-apiserver&lt;/code> &lt;code>Service&lt;/code>.&lt;/strong>
+&lt;p>For the virtual cluster, it is essential to provide a DNS domain via &lt;code>.spec.virtualCluster.dns.domains&lt;/code>.
+&lt;strong>The respective DNS record is not managed by &lt;code>gardener-operator&lt;/code> and should be created manually. It should point to the load balancer IP of the &lt;code>istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> in namespace &lt;code>virtual-garden-istio-ingress&lt;/code>.&lt;/strong>
 The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and for configuring the &lt;code>--external-hostname&lt;/code> flag of the API server.&lt;/p>
 &lt;p>Apart from the control plane components of the virtual cluster, the reconcile also deploys the control plane components of Gardener.
 &lt;code>gardener-apiserver&lt;/code> reuses the same ETCDs like the &lt;code>virtual-garden-kube-apiserver&lt;/code>, so all data related to the &amp;ldquo;the garden cluster&amp;rdquo; is stored together and &amp;ldquo;isolated&amp;rdquo; from ETCD data related to the runtime cluster.

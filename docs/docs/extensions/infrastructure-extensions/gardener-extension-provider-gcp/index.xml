@@ -233,11 +233,18 @@ Please consider spreading your Shoots over multiple Service Accounts on differen
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># internal: 10.251.0.0/16&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># cloudNAT:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># minPortsPerVM: 2048&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># maxPortsPerVM: 65536&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># endpointIndependentMapping:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enabled: false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># enableDynamicPortAllocation: false&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># natIPNames:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: manualnat1&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># - name: manualnat2&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># udpIdleTimeoutSec: 30&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># icmpIdleTimeoutSec: 30&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># tcpEstablishedIdleTimeoutSec: 1200&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># tcpTransitoryIdleTimeoutSec: 30&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># tcpTimeWaitTimeoutSec: 120&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># flowLogs:&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># aggregationInterval: INTERVAL_5_SEC&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># flowSampling: 0.2&lt;/span>
@@ -265,6 +272,8 @@ Overlapping pod CIDRs will lead to disfunctional shoot clusters.&lt;/p>
 &lt;p>The &lt;code>networks.cloudNAT.minPortsPerVM&lt;/code> is optional and is used to define the &lt;a href="https://cloud.google.com/nat/docs/overview#number_of_nat_ports_and_connections">minimum number of ports allocated to a VM for the CloudNAT&lt;/a>&lt;/p>
 &lt;p>The &lt;code>networks.cloudNAT.natIPNames&lt;/code> is optional and is used to specify the names of the manual ip addresses which should be used by the nat gateway&lt;/p>
 &lt;p>The &lt;code>networks.cloudNAT.endpointIndependentMapping&lt;/code> is optional and is used to define the &lt;a href="https://cloud.google.com/nat/docs/ports-and-addresses#ports-reuse-endpoints">endpoint mapping behavior&lt;/a>. You can enable it or disable it at any point by toggling &lt;code>networks.cloudNAT.endpointIndependentMapping.enabled&lt;/code>. By default, it is disabled.&lt;/p>
+&lt;p>&lt;code>networks.cloudNAT.enableDynamicPortAllocation&lt;/code> is optional (default: &lt;code>false&lt;/code>) and allows one to enable dynamic port allocation (&lt;a href="https://cloud.google.com/nat/docs/ports-and-addresses#dynamic-port">https://cloud.google.com/nat/docs/ports-and-addresses#dynamic-port&lt;/a>). Note that enabling this puts additional restrictions on the permitted values for &lt;code>networks.cloudNAT.minPortsPerVM&lt;/code> and &lt;code>networks.cloudNAT.minPortsPerVM&lt;/code>, namely that they now both are required to be powers of two. Also, &lt;code>maxPortsPerVM&lt;/code> may not be given if dynamic port allocation is &lt;em>disabled&lt;/em>.&lt;/p>
+&lt;p>&lt;code>networks.cloudNAT.udpIdleTimeoutSec&lt;/code>, &lt;code>networks.cloudNAT.icmpIdleTimeoutSec&lt;/code>, &lt;code>networks.cloudNAT.tcpEstablishedIdleTimeoutSec&lt;/code>, &lt;code>networks.cloudNAT.tcpTransitoryIdleTimeoutSec&lt;/code>, and &lt;code>networks.cloudNAT.tcpTimeWaitTimeoutSec&lt;/code> give more fine-granular control over various timeout-values. For more details see &lt;a href="https://cloud.google.com/nat/docs/public-nat#specs-timeouts">https://cloud.google.com/nat/docs/public-nat#specs-timeouts&lt;/a>.&lt;/p>
 &lt;p>The specified CIDR ranges must be contained in the VPC CIDR specified above, or the VPC CIDR of your already existing VPC.
 You can freely choose these CIDRs and it is your responsibility to properly design the network layout to suit your needs.&lt;/p>
 &lt;p>The &lt;code>networks.flowLogs&lt;/code> section describes the configuration for the VPC flow logs. In order to enable the VPC flow logs at least one of the following parameters needs to be specified in the flow log section:&lt;/p>
@@ -326,6 +335,8 @@ serviceAccount:name@projectIdgserviceaccount.com --role roles/cloudkms.cryptoKey
 &lt;li>
 &lt;p>Service Account with their specified scopes, authorized for this worker.&lt;/p>
 &lt;p>Service accounts created in advance that generate access tokens that can be accessed through the metadata server and used to authenticate applications on the instance.&lt;/p>
+&lt;p>&lt;strong>Note&lt;/strong>: If you do not provide service accounts for your workers, the Compute Engine default service account will be used. For more details on the default account, see &lt;a href="https://cloud.google.com/compute/docs/access/service-accounts#default_service_account">https://cloud.google.com/compute/docs/access/service-accounts#default_service_account&lt;/a>.
+If the &lt;code>DisableGardenerServiceAccountCreation&lt;/code> feature gate is disabled, Gardener will create a shared service accounts to use for all instances. This feature gate is currently in beta and it will no longer be possible to re-enable the service account creation via feature gate flag.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>GPU with its type and count per node. This will attach that GPU to all the machines in the worker grp&lt;/p>
@@ -402,7 +413,7 @@ serviceAccount:name@projectIdgserviceaccount.com --role roles/cloudkms.cryptoKey
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 10.250.0.0/16
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: calico
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.28.2
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoUpdate:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>

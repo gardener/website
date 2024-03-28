@@ -293,36 +293,4 @@ Instead, the Distribution project supports configuring only one set of credentia
 &lt;ul>
 &lt;li>The registry cache is not protected by any authentication/authorization mechanism. The cached images (incl. private images) can be fetched from the registry cache without authentication/authorization. Note that the registry cache itself is not exposed publicly.&lt;/li>
 &lt;li>The registry cache provides the credentials for every request against the corresponding upstream. In some cases, misconfigured credentials can prevent the registry cache to pull even public images from the upstream (for example: invalid service account key for Artifact Registry). However, this behaviour is controlled by the server-side logic of the upstream registry.&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Migration from `v1alpha2` to `v1alpha3`</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/migration-from-v1alpha2-to-v1alpha3/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-registry-cache/registry-cache/migration-from-v1alpha2-to-v1alpha3/</guid><description>
-&lt;h1 id="migration-from-v1alpha2-to-v1alpha3">Migration from &lt;code>v1alpha2&lt;/code> to &lt;code>v1alpha3&lt;/code>&lt;/h1>
-&lt;p>This document describes how to migrate from API version &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code> of the &lt;code>RegistryConfig&lt;/code> to &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code>.&lt;/p>
-&lt;p>The &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code> is deprecated and will be removed in a future version. Use &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> instead.&lt;/p>
-&lt;p>Let&amp;rsquo;s first inspect how the &lt;code>RegistryConfig&lt;/code> looks like in API version &lt;code>registry.extensions.gardener.cloud/v1alpha2&lt;/code>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: registry.extensions.gardener.cloud/v1alpha2
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RegistryConfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>caches:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- upstream: docker.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 10Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClassName: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: docker-credentials
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The translation of the above &lt;code>RegistryConfig&lt;/code> in API version &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> is:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: registry.extensions.gardener.cloud/v1alpha3
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RegistryConfig
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>caches:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- upstream: docker.io
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 10Gi
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClassName: default
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> garbageCollection:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ttl: 168h
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretReferenceName: docker-credentials
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As you can notice, there is one breaking change in API version &lt;code>registry.extensions.gardener.cloud/v1alpha3&lt;/code> - the &lt;code>caches[].garbageCollection.enabled&lt;/code> field is replaced by &lt;code>caches[].garbageCollection.ttl&lt;/code>.&lt;/p>
-&lt;p>&lt;code>v1alpha2&lt;/code> was an API created against &lt;code>distribution/distribution@2.8&lt;/code>. The registry-cache evolves and upgraded recently to &lt;code>distribution/distribution@3.0&lt;/code>. In &lt;code>distribution/distribution@2.8&lt;/code> the ttl is not configurable and it is hard-coded to &lt;code>168h&lt;/code> (7 days). That&amp;rsquo;s why in versions prior to &lt;code>v1alpha3&lt;/code> the &lt;code>storage.delete.enabled&lt;/code> config field in the &lt;code>distribution/distribution&lt;/code> configuration was used to control deletion of blobs. &lt;code>distribution/distribution@3.0&lt;/code> exposes the &lt;code>proxy.ttl&lt;/code> config field. It is now possible to natively disable the garbage collection (expiration of blobs) by setting &lt;code>proxy.ttl=0&lt;/code>.&lt;/p>
-&lt;p>Conversions are as follows:&lt;/p>
-&lt;ul>
-&lt;li>&lt;code>garbageCollection.enable=true&lt;/code> gets converted to &lt;code>garbageCollection.ttl=168h&lt;/code> and vice versa (a positive &lt;code>garbageCollection.ttl&lt;/code> duration is considered &lt;code>garbageCollection.enable=true&lt;/code>)&lt;/li>
-&lt;li>&lt;code>garbageCollection.enable=false&lt;/code> gets converted to &lt;code>garbageCollection.ttl=0&lt;/code> vice versa&lt;/li>
 &lt;/ul></description></item></channel></rss>

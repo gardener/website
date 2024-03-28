@@ -1,4 +1,7 @@
 # Gardener Landing page
+
+[![REUSE status](https://api.reuse.software/badge/github.com/gardener/website)](https://api.reuse.software/info/github.com/gardener/website)
+
 ## Overview of CI/CD build
 
 ![image](images/overview.png)

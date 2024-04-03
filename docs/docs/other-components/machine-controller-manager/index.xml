@@ -428,7 +428,7 @@ Developer should add/udpate depedency in the go.mod file. Please run following c
 &lt;ul>
 &lt;li>A sample provider implementation for these methods can be found &lt;a href="https://github.com/gardener/machine-controller-manager-provider-aws/blob/master/pkg/aws/core.go">here&lt;/a>.&lt;/li>
 &lt;li>Fill in the required methods &lt;code>CreateMachine()&lt;/code>, and &lt;code>DeleteMachine()&lt;/code> methods.&lt;/li>
-&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
+&lt;li>Optionally fill in methods like &lt;code>GetMachineStatus()&lt;/code>, &lt;code>InitializeMachine&lt;/code>, &lt;code>ListMachines()&lt;/code>, and &lt;code>GetVolumeIDs()&lt;/code>. You may choose to fill these once the working of the required methods seems to be working.&lt;/li>
 &lt;li>&lt;code>GetVolumeIDs()&lt;/code> expects VolumeIDs to be decoded from the volumeSpec based on the cloud provider.&lt;/li>
 &lt;li>There is also an OPTIONAL method &lt;code>GenerateMachineClassForMigration()&lt;/code> that helps in migration of &lt;code>{ProviderSpecific}MachineClass&lt;/code> to &lt;code>MachineClass&lt;/code> CR (custom resource). This only makes sense if you have an existing implementation (in-tree) acting on different CRD types. You would like to migrate this. If not, you MUST return an error (machine error UNIMPLEMENTED) to avoid processing this step.&lt;/li>
 &lt;/ul>
@@ -1346,6 +1346,97 @@ The MCM MUST implement the specified error recovery behavior when it encounters 
 &lt;/table>
 &lt;p>The status &lt;code>message&lt;/code> MUST contain a human readable description of error, if the status &lt;code>code&lt;/code> is not &lt;code>OK&lt;/code>.
 This string MAY be surfaced by MCM to end users.&lt;/p>
+&lt;h4 id="initializemachine">&lt;code>InitializeMachine&lt;/code>&lt;/h4>
+&lt;p>Provider can OPTIONALLY implement this driver call. Else should return a &lt;code>UNIMPLEMENTED&lt;/code> status in error.&lt;br>
+This interface method will be called by the MCM to initialize a new VM just after creation. This can be used to configure network configuration etc.&lt;/p>
+&lt;ul>
+&lt;li>This call requests the provider to initialize a newly created VM backing the machine-object.&lt;/li>
+&lt;li>The &lt;code>InitializeMachineResponse&lt;/code> returned by this method is expected to return
+&lt;ul>
+&lt;li>&lt;code>ProviderID&lt;/code> that uniquely identifys the VM at the provider. This is expected to match with the &lt;code>node.Spec.ProviderID&lt;/code> on the node object.&lt;/li>
+&lt;li>&lt;code>NodeName&lt;/code> that is the expected name of the machine when it joins the cluster. It must match with the node name.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-protobuf" data-lang="protobuf">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">// InitializeMachine call is responsible for VM initialization on the provider.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>InitializeMachine(context.Context, &lt;span style="">*&lt;/span>InitializeMachineRequest) (&lt;span style="">*&lt;/span>InitializeMachineResponse, error)&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span>&lt;span style="color:#008000">// InitializeMachineRequest encapsulates params for the VM Initialization operation (Driver.InitializeMachine).
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>type InitializeMachineRequest struct {&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span> &lt;span style="color:#008000">// Machine object representing VM that must be initialized
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Machine &lt;span style="">*&lt;/span>v1alpha1.Machine&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span> &lt;span style="color:#008000">// MachineClass backing the machine object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> MachineClass &lt;span style="">*&lt;/span>v1alpha1.MachineClass&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span> &lt;span style="color:#008000">// Secret backing the machineClass object
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> Secret &lt;span style="">*&lt;/span>corev1.Secret&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span>}&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span>&lt;span style="color:#008000">// InitializeMachineResponse is the response for VM instance initialization (Driver.InitializeMachine).
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span>type InitializeMachineResponse struct {&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span> &lt;span style="color:#008000">// ProviderID is the unique identification of the VM at the cloud provider.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> &lt;span style="color:#008000">// ProviderID typically matches with the node.Spec.ProviderID on the node object.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> &lt;span style="color:#008000">// Eg: gce://project-name/region/vm-ID
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> ProviderID &lt;span style="color:#2b91af">string&lt;/span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span> &lt;span style="color:#008000">// NodeName is the name of the node-object registered to kubernetes.
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000">&lt;/span> NodeName &lt;span style="color:#2b91af">string&lt;/span>&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="">&lt;/span>}&lt;span style="">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="initializemachine-errors">InitializeMachine Errors&lt;/h5>
+&lt;p>If the provider is unable to complete the &lt;code>InitializeMachine&lt;/code> call successfully, it MUST return a non-ok machine code in the machine status.&lt;/p>
+&lt;p>If the conditions defined below are encountered, the provider MUST return the specified machine error code.
+The MCM MUST implement the specified error recovery behavior when it encounters the machine error code.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>machine Code&lt;/th>
+&lt;th>Condition&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;th>Recovery Behavior&lt;/th>
+&lt;th>Auto Retry Required&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>0 OK&lt;/td>
+&lt;td>Successful&lt;/td>
+&lt;td>The call was successful in initializing a VM that matches supplied initialization request. The &lt;code>InitializeMachineResponse&lt;/code> is returned with desired values&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>N&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>5 NOT_FOUND&lt;/td>
+&lt;td>Timeout&lt;/td>
+&lt;td>VM Instance for Machine isn&amp;rsquo;t found at provider&lt;/td>
+&lt;td>Skip Initialization and Continue&lt;/td>
+&lt;td>N&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>12 UNIMPLEMENTED&lt;/td>
+&lt;td>Not implemented&lt;/td>
+&lt;td>Unimplemented indicates operation is not implemented or not supported/enabled in this service.&lt;/td>
+&lt;td>Skip Initialization and continue&lt;/td>
+&lt;td>N&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>13 INTERNAL&lt;/td>
+&lt;td>Major error&lt;/td>
+&lt;td>Means some invariants expected by underlying system has been broken.&lt;/td>
+&lt;td>Needs investigation and possible intervention to fix this&lt;/td>
+&lt;td>Y&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>17 UNINITIALIZED&lt;/td>
+&lt;td>Failed Initialization&lt;/td>
+&lt;td>VM Instance could not be initializaed&lt;/td>
+&lt;td>Initialization is reattempted in next reconcile cycle&lt;/td>
+&lt;td>Y&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>The status &lt;code>message&lt;/code> MUST contain a human readable description of error, if the status &lt;code>code&lt;/code> is not &lt;code>OK&lt;/code>.
+This string MAY be surfaced by MCM to end users.&lt;/p>
 &lt;h4 id="deletemachine">&lt;code>DeleteMachine&lt;/code>&lt;/h4>
 &lt;p>A Provider is REQUIRED to implement this driver call.
 This driver call will be called by the MCM to deprovision/delete/terminate a VM backed by the requesting machine object.&lt;/p>
@@ -1639,6 +1730,13 @@ If the conditions defined below are encountered, the provider MUST return the sp
 &lt;td>Missing provider credentials&lt;/td>
 &lt;td>Request does not have valid authentication credentials for the operation&lt;/td>
 &lt;td>Fix the provider credentials&lt;/td>
+&lt;td>N&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>17 UNINITIALIZED&lt;/td>
+&lt;td>Failed Initialization&lt;/td>
+&lt;td>VM Instance could not be initializaed&lt;/td>
+&lt;td>Initialization is reattempted in next reconcile cycle&lt;/td>
 &lt;td>N&lt;/td>
 &lt;/tr>
 &lt;/tbody>

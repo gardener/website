@@ -1222,64 +1222,40 @@ One merge commit could reintroduce some or all of the tainted history that you j
 &lt;li>&lt;a href="https://help.github.com/articles/removing-sensitive-data-from-a-repository/">Removing Sensitive Data from a Repository&lt;/a>&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Using Prometheus and Grafana to Monitor K8s</title><link>https://gardener.cloud/docs/guides/applications/prometheus/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/applications/prometheus/</guid><description>
 &lt;h2 id="disclaimer">Disclaimer&lt;/h2>
-&lt;p>This post is meant to give a basic end-to-end description for deploying and using Prometheus and Grafana. Both
-applications offer a wide range of flexibility, which needs to be considered in case you have specific requirements.
-Such advanced details are not in the scope of this topic.&lt;/p>
+&lt;p>This post is meant to give a basic end-to-end description for deploying and using Prometheus and Grafana. Both applications offer a wide range of flexibility, which needs to be considered in case you have specific requirements. Such advanced details are not in the scope of this topic.&lt;/p>
 &lt;h2 id="introduction">Introduction&lt;/h2>
-&lt;p>&lt;a href="https://prometheus.io/">Prometheus&lt;/a> is an open-source systems monitoring and alerting toolkit for recording numeric
-time series. It fits both machine-centric monitoring as well as monitoring of highly dynamic service-oriented
-architectures. In a world of microservices, its support for multi-dimensional data collection and querying is a
-particular strength.&lt;/p>
+&lt;p>&lt;a href="https://prometheus.io/">Prometheus&lt;/a> is an open-source systems monitoring and alerting toolkit for recording numeric time series. It fits both machine-centric monitoring as well as monitoring of highly dynamic service-oriented architectures. In a world of microservices, its support for multi-dimensional data collection and querying is a particular strength.&lt;/p>
 &lt;p>Prometheus is the second hosted project to &lt;a href="https://prometheus.io/blog/2018/08/09/prometheus-graduates-within-cncf/">graduate within CNCF&lt;/a>.&lt;/p>
 &lt;p>The following characteristics make Prometheus a good match for monitoring Kubernetes clusters:&lt;/p>
 &lt;ul>
 &lt;li>
-&lt;p>Pull-based Monitoring&lt;br>
-Prometheus is a &lt;a href="https://prometheus.io/blog/2016/07/23/pull-does-not-scale-or-does-it/">pull-based&lt;/a> monitoring system,
-which means that the Prometheus server dynamically discovers and pulls metrics from your services running in Kubernetes.&lt;/p>
+&lt;p>Pull-based Monitoring
+Prometheus is a &lt;a href="https://prometheus.io/blog/2016/07/23/pull-does-not-scale-or-does-it/">pull-based&lt;/a> monitoring system, which means that the Prometheus server dynamically discovers and pulls metrics from your services running in Kubernetes.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Labels
 Prometheus and Kubernetes share the same label (key-value) concept that can be used to select objects in the system.&lt;br>
-Labels are used to identify time series and sets of label matchers can be used in the query language
-(&lt;a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL&lt;/a>) to select the time series to be aggregated.&lt;/p>
+Labels are used to identify time series and sets of label matchers can be used in the query language (&lt;a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL&lt;/a>) to select the time series to be aggregated.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Exporters&lt;br>
-There are many &lt;a href="https://prometheus.io/docs/instrumenting/exporters/">exporters&lt;/a> available, which enable integration of
-databases or even other monitoring systems not already providing a way to export metrics to Prometheus.
-One prominent exporter is the so called &lt;a href="https://github.com/prometheus/node_exporter">node-exporter&lt;/a>, which allows to
-monitor hardware and OS related metrics of Unix systems.&lt;/p>
+There are many &lt;a href="https://prometheus.io/docs/instrumenting/exporters/">exporters&lt;/a> available, which enable integration of databases or even other monitoring systems not already providing a way to export metrics to Prometheus. One prominent exporter is the so called &lt;a href="https://github.com/prometheus/node_exporter">node-exporter&lt;/a>, which allows to monitor hardware and OS related metrics of Unix systems.&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>Powerful Query Language&lt;br>
-The Prometheus query language &lt;a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL&lt;/a> lets the user
-select and aggregate time series data in real time. Results can either be shown as a graph, viewed
-as tabular data in the Prometheus expression browser, or consumed by external systems via the &lt;a href="https://prometheus.io/docs/prometheus/latest/querying/api/">HTTP API&lt;/a>.&lt;/p>
+&lt;p>Powerful Query Language
+The Prometheus query language &lt;a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">PromQL&lt;/a> lets the user select and aggregate time series data in real time. Results can either be shown as a graph, viewed as tabular data in the Prometheus expression browser, or consumed by external systems via the &lt;a href="https://prometheus.io/docs/prometheus/latest/querying/api/">HTTP API&lt;/a>.&lt;/p>
 &lt;/li>
 &lt;/ul>
 &lt;p>Find query examples on &lt;a href="https://github.com/infinityworks/prometheus-example-queries/blob/master/README.md">Prometheus Query Examples&lt;/a>.&lt;/p>
-&lt;p>One very popular open-source visualization tool not only for Prometheus is &lt;a href="https://grafana.com">Grafana&lt;/a>. Grafana is a
-metric analytics and visualization suite. It is popular for visualizing time series data for infrastructure
-and application analytics but many use it in other domains including industrial sensors, home automation, weather, and
-process control. For more information, see the &lt;a href="http://docs.grafana.org/">Grafana Documentation&lt;/a>.&lt;/p>
-&lt;p>Grafana accesses data via &lt;a href="https://grafana.com/docs/grafana/latest/basics/">Data Sources&lt;/a>. The continuously growing
-list of supported backends includes Prometheus.&lt;/p>
-&lt;p>Dashboards are created by combining panels, e.g. &lt;a href="http://docs.grafana.org/reference/graph/">Graph&lt;/a> and &lt;a href="http://docs.grafana.org/reference/dashlist/">Dashlist&lt;/a>.&lt;/p>
-&lt;p>In this example, we describe an End-To-End scenario including the deployment of Prometheus and a basic monitoring
-configuration as the one provided for Kubernetes clusters created by Gardener.&lt;/p>
-&lt;p>If you miss elements on the Prometheus web page when accessing it via its service URL &lt;code>https://&amp;lt;your K8s FQN&amp;gt;/api/v1/namespaces/&amp;lt;your-prometheus-namespace&amp;gt;/services/prometheus-prometheus-server:80/proxy&lt;/code>,
-this is probably caused by a Prometheus issue - &lt;a href="https://github.com/prometheus/prometheus/issues/1583">#1583&lt;/a>
-To workaround this issue, setup a port forward &lt;code>kubectl port-forward -n &amp;lt;your-prometheus-namespace&amp;gt; &amp;lt;prometheus-pod&amp;gt; 9090:9090&lt;/code>
-on your client and access the Prometheus UI from there with your locally installed web browser. This issue is not relevant
-in case you use the service type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
+&lt;p>One very popular open-source visualization tool not only for Prometheus is &lt;a href="https://grafana.com">Grafana&lt;/a>. Grafana is a metric analytics and visualization suite. It is popular for visualizing time series data for infrastructure and application analytics but many use it in other domains including industrial sensors, home automation, weather, and process control. For more information, see the &lt;a href="http://docs.grafana.org/">Grafana Documentation&lt;/a>.&lt;/p>
+&lt;p>Grafana accesses data via &lt;a href="https://grafana.com/docs/grafana/latest/basics/">Data Sources&lt;/a>. The continuously growing list of supported backends includes Prometheus.&lt;/p>
+&lt;p>Dashboards are created by combining panels, e.g., &lt;a href="http://docs.grafana.org/reference/graph/">Graph&lt;/a> and &lt;a href="http://docs.grafana.org/reference/dashlist/">Dashlist&lt;/a>.&lt;/p>
+&lt;p>In this example, we describe an End-To-End scenario including the deployment of Prometheus and a basic monitoring configuration as the one provided for Kubernetes clusters created by Gardener.&lt;/p>
+&lt;p>If you miss elements on the Prometheus web page when accessing it via its service URL &lt;code>https://&amp;lt;your K8s FQN&amp;gt;/api/v1/namespaces/&amp;lt;your-prometheus-namespace&amp;gt;/services/prometheus-prometheus-server:80/proxy&lt;/code>, this is probably caused by a Prometheus issue - &lt;a href="https://github.com/prometheus/prometheus/issues/1583">#1583&lt;/a>. To workaround this issue, set up a port forward &lt;code>kubectl port-forward -n &amp;lt;your-prometheus-namespace&amp;gt; &amp;lt;prometheus-pod&amp;gt; 9090:9090&lt;/code> on your client and access the Prometheus UI from there with your locally installed web browser. This issue is not relevant in case you use the service type &lt;code>LoadBalancer&lt;/code>.&lt;/p>
 &lt;h2 id="preparation">Preparation&lt;/h2>
 &lt;p>The deployment of &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus&lt;/a> and &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana&lt;/a> is based on Helm charts.&lt;br>
 Make sure to implement the Helm settings before deploying the Helm charts.&lt;/p>
-&lt;p>The Kubernetes clusters provided by &lt;a href="https://github.com/gardener">Gardener&lt;/a> use role based
-access control (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC&lt;/a>). To authorize the Prometheus
-node-exporter to access hardware and OS relevant metrics of your cluster&amp;rsquo;s worker nodes, specific artifacts need to be
-deployed.&lt;/p>
+&lt;p>The Kubernetes clusters provided by &lt;a href="https://github.com/gardener">Gardener&lt;/a> use role based access control (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC&lt;/a>). To authorize the Prometheus node-exporter to access hardware and OS relevant metrics of your cluster&amp;rsquo;s worker nodes, specific artifacts need to be deployed.&lt;/p>
 &lt;p>Bind the Prometheus service account to the &lt;code>garden.sapcloud.io:monitoring:prometheus&lt;/code> cluster role by running the command
 &lt;code>kubectl apply -f crbinding.yaml&lt;/code>.&lt;/p>
 &lt;p>Content of &lt;code>crbinding.yaml&lt;/code>&lt;/p>
@@ -1296,12 +1272,10 @@ deployed.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;your-prometheus-name&amp;gt;-server
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;your-prometheus-namespace&amp;gt;
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deployment-of-prometheus-and-grafana">Deployment of Prometheus and Grafana&lt;/h2>
-&lt;p>Only minor changes are needed to deploy &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus&lt;/a>
-and &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana&lt;/a> based on Helm charts.&lt;/p>
+&lt;p>Only minor changes are needed to deploy &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus&lt;/a> and &lt;a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana&lt;/a> based on Helm charts.&lt;/p>
 &lt;p>Copy the following configuration into a file called &lt;code>values.yaml&lt;/code> and deploy Prometheus:
 &lt;code>helm install &amp;lt;your-prometheus-name&amp;gt; --namespace &amp;lt;your-prometheus-namespace&amp;gt; stable/prometheus -f values.yaml&lt;/code>&lt;/p>
-&lt;p>Typically, Prometheus and Grafana are deployed into the same namespace. There is no technical reason behind this, so feel
-free to choose different namespaces.&lt;/p>
+&lt;p>Typically, Prometheus and Grafana are deployed into the same namespace. There is no technical reason behind this, so feel free to choose different namespaces.&lt;/p>
 &lt;p>Content of &lt;code>values.yaml&lt;/code> for Prometheus:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>rbac:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> create: &lt;span style="color:#00f">false&lt;/span> &lt;span style="color:#008000"># Already created in Preparation step&lt;/span>
@@ -1456,45 +1430,38 @@ free to choose different namespaces.&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - source_labels: [__meta_kubernetes_service_name]
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: replace
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target_label: kubernetes_name &lt;span style="color:#008000"># Add your additional configuration here...&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, deploy Grafana. Since the deployment in this post is based on the Helm default values, the settings below are set
-explicitly in case the default changed.
-Deploy Grafana via &lt;code>helm install grafana --namespace &amp;lt;your-prometheus-namespace&amp;gt; stable/grafana -f values.yaml&lt;/code>. Here, the same namespace is chosen for Prometheus and for Grafana.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, deploy Grafana. Since the deployment in this post is based on the Helm default values, the settings below are set explicitly in case the default changed.&lt;/p>
+&lt;p>Deploy Grafana via &lt;code>helm install grafana --namespace &amp;lt;your-prometheus-namespace&amp;gt; stable/grafana -f values.yaml&lt;/code>. Here, the same namespace is chosen for Prometheus and for Grafana.&lt;/p>
 &lt;p>Content of &lt;code>values.yaml&lt;/code> for Grafana:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>server:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> service:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: ClusterIP
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Check the running state of the pods on the Kubernetes Dashboard or by running &lt;code>kubectl get pods -n &amp;lt;your-prometheus-namespace&amp;gt;&lt;/code>.
-In case of errors, check the log files of the pod(s) in question.&lt;/p>
-&lt;p>The text output of Helm after the deployment of Prometheus and Grafana contains very useful information, e.g. the user
-and password of the Grafana Admin user. The credentials are stored as secrets in the namespace &lt;code>&amp;lt;your-prometheus-namespace&amp;gt;&lt;/code>
-and could be decoded via &lt;code>kubectl get secret --namespace &amp;lt;my-grafana-namespace&amp;gt; grafana -o jsonpath=&amp;quot;{.data.admin-password}&amp;quot; | base64 --decode ; echo&lt;/code>.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Check the running state of the pods on the Kubernetes Dashboard or by running &lt;code>kubectl get pods -n &amp;lt;your-prometheus-namespace&amp;gt;&lt;/code>. In case of errors, check the log files of the pod(s) in question.&lt;/p>
+&lt;p>The text output of Helm after the deployment of Prometheus and Grafana contains very useful information, e.g., the user and password of the Grafana Admin user. The credentials are stored as secrets in the namespace &lt;code>&amp;lt;your-prometheus-namespace&amp;gt;&lt;/code> and could be decoded via &lt;code>kubectl get secret --namespace &amp;lt;my-grafana-namespace&amp;gt; grafana -o jsonpath=&amp;quot;{.data.admin-password}&amp;quot; | base64 --decode ; echo&lt;/code>.&lt;/p>
 &lt;h2 id="basic-functional-tests">Basic Functional Tests&lt;/h2>
 &lt;p>To access the web UI of both applications, use port forwarding of port 9090.&lt;/p>
 &lt;p>Setup port forwarding for port 9090:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl port-forward -n &amp;lt;your-prometheus-namespace&amp;gt; &amp;lt;your-prometheus-server-pod&amp;gt; 9090:9090
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Open &lt;code>http://localhost:9090&lt;/code> in your web browser. Select Graph from the top tab and enter the following expressing to show the overall CPU usage for a server (see &lt;a href="https://github.com/infinityworks/prometheus-example-queries/blob/master/README.md">Prometheus Query Examples&lt;/a>):&lt;/p>
-&lt;pre tabindex="0">&lt;code>100 * (1 - avg by(instance)(irate(node_cpu{mode=&amp;#39;idle&amp;#39;}[5m])))
-&lt;/code>&lt;/pre>&lt;p>This should show some data in a graph.&lt;/p>
-&lt;p>To show the same data in Grafana setup port forwarding for port 3000 for the
-Grafana pod and open the Grafana Web UI by opening &lt;code>http://localhost:3000&lt;/code> in a browser.
-Enter the credentials of the admin user.&lt;/p>
-&lt;p>Next, you need to enter the server name of your Prometheus deployment. This name is shown directly after the
-installation via helm.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-promql" data-lang="promql">&lt;span style="display:flex;">&lt;span>100 * (1 - &lt;span style="color:#00f">avg&lt;/span> &lt;span style="color:#00f">by&lt;/span>(instance)(&lt;span style="color:#00f">irate&lt;/span>(node_cpu{mode=&amp;#39;&lt;span style="color:#a31515">idle&lt;/span>&amp;#39;}[&lt;span style="color:#a31515">5m&lt;/span>])))
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This should show some data in a graph.&lt;/p>
+&lt;p>To show the same data in Grafana setup port forwarding for port 3000 for the Grafana pod and open the Grafana Web UI by opening &lt;code>http://localhost:3000&lt;/code> in a browser. Enter the credentials of the admin user.&lt;/p>
+&lt;p>Next, you need to enter the server name of your Prometheus deployment. This name is shown directly after the installation via helm.&lt;/p>
 &lt;p>Run&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>helm status &amp;lt;your-prometheus-name&amp;gt;
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>to find this name. Below, this server name is referenced by &lt;code>&amp;lt;your-prometheus-server-name&amp;gt;&lt;/code>.&lt;/p>
 &lt;p>First, you need to add your Prometheus server as data source:&lt;/p>
 &lt;ol>
-&lt;li>Select &lt;em>Dashboards → Data Sources&lt;/em>&lt;/li>
-&lt;li>Select &lt;em>Add data source&lt;/em>&lt;/li>
-&lt;li>Enter
+&lt;li>Navigate to &lt;em>Dashboards → Data Sources&lt;/em>&lt;/li>
+&lt;li>Choose &lt;em>Add data source&lt;/em>&lt;/li>
+&lt;li>Enter: &lt;br>
 &lt;em>Name&lt;/em>: &lt;code>&amp;lt;your-prometheus-datasource-name&amp;gt;&lt;/code>&lt;br>
 &lt;em>Type&lt;/em>: Prometheus&lt;br>
 &lt;em>URL&lt;/em>: &lt;code>http://&amp;lt;your-prometheus-server-name&amp;gt;&lt;/code>&lt;br>
 &lt;em>Access&lt;/em>: &lt;code>proxy&lt;/code>&lt;/li>
-&lt;li>Select &lt;em>Save &amp;amp; Test&lt;/em>&lt;/li>
+&lt;li>Choose &lt;em>Save &amp;amp; Test&lt;/em>&lt;/li>
 &lt;/ol>
 &lt;p>In case of failure, check the Prometheus URL in the Kubernetes Dashboard.&lt;/p>
 &lt;p>To add a Graph follow these steps:&lt;/p>
@@ -1512,7 +1479,6 @@ installation via helm.&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://prometheus.io/">Prometheus&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/kubernetes/charts/tree/master/stable/prometheus">Prometheus Helm Chart&lt;/a>&lt;/li>
-&lt;li>&lt;a href="https://www.weave.works/blog/prometheus-kubernetes-perfect-match/">Prometheus and Kubernetes: A Perfect Match&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://grafana.com">Grafana&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://github.com/kubernetes/charts/tree/master/stable/grafana">Grafana Helm Chart&lt;/a>&lt;/li>
 &lt;/ul></description></item></channel></rss>

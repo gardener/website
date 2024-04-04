@@ -8,7 +8,119 @@
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/resources/">&lt;code>resources.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/seedmanagement/">&lt;code>seedmanagement.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/api-reference/settings/">&lt;code>settings.gardener.cloud&lt;/code> API Group&lt;/a>&lt;/li>
-&lt;/ul></description></item><item><title>Docs: Concepts</title><link>https://gardener.cloud/docs/gardener/concepts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/</guid><description/></item><item><title>Docs: Deployment</title><link>https://gardener.cloud/docs/gardener/deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/</guid><description/></item><item><title>Docs: Extensions</title><link>https://gardener.cloud/docs/gardener/extensions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/</guid><description/></item><item><title>Docs: Monitoring</title><link>https://gardener.cloud/docs/gardener/monitoring/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/</guid><description/></item><item><title>Docs: Hibernate a Cluster</title><link>https://gardener.cloud/docs/gardener/shoot_hibernate/</link><pubDate>Thu, 19 Nov 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot_hibernate/</guid><description>
+&lt;/ul></description></item><item><title>Docs: Concepts</title><link>https://gardener.cloud/docs/gardener/concepts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/</guid><description/></item><item><title>Docs: Extensions</title><link>https://gardener.cloud/docs/gardener/extensions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/extensions/</guid><description>
+&lt;h1 id="extensibility-overview">Extensibility Overview&lt;/h1>
+&lt;p>Initially, everything was developed in-tree in the Gardener project. All cloud providers and the configuration for all the supported operating systems were released together with the Gardener core itself.
+But as the project grew, it got more and more difficult to add new providers and maintain the existing code base.
+As a consequence and in order to become agile and flexible again, we proposed &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/01-extensibility.md">GEP-1&lt;/a> (Gardener Enhancement Proposal).
+The document describes an out-of-tree extension architecture that keeps the Gardener core logic independent of provider-specific knowledge (similar to what Kubernetes has achieved with &lt;a href="https://github.com/kubernetes/enhancements/issues/88">out-of-tree cloud providers&lt;/a> or with &lt;a href="https://github.com/kubernetes/community/pull/1258">CSI volume plugins&lt;/a>).&lt;/p>
+&lt;h2 id="basic-concepts">Basic Concepts&lt;/h2>
+&lt;p>Gardener keeps running in the &amp;ldquo;garden cluster&amp;rdquo; and implements the core logic of shoot cluster reconciliation / deletion.
+Extensions are Kubernetes controllers themselves (like Gardener) and run in the seed clusters.
+As usual, we try to use Kubernetes wherever applicable.
+We rely on Kubernetes extension concepts in order to enable extensibility for Gardener.
+The main ideas of GEP-1 are the following:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>During the shoot reconciliation process, Gardener will write CRDs into the seed cluster that are watched and managed by the extension controllers. They will reconcile (based on the &lt;code>.spec&lt;/code>) and report whether everything went well or errors occurred in the CRD&amp;rsquo;s &lt;code>.status&lt;/code> field.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Gardener keeps deploying the provider-independent control plane components (etcd, kube-apiserver, etc.). However, some of these components might still need little customization by providers, e.g., additional configuration, flags, etc. In this case, the extension controllers register webhooks in order to manipulate the manifests.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>Example 1&lt;/strong>:&lt;/p>
+&lt;p>Gardener creates a new AWS shoot cluster and requires the preparation of infrastructure in order to proceed (networks, security groups, etc.).
+It writes the following CRD into the seed cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Infrastructure
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: infrastructure
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--core--aws-01
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: aws
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vpc:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cidr: 10.250.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> internal:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.112.0/22
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> public:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.96.0/22
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - 10.250.0.0/19
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - eu-west-1a
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver: api.aws-01.core.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: eu-west-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-aws-credentials
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sshPublicKey: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> &lt;/span> base64(key)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please note that the &lt;code>.spec.providerConfig&lt;/code> is a raw blob and not evaluated or known in any way by Gardener.
+Instead, it was specified by the user (in the &lt;code>Shoot&lt;/code> resource) and just &amp;ldquo;forwarded&amp;rdquo; to the extension controller.
+Only the AWS controller understands this configuration and will now start provisioning/reconciling the infrastructure.
+It reports in the &lt;code>.status&lt;/code> field the result:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>status:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> observedGeneration: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> state: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastError: ..
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> lastOperation: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerStatus:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: aws.provider.extensions.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: InfrastructureStatus
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vpc:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: vpc-1234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> subnets:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - id: subnet-acbd1234
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: workers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zone: eu-west-1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> securityGroups:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - id: sg-xyz12345
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: workers
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> iam:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodesRoleARN: &amp;lt;some-arn&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> instanceProfileName: foo
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ec2:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> keyName: bar
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener waits until the &lt;code>.status.lastOperation&lt;/code> / &lt;code>.status.lastError&lt;/code> indicates that the operation reached a final state and either continuous with the next step, or stops and reports the potential error.
+The extension-specific output in &lt;code>.status.providerStatus&lt;/code> is - similar to &lt;code>.spec.providerConfig&lt;/code> - not evaluated, and simply forwarded to CRDs in subsequent steps.&lt;/p>
+&lt;p>&lt;strong>Example 2&lt;/strong>:&lt;/p>
+&lt;p>Gardener deploys the control plane components into the seed cluster, e.g. the &lt;code>kube-controller-manager&lt;/code> deployment with the following flags:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - command:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - /usr/local/bin/kube-controller-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --allocate-node-cidrs=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --attach-detach-reconcile-sync-period=1m0s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --controllers=*,bootstrapsigner,tokencleaner
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --cluster-cidr=100.96.0.0/11
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --cluster-name=shoot--core--aws-01
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --cluster-signing-cert-file=/srv/kubernetes/ca/ca.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --cluster-signing-key-file=/srv/kubernetes/ca/ca.key
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --concurrent-deployment-syncs=10
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --concurrent-replicaset-syncs=10
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The AWS controller requires some additional flags in order to make the cluster functional.
+It needs to provide a Kubernetes cloud-config and also some cloud-specific flags.
+Consequently, it registers a &lt;code>MutatingWebhookConfiguration&lt;/code> on &lt;code>Deployment&lt;/code>s and adds these flags to the container:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> - --cloud-provider=external
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --external-cloud-volume-plugin=aws
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - --cloud-config=/etc/kubernetes/cloudprovider/cloudprovider.conf
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Of course, it would have needed to create a &lt;code>ConfigMap&lt;/code> containing the cloud config and to add the proper &lt;code>volume&lt;/code> and &lt;code>volumeMounts&lt;/code> to the manifest as well.&lt;/p>
+&lt;p>(Please note for this special example: The Kubernetes community is also working on making the &lt;code>kube-controller-manager&lt;/code> provider-independent.
+However, there will most probably be still components other than the &lt;code>kube-controller-manager&lt;/code> which need to be adapted by extensions.)&lt;/p>
+&lt;p>If you are interested in writing an extension, or generally in digging deeper to find out the nitty-gritty details of the extension concepts, please read &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/01-extensibility.md">GEP-1&lt;/a>.
+We are truly looking forward to your feedback!&lt;/p>
+&lt;h2 id="current-status">Current Status&lt;/h2>
+&lt;p>Meanwhile, the out-of-tree extension architecture of Gardener is in place and has been productively validated. We are tracking all internal and external extensions of Gardener in the &lt;a href="https://github.com/gardener/gardener/tree/master/extensions#known-extension-implementations">Gardener Extensions Library&lt;/a> repo.&lt;/p></description></item><item><title>Docs: Deployment</title><link>https://gardener.cloud/docs/gardener/deployment/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/</guid><description/></item><item><title>Docs: Monitoring</title><link>https://gardener.cloud/docs/gardener/monitoring/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/</guid><description/></item><item><title>Docs: Hibernate a Cluster</title><link>https://gardener.cloud/docs/gardener/shoot_hibernate/</link><pubDate>Thu, 19 Nov 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot_hibernate/</guid><description>
 &lt;h1 id="hibernate-a-cluster">Hibernate a Cluster&lt;/h1>
 &lt;p>Clusters are only needed 24 hours a day if they run productive workload. So whenever you do development in a cluster, or just use it for tests or demo purposes, you can save a lot of money if you scale-down your Kubernetes resources whenever you don&amp;rsquo;t need them. However, scaling them down manually can become time-consuming the more resources you have.&lt;/p>
 &lt;p>Gardener offers a clever way to automatically scale-down all resources to zero: cluster hibernation. You can either hibernate a cluster by pushing a button, or by defining a hibernation schedule.&lt;/p>
@@ -2735,7 +2847,7 @@ In most cases, such pods require network policy labels to allow the traffic they
 &lt;td>All&lt;/td>
 &lt;td>Extension implementation&lt;/td>
 &lt;td>&lt;a href="https://github.com/gardener/gardener">gardener&lt;/a>&lt;/td>
-&lt;td>&lt;a href="https://gardener.cloud/docs/gardener/extensions/overview/">Extension controller&lt;/a>&lt;/td>
+&lt;td>&lt;a href="https://gardener.cloud/docs/gardener/extensions/">Extension controller&lt;/a>&lt;/td>
 &lt;/tr>
 &lt;/tbody>
 &lt;/table></description></item><item><title>Docs: New Kubernetes Version</title><link>https://gardener.cloud/docs/gardener/new-kubernetes-version/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/new-kubernetes-version/</guid><description>

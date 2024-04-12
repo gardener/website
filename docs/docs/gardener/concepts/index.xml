@@ -814,9 +814,11 @@ Hence, the usage of static &lt;code>ServiceAccount&lt;/code> secrets is not supp
 Instead, the &lt;a href="https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-request-v1/">&lt;code>TokenRequest&lt;/code> API&lt;/a> should be used.
 Third-party components that need to communicate with the virtual cluster can leverage the &lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/#tokenrequestor-controller">&lt;code>gardener-resource-manager&lt;/code>&amp;rsquo;s &lt;code>TokenRequestor&lt;/code> controller&lt;/a> and the generic kubeconfig, just like it works for &lt;code>Shoot&lt;/code>s.
 Please note, that this functionality is restricted to the &lt;code>garden&lt;/code> namespace. The current &lt;code>Secret&lt;/code> name of the generic kubeconfig can be found in the annotations (key: &lt;code>generic-token-kubeconfig.secret.gardener.cloud/name&lt;/code>) of the &lt;code>Garden&lt;/code> resource.&lt;/p>
-&lt;p>For the virtual cluster, it is essential to provide a DNS domain via &lt;code>.spec.virtualCluster.dns.domains&lt;/code>.
-&lt;strong>The respective DNS record is not managed by &lt;code>gardener-operator&lt;/code> and should be created manually. It should point to the load balancer IP of the &lt;code>istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> in namespace &lt;code>virtual-garden-istio-ingress&lt;/code>.&lt;/strong>
-The DNS domain is used for the &lt;code>server&lt;/code> in the kubeconfig, and for configuring the &lt;code>--external-hostname&lt;/code> flag of the API server.&lt;/p>
+&lt;p>For the virtual cluster, it is essential to provide at least one DNS domain via &lt;code>.spec.virtualCluster.dns.domains&lt;/code>.
+&lt;strong>The respective DNS records are not managed by &lt;code>gardener-operator&lt;/code> and should be created manually.
+They should point to the load balancer IP of the &lt;code>istio-ingressgateway&lt;/code> &lt;code>Service&lt;/code> in namespace &lt;code>virtual-garden-istio-ingress&lt;/code>.
+The DNS records must be prefixed with both &lt;code>gardener.&lt;/code> and &lt;code>api.&lt;/code> for all domains in &lt;code>.spec.virtualCluster.dns.domains&lt;/code>.&lt;/strong>&lt;/p>
+&lt;p>The first DNS domain in this list is used for the &lt;code>server&lt;/code> in the kubeconfig, and for configuring the &lt;code>--external-hostname&lt;/code> flag of the API server.&lt;/p>
 &lt;p>Apart from the control plane components of the virtual cluster, the reconcile also deploys the control plane components of Gardener.
 &lt;code>gardener-apiserver&lt;/code> reuses the same ETCDs like the &lt;code>virtual-garden-kube-apiserver&lt;/code>, so all data related to the &amp;ldquo;the garden cluster&amp;rdquo; is stored together and &amp;ldquo;isolated&amp;rdquo; from ETCD data related to the runtime cluster.
 This drastically simplifies backup and restore capabilities (e.g., moving the virtual garden cluster from one runtime cluster to another).&lt;/p>
@@ -837,11 +839,37 @@ This drastically simplifies backup and restore capabilities (e.g., moving the vi
 &lt;li>&lt;code>vali&lt;/code>&lt;/li>
 &lt;li>&lt;code>prometheus-operator&lt;/code>&lt;/li>
 &lt;li>&lt;code>alertmanager-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#observability">here&lt;/a>)&lt;/li>
+&lt;li>&lt;code>prometheus-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#observability">here&lt;/a>)&lt;/li>
+&lt;li>&lt;code>blackbox-exporter&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>.status.lastOperation&lt;/code> which indicates the status of an operation.&lt;/p>
 &lt;h5 id="observability">Observability&lt;/h5>
+&lt;h6 id="garden-prometheus">Garden Prometheus&lt;/h6>
+&lt;p>&lt;code>gardener-operator&lt;/code> deploys a Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;Garden Prometheus&amp;rdquo;) which fetches metrics and data from garden system components, cAdvisors, the virtual cluster control plane, and the Seeds&amp;rsquo; aggregate Prometheus instances.
+Its purpose is to provide an entrypoint for operators when debugging issues with components running in the garden cluster.
+It also serves as the top-level aggregator of metering across a Gardener landscape.&lt;/p>
+&lt;p>If you would like to extend the configuration for this Garden Prometheus, you can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=garden&lt;/code>, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h6 id="alertmanager">Alertmanager&lt;/h6>
 &lt;p>By default, the &lt;code>alertmanager-garden&lt;/code> deployed by &lt;code>gardener-operator&lt;/code> does not come with any configuration.
 It is the responsibility of the human operators to design and provide it.
 This can be done by creating &lt;code>monitoring.coreos.com/v1alpha1.AlertmanagerConfig&lt;/code> resources labeled with &lt;code>alertmanager=garden&lt;/code> (read more about them &lt;a href="https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/design.md#alertmanagerconfig">here&lt;/a>), for example:&lt;/p>

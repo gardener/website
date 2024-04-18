@@ -1,4 +1,121 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – 2024</title><link>https://gardener.cloud/blog/2024/</link><description>Recent content in 2024 on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Fri, 05 Apr 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/blog/2024/index.xml" rel="self" type="application/rss+xml"/><item><title>Blog: KubeCon / CloudNativeCon Europe 2024 Highlights</title><link>https://gardener.cloud/blog/2024/04-05-kubecon-cloudnativecon-europe-2024-highlights/</link><pubDate>Fri, 05 Apr 2024 00:00:00 +0000</pubDate><guid>https://gardener.cloud/blog/2024/04-05-kubecon-cloudnativecon-europe-2024-highlights/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – 2024</title><link>https://gardener.cloud/blog/2024/</link><description>Recent content in 2024 on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Thu, 18 Apr 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://gardener.cloud/blog/2024/index.xml" rel="self" type="application/rss+xml"/><item><title>Blog: SpinKube on Gardener - Serverless WASM on Kubernetes</title><link>https://gardener.cloud/blog/2024/04-18-spinkube-gardener-shoot-cluster/</link><pubDate>Thu, 18 Apr 2024 00:00:00 +0000</pubDate><guid>https://gardener.cloud/blog/2024/04-18-spinkube-gardener-shoot-cluster/</guid><description>
+&lt;p>With the rising popularity of &lt;a href="https://webassembly.org/">WebAssembly (WASM)&lt;/a> and &lt;a href="https://wasi.dev/">WebAssembly System Interface (WASI)&lt;/a> comes a variety of integration possibilities. WASM is now not only suitable for the browser, but can be also utilized for running workloads on the server. In this post we will explore how you can get started writing serverless applications powered by &lt;a href="https://www.spinkube.dev/">SpinKube&lt;/a> on a Gardener Shoot cluster. This post is inspired by a similar tutorial that goes through the steps of &lt;a href="https://www.spinkube.dev/docs/spin-operator/tutorials/deploy-on-azure-kubernetes-service/">Deploying the Spin Operator on Azure Kubernetes Service&lt;/a>. Keep in mind that this post does not aim to define a production environment. It is meant to show that Gardener Shoot clusters are able to run WebAssembly workloads, giving users the chance to experiment and explore this cutting-edge technology.&lt;/p>
+&lt;h2 id="prerequisites">Prerequisites&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://kubernetes.io/docs/reference/kubectl/">kubectl&lt;/a> - the Kubernetes command line tool&lt;/li>
+&lt;li>&lt;a href="https://helm.sh/">helm&lt;/a> - the package manager for Kubernetes&lt;/li>
+&lt;li>A running Gardener Shoot cluster&lt;/li>
+&lt;/ul>
+&lt;h2 id="gardener-shoot-cluster">Gardener Shoot Cluster&lt;/h2>
+&lt;p>For this showcase I am using a Gardener Shoot cluster on AWS infrastructure with nodes powered by &lt;a href="https://github.com/gardenlinux/gardenlinux">Garden Linux&lt;/a>, although the steps should be applicable for other infrastructures as well, since Gardener aims to provide a homogenous Kubernetes experience.&lt;/p>
+&lt;p>As a prerequisite for next steps, verify that you have access to your Gardener Shoot cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Verify the access to the Gardener Shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl get ns
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME STATUS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>default Active 4m1s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kube-node-lease Active 4m1s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kube-public Active 4m1s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kube-system Active 4m1s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If you are having troubles accessing the Gardener Shoot cluster, please consult the &lt;a href="https://gardener.cloud/docs/gardener/shoot_access/">Accessing Shoot Clusters&lt;/a> documentation page.&lt;/p>
+&lt;h2 id="deploy-the-spin-operator">Deploy the Spin Operator&lt;/h2>
+&lt;p>As a first step, we will install the Spin Operator Custom Resource Definitions and the Runtime Class needed by &lt;code>wasmtime-spin-v2&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Install Spin Operator CRDs&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f https://github.com/spinkube/spin-operator/releases/download/v0.1.0/spin-operator.crds.yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Install the Runtime Class&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f https://github.com/spinkube/spin-operator/releases/download/v0.1.0/spin-operator.runtime-class.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, we will install &lt;a href="https://github.com/cert-manager/cert-manager">cert-manager&lt;/a>, which is required for provisioning TLS certificates used by the admission webhhook of the Spin Operator. If you face issues installing &lt;code>cert-manager&lt;/code>, please consult the &lt;a href="https://cert-manager.io/docs/installation/helm/">cert-manager installation&lt;/a> documentation.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Add and update the Jetstack repository&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo add jetstack https://charts.jetstack.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo update
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Install the cert-manager chart alongside with CRDs needed by cert-manager&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm install &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> cert-manager jetstack/cert-manager &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --namespace cert-manager &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --create-namespace &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --version v1.14.4 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --set installCRDs=true
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In order to install the &lt;code>containerd-wasm-shim&lt;/code> on the Kubernetes nodes we will use the &lt;a href="https://kwasm.sh/">kwasm-operator&lt;/a>. There is also a successor of &lt;code>kwasm-operator&lt;/code> - &lt;a href="https://github.com/spinkube/runtime-class-manager">runtime-class-manager&lt;/a> which aims to address some of the limitations of &lt;code>kwasm-operator&lt;/code> and provide a production grade implementation for deploying &lt;code>containerd&lt;/code> shims on Kubernetes nodes. Since &lt;code>kwasm-operator&lt;/code> is easier to install, for the purpose of this post we will use it instead of the &lt;code>runtime-class-manager&lt;/code>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Add the kwasm helm repository&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo add kwasm http://kwasm.sh/kwasm-operator/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo update
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Install KWasm operator&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm install &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> kwasm-operator kwasm/kwasm-operator &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --namespace kwasm &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --create-namespace &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --set kwasmOperator.installerImage=ghcr.io/spinkube/containerd-shim-spin/node-installer:v0.13.1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Annotate all nodes in the cluster so kwasm can select them and provision the required containerd shim&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl annotate node --all kwasm.sh/kwasm-node=true
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>We can see that a pod has started and completed in the &lt;code>kwasm&lt;/code> namespace.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n kwasm get pod
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME READY STATUS RESTARTS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>ip-10-180-7-60.eu-west-1.compute.internal-provision-kwasm-qhr8r 0/1 Completed 0 8s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kwasm-operator-6c76c5f94b-8zt4s 1/1 Running 0 15s
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The logs of the &lt;code>kwasm-operator&lt;/code> also indicate that the node was provisioned with the required shim.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n kwasm logs kwasm-operator-6c76c5f94b-8zt4s
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{&lt;span style="color:#a31515">&amp;#34;level&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;info&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;node&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;ip-10-180-7-60.eu-west-1.compute.internal&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;time&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;2024-04-18T05:44:25Z&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;message&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;Trying to Deploy on ip-10-180-7-60.eu-west-1.compute.internal&amp;#34;&lt;/span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{&lt;span style="color:#a31515">&amp;#34;level&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;info&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;time&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;2024-04-18T05:44:31Z&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;message&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;Job ip-10-180-7-60.eu-west-1.compute.internal-provision-kwasm is still Ongoing&amp;#34;&lt;/span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{&lt;span style="color:#a31515">&amp;#34;level&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;info&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;time&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;2024-04-18T05:44:31Z&amp;#34;&lt;/span>,&lt;span style="color:#a31515">&amp;#34;message&amp;#34;&lt;/span>:&lt;span style="color:#a31515">&amp;#34;Job ip-10-180-7-60.eu-west-1.compute.internal-provision-kwasm is Completed. Happy WASMing&amp;#34;&lt;/span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Finally we can deploy the &lt;code>spin-operator&lt;/code> alongside with a &lt;a href="https://www.spinkube.dev/docs/glossary/#spin-app-executor-crd">shim-executor&lt;/a>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>helm install spin-operator &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --namespace spin-operator &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --create-namespace &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --version 0.1.0 &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --wait &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> oci://ghcr.io/spinkube/charts/spin-operator
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f https://github.com/spinkube/spin-operator/releases/download/v0.1.0/spin-operator.shim-executor.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deploy-a-spin-app">Deploy a Spin App&lt;/h2>
+&lt;p>Let&amp;rsquo;s deploy a sample Spin application using the following command:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f https://raw.githubusercontent.com/spinkube/spin-operator/main/config/samples/simple.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>After the CRD has been picked up by the &lt;code>spin-operator&lt;/code>, a pod will be created running the sample application. Let&amp;rsquo;s explore its logs.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl logs simple-spinapp-56687588d9-nbrtq
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Serving http://0.0.0.0:80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Available Routes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hello: http://0.0.0.0:80/hello
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> go-hello: http://0.0.0.0:80/go-hello
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>We can see the available routes served by the application. Let&amp;rsquo;s port forward to the application &lt;code>service&lt;/code> and test them out.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl port-forward services/simple-spinapp 8000:80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Forwarding from 127.0.0.1:8000 -&amp;gt; 80
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Forwarding from [::1]:8000 -&amp;gt; 80
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In another terminal, we can verify that the application returns a response.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>curl http://localhost:8000/hello
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Hello world from Spin!%
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This sets the ground for further experimentation and testing. What the &lt;code>SpinApp&lt;/code> CRD provides as capabilities and API can be explored through the &lt;a href="https://www.spinkube.dev/docs/spin-operator/reference/spin-app/">SpinApp CRD reference&lt;/a>.&lt;/p>
+&lt;h2 id="cleanup">Cleanup&lt;/h2>
+&lt;p>Let&amp;rsquo;s clean all deployed resources so far.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Delete the spin app and its executor&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete spinapp simple-spinapp
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete spinappexecutors.core.spinoperator.dev containerd-shim-spin
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Uninstall the spin-operator chart&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm -n spin-operator uninstall spin-operator
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Remove the kwasm.sh/kwasm-node annotation from nodes&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl annotate node --all kwasm.sh/kwasm-node-
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Uninstall the kwasm-operator chart&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm -n kwasm uninstall kwasm-operator
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Uninstall the cert-manager chart&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm -n cert-manager uninstall cert-manager
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Delete the runtime class and SpinApp CRDs&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete runtimeclass wasmtime-spin-v2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete crd spinappexecutors.core.spinoperator.dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl delete crd spinapps.core.spinoperator.dev
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="conclusion">Conclusion&lt;/h2>
+&lt;p>In my opinion, WASM on the server is here to stay. Communities are expressing more and more interest in integrating Kubernetes with WASM workloads. As shown Gardener clusters are perfectly capable of supporting this use case. This setup is a great way to start exploring the capabilities that WASM can bring to the server. As stated in the introduction, bear in mind that this post does not define a production environment, but is rather meant to define a playground suitable for exploring and trying out ideas.&lt;/p></description></item><item><title>Blog: KubeCon / CloudNativeCon Europe 2024 Highlights</title><link>https://gardener.cloud/blog/2024/04-05-kubecon-cloudnativecon-europe-2024-highlights/</link><pubDate>Fri, 05 Apr 2024 00:00:00 +0000</pubDate><guid>https://gardener.cloud/blog/2024/04-05-kubecon-cloudnativecon-europe-2024-highlights/</guid><description>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/kubecon-eu2024_1207d8.png" alt="KubeCon EU 2024 Keynote Room" title="KubeCon EU 2024 Keynote Room">&lt;/p>
 &lt;p>KubeCon + CloudNativeCon Europe 2024, recently held in Paris, was a testament to the robustness of the open-source community and its pivotal role in driving advancements in AI and cloud-native technologies. With a record attendance of over +12,000 participants, the conference underscored the ubiquity of cloud-native architectures and the business opportunities they provide.&lt;/p>
 &lt;h2 id="ai-everywhere">AI Everywhere&lt;/h2>

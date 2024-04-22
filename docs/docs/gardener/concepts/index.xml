@@ -837,6 +837,8 @@ This drastically simplifies backup and restore capabilities (e.g., moving the vi
 &lt;li>&lt;code>gardener-controller-manager&lt;/code>&lt;/li>
 &lt;li>&lt;code>gardener-scheduler&lt;/code>&lt;/li>
 &lt;/ul>
+&lt;p>Besides those, the optional &lt;a href="https://github.com/gardener/dashboard">Gardener Dashboard&lt;/a> will also get deployed when &lt;code>.spec.virtualCluster.gardener.gardenerDashboard&lt;/code> is set.
+You can read more about it and its configuration in &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#dashboard">this section&lt;/a>.&lt;/p>
 &lt;p>The reconciler also manages a few observability-related components (more planned as part of &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/19-migrating-observability-stack-to-operators.md">GEP-19&lt;/a>):&lt;/p>
 &lt;ul>
 &lt;li>&lt;code>fluent-operator&lt;/code>&lt;/li>
@@ -853,6 +855,90 @@ This drastically simplifies backup and restore capabilities (e.g., moving the vi
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
 This range is used by the API server to compute the cluster IPs of &lt;code>Service&lt;/code>s.&lt;/p>
 &lt;p>The controller maintains the &lt;code>.status.lastOperation&lt;/code> which indicates the status of an operation.&lt;/p>
+&lt;h5 id="gardener-dashboardhttpsgithubcomgardenerdashboard">&lt;a href="https://github.com/gardener/dashboard">Gardener Dashboard&lt;/a>&lt;/h5>
+&lt;p>&lt;code>.spec.virtualCluster.gardener.gardenerDashboard&lt;/code> serves a few configuration options for the dashboard.
+This section highlights the most prominent fields:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>oidcConfig&lt;/code>: The general OIDC configuration is part of &lt;code>.spec.virtualCluster.kubernetes.kubeAPIServer.oidcConfig&lt;/code>.
+This section allows you to define a few specific settings for the dashboard.
+&lt;code>sessionLifetime&lt;/code> is the duration after which a session is terminated (i.e., after which a user is automatically logged out).
+&lt;code>additionalScopes&lt;/code> allows to extend the list of scopes of the JWT token that are to be recognized.
+You must reference a &lt;code>Secret&lt;/code> in the &lt;code>garden&lt;/code> namespace containing the client ID/secret for the dashboard:
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-dashboard-oidc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>stringData:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> client_id: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> client_secret: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>&lt;code>enableTokenLogin&lt;/code>: This is enabled by default and allows logging into the dashboard with a JWT token.
+You can disable it in case you want to only allow OIDC-based login.
+However, at least one of the both login methods must be enabled.&lt;/li>
+&lt;li>&lt;code>frontendConfigMapRef&lt;/code>: Reference a &lt;code>ConfigMap&lt;/code> in the &lt;code>garden&lt;/code> namespace containing the frontend configuration in the data with key &lt;code>frontend-config.yaml&lt;/code>, for example
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-dashboard-frontend
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> frontend-config.yaml: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> helpMenuItems:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - title: Homepage
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> icon: mdi-file-document
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> url: https://gardener.cloud&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>Please take a look at &lt;a href="https://github.com/gardener/dashboard/blob/64516ede9110065c24c61ab67f06c866fef10f3c/charts/gardener-dashboard/values.yaml#L154-L376">this file&lt;/a> to get an idea of which values are configurable.
+This configuration can also include branding, themes, and colors.
+Read more about it &lt;a href="https://gardener.cloud/docs/dashboard/customization/">here&lt;/a>.
+Assets (logos/icons) are configured in a separate &lt;code>ConfigMap&lt;/code>, see below.&lt;/li>
+&lt;li>&lt;code>assetsConfigMapRef&lt;/code>: Reference a &lt;code>ConfigMap&lt;/code> in the &lt;code>garden&lt;/code> namespace containing the assets, for example
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-dashboard-assets
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>binaryData:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> favicon-16x16.png: base64(favicon-16x16.png)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> favicon-32x32.png: base64(favicon-32x32.png)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> favicon-96x96.png: base64(favicon-96x96.png)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> favicon.ico: base64(favicon.ico)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logo.svg: base64(logo.svg)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>Note that the assets must be provided base64-encoded, hence &lt;code>binaryData&lt;/code> (instead of &lt;code>data&lt;/code>) must be used.
+Please take a look at &lt;a href="https://gardener.cloud/docs/dashboard/customization/#logos-and-icons">this file&lt;/a> to get more information.&lt;/li>
+&lt;li>&lt;code>gitHub&lt;/code>: You can connect a GitHub repository that can be used to create issues for shoot clusters in the cluster details page.
+You have to reference a &lt;code>Secret&lt;/code> in the &lt;code>garden&lt;/code> namespace that contains the GitHub credentials, for example:
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardener-dashboard-github
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>type: Opaque
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>stringData:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># This is for GitHub token authentication:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.token: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Alternatively, this is for GitHub app authentication:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.appId: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.clientId: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.clientSecret: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.installationId: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authentication.privateKey: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># This is the webhook secret, see explanation below&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> webhookSecret: &amp;lt;secret&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>Note that you can also set up a GitHub webhook to the dashboard such that it receives updates when somebody changes the GitHub issue.
+The &lt;code>webhookSecret&lt;/code> field is the secret that you enter in GitHub in the &lt;a href="https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#creating-a-secret-token">webhook configuration&lt;/a>.
+The dashboard uses it to verify that received traffic is indeed originated from GitHub.
+If you don&amp;rsquo;t want to set up such webhook, or if the dashboard is not reachable by the GitHub webhook (e.g., in restricted environments) you can also configure &lt;code>gitHub.pollInterval&lt;/code>.
+It is the interval of how often the GitHub API is polled for issue updates.
+This field is used as a fallback mechanism to ensure state synchronization, even when there is a GitHub webhook configuration.
+If a webhook event is missed or not successfully delivered, the polling will help catch up on any missed updates.
+If this field is not provided and there is no &lt;code>webhookSecret&lt;/code> key in the referenced secret, it will be implicitly defaulted to &lt;code>15m&lt;/code>.
+The dashboard will use this to regularly poll the GitHub API for updates on issues.&lt;/li>
+&lt;li>&lt;code>terminal&lt;/code>: This enables the web terminal feature, read more about it &lt;a href="https://gardener.cloud/docs/dashboard/webterminals/">here&lt;/a>.
+The &lt;code>allowedHosts&lt;/code> field is explained &lt;a href="https://gardener.cloud/docs/dashboard/webterminals/#configuration">here&lt;/a>.
+The &lt;code>container&lt;/code> section allows you to specify a container image and a description that should be used for the web terminals.&lt;/li>
+&lt;/ul>
 &lt;h5 id="observability">Observability&lt;/h5>
 &lt;h6 id="garden-prometheus">Garden Prometheus&lt;/h6>
 &lt;p>&lt;code>gardener-operator&lt;/code> deploys a Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;Garden Prometheus&amp;rdquo;) which fetches metrics and data from garden system components, cAdvisors, the virtual cluster control plane, and the Seeds&amp;rsquo; aggregate Prometheus instances.

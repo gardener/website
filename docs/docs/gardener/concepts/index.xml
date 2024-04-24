@@ -848,8 +848,9 @@ You can read more about it and its configuration in &lt;a href="https://gardener
 &lt;li>&lt;code>plutono&lt;/code>&lt;/li>
 &lt;li>&lt;code>vali&lt;/code>&lt;/li>
 &lt;li>&lt;code>prometheus-operator&lt;/code>&lt;/li>
-&lt;li>&lt;code>alertmanager-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#observability">here&lt;/a>)&lt;/li>
-&lt;li>&lt;code>prometheus-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#observability">here&lt;/a>)&lt;/li>
+&lt;li>&lt;code>alertmanager-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#alertmanager">here&lt;/a>)&lt;/li>
+&lt;li>&lt;code>prometheus-garden&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#garden-prometheus">here&lt;/a>)&lt;/li>
+&lt;li>&lt;code>prometheus-longterm&lt;/code> (read more &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#long-term-prometheus">here&lt;/a>)&lt;/li>
 &lt;li>&lt;code>blackbox-exporter&lt;/code>&lt;/li>
 &lt;/ul>
 &lt;p>It is also mandatory to provide an IPv4 CIDR for the service network of the virtual cluster via &lt;code>.spec.virtualCluster.networking.services&lt;/code>.
@@ -944,13 +945,36 @@ The &lt;code>container&lt;/code> section allows you to specify a container image
 &lt;p>&lt;code>gardener-operator&lt;/code> deploys a Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;Garden Prometheus&amp;rdquo;) which fetches metrics and data from garden system components, cAdvisors, the virtual cluster control plane, and the Seeds&amp;rsquo; aggregate Prometheus instances.
 Its purpose is to provide an entrypoint for operators when debugging issues with components running in the garden cluster.
 It also serves as the top-level aggregator of metering across a Gardener landscape.&lt;/p>
-&lt;p>If you would like to extend the configuration for this Garden Prometheus, you can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=garden&lt;/code>, for example:&lt;/p>
+&lt;p>To extend the configuration of the Garden Prometheus, you can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=garden&lt;/code>, for example:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: garden
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: garden-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h6 id="long-term-prometheus">Long-Term Prometheus&lt;/h6>
+&lt;p>&lt;code>gardener-operator&lt;/code> deploys another Prometheus instance in the &lt;code>garden&lt;/code> namespace (called &amp;ldquo;Long-Term Prometheus&amp;rdquo;) which federates metrics from &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#garden-prometheus">Garden Prometheus&lt;/a>.
+Its purpose is to store those with a longer retention than Garden Prometheus would. It is not possible to define different retention periods for different metrics in Prometheus, hence, using another Prometheus instance is the only option.
+This Long-term Prometheus also has an additional &lt;a href="https://cortexmetrics.io/">Cortex&lt;/a> sidecar container for caching some queries to achieve faster processing times.&lt;/p>
+&lt;p>To extend the configuration of the Long-term Prometheus, you can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=longterm&lt;/code>, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: longterm
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: longterm-my-component
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:

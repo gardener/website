@@ -718,10 +718,7 @@ This will speed up operations and will reduce the load on the API server of the 
 With the &lt;code>gardener-node-agent&lt;/code> we introduce a new API which is then stored in the &lt;code>gardener-node-agent&lt;/code> &lt;code>secret&lt;/code> and stored on disk in a single YAML file for comparison with the previous known state. This brings all benefits of type safe configuration.
 Because actual and previous configuration are compared, removed files and units are also removed and stopped on the worker if removed from the &lt;code>OSC&lt;/code>.&lt;/p>
 &lt;h3 id="availability">Availability&lt;/h3>
-&lt;p>Previously, the &lt;code>cloud-config-downloader&lt;/code> simply restarted the systemd units on every change to the &lt;code>OSC&lt;/code>, regardless which of the services changed. The &lt;code>gardener-node-agent&lt;/code> first checks which systemd unit was changed, and will only restart these. This will prevent unneeded &lt;code>kubelet&lt;/code> restarts.&lt;/p>
-&lt;h3 id="future-development">Future Development&lt;/h3>
-&lt;p>The &lt;code>gardener-node-agent&lt;/code> opens up the possibility for further improvements.&lt;/p>
-&lt;p>Necessary restarts of the &lt;code>kubelet&lt;/code> could be deterministic instead of the aforementioned random jittering. In that case, the &lt;code>gardenlet&lt;/code> could add annotations across all nodes. As the &lt;code>gardener-node-agent&lt;/code> watches the &lt;code>Node&lt;/code> object, it could wait with &lt;code>kubelet&lt;/code> restarts, OSC changes or react immediately. Critical changes could be performed in chunks of nodes in serial order, but an equal time spread is possible, too.&lt;/p></description></item><item><title>Docs: Gardener Operator</title><link>https://gardener.cloud/docs/gardener/concepts/operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/operator/</guid><description>
+&lt;p>Previously, the &lt;code>cloud-config-downloader&lt;/code> simply restarted the systemd units on every change to the &lt;code>OSC&lt;/code>, regardless which of the services changed. The &lt;code>gardener-node-agent&lt;/code> first checks which systemd unit was changed, and will only restart these. This will prevent unneeded &lt;code>kubelet&lt;/code> restarts.&lt;/p></description></item><item><title>Docs: Gardener Operator</title><link>https://gardener.cloud/docs/gardener/concepts/operator/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/operator/</guid><description>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The &lt;code>gardener-operator&lt;/code> is responsible for the garden cluster environment.
 Without this component, users must deploy ETCD, the Gardener control plane, etc., manually and with separate mechanisms (not maintained in this repository).
@@ -2092,10 +2089,20 @@ This way, neither custom &lt;code>NetworkPolicy&lt;/code>s nor custom labels mus
 The controller automatically translates this when reconciling the &lt;code>NetworkPolicy&lt;/code> resources.&lt;/p>
 &lt;/blockquote>
 &lt;h3 id="node-controllerhttpsgithubcomgardenergardenertreemasterpkgresourcemanagercontrollernode">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/resourcemanager/controller/node">&lt;code>Node&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;h4 id="critical-components-controllerhttpsgithubcomgardenergardenertreemasterpkgresourcemanagercontrollernodecriticalcomponents">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/resourcemanager/controller/node/criticalcomponents">Critical Components Controller&lt;/a>&lt;/h4>
 &lt;p>Gardenlet configures kubelet of shoot worker nodes to register the &lt;code>Node&lt;/code> object with the &lt;code>node.gardener.cloud/critical-components-not-ready&lt;/code> taint (effect &lt;code>NoSchedule&lt;/code>).
 This controller watches newly created &lt;code>Node&lt;/code> objects in the shoot cluster and removes the taint once all node-critical components are scheduled and ready.
 If the controller finds node-critical components that are not scheduled or not ready yet, it checks the &lt;code>Node&lt;/code> again after the duration configured in &lt;code>ResourceManagerConfiguration.controllers.node.backoff&lt;/code>
 Please refer to the &lt;a href="https://gardener.cloud/docs/gardener/node-readiness/">feature documentation&lt;/a> or &lt;a href="https://github.com/gardener/gardener/issues/7117">proposal issue&lt;/a> for more details.&lt;/p>
+&lt;h4 id="node-agent-reconciliation-delay-controllerhttpsgithubcomgardenergardenertreemasterpkgresourcemanagercontrollernodeagentreconciliationdelay">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/resourcemanager/controller/node/agentreconciliationdelay">Node Agent Reconciliation Delay Controller&lt;/a>&lt;/h4>
+&lt;p>This controller computes a reconciliation delay per node by using a simple linear mapping approach based on the index of the nodes in the list of all nodes in the shoot cluster.
+This approach ensures that the delays of all instances of &lt;code>gardener-node-agent&lt;/code> are distributed evenly.&lt;/p>
+&lt;p>The minimum and maximum delays can be configured, but they are defaulted to &lt;code>0s&lt;/code> and &lt;code>5m&lt;/code>, respectively.&lt;/p>
+&lt;p>This approach works well as long as the number of nodes in the cluster is not higher than the configured maximum delay in seconds.
+In this case, the delay is still computed linearly, however, the more nodes exist in the cluster, the closer the delay times become (which might be of limited use then).
+Consider increasing the maximum delay by annotating the &lt;code>Shoot&lt;/code> with &lt;code>shoot.gardener.cloud/cloud-config-execution-max-delay-seconds=&amp;lt;value&amp;gt;&lt;/code>.
+The highest possible value is &lt;code>1800&lt;/code>.&lt;/p>
+&lt;p>The controller adds the &lt;code>node-agent.gardener.cloud/reconciliation-delay&lt;/code> annotation to nodes whose value is read by the &lt;a href="https://gardener.cloud/docs/gardener/concepts/node-agent/">node-agent&lt;/a>s.&lt;/p>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;h3 id="mutating-webhooks">Mutating Webhooks&lt;/h3>
 &lt;h4 id="high-availability-config">High Availability Config&lt;/h4>

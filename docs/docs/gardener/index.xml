@@ -4400,7 +4400,34 @@ The owner can still grant the &lt;code>uam&lt;/code> role to other members if de
 For projects created before Gardener v1.8, the Gardener Controller Manager will migrate all projects to also assign the &lt;code>uam&lt;/code> role to all &lt;code>admin&lt;/code> members (to not break existing use-cases). The corresponding migration logic is present in Gardener Controller Manager from v1.8 to v1.13.
 The project owner can gradually remove these roles if desired.&lt;/p>
 &lt;h2 id="stale-projects">Stale Projects&lt;/h2>
-&lt;p>When a project is not actively used for some period of time, it is marked as &amp;ldquo;stale&amp;rdquo;. This is done by a controller called &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#stale-projects-reconciler">&amp;ldquo;Stale Projects Reconciler&amp;rdquo;&lt;/a>. Once the project is marked as stale, there is a time frame in which if not used it will be deleted by that controller.&lt;/p></description></item><item><title>Docs: Reversed VPN Tunnel</title><link>https://gardener.cloud/docs/gardener/reversed-vpn-tunnel/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/reversed-vpn-tunnel/</guid><description>
+&lt;p>When a project is not actively used for some period of time, it is marked as &amp;ldquo;stale&amp;rdquo;. This is done by a controller called &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#stale-projects-reconciler">&amp;ldquo;Stale Projects Reconciler&amp;rdquo;&lt;/a>. Once the project is marked as stale, there is a time frame in which if not used it will be deleted by that controller.&lt;/p>
+&lt;h2 id="four-eyes-principle-for-resource-deletion">Four-Eyes-Principle For Resource Deletion&lt;/h2>
+&lt;p>In order to delete a &lt;code>Shoot&lt;/code>, the deletion must be confirmed upfront with the &lt;code>confirmation.gardener.cloud/deletion=true&lt;/code> annotation.
+Without this annotation being set, &lt;code>gardener-apiserver&lt;/code> denies any DELETE request.
+Still, users sometimes accidentally shot themselves in the foot, meaning that they accidentally deleted a &lt;code>Shoot&lt;/code> despite the confirmation requirement.&lt;/p>
+&lt;p>To prevent that (or make it harder, at least), the &lt;code>Project&lt;/code> can be configured to apply the dual approval concept for &lt;code>Shoot&lt;/code> deletion.
+This means that the subject confirming the deletion must not be the same as the subject sending the DELETE request.&lt;/p>
+&lt;p>Example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dualApprovalForDeletion:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - resource: shoots
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> includeServiceAccounts: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>[!NOTE]
+As of today, &lt;code>core.gardener.cloud/v1beta1.Shoot&lt;/code> is the only resource for which this concept is implemented.&lt;/p>
+&lt;/blockquote>
+&lt;p>As usual, &lt;code>.spec.dualApprovalForDeletion[].selector.matchLabels={}&lt;/code> matches all resources, &lt;code>.spec.dualApprovalForDeletion[].selector.matchLabels=null&lt;/code> matches none at all.
+It can also be decided to specify an individual label selector if this concept shall only apply to a subset of the &lt;code>Shoot&lt;/code>s in the project (e.g., CI/development clusters shall be excluded).&lt;/p>
+&lt;p>The &lt;code>includeServiceAccounts&lt;/code> (default: &lt;code>true&lt;/code>) controls whether the concept also applies when the &lt;code>Shoot&lt;/code> deletion confirmation and actual deletion is triggered via &lt;code>ServiceAccount&lt;/code>s.
+This is to prevent that CI jobs have to follow this concept as well, adding additional complexity/overhead.
+Alternatively, you could also use two &lt;code>ServiceAccount&lt;/code>s, one for confirming the deletion, and another one for actually sending the DELETE request, if desired.&lt;/p>
+&lt;blockquote>
+&lt;p>[!IMPORTANT]
+Project members can still change the labels of &lt;code>Shoot&lt;/code>s (or the selector itself) to circumvent the dual approval concept.
+This concern is intentionally excluded/ignored for now since the principle is not a &amp;ldquo;security feature&amp;rdquo; but shall just help preventing &lt;em>accidental&lt;/em> deletion.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Reversed VPN Tunnel</title><link>https://gardener.cloud/docs/gardener/reversed-vpn-tunnel/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/reversed-vpn-tunnel/</guid><description>
 &lt;h1 id="reversed-vpn-tunnel-setup-and-configuration">Reversed VPN Tunnel Setup and Configuration&lt;/h1>
 &lt;p>The Reversed VPN Tunnel is enabled by default.
 A highly available VPN connection is automatically deployed in all shoots that configure an HA control-plane.&lt;/p>

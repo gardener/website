@@ -12,14 +12,13 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alerting:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> emailReceivers:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - john.doe@example.com
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>emailReceivers&lt;/code> is a list of emails that will receive alerts if something is wrong with the shoot cluster. A list of alerts for users can be found in the &lt;a href="https://gardener.cloud/docs/gardener/monitoring/user_alerts/">User Alerts&lt;/a> topic.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>emailReceivers&lt;/code> is a list of emails that will receive alerts if something is wrong with the shoot cluster.&lt;/p>
 &lt;h1 id="alerting-for-operators">Alerting for Operators&lt;/h1>
 &lt;p>Currently, Gardener supports two options for alerting:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/#email-alerting">Email Alerting&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/#external-alertmanager">Sending Alerts to an External Alertmanager&lt;/a>&lt;/li>
 &lt;/ul>
-&lt;p>A list of operator alerts can be found in the &lt;a href="https://gardener.cloud/docs/gardener/monitoring/operator_alerts/">Operator Alerts&lt;/a> topic.&lt;/p>
 &lt;h2 id="email-alerting">Email Alerting&lt;/h2>
 &lt;p>Gardener provides the option to deploy an Alertmanager into each seed. This Alertmanager is responsible for sending out alerts to operators for each shoot cluster in the seed. Only email alerts are supported by the Alertmanager managed by Gardener. This is configurable by setting the Gardener controller manager configuration values &lt;code>alerting&lt;/code>. See &lt;a href="https://gardener.cloud/docs/gardener/configuration/">Gardener Configuration and Usage&lt;/a> on how to configure the Gardener&amp;rsquo;s SMTP secret. If the values are set, a secret with the label &lt;code>gardener.cloud/role: alerting&lt;/code> will be created in the garden namespace of the garden cluster. This secret will be used by each Alertmanager in each seed.&lt;/p>
 &lt;h2 id="external-alertmanager">External Alertmanager&lt;/h2>
@@ -163,7 +162,7 @@ prometheus.io/name=&amp;lt;name&amp;gt;
 &lt;li>shoot nodes (node-exporter)&lt;/li>
 &lt;li>blackbox-exporter used to measure &lt;a href="https://gardener.cloud/docs/gardener/monitoring/connectivity/">connectivity&lt;/a>&lt;/li>
 &lt;/ul>
-&lt;p>&lt;strong>Purpose&lt;/strong>: Monitor all relevant components belonging to a shoot cluster managed by Gardener. Shoot owners can view the metrics in Plutono dashboards and receive &lt;a href="https://gardener.cloud/docs/gardener/monitoring/user_alerts/">alerts&lt;/a> based on these metrics. Gardener operators will receive a different set of &lt;a href="https://gardener.cloud/docs/gardener/monitoring/operator_alerts/">alerts&lt;/a>. For alerting internals refer to &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/">this&lt;/a> document.&lt;/p>
+&lt;p>&lt;strong>Purpose&lt;/strong>: Monitor all relevant components belonging to a shoot cluster managed by Gardener. Shoot owners can view the metrics in Plutono dashboards and receive alerts based on these metrics. For alerting internals refer to &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/">this&lt;/a> document.&lt;/p>
 &lt;h2 id="collect-all-shoot-prometheus-with-remote-write">Collect all Shoot Prometheus with remote write&lt;/h2>
 &lt;p>An optional collection of all Shoot Prometheus metrics to a central prometheus (or cortex) instance is possible with the &lt;code>monitoring.shoot&lt;/code> setting in &lt;code>GardenletConfiguration&lt;/code>:&lt;/p>
 &lt;pre tabindex="0">&lt;code>monitoring:
@@ -172,11 +171,6 @@ remoteWrite:
 url: https://remoteWriteUrl # remote write URL
 keep:# metrics that should be forwarded to the external write endpoint. If empty all metrics get forwarded
 - kube_pod_container_info
-queueConfig: | # queue_config of prometheus remote write as multiline string
-max_shards: 100
-batch_send_deadline: 20s
-min_backoff: 500ms
-max_backoff: 60s
 externalLabels: # add additional labels to metrics to identify it on the central instance
 additional: label
 &lt;/code>&lt;/pre>&lt;p>If basic auth is needed it can be set via secret in garden namespace (Gardener API Server). &lt;a href="https://github.com/gardener/gardener/blob/master/example/10-secret-remote-write.yaml">Example secret&lt;/a>&lt;/p>
@@ -185,62 +179,7 @@ additional: label
 &lt;pre tabindex="0">&lt;code>monitoring:
 shoot:
 enabled: false
-&lt;/code>&lt;/pre></description></item><item><title>Docs: Operator Alerts</title><link>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/operator_alerts/</guid><description>
-&lt;h1 id="operator-alerts">Operator Alerts&lt;/h1>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Alertname&lt;/th>
-&lt;th>Severity&lt;/th>
-&lt;th>Type&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>KubeletTooManyOpenFileDescriptorsSeed&lt;/td>
-&lt;td>critical&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Seed-kubelet ({{ $labels.kubernetes_io_hostname }}) is using {{ $value }}% of the available file/socket descriptors. Kubelet could be under heavy load.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePersistentVolumeUsageCritical&lt;/td>
-&lt;td>critical&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} is only {{ printf &amp;quot;%0.2f&amp;quot; $value }}% free.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePersistentVolumeFullInFourDays&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} is expected to fill up within four days. Currently {{ printf &amp;quot;%0.2f&amp;quot; $value }}% is available.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePodPendingControlPlane&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Pod {{ $labels.pod }} is stuck in &amp;quot;Pending&amp;quot; state for more than 30 minutes.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePodNotReadyControlPlane&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Pod {{ $labels.pod }} is not ready for more than 30 minutes.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>PrometheusCantScrape&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Prometheus failed to scrape metrics. Instance {{ $labels.instance }}, job {{ $labels.job }}.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>PrometheusConfigurationFailure&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>seed&lt;/td>
-&lt;td>&lt;code>Latest Prometheus configuration is broken and Prometheus is using the previous one.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table></description></item><item><title>Docs: Profiling</title><link>https://gardener.cloud/docs/gardener/monitoring/profiling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/profiling/</guid><description>
+&lt;/code>&lt;/pre></description></item><item><title>Docs: Profiling</title><link>https://gardener.cloud/docs/gardener/monitoring/profiling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/profiling/</guid><description>
 &lt;h1 id="profiling-gardener-components">Profiling Gardener Components&lt;/h1>
 &lt;p>Similar to Kubernetes, Gardener components support profiling using &lt;a href="https://golang.org/doc/diagnostics#profiling">standard Go tools&lt;/a> for analyzing CPU and memory usage by different code sections and more.
 This document shows how to enable and use profiling handlers with Gardener components.&lt;/p>
@@ -284,47 +223,4 @@ Here is an example for the &lt;code>gardener-admission-controller&lt;/code>&amp;
 &lt;p>For example (gardener-admission-controller):&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ curl http://localhost:2723/debug/pprof/heap &amp;gt; /tmp/heap
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>$ go tool pprof /tmp/heap
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: User Alerts</title><link>https://gardener.cloud/docs/gardener/monitoring/user_alerts/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/monitoring/user_alerts/</guid><description>
-&lt;h1 id="user-alerts">User Alerts&lt;/h1>
-&lt;table>
-&lt;thead>
-&lt;tr>
-&lt;th>Alertname&lt;/th>
-&lt;th>Severity&lt;/th>
-&lt;th>Type&lt;/th>
-&lt;th>Description&lt;/th>
-&lt;/tr>
-&lt;/thead>
-&lt;tbody>
-&lt;tr>
-&lt;td>KubeKubeletNodeDown&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>shoot&lt;/td>
-&lt;td>&lt;code>The kubelet {{ $labels.instance }} has been unavailable/unreachable for more than 1 hour. Workloads on the affected node may not be schedulable.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubeletTooManyOpenFileDescriptorsShoot&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>shoot&lt;/td>
-&lt;td>&lt;code>Shoot-kubelet ({{ $labels.kubernetes_io_hostname }}) is using {{ $value }}% of the available file/socket descriptors. Kubelet could be under heavy load.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubeletTooManyOpenFileDescriptorsShoot&lt;/td>
-&lt;td>critical&lt;/td>
-&lt;td>shoot&lt;/td>
-&lt;td>&lt;code>Shoot-kubelet ({{ $labels.kubernetes_io_hostname }}) is using {{ $value }}% of the available file/socket descriptors. Kubelet could be under heavy load.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePodPendingShoot&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>shoot&lt;/td>
-&lt;td>&lt;code>Pod {{ $labels.pod }} is stuck in &amp;quot;Pending&amp;quot; state for more than 1 hour.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;tr>
-&lt;td>KubePodNotReadyShoot&lt;/td>
-&lt;td>warning&lt;/td>
-&lt;td>shoot&lt;/td>
-&lt;td>&lt;code>Pod {{ $labels.pod }} is not ready for more than 1 hour.&lt;/code>&lt;/td>
-&lt;/tr>
-&lt;/tbody>
-&lt;/table></description></item></channel></rss>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

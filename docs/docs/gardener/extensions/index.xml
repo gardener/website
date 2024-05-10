@@ -1379,7 +1379,7 @@ They are part of the &lt;a href="https://gardener.cloud/docs/gardener/extensions
 &lt;h1 id="logging-and-monitoring-for-extensions">Logging and Monitoring for Extensions&lt;/h1>
 &lt;p>Gardener provides an integrated logging and monitoring stack for alerting, monitoring, and troubleshooting of its managed components by operators or end users. For further information how to make use of it in these roles, refer to the corresponding guides for &lt;a href="https://github.com/gardener/logging/tree/master/docs/usage/README.md">exploring logs&lt;/a> and for &lt;a href="https://github.com/credativ/plutono">monitoring with Plutono&lt;/a>.&lt;/p>
 &lt;p>The components that constitute the logging and monitoring stack are managed by Gardener. By default, it deploys &lt;a href="https://prometheus.io/">Prometheus&lt;/a> and &lt;a href="https://prometheus.io/docs/alerting/latest/alertmanager/">Alertmanager&lt;/a> (managed via &lt;a href="https://github.com/prometheus-operator/prometheus-operator">&lt;code>prometheus-operator&lt;/code>&lt;/a>, and &lt;a href="https://github.com/credativ/plutono">Plutono&lt;/a> into the &lt;code>garden&lt;/code> namespace of all seed clusters. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>), it will deploy &lt;a href="https://github.com/fluent/fluent-operator">fluent-operator&lt;/a> and &lt;a href="https://github.com/credativ/plutono">Vali&lt;/a> in the &lt;code>garden&lt;/code> namespace too.&lt;/p>
-&lt;p>Each shoot namespace hosts managed logging and monitoring components. As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus, Plutono and, if configured, an Alertmanager into the shoot namespace, next to the other control plane components. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>) and the &lt;a href="https://gardener.cloud/docs/gardener/shoot_purposes/#behavioral-differences">shoot purpose&lt;/a> is not &lt;code>testing&lt;/code>, it deploys a shoot-specific Vali in the shoot namespace too.&lt;/p>
+&lt;p>Each shoot namespace hosts managed logging and monitoring components. As part of the shoot reconciliation flow, Gardener deploys a shoot-specific Prometheus, blackbox-exporter, Plutono, and, if configured, an Alertmanager into the shoot namespace, next to the other control plane components. If the logging is enabled in the &lt;code>gardenlet&lt;/code> configuration (&lt;code>logging.enabled&lt;/code>) and the &lt;a href="https://gardener.cloud/docs/gardener/shoot_purposes/#behavioral-differences">shoot purpose&lt;/a> is not &lt;code>testing&lt;/code>, it deploys a shoot-specific Vali in the shoot namespace too.&lt;/p>
 &lt;p>The logging and monitoring stack is extensible by configuration. Gardener extensions can take advantage of that and contribute monitoring configurations encoded in &lt;code>ConfigMap&lt;/code>s for their own, specific dashboards, alerts and other supported assets and integrate with it. As with other Gardener resources, they will be continuously reconciled. The extensions can also deploy directly fluent-operator custom resources which will be created in the seed cluster and plugged into the fluent-bit instance.&lt;/p>
 &lt;p>This guide is about the roles and extensibility options of the logging and monitoring stack components, and how to integrate extensions with:&lt;/p>
 &lt;ul>
@@ -1476,18 +1476,172 @@ In order to provide custom dashboards, create a &lt;code>ConfigMap&lt;/code> in 
 &lt;p>Extension controllers might deploy components as part of their reconciliation next to the shoot&amp;rsquo;s control plane.
 Examples for this would be a cloud-controller-manager or CSI controller deployments. Extensions that want to have their managed control plane components integrated with monitoring can contribute their per-shoot configuration for scraping Prometheus metrics, Alertmanager alerts or Plutono dashboards.&lt;/p>
 &lt;h4 id="extensions-monitoring-integration">Extensions Monitoring Integration&lt;/h4>
+&lt;p>In case an extension wants to extend the configuration for the shoot Prometheus, they can create the &lt;a href="https://github.com/prometheus-operator/prometheus-operator?tab=readme-ov-file#customresourcedefinitions">&lt;code>prometheus-operator&lt;/code>&amp;rsquo;s custom resources&lt;/a> and label them with &lt;code>prometheus=shoot&lt;/code>.&lt;/p>
+&lt;h5 id="servicemonitor">&lt;code>ServiceMonitor&lt;/code>&lt;/h5>
+&lt;p>When the component runs in the seed cluster (e.g., as part of the shoot control plane), &lt;code>ServiceMonitor&lt;/code> resources should be used:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ServiceMonitor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-my-controlplane-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> endpoints:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2|...)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> port: metrics
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In case &lt;code>HTTPS&lt;/code> scheme is used, the CA certificate should be provided like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheme: HTTPS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secret:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name-of-ca-bundle-secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: bundle.crt
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In case the component requires credentials when contacting its metrics endpoint, provide them like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authorization:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> credentials:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name-of-secret-containing-credentials&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: &amp;lt;data-keyin-secret&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the component delegates authorization to the &lt;code>kube-apiserver&lt;/code> of the shoot cluster, you can use the &lt;code>shoot-access-prometheus-shoot&lt;/code> secret:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authorization:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> credentials:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-access-prometheus-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: token
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># in case the component&amp;#39;s server certificate is signed by the cluster CA:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheme: HTTPS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secret:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name-of-ca-bundle-secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: bundle.crt
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="scrapeconfigs">&lt;code>ScrapeConfig&lt;/code>s&lt;/h5>
+&lt;p>If the component runs in the shoot cluster itself, metrics are scraped via the &lt;code>kube-apiserver&lt;/code> proxy.
+In this case, Prometheus needs to authenticate itself with the API server.
+This can be done like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ScrapeConfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-my-cluster-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authorization:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> credentials:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-access-prometheus-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: token
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheme: HTTPS
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secret:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name-of-ca-bundle-secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: bundle.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesSDConfigs:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - apiServer: https://kube-apiserver
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> authorization:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> credentials:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-access-prometheus-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: token
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> followRedirects: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaces:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> names:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> role: endpoints
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> tlsConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ca:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secret:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;name-of-ca-bundle-secret&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: bundle.crt
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cert: {}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metricRelabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - __name__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: ^(metric1|metric2)$
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> relabelings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - action: replace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: my-cluster-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetLabel: job
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [__meta_kubernetes_service_name, __meta_kubernetes_pod_container_port_name]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> separator: ;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: my-component-service;metrics
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: $1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: keep
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [__meta_kubernetes_endpoint_node_name]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> separator: ;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: (.*)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetLabel: node
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: $1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: replace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [__meta_kubernetes_pod_name]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> separator: ;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: (.*)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetLabel: pod
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: $1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: replace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - targetLabel: __address__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: kube-apiserver:443
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - sourceLabels: [__meta_kubernetes_pod_name, __meta_kubernetes_pod_container_port_number]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> separator: ;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> regex: (.+);(.+)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetLabel: __metrics_path__
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replacement: /api/v1/namespaces/kube-system/pods/${1}:${2}/proxy/metrics
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> action: replace
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="prometheusrule">&lt;code>PrometheusRule&lt;/code>&lt;/h5>
+&lt;p>Similar to &lt;code>ServiceMonitor&lt;/code>s, &lt;code>PrometheusRule&lt;/code>s can be created with the &lt;code>prometheus=shoot&lt;/code> label:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: monitoring.coreos.com/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: PrometheusRule
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> prometheus: shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-my-component
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--foo--bar
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> groups:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my.rules
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="plutono-dashboards">Plutono Dashboards&lt;/h5>
+&lt;p>A &lt;a href="https://github.com/credativ/plutono">Plutono&lt;/a> instance is deployed by &lt;code>gardenlet&lt;/code> into the shoot cluster&amp;rsquo;s namespace for visualizing monitoring metrics and logs via dashboards.
+In order to provide custom dashboards, create a &lt;code>ConfigMap&lt;/code> in the shoot cluster&amp;rsquo;s namespace labelled with &lt;code>dashboard.monitoring.gardener.cloud/shoot=true&lt;/code> that contains the respective JSON documents, for example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dashboard.monitoring.gardener.cloud/shoot: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: extension-foo-my-custom-dashboard
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> my-custom-dashboard.json: &amp;lt;dashboard-JSON-document&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="legacy-method-of-providing-observability-configuration">Legacy Method of Providing Observability Configuration&lt;/h4>
+&lt;blockquote>
+&lt;p>[!CAUTION]
+The following documentation refers to the previous/legacy method of providing observability configuration.
+This way is deprecated and will be removed after Gardener v1.100 has been released.
+Consult &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#plutono-dashboards">this section&lt;/a> for information about how to provide the dashboards.&lt;/p>
+&lt;/blockquote>
 &lt;p>Before deploying the shoot-specific Prometheus instance, Gardener will read all &lt;code>ConfigMap&lt;/code>s in the shoot namespace, which are labeled with &lt;code>extensions.gardener.cloud/configuration=monitoring&lt;/code>.
 Such &lt;code>ConfigMap&lt;/code>s may contain four fields in their &lt;code>data&lt;/code>:&lt;/p>
 &lt;ul>
-&lt;li>&lt;code>scrape_config&lt;/code>: This field contains Prometheus scrape configuration for the component(s) and metrics that shall be scraped.&lt;/li>
-&lt;li>&lt;code>alerting_rules&lt;/code>: This field contains Alertmanager rules for alerts that shall be raised.&lt;/li>
+&lt;li>(DEPRECATED) &lt;code>scrape_config&lt;/code>: This field contains Prometheus scrape configuration for the component(s) and metrics that shall be scraped.&lt;/li>
+&lt;li>(DEPRECATED) &lt;code>alerting_rules&lt;/code>: This field contains Alertmanager rules for alerts that shall be raised.&lt;/li>
 &lt;li>(DEPRECATED) &lt;code>dashboard_operators&lt;/code>: This field contains a Plutono dashboard in JSON. Note that the former field name was kept for backwards compatibility but the dashboard is going to be shown both for Gardener operators and for shoot owners because the monitoring stack no longer distinguishes the two roles.&lt;/li>
 &lt;li>(DEPRECATED) &lt;code>dashboard_users&lt;/code>: This field contains a Plutono dashboard in JSON. Note that the former field name was kept for backwards compatibility but the dashboard is going to be shown both for Gardener operators and for shoot owners because the monitoring stack no longer distinguishes the two roles.&lt;/li>
 &lt;/ul>
-&lt;blockquote>
-&lt;p>[!CAUTION]
-Providing Plutono dashboards this way is deprecated and will be removed in a future release. Consult &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#plutono-dashboards">this section&lt;/a> for information about how to provide the dashboards.&lt;/p>
-&lt;/blockquote>
 &lt;p>&lt;strong>Example:&lt;/strong> A &lt;code>ControlPlane&lt;/code> controller deploying a &lt;code>cloud-controller-manager&lt;/code> into the shoot namespace wants to integrate monitoring configuration for scraping metrics, alerting rules, dashboards, and logging configuration for exposing logs to the end users.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
@@ -1541,18 +1695,6 @@ Providing Plutono dashboards this way is deprecated and will be removed in a fut
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> annotations:
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> description: All infrastructure specific operations cannot be completed (e.g. creating load balancers or persistent volumes).
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> summary: Cloud controller manager is down.&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="plutono-dashboards">Plutono Dashboards&lt;/h5>
-&lt;p>A &lt;a href="https://github.com/credativ/plutono">Plutono&lt;/a> instance is deployed by &lt;code>gardenlet&lt;/code> into the shoot cluster&amp;rsquo;s namespace for visualizing monitoring metrics and logs via dashboards.
-In order to provide custom dashboards, create a &lt;code>ConfigMap&lt;/code> in the shoot cluster&amp;rsquo;s namespace labelled with &lt;code>dashboard.monitoring.gardener.cloud/shoot=true&lt;/code> that contains the respective JSON documents, for example:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dashboard.monitoring.gardener.cloud/shoot: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: extension-foo-my-custom-dashboard
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: shoot--project--name
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> my-custom-dashboard.json: &amp;lt;dashboard-JSON-document&amp;gt;
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="logging">Logging&lt;/h2>
 &lt;p>In Kubernetes clusters, container logs are non-persistent and do not survive stopped and destroyed containers. Gardener addresses this problem for the components hosted in a seed cluster by introducing its own managed logging solution. It is integrated with the Gardener monitoring stack to have all troubleshooting context in one place.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/logging-architecture_4cd67b.png" alt="&amp;amp;ldquo;Cluster Logging Topology&amp;amp;rdquo;" title="Cluster Logging Topology">&lt;/p>
@@ -2304,7 +2446,7 @@ It makes important LoadBalancer Services (e.g. &lt;code>istio-ingress/istio-ingr
 &lt;h4 id="control-plane">Control Plane&lt;/h4>
 &lt;p>This webhook reacts on the &lt;code>OperatingSystemConfig&lt;/code> containing the configuration of the kubelet and sets the &lt;code>failSwapOn&lt;/code> to &lt;code>false&lt;/code> (independent of what is configured in the &lt;code>Shoot&lt;/code> spec) (&lt;a href="https://github.com/kubernetes-sigs/kind/blob/b6bc112522651d98c81823df56b7afa511459a3b/site/content/docs/design/node-image.md#design">ref&lt;/a>).&lt;/p>
 &lt;h4 id="dns-config">DNS Config&lt;/h4>
-&lt;p>This webhook reacts on events for the &lt;code>dependency-watchdog-probe&lt;/code> &lt;code>Deployment&lt;/code>, the &lt;code>prometheus&lt;/code> &lt;code>StatefulSet&lt;/code> as well as on events for &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
+&lt;p>This webhook reacts on events for the &lt;code>dependency-watchdog-probe&lt;/code> &lt;code>Deployment&lt;/code>, the &lt;code>blackbox-exporter&lt;/code> &lt;code>Deployment&lt;/code>, as well as on events for &lt;code>Pod&lt;/code>s created when the &lt;code>machine-controller-manager&lt;/code> reconciles &lt;code>Machine&lt;/code>s.
 All these pods need to be able to resolve the DNS names for shoot clusters.
 It sets the &lt;code>.spec.dnsPolicy=None&lt;/code> and &lt;code>.spec.dnsConfig.nameServers&lt;/code> to the cluster IP of the &lt;code>coredns&lt;/code> &lt;code>Service&lt;/code> created in the &lt;code>gardener-extension-provider-local-coredns&lt;/code> namespaces so that these pods can resolve the DNS records for shoot clusters (see the &lt;a href="https://gardener.cloud/docs/gardener/extensions/provider-local/#bootstrapping">Bootstrapping section&lt;/a> for more details).&lt;/p>
 &lt;h4 id="machine-controller-manager">Machine Controller Manager&lt;/h4>
@@ -2563,7 +2705,9 @@ You can read up &lt;a href="https://github.com/gardener/machine-controller-manag
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/cri-name: containerd
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/pool: cpu-worker
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> worker.gardener.cloud/system-components: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> userData: c29tZSBkYXRhIHRvIGJvb3RzdHJhcCB0aGUgVk0K
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> userDataSecretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: user-data-secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> key: cloud_config
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volume:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> size: 20Gi
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gp2
@@ -2737,7 +2881,7 @@ In this case, a new checksum will be generated which results in the creation of 
 The &lt;code>MachineDeployment&lt;/code>&amp;rsquo;s machine class reference (&lt;code>.spec.template.spec.class.name&lt;/code>) is updated, which triggers the rolling update process in the machine-controller-manager.
 However, all of this is only a convention that eases writing the controller, but you can do it completely differently if you desire - as long as you make sure that the described behaviours are implemented correctly.&lt;/p>
 &lt;p>After the machine classes and machine deployments have been created, the machine-controller-manager will start talking to the provider&amp;rsquo;s IaaS API and create the virtual machines.
-Gardener makes sure that the content of the &lt;code>userData&lt;/code> field that is used to bootstrap the machines contains the required configuration for installation of the kubelet and registering the VM as worker node in the shoot cluster.
+Gardener makes sure that the content of the &lt;code>Secret&lt;/code> referenced in the &lt;code>userDataSecretRef&lt;/code> field that is used to bootstrap the machines contains the required configuration for installation of the kubelet and registering the VM as worker node in the shoot cluster.
 The &lt;code>Worker&lt;/code> extension controller shall wait until all the created &lt;code>MachineDeployment&lt;/code>s indicate healthiness/readiness before it ends the control loop.&lt;/p>
 &lt;h2 id="does-gardener-need-some-information-that-must-be-returned-back">Does Gardener need some information that must be returned back?&lt;/h2>
 &lt;p>Another important benefit of the machine-controller-manager&amp;rsquo;s design principles (extending the Kubernetes API using CRDs) is that the &lt;a href="https://github.com/gardener/autoscaler">cluster-autoscaler&lt;/a> can be used &lt;strong>without&lt;/strong> any provider-specific implementation.

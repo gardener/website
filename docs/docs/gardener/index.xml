@@ -164,7 +164,94 @@ We are truly looking forward to your feedback!&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - start: &lt;span style="color:#a31515">&amp;#34;0 20 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Start hibernation every day at 8PM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: &lt;span style="color:#a31515">&amp;#34;0 6 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Stop hibernation every day at 6AM&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> location: &lt;span style="color:#a31515">&amp;#34;America/Los_Angeles&amp;#34;&lt;/span> &lt;span style="color:#008000"># Specify a location for the cron to run in&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: Autoscaling Specifics for Components</title><link>https://gardener.cloud/docs/gardener/autoscaling-specifics-for-components/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/autoscaling-specifics-for-components/</guid><description>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>This document describes the used autoscaling mechanism for several components.&lt;/p>
+&lt;h2 id="garden-or-shoot-cluster-etcd">Garden or Shoot Cluster etcd&lt;/h2>
+&lt;p>By default, if none of the autoscaling modes is requested the &lt;code>etcd&lt;/code> is deployed with static resources, without autoscaling.&lt;/p>
+&lt;p>However, there are two supported autoscaling modes for the Garden or Shoot cluster etcd.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>HVPA&lt;/code>&lt;/p>
+&lt;p>In &lt;code>HVPA&lt;/code> mode, the etcd is scaled by the &lt;a href="https://github.com/gardener/hvpa-controller">hvpa-controller&lt;/a>. The gardenlet/gardener-operator is creating an &lt;code>HVPA&lt;/code> resource for the etcd (&lt;code>main&lt;/code> or &lt;code>events&lt;/code>).
+The &lt;code>HVPA&lt;/code> enables a vertical scaling for etcd.&lt;/p>
+&lt;p>The &lt;code>HVPA&lt;/code> mode is the used autoscaling mode when the &lt;code>HVPA&lt;/code> feature gate is enabled (and the &lt;code>VPAForETCD&lt;/code> feature gate is disabled).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>VPA&lt;/code>&lt;/p>
+&lt;p>In &lt;code>VPA&lt;/code> mode, the etcd is scaled by a native &lt;code>VPA&lt;/code> resource.&lt;/p>
+&lt;p>The &lt;code>VPA&lt;/code> mode is the used autoscaling mode when the &lt;code>VPAForETCD&lt;/code> feature gate is enabled (takes precedence over the &lt;code>HVPA&lt;/code> feature gate).&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>For both of the autoscaling modes downscaling is handled more pessimistically to prevent many subsequent etcd restarts. Thus, for &lt;code>production&lt;/code> and &lt;code>infrastructure&lt;/code> Shoot clusters (or all Garden clusters), downscaling is deactivated for the main etcd. For all other Shoot clusters, lower advertised requests/limits are only applied during the Shoot&amp;rsquo;s maintenance time window.&lt;/p>
+&lt;h2 id="shoot-kubernetes-api-server">Shoot Kubernetes API Server&lt;/h2>
+&lt;p>There are three supported autoscaling modes for the Shoot Kubernetes API server.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>Baseline&lt;/code>&lt;/p>
+&lt;p>In &lt;code>Baseline&lt;/code> mode, the Shoot Kubernetes API server is scaled by active HPA and VPA in passive, recommend-only mode.&lt;/p>
+&lt;p>The API server resource requests are computed based on the Shoot&amp;rsquo;s minimum Nodes count:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Range&lt;/th>
+&lt;th>Resource Requests&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>[0, 2]&lt;/td>
+&lt;td>&lt;code>800m&lt;/code>, &lt;code>800Mi&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(2, 10]&lt;/td>
+&lt;td>&lt;code>1000m&lt;/code>, &lt;code>1100Mi&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(10, 50]&lt;/td>
+&lt;td>&lt;code>1200m&lt;/code>, &lt;code>1600Mi&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(50, 100]&lt;/td>
+&lt;td>&lt;code>2500m&lt;/code>, &lt;code>5200Mi&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>(100, inf.)&lt;/td>
+&lt;td>&lt;code>3000m&lt;/code>, &lt;code>5200Mi&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>The &lt;code>Baseline&lt;/code> mode is the used autoscaling mode when the &lt;code>HVPA&lt;/code> and &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gates are not enabled.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>HVPA&lt;/code>&lt;/p>
+&lt;p>In &lt;code>HVPA&lt;/code> mode, the Shoot Kubernetes API server is scaled by the &lt;a href="https://github.com/gardener/hvpa-controller">hvpa-controller&lt;/a>. The gardenlet is creating an &lt;code>HVPA&lt;/code> resource for the API server. The &lt;code>HVPA&lt;/code> resource is backed by HPA and VPA both in recommend-only mode. The hvpa-controller is responsible for enabling simultaneous horizontal and vertical scaling by incorporating the recommendations from the HPA and VPA.&lt;/p>
+&lt;p>The initial API server resource requests are &lt;code>500m&lt;/code> and &lt;code>1Gi&lt;/code>.
+HVPA&amp;rsquo;s HPA is scaling only on CPU (average utilization 80%). HVPA&amp;rsquo;s VPA max allowed values are &lt;code>8&lt;/code> CPU and &lt;code>25G&lt;/code>.&lt;/p>
+&lt;p>The &lt;code>HVPA&lt;/code> mode is the used autoscaling mode when the &lt;code>HVPA&lt;/code> feature gate is enabled (and the &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gate is disabled).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>VPAAndHPA&lt;/code>&lt;/p>
+&lt;p>In &lt;code>VPAAndHPA&lt;/code> mode, the Shoot Kubernetes API server is scaled simultaneously by VPA and HPA on the same metric (CPU and memory usage). The pod-trashing cycle between VPA and HPA scaling on the same metric is avoided by configuring the HPA to scale on average usage (not on average utilization) and by picking the target average utilization values in sync with VPA&amp;rsquo;s allowed maximums. This makes possible VPA to first scale vertically on CPU/memory usage. Once all Pods&amp;rsquo; average CPU/memory usage is close to exceed the VPA&amp;rsquo;s allowed maximum CPU/memory (the HPA&amp;rsquo;s target average utilization, 1/7 less than VPA&amp;rsquo;s allowed maximums), HPA is scaling horizontally (by adding a new replica).&lt;/p>
+&lt;p>The &lt;code>VPAAndHPA&lt;/code> mode is introduced to address disadvantages with HVPA: additional component; modifies the deployment triggering unnecessary rollouts; vertical scaling only at max replicas; stuck vertical resource requests when scaling in again; etc.&lt;/p>
+&lt;p>The initial API server resource requests are &lt;code>250m&lt;/code> and &lt;code>500Mi&lt;/code>.
+VPA&amp;rsquo;s max allowed values are &lt;code>7&lt;/code> CPU and &lt;code>28G&lt;/code>. HPA&amp;rsquo;s average target usage values are &lt;code>6&lt;/code> CPU and &lt;code>24G&lt;/code>.&lt;/p>
+&lt;p>The &lt;code>VPAAndHPA&lt;/code> mode is the used autoscaling mode when the &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gate is enabled (takes precedence over the &lt;code>HVPA&lt;/code> feature gate).&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>The API server&amp;rsquo;s replica count in all scaling modes varies between 2 and 3. The min replicas count of 2 is imposed by the &lt;a href="https://gardener.cloud/docs/gardener/high-availability/#control-plane-components">High Availability of Shoot Control Plane Components&lt;/a>.&lt;/p>
+&lt;p>The gardenlet sets the initial API server resource requests only when the Deployment is not found. When the Deployment exists, it is not overwriting the kube-apiserver container resources.&lt;/p>
+&lt;h2 id="disabling-scale-down-for-components-in-the-shoot-control-plane">Disabling Scale Down for Components in the Shoot Control Plane&lt;/h2>
+&lt;p>Some Shoot clusters&amp;rsquo; control plane components can be overloaded and can have very high resource usage. The existing autoscaling solution could be imperfect to cover these cases. Scale down actions for such overloaded components could be disruptive.&lt;/p>
+&lt;p>To prevent such disruptive scale-down actions it is possible to disable scale down of the etcd, Kubernetes API server and Kubernetes controller manager in the Shoot control plane by annotating the Shoot with &lt;code>alpha.control-plane.scaling.shoot.gardener.cloud/scale-down-disabled=true&lt;/code>.&lt;/p>
+&lt;p>There are the following specifics for when disabling scale-down for the Kubernetes API server component:&lt;/p>
+&lt;ul>
+&lt;li>In &lt;code>Baseline&lt;/code> and &lt;code>HVPA&lt;/code> modes the HPA&amp;rsquo;s min and max replicas count are set to 4.&lt;/li>
+&lt;li>In &lt;code>VPAAndHPA&lt;/code> mode if the HPA resource exists and HPA&amp;rsquo;s &lt;code>spec.minReplicas&lt;/code> is not nil then the min replicas count is &lt;code>max(spec.minReplicas, status.desiredReplicas)&lt;/code>. When scale-down is disabled, this allows operators to specify a custom value for HPA &lt;code>spec.minReplicas&lt;/code> and this value not to be reverted by gardenlet. I.e, HPA &lt;em>does&lt;/em> scale down to min replicas but not below min replicas. HPA&amp;rsquo;s max replicas count is 4.&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>Note: The &lt;code>alpha.control-plane.scaling.shoot.gardener.cloud/scale-down-disabled&lt;/code> annotation is alpha and can be removed anytime without further notice. Only use it if you know what you do.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>
 &lt;h1 id="changing-the-api">Changing the API&lt;/h1>
 &lt;p>This document describes the steps that need to be performed when changing the API.
 It provides guidance for API changes to both (Gardener system in general or component configurations).&lt;/p>
@@ -4920,31 +5007,4 @@ It is created by default and persisted in the &lt;code>&amp;lt;shoot-name&amp;gt
 &lt;/ul>
 &lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> Starting with Kubernetes 1.27, the &lt;code>enableStaticTokenKubeconfig&lt;/code> field will be locked to &lt;code>false&lt;/code>.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Shoot Auditpolicy</title><link>https://gardener.cloud/docs/gardener/shoot_auditpolicy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot_auditpolicy/</guid><description>
-&lt;h1 id="audit-a-kubernetes-cluster">Audit a Kubernetes Cluster&lt;/h1>
-&lt;p>The shoot cluster is a Kubernetes cluster and its &lt;code>kube-apiserver&lt;/code> handles the audit events. In order to define which audit events must be logged, a proper audit policy file must be passed to the Kubernetes API server. You could find more information about auditing a kubernetes cluster in the &lt;a href="https://kubernetes.io/docs/tasks/debug-application-cluster/audit/">Auditing&lt;/a> topic.&lt;/p>
-&lt;h2 id="default-audit-policy">Default Audit Policy&lt;/h2>
-&lt;p>By default, the Gardener will deploy the shoot cluster with audit policy defined in the &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/kubernetes/apiserver/secrets.go">kube-apiserver package&lt;/a>.&lt;/p>
-&lt;h2 id="custom-audit-policy">Custom Audit Policy&lt;/h2>
-&lt;p>If you need specific audit policy for your shoot cluster, then you could deploy the required audit policy in the garden cluster as &lt;code>ConfigMap&lt;/code> resource and set up your shoot to refer this &lt;code>ConfigMap&lt;/code>. Note that the policy must be stored under the key &lt;code>policy&lt;/code> in the data section of the &lt;code>ConfigMap&lt;/code>.&lt;/p>
-&lt;p>For example, deploy the auditpolicy &lt;code>ConfigMap&lt;/code> in the same namespace as your &lt;code>Shoot&lt;/code> resource:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl apply -f example/95-configmap-custom-audit-policy.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>then set your shoot to refer that &lt;code>ConfigMap&lt;/code> (only related fields are shown):&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> auditConfig:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> auditPolicy:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configMapRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: auditpolicy
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Gardener validate the &lt;code>Shoot&lt;/code> resource to refer only existing &lt;code>ConfigMap&lt;/code> containing valid audit policy, and rejects the &lt;code>Shoot&lt;/code> on failure.
-If you want to switch back to the default audit policy, you have to remove the section&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>auditPolicy:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configMapRef:
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;configmap-name&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>from the shoot spec.&lt;/p>
-&lt;h2 id="rolling-out-changes-to-the-audit-policy">Rolling Out Changes to the Audit Policy&lt;/h2>
-&lt;p>Gardener is not automatically rolling out changes to the Audit Policy to minimize the amount of Shoot reconciliations in order to prevent cloud provider rate limits, etc.
-Gardener will pick up the changes on the next reconciliation of Shoots referencing the Audit Policy ConfigMap.
-If users want to immediately rollout Audit Policy changes, they can manually trigger a Shoot reconciliation as described in &lt;a href="https://gardener.cloud/docs/gardener/shoot_operations/#immediate-reconciliation">triggering an immediate reconciliation&lt;/a>.
-This is similar to changes to the cloud provider secret referenced by Shoots.&lt;/p></description></item></channel></rss>
+&lt;/blockquote></description></item></channel></rss>

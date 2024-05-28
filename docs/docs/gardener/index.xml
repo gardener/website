@@ -251,7 +251,21 @@ VPA&amp;rsquo;s max allowed values are &lt;code>7&lt;/code> CPU and &lt;code>28G
 &lt;/ul>
 &lt;blockquote>
 &lt;p>Note: The &lt;code>alpha.control-plane.scaling.shoot.gardener.cloud/scale-down-disabled&lt;/code> annotation is alpha and can be removed anytime without further notice. Only use it if you know what you do.&lt;/p>
-&lt;/blockquote></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>
+&lt;/blockquote>
+&lt;h2 id="virtual-kubernetes-api-server-and-gardener-api-server">Virtual Kubernetes API Server and Gardener API Server&lt;/h2>
+&lt;p>The virtual Kubernetes API server&amp;rsquo;s autoscaling is same as the Shoot Kubernetes API server&amp;rsquo;s with the following differences:&lt;/p>
+&lt;ul>
+&lt;li>The initial API server resource requests are &lt;code>600m&lt;/code> and &lt;code>512Mi&lt;/code> in all autoscaling modes.&lt;/li>
+&lt;li>The min replicas count is 2 for a non-HA virtual cluster and 3 for an HA virtual cluster. The max replicas count is 6.&lt;/li>
+&lt;li>In &lt;code>HVPA&lt;/code> mode, HVPA&amp;rsquo;s HPA is scaling on both CPU and memory (average utilization 80% for both).&lt;/li>
+&lt;/ul>
+&lt;p>The Gardener API server&amp;rsquo;s autoscaling is the same as the Shoot Kubernetes API server&amp;rsquo;s with the following differences:&lt;/p>
+&lt;ul>
+&lt;li>The initial API server resource requests are &lt;code>600m&lt;/code> and &lt;code>512Mi&lt;/code> in all autoscaling modes.&lt;/li>
+&lt;li>The min replicas count is 2. The max replicas count is 4.&lt;/li>
+&lt;li>In &lt;code>HVPA&lt;/code> mode, HVPA&amp;rsquo;s HPA is scaling on both CPU and memory (average utilization 80% for both).&lt;/li>
+&lt;li>In &lt;code>HVPA&lt;/code> mode, HVPA&amp;rsquo;s VPA max allowed values are &lt;code>4&lt;/code> CPU and &lt;code>25G&lt;/code>.&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>
 &lt;h1 id="changing-the-api">Changing the API&lt;/h1>
 &lt;p>This document describes the steps that need to be performed when changing the API.
 It provides guidance for API changes to both (Gardener system in general or component configurations).&lt;/p>
@@ -4843,11 +4857,17 @@ the load balancer as the load balancer will see a failing health check. (This is
 run for its operation.) Furthermore, load balancing may become imbalanced if multiple pods run on the same node because load balancers will split the load equally among the nodes and not among the pods. This is mitigated by corresponding node anti affinities.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/external-traffic-policy-local_71edc2.png" alt="External Traffic Policy Local">&lt;/p>
 &lt;p>Operators need to take these implications into account when considering switching external traffic policy to &lt;code>Local&lt;/code>.&lt;/p>
+&lt;h3 id="proxy-protocol">Proxy Protocol&lt;/h3>
+&lt;p>Traditionally, the client IP address can be used for security filtering measures, e.g. IP allow listing. However, for this to have any usefulness, the client IP address needs to be correctly transferred to the filtering entity.&lt;/p>
+&lt;p>Load balancers can either act transparently and simply pass the client IP on, or they terminate one connection and forward data on a new connection. The latter (intransparant) approach requires a separate way to propagate the client IP address. Common approaches are an HTTP header for TLS terminating load balancers or &lt;a href="https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt">(HA) proxy protocol&lt;/a>.&lt;/p>
+&lt;p>For level 3 load balancers, &lt;a href="https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt">(HA) proxy protocol&lt;/a> is the default way to preserve client IP addresses. As it prepends a small proxy protocol header before the actual workload data, the receiving server needs to be aware of it and handle it properly. This means that activating proxy protocol needs to happen on both load balancer and receiving server at/around the same time, as otherwise the receiving server will incorrectly interpret data as workload/proxy protocol header.&lt;/p>
+&lt;p>For disruption-free migration to proxy protocol, set &lt;code>.spec.settings.loadBalancerServices.proxyProtocol.allow&lt;/code> to &lt;code>true&lt;/code>. The migration path should be to enable the option and shortly thereafter also enable proxy protocol on the load balancer with infrastructure-specific means, e.g. a corresponding load balancer annotation.&lt;/p>
+&lt;p>When switching back from use of proxy protocol to no use of it, use the inverse order, i.e. disable proxy protocol first on the load balancer before disabling &lt;code>.spec.settings.loadBalancerServices.proxyProtocol.allow&lt;/code>.&lt;/p>
 &lt;h3 id="zone-specific-settings">Zone-Specific Settings&lt;/h3>
 &lt;p>In case a seed cluster is configured to use multiple zones via &lt;code>.spec.provider.zones&lt;/code>, it may be necessary to configure the load balancers in individual zones in different way, e.g., by utilizing
 different annotations. One reason may be to reduce cross-zonal traffic and have zone-specific load balancers in place. Zone-specific load balancers may then be bound to zone-specific subnets or
 availability zones in the cloud infrastructure.&lt;/p>
-&lt;p>Besides the load balancer annotations, it is also possible to set the &lt;a href="https://gardener.cloud/docs/gardener/seed_settings/#external-traffic-policy">external traffic policy&lt;/a> for each zone-specific load balancer individually.&lt;/p>
+&lt;p>Besides the load balancer annotations, it is also possible to set &lt;a href="https://gardener.cloud/docs/gardener/seed_settings/#proxy-protocol">proxy protocol termination&lt;/a> and the &lt;a href="https://gardener.cloud/docs/gardener/seed_settings/#external-traffic-policy">external traffic policy&lt;/a> for each zone-specific load balancer individually.&lt;/p>
 &lt;h2 id="vertical-pod-autoscaler">Vertical Pod Autoscaler&lt;/h2>
 &lt;p>Gardener heavily relies on the Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">&lt;code>vertical-pod-autoscaler&lt;/code> component&lt;/a>.
 By default, the seed controller deploys the VPA components into the &lt;code>garden&lt;/code> namespace of the respective seed clusters.

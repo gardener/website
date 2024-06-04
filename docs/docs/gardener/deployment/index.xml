@@ -108,67 +108,48 @@ However, if you specify less capacity, then the &lt;code>PersistentVolume&lt;/co
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storage: &lt;span style="color:#a31515">&amp;#34;200Gi&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Deploy Gardenlet</title><link>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/</guid><description>
 &lt;h1 id="deploying-gardenlets">Deploying Gardenlets&lt;/h1>
-&lt;p>Gardenlets act as decentralized &amp;ldquo;agents&amp;rdquo; to manage the shoot clusters of a seed cluster.&lt;/p>
-&lt;p>To support scalability in an automated way, gardenlets are deployed automatically. However, you can still deploy gardenlets manually to be more flexible, for example, when the shoot clusters that need to be managed by Gardener are behind a firewall. The gardenlet only requires network connectivity from the gardenlet to the Garden cluster (not the other way round), so it can be used to register Kubernetes clusters with no public endpoint.&lt;/p>
+&lt;p>Gardenlets act as decentralized agents to manage the shoot clusters of a seed cluster.&lt;/p>
 &lt;h2 id="procedure">Procedure&lt;/h2>
+&lt;p>There are two ways of deploying gardenlets:&lt;/p>
 &lt;ol>
-&lt;li>
-&lt;p>First, an initial gardenlet needs to be deployed:&lt;/p>
-&lt;ul>
-&lt;li>Deploy it manually if you have special requirements. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">Deploy a Gardenlet Manually&lt;/a>.&lt;/li>
-&lt;li>Let the Gardener installer deploy it automatically otherwise. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Automatic Deployment of Gardenlets&lt;/a>.&lt;/li>
-&lt;/ul>
-&lt;/li>
-&lt;li>
-&lt;p>To add additional seed clusters, it is recommended to use regular shoot clusters. You can do this by creating a &lt;code>ManagedSeed&lt;/code> resource with a &lt;code>gardenlet&lt;/code> section as described in &lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">Register Shoot as Seed&lt;/a>.&lt;/p>
-&lt;/li>
+&lt;li>Manually install the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/gardenlet">Helm chart&lt;/a>.
+After you have deployed the Gardener control plane, you need a dedicated seed cluster (or register the cluster in which the control plane runs).
+This method is typically needed to get a first seed cluster up (so-called &amp;ldquo;unmanaged seeds&amp;rdquo;).
+It may also be needed if you want to register a cluster as seed that resides behind a firewall.
+For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">Deploy a Gardenlet Manually&lt;/a>.&lt;/li>
+&lt;li>Create &lt;code>ManagedSeed&lt;/code> resources to make existing shoot clusters getting registered as seeds.
+For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Deploy a gardenlet Automatically&lt;/a>.&lt;/li>
 &lt;/ol></description></item><item><title>Docs: Deploy Gardenlet Automatically</title><link>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/</guid><description>
-&lt;h1 id="automatic-deployment-of-gardenlets">Automatic Deployment of gardenlets&lt;/h1>
-&lt;p>The gardenlet can automatically deploy itself into shoot clusters, and register a cluster as a seed cluster.
+&lt;h1 id="deploy-a-gardenlet-automatically">Deploy a gardenlet Automatically&lt;/h1>
+&lt;p>The gardenlet can automatically deploy itself into shoot clusters, and register them as seed clusters.
 These clusters are called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;).
 This procedure is the preferred way to add additional seed clusters, because shoot clusters already come with production-grade qualities that are also demanded for seed clusters.&lt;/p>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
-&lt;p>The only prerequisite is to register an initial cluster as a seed cluster that already has a gardenlet deployed in one of the following ways:&lt;/p>
-&lt;ul>
-&lt;li>The gardenlet was deployed as part of a Gardener installation using a setup tool (for example, &lt;code>gardener/garden-setup&lt;/code>).&lt;/li>
-&lt;li>The gardenlet was deployed manually (for a step-by-step manual installation guide, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">Deploy a Gardenlet Manually&lt;/a>).&lt;/li>
-&lt;/ul>
+&lt;p>The only prerequisite is to register an initial cluster as a seed cluster that already has a manually deployed gardenlet (for a step-by-step manual installation guide, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/">Deploy a Gardenlet Manually&lt;/a>).&lt;/p>
 &lt;blockquote>
-&lt;p>The initial cluster can be the garden cluster itself.&lt;/p>
+&lt;p>[!TIP]
+The initial seed cluster can be the garden cluster itself, but for better separation of concerns, it is recommended to only register other clusters as seeds.&lt;/p>
 &lt;/blockquote>
-&lt;h2 id="self-deployment-of-gardenlets-in-additional-managed-seed-clusters">Self-Deployment of gardenlets in Additional Managed Seed Clusters&lt;/h2>
-&lt;p>For a better scalability, you usually need more seed clusters that you can create, as follows:&lt;/p>
+&lt;h2 id="auto-deployment-of-gardenlets-into-shoot-clusters">Auto-Deployment of Gardenlets into Shoot Clusters&lt;/h2>
+&lt;p>For a better scalability of your Gardener landscape (e.g., when the total number of &lt;code>Shoot&lt;/code>s grows), you usually need more seed clusters that you can create, as follows:&lt;/p>
 &lt;ol>
-&lt;li>Use the initial cluster as the seed cluster for other managed seed clusters. It hosts the control planes of the other seed clusters.&lt;/li>
-&lt;li>The gardenlet deployed in the initial cluster deploys itself automatically into the managed seed clusters.&lt;/li>
+&lt;li>Use the initial seed cluster (&amp;ldquo;unmanaged seed&amp;rdquo;) to create shoot clusters that you later register as seed clusters.&lt;/li>
+&lt;li>The gardenlet deployed in the initial cluster can deploy itself into the shoot clusters (which eventually makes them getting registered as seeds) if &lt;code>ManagedSeed&lt;/code> resources are created.&lt;/li>
 &lt;/ol>
-&lt;p>The advantage of this approach is that there’s only one initial gardenlet installation required. Every other managed seed cluster has a gardenlet deployed automatically.&lt;/p>
+&lt;p>The advantage of this approach is that there&amp;rsquo;s only one initial gardenlet installation required.
+Every other managed seed cluster gets an automatically deployed gardenlet.&lt;/p>
 &lt;h2 id="related-links">Related Links&lt;/h2>
 &lt;ul>
-&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">Register Shoot as Seed&lt;/a>&lt;/li>
-&lt;li>&lt;a href="http://github.com/gardener/garden-setup">garden-setup&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">&lt;code>ManagedSeed&lt;/code>s: Register Shoot as Seed&lt;/a>&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Deploy Gardenlet Manually</title><link>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/</guid><description>
 &lt;h1 id="deploy-a-gardenlet-manually">Deploy a gardenlet Manually&lt;/h1>
-&lt;p>Manually deploying a gardenlet is required in the following cases:&lt;/p>
-&lt;ul>
-&lt;li>
-&lt;p>The Kubernetes cluster to be registered as a seed cluster has no public endpoint,
-because it is behind a firewall.
-The gardenlet must then be deployed into the cluster itself.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The Kubernetes cluster to be registered as a seed cluster is managed externally
-(the Kubernetes cluster is not a shoot cluster, so &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Automatic Deployment of Gardenlets&lt;/a> cannot be used).&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>The gardenlet runs outside of the Kubernetes cluster
-that should be registered as a seed cluster.
-(The gardenlet is not restricted to run in the seed cluster or
-to be deployed into a Kubernetes cluster at all).&lt;/p>
-&lt;/li>
-&lt;/ul>
+&lt;p>Manually deploying a gardenlet is usually only required if the Kubernetes cluster to be registered as a seed cluster is managed via third-party tooling (i.e., the Kubernetes cluster is not a shoot cluster, so &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Deploy a gardenlet Automatically&lt;/a> cannot be used).
+In this case, &lt;code>gardenlet&lt;/code> needs to be deployed manually, meaning that its &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/gardenlet">Helm chart&lt;/a> must be installed.&lt;/p>
 &lt;blockquote>
-&lt;p>Once you’ve deployed a gardenlet manually, for example, behind a firewall, you can deploy new gardenlets automatically. The manually deployed gardenlet is then used as a template for the new gardenlets. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Automatic Deployment of Gardenlets&lt;/a>.&lt;/p>
+&lt;p>[!TIP]
+Once you&amp;rsquo;ve deployed a gardenlet manually, you can deploy new gardenlets automatically.
+The manually deployed gardenlet is then used as a template for the new gardenlets.
+For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_automatically/">Deploy a gardenlet Automatically&lt;/a>.&lt;/p>
 &lt;/blockquote>
 &lt;h2 id="prerequisites">Prerequisites&lt;/h2>
 &lt;h3 id="kubernetes-cluster-that-should-be-registered-as-a-seed-cluster">Kubernetes Cluster that Should Be Registered as a Seed Cluster&lt;/h3>
@@ -179,13 +160,11 @@ to be deployed into a Kubernetes cluster at all).&lt;/p>
 &lt;li>
 &lt;p>Determine the nodes, pods, and services CIDR of the cluster.
 You need to configure this information in the &lt;code>Seed&lt;/code> configuration.
-Gardener uses this information to check that the shoot cluster isn’t created with overlapping CIDR ranges.&lt;/p>
+Gardener uses this information to check that the shoot cluster isn&amp;rsquo;t created with overlapping CIDR ranges.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Every seed cluster needs an Ingress controller which distributes external requests to internal components like Plutono and Prometheus.
 For this, configure the following lines in your &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Seed resource&lt;/a>:&lt;/p>
-&lt;/li>
-&lt;/ul>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
@@ -199,66 +178,33 @@ For this, configure the following lines in your &lt;a href="https://github.com/g
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: nginx
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> providerConfig:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;some-optional-provider-specific-config-for-the-ingressController&amp;gt;
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="kubeconfig-for-the-seed-cluster">&lt;code>kubeconfig&lt;/code> for the Seed Cluster&lt;/h3>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ul>
+&lt;h3 id="kubeconfig-for-the-seed-cluster">&lt;code>kubeconfig&lt;/code> for the Seed Cluster&lt;/h3>
 &lt;p>The &lt;code>kubeconfig&lt;/code> is required to deploy the gardenlet Helm chart to the seed cluster.
 The gardenlet requires certain privileges to be able to operate.
 These privileges are described in RBAC resources in the gardenlet Helm chart (see &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/gardenlet/templates">charts/gardener/gardenlet/templates&lt;/a>).
-The Helm chart contains a service account &lt;code>gardenlet&lt;/code>
-that the gardenlet deployment uses by default to talk to the Seed API server.&lt;/p>
-&lt;blockquote>
-&lt;p>If the gardenlet isn’t deployed in the seed cluster,
-the gardenlet can be configured to use a &lt;code>kubeconfig&lt;/code>,
-which also requires the above-mentioned privileges, from a mounted directory.
-The &lt;code>kubeconfig&lt;/code> is specified in the &lt;code>seedClientConnection.kubeconfig&lt;/code> section
-of the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Gardenlet configuration&lt;/a>.
-This configuration option isn’t used in the following,
-as this procedure only describes the recommended setup option
-where the gardenlet is running in the seed cluster itself.&lt;/p>
-&lt;/blockquote>
+The Helm chart contains a service account &lt;code>gardenlet&lt;/code> that the gardenlet deployment uses by default to talk to the Seed API server.&lt;/p>
 &lt;h2 id="procedure-overview">Procedure Overview&lt;/h2>
 &lt;ol>
-&lt;li>
-&lt;p>Prepare the garden cluster:&lt;/p>
+&lt;li>Prepare the garden cluster:
 &lt;ol>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#create-a-bootstrap-token-secret-in-the-kube-system-namespace-of-the-garden-cluster">Create a bootstrap token secret in the &lt;code>kube-system&lt;/code> namespace of the garden cluster&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#create-rbac-roles-for-the-gardenlet-to-allow-bootstrapping-in-the-garden-cluster">Create RBAC roles for the gardenlet to allow bootstrapping in the garden cluster&lt;/a>&lt;/li>
 &lt;/ol>
 &lt;/li>
-&lt;li>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#prepare-the-gardenlet-helm-chart">Prepare the gardenlet Helm chart&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#automatically-register-shoot-cluster-as-a-seed-cluster">Automatically register shoot cluster as a seed cluster&lt;/a>.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#deploy-the-gardenlet">Deploy the gardenlet&lt;/a>&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#check-that-the-gardenlet-is-successfully-deployed">Check that the gardenlet is successfully deployed&lt;/a>&lt;/p>
-&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#prepare-the-gardenlet-helm-chart">Prepare the gardenlet Helm chart&lt;/a>.&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#automatically-register-shoot-cluster-as-a-seed-cluster">Automatically register shoot cluster as a seed cluster&lt;/a>.&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#deploy-the-gardenlet">Deploy the gardenlet&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#check-that-the-gardenlet-is-successfully-deployed">Check that the gardenlet is successfully deployed&lt;/a>&lt;/li>
 &lt;/ol>
 &lt;h2 id="create-a-bootstrap-token-secret-in-the-kube-system-namespace-of-the-garden-cluster">Create a Bootstrap Token Secret in the &lt;code>kube-system&lt;/code> Namespace of the Garden Cluster&lt;/h2>
 &lt;p>The gardenlet needs to talk to the &lt;a href="https://gardener.cloud/docs/gardener/concepts/apiserver/">Gardener API server&lt;/a> residing in the garden cluster.&lt;/p>
-&lt;p>The gardenlet can be configured with an already existing garden cluster &lt;code>kubeconfig&lt;/code> in one of the following ways:&lt;/p>
-&lt;ul>
-&lt;li>By specifying &lt;code>gardenClientConnection.kubeconfig&lt;/code>
-in the &lt;a href="https://github.com/gardener/gardener/blob/master/example/20-componentconfig-gardenlet.yaml">Gardenlet configuration&lt;/a>.&lt;/li>
-&lt;li>By supplying the environment variable &lt;code>GARDEN_KUBECONFIG&lt;/code> pointing to
-a mounted &lt;code>kubeconfig&lt;/code> file).&lt;/li>
-&lt;/ul>
-&lt;p>The preferred way, however, is to use the gardenlet&amp;rsquo;s ability to request
-a signed certificate for the garden cluster by leveraging
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">Kubernetes Certificate Signing Requests&lt;/a>.
-The gardenlet performs a TLS bootstrapping process that is similar to the
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">Kubelet TLS Bootstrapping&lt;/a>.
-Make sure that the API server of the garden cluster has
-&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/#enabling-bootstrap-token-authentication">bootstrap token authentication&lt;/a>
-enabled.&lt;/p>
-&lt;p>The client credentials required for the gardenlet&amp;rsquo;s TLS bootstrapping process
-need to be either &lt;code>token&lt;/code> or &lt;code>certificate&lt;/code> (OIDC isn’t supported) and have permissions
-to create a Certificate Signing Request (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">CSR&lt;/a>).
-It’s recommended to use &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap tokens&lt;/a>
-due to their desirable security properties (such as a limited token lifetime).&lt;/p>
+&lt;p>Use gardenlet&amp;rsquo;s ability to request a signed certificate for the garden cluster by leveraging &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">Kubernetes Certificate Signing Requests&lt;/a>.
+The gardenlet performs a TLS bootstrapping process that is similar to the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/kubelet-tls-bootstrapping/">Kubelet TLS Bootstrapping&lt;/a>.
+Make sure that the API server of the garden cluster has &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/#enabling-bootstrap-token-authentication">bootstrap token authentication&lt;/a> enabled.&lt;/p>
+&lt;p>The client credentials required for the gardenlet&amp;rsquo;s TLS bootstrapping process need to be either &lt;code>token&lt;/code> or &lt;code>certificate&lt;/code> (OIDC isn&amp;rsquo;t supported) and have permissions to create a Certificate Signing Request (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">CSR&lt;/a>).
+It&amp;rsquo;s recommended to use &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/">bootstrap tokens&lt;/a> due to their desirable security properties (such as a limited token lifetime).&lt;/p>
 &lt;p>Therefore, first create a bootstrap token secret for the garden cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
@@ -283,14 +229,10 @@ due to their desirable security properties (such as a limited token lifetime).&l
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># Allowed usages.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usage-bootstrap-authentication: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> usage-bootstrap-signing: &lt;span style="color:#a31515">&amp;#34;true&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When you later prepare the gardenlet Helm chart,
-a &lt;code>kubeconfig&lt;/code> based on this token is shared with the gardenlet upon deployment.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When you later prepare the gardenlet Helm chart, a &lt;code>kubeconfig&lt;/code> based on this token is shared with the gardenlet upon deployment.&lt;/p>
 &lt;h2 id="create-rbac-roles-for-the-gardenlet-to-allow-bootstrapping-in-the-garden-cluster">Create RBAC Roles for the gardenlet to Allow Bootstrapping in the Garden Cluster&lt;/h2>
-&lt;p>This step is only required if the gardenlet you deploy is the first gardenlet
-in the Gardener installation.
-Additionally, when using the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">control plane chart&lt;/a>,
-the following resources are already contained in the Helm chart,
-that is, if you use it you can skip these steps as the needed RBAC roles already exist.&lt;/p>
+&lt;p>This step is only required if the gardenlet you deploy is the first gardenlet in the Gardener installation.
+Additionally, when using the &lt;a href="https://github.com/gardener/gardener/tree/master/charts/gardener/controlplane">control plane chart&lt;/a>, the following resources are already contained in the Helm chart, that is, if you use it you can skip these steps as the needed RBAC roles already exist.&lt;/p>
 &lt;p>The gardenlet uses the configured bootstrap &lt;code>kubeconfig&lt;/code> in &lt;code>gardenClientConnection.bootstrapKubeconfig&lt;/code> to request a signed certificate for the user &lt;code>gardener.cloud:system:seed:&amp;lt;seed-name&amp;gt;&lt;/code> in the group &lt;code>gardener.cloud:system:seeds&lt;/code>.&lt;/p>
 &lt;p>Create a &lt;code>ClusterRole&lt;/code> and &lt;code>ClusterRoleBinding&lt;/code> that grant full admin permissions to authenticated gardenlets.&lt;/p>
 &lt;p>Create the following resources in the garden cluster:&lt;/p>
@@ -357,8 +299,7 @@ that is, if you use it you can skip these steps as the needed RBAC roles already
 You might be interested to harden this and limit its permissions to only resources related to the seed cluster it is responsible for.
 Please take a look at &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">Scoped API Access for Gardenlets&lt;/a>.&lt;/p>
 &lt;h2 id="prepare-the-gardenlet-helm-chart">Prepare the gardenlet Helm Chart&lt;/h2>
-&lt;p>This section only describes the minimal configuration,
-using the global configuration values of the gardenlet Helm chart.
+&lt;p>This section only describes the minimal configuration, using the global configuration values of the gardenlet Helm chart.
 For an overview over all values, see the &lt;a href="https://github.com/gardener/gardener/blob/master/charts/gardener/gardenlet/values.yaml">configuration values&lt;/a>.
 We refer to the global configuration values as &lt;em>gardenlet configuration&lt;/em> in the following procedure.&lt;/p>
 &lt;ol>
@@ -397,10 +338,8 @@ We refer to the global configuration values as &lt;em>gardenlet configuration&lt
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The bootstrap &lt;code>kubeconfig&lt;/code> is stored in the specified secret.&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>In the &lt;code>gardenClientConnection.kubeconfigSecret&lt;/code> section of your gardenlet configuration,
-define a name and a namespace where the gardenlet stores
-the real &lt;code>kubeconfig&lt;/code> that it creates during the bootstrap process. If the secret doesn&amp;rsquo;t exist,
-the gardenlet creates it for you.&lt;/p>
+&lt;p>In the &lt;code>gardenClientConnection.kubeconfigSecret&lt;/code> section of your gardenlet configuration, define a name and a namespace where the gardenlet stores the real &lt;code>kubeconfig&lt;/code> that it creates during the bootstrap process.
+If the secret doesn&amp;rsquo;t exist, the gardenlet creates it for you.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardenClientConnection:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfigSecret:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardenlet-kubeconfig
@@ -408,24 +347,20 @@ the gardenlet creates it for you.&lt;/p>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
 &lt;/ol>
 &lt;h3 id="updating-the-garden-cluster-ca">Updating the Garden Cluster CA&lt;/h3>
-&lt;p>The kubeconfig created by the gardenlet in step 4 will not be recreated as long as it exists, even if a new bootstrap kubeconfig is provided. To enable rotation of the garden cluster CA certificate, a new bundle can be provided via the &lt;code>gardenClientConnection.gardenClusterCACert&lt;/code> field. If the provided bundle differs from the one currently in the gardenlet&amp;rsquo;s kubeconfig secret then it will be updated. To remove the CA completely (e.g. when switching to a publicly trusted endpoint), this field can be set to either &lt;code>none&lt;/code> or &lt;code>null&lt;/code>.&lt;/p>
-&lt;h2 id="automatically-register-a-shoot-cluster-as-a-seed-cluster">Automatically Register a Shoot Cluster as a Seed Cluster&lt;/h2>
-&lt;p>A seed cluster can either be registered by manually creating
-the &lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">&lt;code>Seed&lt;/code> resource&lt;/a>
-or automatically by the gardenlet.
-This functionality is useful for managed seed clusters,
-as the gardenlet in the garden cluster deploys a copy of itself
-into the cluster with automatic registration of the &lt;code>Seed&lt;/code> configured.
-However, it can also be used to have a streamlined seed cluster registration process when manually deploying the gardenlet.&lt;/p>
+&lt;p>The kubeconfig created by the gardenlet in step 4 will not be recreated as long as it exists, even if a new bootstrap kubeconfig is provided.
+To enable rotation of the garden cluster CA certificate, a new bundle can be provided via the &lt;code>gardenClientConnection.gardenClusterCACert&lt;/code> field.
+If the provided bundle differs from the one currently in the gardenlet&amp;rsquo;s kubeconfig secret then it will be updated.
+To remove the CA completely (e.g. when switching to a publicly trusted endpoint), this field can be set to either &lt;code>none&lt;/code> or &lt;code>null&lt;/code>.&lt;/p>
+&lt;h2 id="prepare-seed-specification">Prepare Seed Specification&lt;/h2>
+&lt;p>When gardenlet starts, it tries to register a &lt;code>Seed&lt;/code> resource in the garden cluster based on the specification provided in &lt;code>seedConfig&lt;/code> in its configuration.&lt;/p>
 &lt;blockquote>
-&lt;p>This procedure doesn’t describe all the possible configurations
-for the &lt;code>Seed&lt;/code> resource. For more information, see:&lt;/p>
+&lt;p>This procedure doesn&amp;rsquo;t describe all the possible configurations for the &lt;code>Seed&lt;/code> resource.
+For more information, see:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/blob/master/example/50-seed.yaml">Example Seed resource&lt;/a>&lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/seed_settings/">Configurable Seed settings&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/blockquote>
-&lt;h3 id="adjust-the-gardenlet-component-configuration">Adjust the gardenlet Component Configuration&lt;/h3>
 &lt;ol>
 &lt;li>
 &lt;p>Supply the &lt;code>Seed&lt;/code> resource in the &lt;code>seedConfig&lt;/code> section of your gardenlet configuration &lt;code>gardenlet-values.yaml&lt;/code>.&lt;/p>
@@ -478,17 +413,12 @@ Therefore, the following Helm chart values define the degree of high availabilit
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>replicaCount: 2 &lt;span style="color:#008000"># or more if a higher failure tolerance is required.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>failureToleranceType: zone &lt;span style="color:#008000"># One of `zone` or `node` - defines how replicas are spread.&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="optional-enable-backup-and-restore">Optional: Enable Backup and Restore&lt;/h3>
-&lt;p>The seed cluster can be set up with backup and restore
-for the main &lt;code>etcds&lt;/code> of shoot clusters.&lt;/p>
-&lt;p>Gardener uses &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a>
-that &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/deployment/getting_started.md">integrates with different storage providers&lt;/a>
-to store the shoot cluster&amp;rsquo;s main &lt;code>etcd&lt;/code> backups.
+&lt;p>The seed cluster can be set up with backup and restore for the main &lt;code>etcds&lt;/code> of shoot clusters.&lt;/p>
+&lt;p>Gardener uses &lt;a href="https://github.com/gardener/etcd-backup-restore">etcd-backup-restore&lt;/a> that &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/deployment/getting_started.md">integrates with different storage providers&lt;/a> to store the shoot cluster&amp;rsquo;s main &lt;code>etcd&lt;/code> backups.
 Make sure to obtain client credentials that have sufficient permissions with the chosen storage provider.&lt;/p>
 &lt;p>Create a secret in the garden cluster with client credentials for the storage provider.
-The format of the secret is cloud provider specific and can be found
-in the repository of the respective Gardener extension.
-For example, the secret for AWS S3 can be found in the AWS provider extension
-(&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-etcd-backup-secret.yaml">30-etcd-backup-secret.yaml&lt;/a>).&lt;/p>
+The format of the secret is cloud provider specific and can be found in the repository of the respective Gardener extension.
+For example, the secret for AWS S3 can be found in the AWS provider extension (&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/blob/master/example/30-etcd-backup-secret.yaml">30-etcd-backup-secret.yaml&lt;/a>).&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
@@ -508,15 +438,25 @@ For example, the secret for AWS S3 can be found in the AWS provider extension
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: sweet-seed-backup
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="deploy-the-gardenlet">Deploy the gardenlet&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="optional-enable-self-upgrades">Optional: Enable Self-Upgrades&lt;/h3>
+&lt;p>In order to take off the continuous task of deploying gardenlet&amp;rsquo;s Helm chart in case you want to upgrade its version, it supports self-upgrades.
+The way this works is that it pulls information (its configuration and deployment values) from a &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> resource in the garden cluster.
+This resource must be in the &lt;code>garden&lt;/code> namespace and must have the same name as the &lt;code>Seed&lt;/code> the gardenlet is responsible for.
+For more information, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#self-upgrades">this section&lt;/a>.&lt;/p>
+&lt;p>In order to make gardenlet automatically create a corresponding &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> resource, you must provide&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>selfUpgrade:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deployment:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> helm:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ociRepository:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ref: &amp;lt;url-to-oci-repository-containing-gardenlet-helm-chart&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>in your &lt;code>gardenlet-values.yaml&lt;/code> file.
+Please replace the &lt;code>ref&lt;/code> placeholder with the URL to the OCI repository containing the gardenlet Helm chart you are installing.&lt;/p>
 &lt;blockquote>
-&lt;p>The gardenlet doesn’t have to run in the same Kubernetes cluster as the seed cluster
-it’s registering and reconciling, but it is in most cases advantageous
-to use in-cluster communication to talk to the Seed API server.
-Running a gardenlet outside of the cluster is mostly used for local development.&lt;/p>
+&lt;p>[!NOTE]&lt;br>
+If you don&amp;rsquo;t configure this &lt;code>selfUpgrade&lt;/code> section in the initial deployment, you can also do it later, or you directly create the corresponding &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> resource in the garden cluster.&lt;/p>
 &lt;/blockquote>
-&lt;p>The &lt;code>gardenlet-values.yaml&lt;/code> looks something like this
-(with automatic Seed registration and backup for shoot clusters enabled):&lt;/p>
+&lt;h2 id="deploy-the-gardenlet">Deploy the gardenlet&lt;/h2>
+&lt;p>The &lt;code>gardenlet-values.yaml&lt;/code> looks something like this (with backup for shoot clusters enabled):&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># &amp;lt;default config&amp;gt;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ...&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config:
@@ -574,7 +514,7 @@ Running a gardenlet outside of the cluster is mostly used for local development.
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --namespace garden &lt;span style="color:#a31515">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f gardenlet-values.yaml &lt;span style="color:#a31515">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --wait
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This helm chart creates:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This Helm chart creates:&lt;/p>
 &lt;ul>
 &lt;li>A service account &lt;code>gardenlet&lt;/code> that the gardenlet can use to talk to the Seed API server.&lt;/li>
 &lt;li>RBAC roles for the service account (full admin rights at the moment).&lt;/li>
@@ -593,7 +533,7 @@ is created and contains a &lt;code>kubeconfig&lt;/code> with a valid certificate
 &lt;pre tabindex="0">&lt;code>$ kubectl -n garden get secret gardenlet-kubeconfig -o json | jq -r .data.kubeconfig | base64 -d
 &lt;/code>&lt;/pre>&lt;/li>
 &lt;li>
-&lt;p>Test against the garden cluster and verify it’s working.&lt;/p>
+&lt;p>Test against the garden cluster and verify it&amp;rsquo;s working.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Extract the &lt;code>client-certificate-data&lt;/code> from the user &lt;code>gardenlet&lt;/code>.&lt;/p>
@@ -601,8 +541,7 @@ is created and contains a &lt;code>kubeconfig&lt;/code> with a valid certificate
 &lt;li>
 &lt;p>View the certificate:&lt;/p>
 &lt;pre tabindex="0">&lt;code>$ openssl x509 -in ./gardenlet-cert -noout -text
-&lt;/code>&lt;/pre>&lt;p>Check that the certificate is valid for a year (that is the lifetime of new certificates).&lt;/p>
-&lt;/li>
+&lt;/code>&lt;/pre>&lt;/li>
 &lt;/ol>
 &lt;/li>
 &lt;li>
@@ -610,7 +549,7 @@ is created and contains a &lt;code>kubeconfig&lt;/code> with a valid certificate
 &lt;/li>
 &lt;li>
 &lt;p>Check that the seed cluster is registered and &lt;code>READY&lt;/code> in the garden cluster.&lt;/p>
-&lt;p>Check that the seed cluster &lt;code>sweet-seed&lt;/code> exists and all conditions indicate that it’s available.
+&lt;p>Check that the seed cluster &lt;code>sweet-seed&lt;/code> exists and all conditions indicate that it&amp;rsquo;s available.
 If so, the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#heartbeats">Gardenlet is sending regular heartbeats&lt;/a> and the &lt;a href="https://gardener.cloud/docs/gardener/seed_bootstrapping/">seed bootstrapping&lt;/a> was successful.&lt;/p>
 &lt;p>Check that the conditions on the &lt;code>Seed&lt;/code> resource look similar to the following:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>$ kubectl get seed sweet-seed -o json | jq .status.conditions
@@ -634,6 +573,113 @@ If so, the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>]
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
 &lt;/ol>
+&lt;h2 id="self-upgrades">Self Upgrades&lt;/h2>
+&lt;p>In order to keep your gardenlets in such &amp;ldquo;unmanaged seeds&amp;rdquo; up-to-date (i.e., in seeds which are no shoot clusters), its Helm chart must be regularly deployed.
+This requires network connectivity to such clusters which can be challenging if they reside behind a firewall or in restricted environments.
+It is much simpler if gardenlet could keep itself up-to-date, based on configuration read from the garden cluster.
+This approach greatly reduces operational complexity.&lt;/p>
+&lt;p>gardenlet runs &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#gardenlet-controller">a controller&lt;/a> which watches for &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> resources in the garden cluster in the &lt;code>garden&lt;/code> namespace having the same name as the &lt;code>Seed&lt;/code> the gardenlet is responsible for.
+Such resources contain its component configuration and deployment values.
+Most notably, a URL to an OCI repository containing gardenlet&amp;rsquo;s Helm chart is included.&lt;/p>
+&lt;p>An example &lt;code>Gardenlet&lt;/code> resource looks like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: seedmanagement.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Gardenlet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deployment:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicaCount: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> revisionHistoryLimit: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> helm:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ociRepository:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ref: &amp;lt;url-to-gardenlet-chart-repository&amp;gt;:v1.97.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: gardenlet.config.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: GardenletConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardenClientConnection:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfigSecret:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gardenlet-kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controllers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> reconcileInMaintenanceOnly: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> respectSyncPeriodOverwrite: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootState:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> concurrentSyncs: 0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CoreDNSQueryRewriting: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> DefaultSeccompProfile: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> HVPA: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> HVPAForShootedSeed: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> IPv6SingleStack: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ShootManagedIssuer: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> etcdConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> featureGates:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> UseEtcdWrapper: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> logging:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> vali:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootNodeLogging:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootPurposes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - infrastructure
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - production
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - development
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - evaluation
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seedConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> base: kind
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> backup:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: backup-local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: internal-domain-internal-local-gardener-cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controller:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domain: ingress.local.seed.local.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: 172.18.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 10.1.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: 10.2.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootDefaults:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 10.3.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: 10.4.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> zones:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> settings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> excessCapacityReservation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scheduling:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> visible: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> verticalPodAutoscaler:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>On reconciliation, gardenlet downloads the Helm chart, renders it with the provided values, and then applies it to its own cluster.
+Hence, in order to keep a gardenlet up-to-date, it is enough to update the tag/digest of the OCI repository ref for the Helm chart:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> deployment:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> helm:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ociRepository:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ref: &amp;lt;url-to-gardenlet-chart-repository&amp;gt;:v1.97.0
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This way, network connectivity to the cluster in which gardenlet runs is not required at all (at least for deployment purposes).&lt;/p>
+&lt;p>When you delete this resource, nothing happens: gardenlet remains running with the configuration as before.
+However, self-upgrades are obviously not possible anymore.
+In order to upgrade it, you have to either recreate the &lt;code>Gardenlet&lt;/code> object, or redeploy the Helm chart.&lt;/p>
 &lt;h2 id="related-links">Related Links&lt;/h2>
 &lt;ul>
 &lt;li>&lt;a href="https://github.com/gardener/gardener/issues/1724">Issue #1724: Harden Gardenlet RBAC privileges&lt;/a>.&lt;/li>
@@ -2302,6 +2348,12 @@ In this case, the consultation of the &lt;code>SeedRestriction&lt;/code> admissi
 &lt;td>&lt;code>get&lt;/code>&lt;/td>
 &lt;td>&lt;code>ExposureClass&lt;/code> -&amp;gt; &lt;code>Shoot&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
 &lt;td>Allow &lt;code>get&lt;/code> requests for &lt;code>ExposureClass&lt;/code>es referenced by &lt;code>Shoot&lt;/code>s that are assigned to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>. Deny &lt;code>get&lt;/code> requests to other &lt;code>ExposureClass&lt;/code>es.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Gardenlet&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>update&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>&lt;code>Gardenlet&lt;/code> -&amp;gt; &lt;code>Seed&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> requests for all &lt;code>Gardenlet&lt;/code>s. Allow only &lt;code>update&lt;/code>, &lt;code>patch&lt;/code> requests for &lt;code>Gardenlet&lt;/code>s belonging to the &lt;code>gardenlet&lt;/code>&amp;rsquo;s &lt;code>Seed&lt;/code>.&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>&lt;code>Lease&lt;/code>&lt;/td>

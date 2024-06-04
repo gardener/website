@@ -2720,17 +2720,25 @@ It is responsible for maintaining the &lt;code>Required&lt;/code> condition on &
 Concretely, when there is at least one extension resource in the seed cluster a &lt;code>ControllerInstallation&lt;/code> is responsible for, then the status of the &lt;code>Required&lt;/code> condition will be &lt;code>True&lt;/code>.
 If there are no extension resources anymore, its status will be &lt;code>False&lt;/code>.&lt;/p>
 &lt;p>This condition is taken into account by the &lt;code>ControllerRegistration&lt;/code> controller part of &lt;code>gardener-controller-manager&lt;/code> when it computes which extensions have to be deployed to which seed cluster. See &lt;a href="https://gardener.cloud/docs/gardener/concepts/controller-manager/#controllerregistration-controller">Gardener Controller Manager&lt;/a> for more details.&lt;/p>
-&lt;h3 id="vpaevictionrequirements-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollervpaevictionrequirements">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/vpaevictionrequirements">&lt;code>VPAEvictionRequirements&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>VPAEvictionRequirements&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>VerticalPodAutoscaler&lt;/code> objects labeled with &lt;code>autoscaling.gardener.cloud/eviction-requirements: managed-by-controller&lt;/code>. It manages the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler/enhancements/4831-control-eviction-behavior">&lt;code>EvictionRequirements&lt;/code>&lt;/a> on a VPA object, which are used to restrict when and how a Pod can be evicted to apply a new resource recommendation.
-Specifically, the following actions will be taken for the respective label and annotation configuration:&lt;/p>
-&lt;ul>
-&lt;li>If the VPA has the label &lt;code>eviction-requirements.autoscaling.gardener.cloud/downscale-restriction: never&lt;/code>, an &lt;code>EvictionRequirement&lt;/code> is added to the VPA object that allows evictions for upscaling only&lt;/li>
-&lt;li>If the VPA has the label &lt;code>eviction-requirements.autoscaling.gardener.cloud/downscale-restriction: in-maintenance-window-only&lt;/code>, the same &lt;code>EvictionRequirement&lt;/code> is added to the VPA object when the Shoot is currently outside of its maintenance window. When the Shoot is inside its maintenance window, the &lt;code>EvictionRequirement&lt;/code> is removed. Information about the Shoot maintenance window times are stored in the annotation &lt;code>shoot.gardener.cloud/maintenance-window&lt;/code> on the VPA&lt;/li>
-&lt;/ul>
+&lt;h3 id="gardenlet-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollergardenlet">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/gardenlet">&lt;code>Gardenlet&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>Gardenlet&lt;/code> controller reconciles a &lt;code>Gardenlet&lt;/code> resource with the same name as the &lt;code>Seed&lt;/code> the gardenlet is responsible for.
+This is used to implement self-upgrades of &lt;code>gardenlet&lt;/code> based on information pulled from the garden cluster.
+For a general overview, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/">this document&lt;/a>.&lt;/p>
+&lt;p>On &lt;code>Gardenlet&lt;/code> reconciliation, the controller deploys the &lt;code>gardenlet&lt;/code> within its own cluster which after downloading the Helm chart specified in &lt;code>.spec.deployment.helm.ociRepository&lt;/code> and rendering it with the provided values/configuration.&lt;/p>
+&lt;p>On &lt;code>Gardenlet&lt;/code> deletion, nothing happens: The &lt;code>gardenlet&lt;/code> does not terminate itself - deleting a &lt;code>Gardenlet&lt;/code> object effectively means that self-upgrades are stopped.&lt;/p>
 &lt;h3 id="managedseed-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollermanagedseed">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/managedseed">&lt;code>ManagedSeed&lt;/code> Controller&lt;/a>&lt;/h3>
-&lt;p>The &lt;code>ManagedSeed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ManagedSeed&lt;/code> that refers to &lt;code>Shoot&lt;/code> scheduled on &lt;code>Seed&lt;/code> the gardenlet is responsible for. Additionally, the controller monitors &lt;code>Seed&lt;/code>s, which are owned by &lt;code>ManagedSeed&lt;/code>s for which the gardenlet is responsible.&lt;/p>
-&lt;p>On &lt;code>ManagedSeed&lt;/code> reconciliation, the controller first waits for the referenced Shoot to undergo a reconciliation process. Once the Shoot is successfully reconciled, the controller sets the &lt;code>ShootReconciled&lt;/code> status of the ManagedSeed to &lt;code>true&lt;/code>. Then, it creates &lt;code>garden&lt;/code> namespace within the target Shoot cluster. The controller also manages secrets related to Seeds, such as the &lt;code>backup&lt;/code> and &lt;code>kubeconfig&lt;/code> secrets. It ensures that these secrets are created and updated according to the ManagedSeed spec. Finally, it deploys the &lt;code>gardenlet&lt;/code> within the specified Shoot cluster which registers the &lt;code>Seed&lt;/code> cluster.&lt;/p>
-&lt;p>On &lt;code>ManagedSeed&lt;/code> deletion, the controller first deletes the corresponding &lt;code>Seed&lt;/code> that was originally created by the controller. Subsequently, it deletes the &lt;code>gardenlet&lt;/code> instance within the Shoot cluster. The controller also ensures the deletion of related Seed secrets. Finally, the dedicated &lt;code>garden&lt;/code> namespace within the Shoot cluster is deleted.&lt;/p>
+&lt;p>The &lt;code>ManagedSeed&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>ManagedSeed&lt;/code>s that refers to &lt;code>Shoot&lt;/code> scheduled on &lt;code>Seed&lt;/code> the gardenlet is responsible for.
+Additionally, the controller monitors &lt;code>Seed&lt;/code>s, which are owned by &lt;code>ManagedSeed&lt;/code>s for which the gardenlet is responsible.&lt;/p>
+&lt;p>On &lt;code>ManagedSeed&lt;/code> reconciliation, the controller first waits for the referenced &lt;code>Shoot&lt;/code> to undergo a reconciliation process.
+Once the &lt;code>Shoot&lt;/code> is successfully reconciled, the controller sets the &lt;code>ShootReconciled&lt;/code> status of the &lt;code>ManagedSeed&lt;/code> to &lt;code>true&lt;/code>.
+Then, it creates &lt;code>garden&lt;/code> namespace within the target shoot cluster.
+The controller also manages secrets related to &lt;code>Seed&lt;/code>s, such as the &lt;code>backup&lt;/code> and &lt;code>kubeconfig&lt;/code> secrets.
+It ensures that these secrets are created and updated according to the &lt;code>ManagedSeed&lt;/code> spec.
+Finally, it deploys the &lt;code>gardenlet&lt;/code> within the specified shoot cluster which registers the &lt;code>Seed&lt;/code> cluster.&lt;/p>
+&lt;p>On &lt;code>ManagedSeed&lt;/code> deletion, the controller first deletes the corresponding &lt;code>Seed&lt;/code> that was originally created by the controller.
+Subsequently, it deletes the &lt;code>gardenlet&lt;/code> instance within the shoot cluster.
+The controller also ensures the deletion of related &lt;code>Seed&lt;/code> secrets.
+Finally, the dedicated &lt;code>garden&lt;/code> namespace within the shoot cluster is deleted.&lt;/p>
 &lt;h3 id="networkpolicy-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollernetworkpolicy">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/networkpolicy">&lt;code>NetworkPolicy&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>NetworkPolicy&lt;/code> controller reconciles &lt;code>NetworkPolicy&lt;/code>s in all relevant namespaces in the seed cluster and provides so-called &amp;ldquo;general&amp;rdquo; policies for access to the runtime cluster&amp;rsquo;s API server, DNS, public networks, etc.&lt;/p>
 &lt;p>The controller resolves the IP address of the Kubernetes service in the &lt;code>default&lt;/code> namespace and creates an egress &lt;code>NetworkPolicy&lt;/code>s for it.&lt;/p>
@@ -2871,6 +2879,7 @@ A pod is considered stale when:&lt;/p>
 &lt;ul>
 &lt;li>it was terminated with reason &lt;code>Evicted&lt;/code>.&lt;/li>
 &lt;li>it was terminated with reason starting with &lt;code>OutOf&lt;/code> (e.g., &lt;code>OutOfCpu&lt;/code>).&lt;/li>
+&lt;li>it was terminated with reason &lt;code>NodeAffinity&lt;/code>.&lt;/li>
 &lt;li>it is stuck in termination (i.e., if its &lt;code>deletionTimestamp&lt;/code> is more than &lt;code>5m&lt;/code> ago).&lt;/li>
 &lt;/ul>
 &lt;h4 id="state-reconcilerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollershootstate">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/shoot/state">&amp;ldquo;State&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
@@ -2884,6 +2893,13 @@ Alternatively, it can be disabled by setting the &lt;code>concurrentSyncs=0&lt;/
 The mechanism works the same way as for shoot control plane components running in the seed which need to communicate with the shoot cluster.
 However, &lt;code>gardenlet&lt;/code>&amp;rsquo;s instance of the &lt;code>TokenRequestor&lt;/code> controller is restricted to &lt;code>Secret&lt;/code>s labeled with &lt;code>resources.gardener.cloud/class=garden&lt;/code>.
 Furthermore, it doesn&amp;rsquo;t respect the &lt;code>serviceaccount.resources.gardener.cloud/namespace&lt;/code> annotation. Instead, it always uses the seed&amp;rsquo;s namespace in the garden cluster for managing &lt;code>ServiceAccounts&lt;/code> and their tokens.&lt;/p>
+&lt;h3 id="vpaevictionrequirements-controllerhttpsgithubcomgardenergardenertreemasterpkggardenletcontrollervpaevictionrequirements">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/gardenlet/controller/vpaevictionrequirements">&lt;code>VPAEvictionRequirements&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>The &lt;code>VPAEvictionRequirements&lt;/code> controller in the &lt;code>gardenlet&lt;/code> reconciles &lt;code>VerticalPodAutoscaler&lt;/code> objects labeled with &lt;code>autoscaling.gardener.cloud/eviction-requirements: managed-by-controller&lt;/code>. It manages the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler/enhancements/4831-control-eviction-behavior">&lt;code>EvictionRequirements&lt;/code>&lt;/a> on a VPA object, which are used to restrict when and how a Pod can be evicted to apply a new resource recommendation.
+Specifically, the following actions will be taken for the respective label and annotation configuration:&lt;/p>
+&lt;ul>
+&lt;li>If the VPA has the annotation &lt;code>eviction-requirements.autoscaling.gardener.cloud/downscale-restriction: never&lt;/code>, an &lt;code>EvictionRequirement&lt;/code> is added to the VPA object that allows evictions for upscaling only&lt;/li>
+&lt;li>If the VPA has the annotation &lt;code>eviction-requirements.autoscaling.gardener.cloud/downscale-restriction: in-maintenance-window-only&lt;/code>, the same &lt;code>EvictionRequirement&lt;/code> is added to the VPA object when the Shoot is currently outside of its maintenance window. When the Shoot is inside its maintenance window, the &lt;code>EvictionRequirement&lt;/code> is removed. Information about the Shoot maintenance window times are stored in the annotation &lt;code>shoot.gardener.cloud/maintenance-window&lt;/code> on the VPA&lt;/li>
+&lt;/ul>
 &lt;h2 id="managed-seeds">Managed Seeds&lt;/h2>
 &lt;p>Gardener users can use shoot clusters as seed clusters, so-called &amp;ldquo;managed seeds&amp;rdquo; (aka &amp;ldquo;shooted seeds&amp;rdquo;),
 by creating &lt;code>ManagedSeed&lt;/code> resources.
@@ -2891,7 +2907,7 @@ By default, the gardenlet that manages this shoot cluster then automatically
 creates a clone of itself with the same version and the same configuration
 that it currently has.
 Then it deploys the gardenlet clone into the managed seed cluster.&lt;/p>
-&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">Register Shoot as Seed&lt;/a>.&lt;/p>
+&lt;p>For more information, see &lt;a href="https://gardener.cloud/docs/gardener/managed_seed/">&lt;code>ManagedSeed&lt;/code>s: Register Shoot as Seed&lt;/a>.&lt;/p>
 &lt;h2 id="migrating-from-previous-gardener-versions">Migrating from Previous Gardener Versions&lt;/h2>
 &lt;p>If your Gardener version doesn’t support gardenlets yet,
 no special migration is required, but the following prerequisites must be met:&lt;/p>

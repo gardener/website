@@ -3647,13 +3647,14 @@ A secondary problem is that, though auto-compaction is enabled for etcd, it is n
 &lt;p>To help with the problem mentioned earlier, our proposal is to introduce &lt;code>compact&lt;/code> subcommand with &lt;code>etcdbrctl&lt;/code>. On execution of &lt;code>compact&lt;/code> command, A separate embedded Etcd process will be started where the Etcd data will be restored from the snapstore (exactly as in the restoration scenario today). Then the new Etcd database will be compacted and defragmented using Etcd API calls. The compaction will strip off the Etcd database of old revisions as per the Etcd auto-compaction configuration. The defragmentation will free up the unused fragment memory space released after compaction. Then a full snapshot of the compacted database will be saved in snapstore which then can be used as the base snapshot during any subsequent restoration (or backup compaction).&lt;/p>
 &lt;h3 id="how-the-solution-works">How the solution works&lt;/h3>
 &lt;p>The newly introduced compact command does not disturb the running Etcd while compacting the backup snapshots. The command is designed to run potentially separately (from the main Etcd process/container/pod). Etcd Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of Etcd events accumulated after the most recent full snapshot.&lt;/p>
-&lt;h3 id="druid-flags">Druid flags:&lt;/h3>
-&lt;p>Etcd druid introduced following flags to configure the compaction job:&lt;/p>
+&lt;h3 id="etcd-druid-flags">Etcd-druid flags:&lt;/h3>
+&lt;p>Etcd-druid introduces the following flags to configure the compaction job:&lt;/p>
 &lt;ul>
-&lt;li>&lt;code>--enable-backup-compaction&lt;/code> (default &lt;code>false&lt;/code>): Set this flag to &lt;code>true&lt;/code> to enable the automatic compaction of etcd backups when &lt;code>etcd-events-threshold&lt;/code> is exceeded.&lt;/li>
-&lt;li>&lt;code>--compaction-workers&lt;/code> (default &lt;code>3&lt;/code>): If this flag is set to zero, no compaction job will be running. If it&amp;rsquo;s set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.&lt;/li>
-&lt;li>&lt;code>--etcd-events-threshold&lt;/code> (default &lt;code>1000000&lt;/code>): Set this flag with the value which will signify the number of Etcd events allowed after the most recent full snapshot. Once the number of Etcd events crosses the value mentioned in this flag, compaction job will be kickstarted.&lt;/li>
-&lt;li>&lt;code>--active-deadline-duration&lt;/code> (default &lt;code>3h&lt;/code>): This flag signifies the maximum duration till which a compaction job won&amp;rsquo;t be garbage-collected.&lt;/li>
+&lt;li>&lt;code>--enable-backup-compaction&lt;/code> (default &lt;code>false&lt;/code>): Set this flag to &lt;code>true&lt;/code> to enable the automatic compaction of etcd backups when the threshold value denoted by CLI flag &lt;code>--etcd-events-threshold&lt;/code> is exceeded.&lt;/li>
+&lt;li>&lt;code>--compaction-workers&lt;/code> (default &lt;code>3&lt;/code>): Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.&lt;/li>
+&lt;li>&lt;code>--etcd-events-threshold&lt;/code> (default &lt;code>1000000&lt;/code>): Total number of etcd events that can be allowed before a backup compaction job is triggered.&lt;/li>
+&lt;li>&lt;code>--active-deadline-duration&lt;/code> (default &lt;code>3h&lt;/code>): Duration after which a running backup compaction job will be terminated.&lt;/li>
+&lt;li>&lt;code>--metrics-scrape-wait-duration&lt;/code> (default &lt;code>0s&lt;/code>): Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.&lt;/li>
 &lt;/ul>
 &lt;h3 id="points-to-take-care-while-saving-the-compacted-snapshot">&lt;strong>Points to take care while saving the compacted snapshot:&lt;/strong>&lt;/h3>
 &lt;p>As compacted snapshot and the existing periodic full snapshots are taken by different processes running in different pods but accessing same store to save the snapshots, some problems may arise:&lt;/p>
@@ -3741,16 +3742,11 @@ And with the help of this annotation and config-map values etcd-druid is able to
 &lt;h2 id="action-taken-by-etcd-druid-to-enable-the-peerurl-tls">Action taken by etcd-druid to enable the peerURL TLS&lt;/h2>
 &lt;ol>
 &lt;li>Etcd-druid will update the &lt;code>etcd-bootstrap&lt;/code> config-map with new config like initial-cluster,initial-advertise-peer-urls etc. Backup-restore will detect this change and update the member lease annotation to &lt;code>member.etcd.gardener.cloud/tls-enabled: &amp;quot;true&amp;quot;&lt;/code>.&lt;/li>
-&lt;li>In case the peer URL TLS has been changed to &lt;code>enabled&lt;/code>: Etcd-druid will add tasks to the deployment flow.
+&lt;li>In case the peer URL TLS has been changed to &lt;code>enabled&lt;/code>: Etcd-druid will add tasks to the deployment flow:
 &lt;ul>
-&lt;li>To ensure that the TLS enablement of peer URL is properly reflected in etcd, the existing etcd StatefulSet pods should be restarted twice.&lt;/li>
-&lt;li>The first restart pushes a new configuration which contains Peer URL TLS configuration. Backup-restore will update the member peer url. This will result in the change of the peer url in the etcd&amp;rsquo;s database, but it may not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s doesn&amp;rsquo;t expose an API to force restart a single container within a pod. Therefore, we need to restart the StatefulSet pod(s) once again. When the pod(s) is restarted the second time it will now start etcd with the correct peer url which will be TLS enabled.&lt;/li>
-&lt;li>To achieve 2 restarts following is done:
-&lt;ul>
-&lt;li>An update is made to the spec mounting the peer URL TLS secrets. This will cause a rolling update of the existing pod.&lt;/li>
-&lt;li>Once the update is successfully completed, then we delete StatefulSet pods, causing a restart by the StatefulSet controller.&lt;/li>
-&lt;/ul>
-&lt;/li>
+&lt;li>Check if peer TLS has been enabled for existing StatefulSet pods, by checking the member leases for the annotation &lt;code>member.etcd.gardener.cloud/tls-enabled&lt;/code>.&lt;/li>
+&lt;li>If peer TLS enablement is pending for any of the members, then check and patch the StatefulSet with the peer TLS volume mounts, if not already patched. This will cause a rolling update of the existing StatefulSet pods, which allows etcd-backup-restore to update the member peer URL in the etcd cluster.&lt;/li>
+&lt;li>Requeue this reconciliation flow until peer TLS has been enabled for all the existing etcd members.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ol>
@@ -3760,23 +3756,204 @@ And with the help of this annotation and config-map values etcd-druid is able to
 &lt;p>As backup-restore detects that it&amp;rsquo;s a scale-up scenario, backup-restore sets &lt;code>initial-cluster-state&lt;/code> to &lt;code>existing&lt;/code> as this member will join an existing cluster and it calculates the rest of the config from the updated config-map provided by etcd-druid.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/03-scale-up-sequenceDiagram_76558b.png" alt="Sequence diagram">&lt;/p>
 &lt;h2 id="future-improvements">Future improvements:&lt;/h2>
-&lt;p>The need of restarting etcd pods twice will change in the future. please refer: &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/538">https://github.com/gardener/etcd-backup-restore/issues/538&lt;/a>&lt;/p></description></item><item><title>Docs: Controllers</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</guid><description>
+&lt;p>The need of restarting etcd pods twice will change in the future. please refer: &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/538">https://github.com/gardener/etcd-backup-restore/issues/538&lt;/a>&lt;/p></description></item><item><title>Docs: Cli Flags</title><link>https://gardener.cloud/docs/other-components/etcd-druid/deployment/cli-flags/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/deployment/cli-flags/</guid><description>
+&lt;h1 id="cli-flags">CLI Flags&lt;/h1>
+&lt;p>Etcd-druid exposes the following CLI flags that allow for configuring its behavior.&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>CLI FLag&lt;/th>
+&lt;th>Component&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;th>Default&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>feature-gates&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-druid&lt;/code>&lt;/td>
+&lt;td>A set of key=value pairs that describe feature gates for alpha/experimental features. Please check &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/deployment/feature-gates/">feature-gates&lt;/a> for more information.&lt;/td>
+&lt;td>&lt;code>&amp;quot;&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>metrics-bind-address&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The IP address that the metrics endpoint binds to.&lt;/td>
+&lt;td>&lt;code>&amp;quot;&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>metrics-port&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The port used for the metrics endpoint.&lt;/td>
+&lt;td>&lt;code>8080&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>metrics-addr&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The fully qualified address:port that the metrics endpoint binds to.&lt;br />Deprecated: this field will be eventually removed. Please use &lt;code>--metrics-bind-address&lt;/code> and &amp;ndash;&lt;code>metrics-port&lt;/code> instead.&lt;/td>
+&lt;td>&lt;code>&amp;quot;:8080&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>webhook-server-bind-address&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The IP address on which to listen for the HTTPS webhook server.&lt;/td>
+&lt;td>&lt;code>&amp;quot;&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>webhook-server-port&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The port on which to listen for the HTTPS webhook server.&lt;/td>
+&lt;td>&lt;code>9443&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>webhook-server-tls-server-cert-dir&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>The path to a directory containing the server&amp;rsquo;s TLS certificate and key (the files must be named tls.crt and tls.key respectively).&lt;/td>
+&lt;td>&lt;code>&amp;quot;/etc/webhook-server-tls&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>enable-leader-election&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>leader-election-id&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>Name of the resource that leader election will use for holding the leader lock.&lt;/td>
+&lt;td>&lt;code>&amp;quot;druid-leader-election&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>leader-election-resource-lock&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>Specifies which resource type to use for leader election. Supported options are &amp;rsquo;endpoints&amp;rsquo;, &amp;lsquo;configmaps&amp;rsquo;, &amp;rsquo;leases&amp;rsquo;, &amp;rsquo;endpointsleases&amp;rsquo; and &amp;lsquo;configmapsleases&amp;rsquo;.&lt;br />Deprecated. Will be removed in the future in favour of using only &lt;code>leases&lt;/code> as the leader election resource lock for the controller manager.&lt;/td>
+&lt;td>&lt;code>&amp;quot;leases&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>disable-lease-cache&lt;/code>&lt;/td>
+&lt;td>&lt;code>controller-manager&lt;/code>&lt;/td>
+&lt;td>Disable cache for lease.coordination.k8s.io resources.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-workers&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.&lt;/td>
+&lt;td>&lt;code>3&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ignore-operation-annotation&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>Specifies whether to ignore or honour the annotation &lt;code>gardener.cloud/operation: reconcile&lt;/code> on resources to be reconciled.&lt;br />Deprecated: please use &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> instead.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>enable-etcd-spec-auto-reconcile&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation &lt;code>gardener.cloud/operation: reconcile&lt;/code> to be placed on the Etcd resource to trigger reconcile.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>disable-etcd-serviceaccount-automount&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-status-sync-period&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>Period after which an etcd status sync will be attempted.&lt;/td>
+&lt;td>&lt;code>15s&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-member-notready-threshold&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>Threshold after which an etcd member is considered not ready if the status was unknown before.&lt;/td>
+&lt;td>&lt;code>5m&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-member-unknown-threshold&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcd-controller&lt;/code>&lt;/td>
+&lt;td>Threshold after which an etcd member is considered unknown.&lt;/td>
+&lt;td>&lt;code>1m&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>enable-backup-compaction&lt;/code>&lt;/td>
+&lt;td>&lt;code>compaction-controller&lt;/code>&lt;/td>
+&lt;td>Enable automatic compaction of etcd backups.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>compaction-workers&lt;/code>&lt;/td>
+&lt;td>&lt;code>compaction-controller&lt;/code>&lt;/td>
+&lt;td>Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.&lt;/td>
+&lt;td>&lt;code>3&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-events-threshold&lt;/code>&lt;/td>
+&lt;td>&lt;code>compaction-controller&lt;/code>&lt;/td>
+&lt;td>Total number of etcd events that can be allowed before a backup compaction job is triggered.&lt;/td>
+&lt;td>&lt;code>1000000&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>active-deadline-duration&lt;/code>&lt;/td>
+&lt;td>&lt;code>compaction-controller&lt;/code>&lt;/td>
+&lt;td>Duration after which a running backup compaction job will be terminated.&lt;/td>
+&lt;td>&lt;code>3h&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>metrics-scrape-wait-duration&lt;/code>&lt;/td>
+&lt;td>&lt;code>compaction-controller&lt;/code>&lt;/td>
+&lt;td>Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.&lt;/td>
+&lt;td>&lt;code>0s&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-copy-backups-task-workers&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcdcopybackupstask-controller&lt;/code>&lt;/td>
+&lt;td>Number of worker threads for the etcdcopybackupstask controller.&lt;/td>
+&lt;td>&lt;code>3&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>secret-workers&lt;/code>&lt;/td>
+&lt;td>&lt;code>secret-controller&lt;/code>&lt;/td>
+&lt;td>Number of worker threads for the secrets controller.&lt;/td>
+&lt;td>&lt;code>10&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>enable-etcd-components-webhook&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcdcomponents-webhook&lt;/code>&lt;/td>
+&lt;td>Enable EtcdComponents Webhook to prevent unintended changes to resources managed by etcd-druid.&lt;/td>
+&lt;td>&lt;code>false&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>reconciler-service-account&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcdcomponents-webhook&lt;/code>&lt;/td>
+&lt;td>The fully qualified name of the service account used by etcd-druid for reconciling etcd resources. If unspecified, the default service account mounted for etcd-druid will be used.&lt;/td>
+&lt;td>&lt;code>&amp;lt;etcd-druid-service-account&amp;gt;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>etcd-components-exempt-service-accounts&lt;/code>&lt;/td>
+&lt;td>&lt;code>etcdcomponents-webhook&lt;/code>&lt;/td>
+&lt;td>The comma-separated list of fully qualified names of service accounts that are exempt from EtcdComponents Webhook checks.&lt;/td>
+&lt;td>&lt;code>&amp;quot;&amp;quot;&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table></description></item><item><title>Docs: Controllers</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</guid><description>
 &lt;h1 id="controllers">Controllers&lt;/h1>
 &lt;p>etcd-druid is an operator to manage etcd clusters, and follows the &lt;a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/">&lt;code>Operator&lt;/code>&lt;/a> pattern for Kubernetes.
 It makes use of the &lt;a href="https://github.com/kubernetes-sigs/kubebuilder">Kubebuilder&lt;/a> framework which makes it quite easy to define Custom Resources (CRs) such as &lt;code>Etcd&lt;/code>s and &lt;code>EtcdCopyBackupTask&lt;/code>s through &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/">&lt;em>Custom Resource Definitions&lt;/em>&lt;/a> (CRDs), and define controllers for these CRDs.
 etcd-druid uses Kubebuilder to define the &lt;code>Etcd&lt;/code> CR and its corresponding controllers.&lt;/p>
-&lt;p>All controllers that are a part of etcd-druid reside in package &lt;code>./controllers&lt;/code>, as sub-packages.&lt;/p>
-&lt;p>etcd-druid currently consists of 5 controllers, each having its own responsibility:&lt;/p>
+&lt;p>All controllers that are a part of etcd-druid reside in package &lt;code>internal/controller&lt;/code>, as sub-packages.&lt;/p>
+&lt;p>Etcd-druid currently consists of the following controllers, each having its own responsibility:&lt;/p>
 &lt;ul>
-&lt;li>&lt;em>etcd&lt;/em> : responsible for the reconciliation of the &lt;code>Etcd&lt;/code> CR, which allows users to run etcd clusters within the specified Kubernetes cluster.&lt;/li>
-&lt;li>&lt;em>custodian&lt;/em> : responsible for the updation of the status of the &lt;code>Etcd&lt;/code> CR.&lt;/li>
+&lt;li>&lt;em>etcd&lt;/em> : responsible for the reconciliation of the &lt;code>Etcd&lt;/code> CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the &lt;code>Etcd&lt;/code> CR status with the up-to-date state of the managed etcd cluster.&lt;/li>
 &lt;li>&lt;em>compaction&lt;/em> : responsible for &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/02-snapshot-compaction/">snapshot compaction&lt;/a>.&lt;/li>
 &lt;li>&lt;em>etcdcopybackupstask&lt;/em> : responsible for the reconciliation of the &lt;code>EtcdCopyBackupsTask&lt;/code> CR, which helps perform the job of copying snapshot backups from one object store to another.&lt;/li>
 &lt;li>&lt;em>secret&lt;/em> : responsible in making sure &lt;code>Secret&lt;/code>s being referenced by &lt;code>Etcd&lt;/code> resources are not deleted while in use.&lt;/li>
 &lt;/ul>
 &lt;h2 id="package-structure">Package Structure&lt;/h2>
-&lt;p>The typical package structure for the controllers that are part of etcd-druid is shown with the &lt;em>custodian controller&lt;/em>:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>controllers/custodian
+&lt;p>The typical package structure for the controllers that are part of etcd-druid is shown with the &lt;em>compaction controller&lt;/em>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>internal/controller/compaction
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>├── config.go
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>├── reconciler.go
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>└── register.go
@@ -3791,52 +3968,57 @@ etcd-druid uses Kubebuilder to define the &lt;code>Etcd&lt;/code> CR and its cor
 The &lt;em>controller manager&lt;/em> is responsible for all the controllers that are associated with CRDs.
 Once the manager is &lt;code>Start()&lt;/code>ed, all the controllers that are &lt;em>registered&lt;/em> with it are started.&lt;/p>
 &lt;p>Each controller is built using a controller builder, configured with details such as the type of object being reconciled, owned objects whose owner object is reconciled, event filters (predicates), etc. &lt;code>Predicates&lt;/code> are filters which allow controllers to filter which type of events the controller should respond to and which ones to ignore.&lt;/p>
-&lt;p>The logic relevant to the controller manager like the creation of the controller manager and registering each of the controllers with the manager, is contained in &lt;a href="https://github.com/gardener/etcd-druid/blob/master/controllers/manager.go">&lt;code>controllers/manager.go&lt;/code>&lt;/a>.&lt;/p>
+&lt;p>The logic relevant to the controller manager like the creation of the controller manager and registering each of the controllers with the manager, is contained in &lt;a href="https://github.com/gardener/etcd-druid/blob/master/internal/controller/manager.go">&lt;code>internal/controller/manager.go&lt;/code>&lt;/a>.&lt;/p>
 &lt;h2 id="etcd-controller">Etcd Controller&lt;/h2>
-&lt;p>The &lt;em>etcd controller&lt;/em> is responsible for the reconciliation of the &lt;code>Etcd&lt;/code> resource.
-It handles the provisioning and management of the etcd cluster. Different components that are required for the functioning of the cluster like &lt;code>Leases&lt;/code>, &lt;code>ConfigMap&lt;/code>s, and the &lt;code>Statefulset&lt;/code> for the etcd cluster are all deployed and managed by the &lt;em>etcd controller&lt;/em>.&lt;/p>
-&lt;p>While building the controller, an event filter is set such that the behavior of the controller depends on the &lt;code>gardener.cloud/operation: reconcile&lt;/code> &lt;em>annotation&lt;/em>. This is controlled by the &lt;code>--ignore-operation-annotation&lt;/code> CLI flag, which, if set to &lt;code>false&lt;/code>, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to &lt;code>true&lt;/code>, the controller will trigger reconciliation anytime the &lt;code>Etcd&lt;/code> spec, and thus &lt;code>generation&lt;/code>, changes.&lt;/p>
-&lt;p>The reason this filter is present is that any disruption in the &lt;code>Etcd&lt;/code> resource due to reconciliation (due to changes in the &lt;code>Etcd&lt;/code> spec, for example) while workloads are being run would be disastrous.
-Hence, any user who wishes to avoid such disruptions, can choose to set the &lt;code>--ignore-operation-annotation&lt;/code> CLI flag to &lt;code>false&lt;/code>. An example of this is Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a>, which reconciles the &lt;code>Etcd&lt;/code> resource only during a shoot cluster&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/">&lt;em>maintenance window&lt;/em>&lt;/a>.&lt;/p>
-&lt;p>The controller adds a finalizer to the &lt;code>Etcd&lt;/code> resource in order to ensure that the &lt;code>Etcd&lt;/code> instance does not get deleted while the system is still dependent on the existence of the &lt;code>Etcd&lt;/code> resource.
-Only the &lt;em>etcd controller&lt;/em> can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. When the &lt;em>etcd controller&lt;/em> enters the deletion flow, components are deleted in the reverse order that they were deployed in.&lt;/p>
-&lt;p>The &lt;em>etcd controller&lt;/em> is essential to the functioning of the etcd cluster and etcd-druid, thus the minimum number of worker threads is 1 (default being 3).&lt;/p>
-&lt;h2 id="custodian-controller">Custodian Controller&lt;/h2>
-&lt;p>The &lt;em>custodian controller&lt;/em> acts on the &lt;code>Etcd&lt;/code> resource.
-The primary purpose of the &lt;em>custodian controller&lt;/em> is to update the status of the &lt;code>Etcd&lt;/code> resource.&lt;/p>
-&lt;p>It watches for changes in the status of the &lt;code>Statefulset&lt;/code>s associated with the &lt;code>Etcd&lt;/code> resources.
-Even though the &lt;code>Etcd&lt;/code> resource owns the &lt;code>Statefulset&lt;/code>, it is not necessary that the &lt;em>etcd controller&lt;/em> reconciles whenever there are changes in the statuses of the objects that the &lt;code>Etcd&lt;/code> resource owns.&lt;/p>
-&lt;p>Status fields of the &lt;code>Etcd&lt;/code> resource which correspond to the &lt;code>StatefulSet&lt;/code> like &lt;code>CurrentReplicas&lt;/code>, &lt;code>ReadyReplicas&lt;/code>, &lt;code>Replicas&lt;/code> and &lt;code>Ready&lt;/code> are updated to reflect those of the &lt;code>StatefulSet&lt;/code> by the controller. Cluster membership (&lt;code>EtcdMemberStatus&lt;/code>) and &lt;code>Conditions&lt;/code> are updated as follows:&lt;/p>
+&lt;p>The &lt;em>etcd controller&lt;/em> is responsible for the reconciliation of the &lt;code>Etcd&lt;/code> resource spec and status. It handles the provisioning and management of the etcd cluster. Different components that are required for the functioning of the cluster like &lt;code>Leases&lt;/code>, &lt;code>ConfigMap&lt;/code>s, and the &lt;code>Statefulset&lt;/code> for the etcd cluster are all deployed and managed by the &lt;em>etcd controller&lt;/em>.&lt;/p>
+&lt;p>Additionally, &lt;em>etcd controller&lt;/em> also periodically updates the &lt;code>Etcd&lt;/code> resource status with the latest available information from the etcd cluster, as well as results and errors from the recent-most reconciliation of the &lt;code>Etcd&lt;/code> resource spec.&lt;/p>
+&lt;p>The &lt;em>etcd controller&lt;/em> is essential to the functioning of the etcd cluster and etcd-druid, thus the minimum number of worker threads is 1 (default being 3), controlled by the CLI flag &lt;code>--etcd-workers&lt;/code>.&lt;/p>
+&lt;h3 id="etcd-spec-reconciliation">&lt;code>Etcd&lt;/code> Spec Reconciliation&lt;/h3>
+&lt;p>While building the controller, an event filter is set such that the behavior of the controller, specifically for &lt;code>Etcd&lt;/code> update operations, depends on the &lt;code>gardener.cloud/operation: reconcile&lt;/code> &lt;em>annotation&lt;/em>. This is controlled by the &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> CLI flag, which, if set to &lt;code>false&lt;/code>, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to &lt;code>true&lt;/code>, the controller will reconcile the etcd cluster anytime the &lt;code>Etcd&lt;/code> spec, and thus &lt;code>generation&lt;/code>, changes, and the next queued event for it is triggered.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Creation and deletion of &lt;code>Etcd&lt;/code> resources are not affected by the above flag or annotation.&lt;/p>
+&lt;/blockquote>
+&lt;p>The reason this filter is present is that any disruption in the &lt;code>Etcd&lt;/code> resource due to reconciliation (due to changes in the &lt;code>Etcd&lt;/code> spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> CLI flag to &lt;code>false&lt;/code>. An example of this is Gardener&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">gardenlet&lt;/a>, which reconciles the &lt;code>Etcd&lt;/code> resource only during a shoot cluster&amp;rsquo;s &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/">&lt;em>maintenance window&lt;/em>&lt;/a>.&lt;/p>
+&lt;p>The controller adds a finalizer to the &lt;code>Etcd&lt;/code> resource in order to ensure that it does not get deleted until all dependent resources managed by etcd-druid, aka managed components, are properly cleaned up. Only the &lt;em>etcd controller&lt;/em> can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. During deletion flow, managed components are deleted in parallel.&lt;/p>
+&lt;h3 id="etcd-status-updates">&lt;code>Etcd&lt;/code> Status Updates&lt;/h3>
+&lt;p>The &lt;code>Etcd&lt;/code> resource status is updated periodically by &lt;code>etcd controller&lt;/code>, the interval for which is determined by the CLI flag &lt;code>--etcd-status-sync-period&lt;/code>.&lt;/p>
+&lt;p>Status fields of the &lt;code>Etcd&lt;/code> resource such as &lt;code>LastOperation&lt;/code>, &lt;code>LastErrors&lt;/code> and &lt;code>ObservedGeneration&lt;/code>, are updated to reflect the result of the recent reconciliation of the &lt;code>Etcd&lt;/code> resource spec.&lt;/p>
 &lt;ul>
-&lt;li>
-&lt;p>Cluster Membership: The controller updates the information about etcd cluster membership like &lt;code>Role&lt;/code>, &lt;code>Status&lt;/code>, &lt;code>Reason&lt;/code>, &lt;code>LastTransitionTime&lt;/code> and identifying information like the &lt;code>Name&lt;/code> and &lt;code>ID&lt;/code>. For the &lt;code>Status&lt;/code> field, the member is checked for the &lt;em>Ready&lt;/em> condition, where the member can be in &lt;code>Ready&lt;/code>, &lt;code>NotReady&lt;/code> and &lt;code>Unknown&lt;/code> statuses.&lt;/p>
-&lt;/li>
-&lt;li>
-&lt;p>Condition: The controller updates the &lt;code>Conditions&lt;/code> field which holds the latest information of the &lt;code>Etcd&lt;/code>&amp;rsquo;s state. The condition checks that are performed are &lt;code>AllMembersCheck&lt;/code>, &lt;code>ReadyCheck&lt;/code> and &lt;code>BackupReadyCheck&lt;/code>. The first two of these checks make use of the &lt;code>EtcdMemberStatus&lt;/code> to update &lt;code>Conditions&lt;/code> with information about the members, and the last corresponds to the status of the backup.&lt;/p>
-&lt;/li>
+&lt;li>&lt;code>LastOperation&lt;/code> holds information about the last operation performed on the etcd cluster, indicated by fields &lt;code>Type&lt;/code>, &lt;code>State&lt;/code>, &lt;code>Description&lt;/code> and &lt;code>LastUpdateTime&lt;/code>. Additionally, a field &lt;code>RunID&lt;/code> indicates the unique ID assigned to the specific reconciliation run, to allow for better debugging of issues.&lt;/li>
+&lt;li>&lt;code>LastErrors&lt;/code> is a slice of errors encountered by the last reconciliation run. Each error consists of fields &lt;code>Code&lt;/code> to indicate the custom etcd-druid error code for the error, a human-readable &lt;code>Description&lt;/code>, and the &lt;code>ObservedAt&lt;/code> time when the error was seen.&lt;/li>
+&lt;li>&lt;code>ObservedGeneration&lt;/code> indicates the latest &lt;code>generation&lt;/code> of the &lt;code>Etcd&lt;/code> resource that etcd-druid has &amp;ldquo;observed&amp;rdquo; and consequently reconciled. It helps identify whether a change in the &lt;code>Etcd&lt;/code> resource spec was acted upon by druid or not.&lt;/li>
 &lt;/ul>
-&lt;p>To reflect changes that occur in the &lt;code>Statefulset&lt;/code> status in the &lt;code>Etcd&lt;/code> resource, the &lt;em>custodian controller&lt;/em> keeps a watch on the &lt;code>Statefulset&lt;/code>.&lt;/p>
-&lt;p>The &lt;em>custodian controller&lt;/em> reconciles periodically, which can be set through the &lt;code>--custodian-sync-period&lt;/code> CLI flag (default being 30 seconds). It also reconciles whenever there are changes to the &lt;code>Statefulset&lt;/code> status.&lt;/p>
-&lt;p>The &lt;em>custodian controller&lt;/em> is essential to the functioning of etcd-druid, thus the minimum number of worker threads is 1, (default being 3).&lt;/p>
+&lt;p>Status fields of the &lt;code>Etcd&lt;/code> resource which correspond to the &lt;code>StatefulSet&lt;/code> like &lt;code>CurrentReplicas&lt;/code>, &lt;code>ReadyReplicas&lt;/code> and &lt;code>Replicas&lt;/code> are updated to reflect those of the &lt;code>StatefulSet&lt;/code> by the controller.&lt;/p>
+&lt;p>Status fields related to the etcd cluster itself, such as &lt;code>Members&lt;/code>, &lt;code>PeerUrlTLSEnabled&lt;/code> and &lt;code>Ready&lt;/code> are updated as follows:&lt;/p>
+&lt;ul>
+&lt;li>Cluster Membership: The controller updates the information about etcd cluster membership like &lt;code>Role&lt;/code>, &lt;code>Status&lt;/code>, &lt;code>Reason&lt;/code>, &lt;code>LastTransitionTime&lt;/code> and identifying information like the &lt;code>Name&lt;/code> and &lt;code>ID&lt;/code>. For the &lt;code>Status&lt;/code> field, the member is checked for the &lt;em>Ready&lt;/em> condition, where the member can be in &lt;code>Ready&lt;/code>, &lt;code>NotReady&lt;/code> and &lt;code>Unknown&lt;/code> statuses.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>Etcd&lt;/code> resource conditions are indicated by status field &lt;code>Conditions&lt;/code>. The condition checks that are currently performed are:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>AllMembersReady&lt;/code>: indicates readiness of all members of the etcd cluster.&lt;/li>
+&lt;li>&lt;code>Ready&lt;/code>: indicates overall readiness of the etcd cluster in serving traffic.&lt;/li>
+&lt;li>&lt;code>BackupReady&lt;/code>: indicates health of the etcd backups, i.e., whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.&lt;/li>
+&lt;li>&lt;code>DataVolumesReady&lt;/code>: indicates health of the persistent volumes containing the etcd data.&lt;/li>
+&lt;/ul>
 &lt;h2 id="compaction-controller">Compaction Controller&lt;/h2>
-&lt;p>The &lt;em>compaction controller&lt;/em> deploys the snapshot compaction job whenever required.
+&lt;p>The &lt;em>compaction controller&lt;/em> deploys the snapshot compaction job whenever required. To understand the rationale behind this controller, please read &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/02-snapshot-compaction/">snapshot-compaction.md&lt;/a>.
 The controller watches the number of events accumulated as part of delta snapshots in the etcd cluster&amp;rsquo;s backups, and triggers a snapshot compaction when the number of delta events crosses the set threshold, which is configurable through the &lt;code>--etcd-events-threshold&lt;/code> CLI flag (1M events by default).&lt;/p>
 &lt;p>The controller watches for changes in &lt;em>snapshot&lt;/em> &lt;code>Leases&lt;/code> associated with &lt;code>Etcd&lt;/code> resources.
 It checks the full and delta snapshot &lt;code>Leases&lt;/code> and calculates the difference in events between the latest delta snapshot and the previous full snapshot, and initiates the compaction job if the event threshold is crossed.&lt;/p>
-&lt;p>The number of worker threads for the &lt;em>compaction controller&lt;/em> needs to be greater than or equal to 0 (default 3).
+&lt;p>The number of worker threads for the &lt;em>compaction controller&lt;/em> needs to be greater than or equal to 0 (default 3), controlled by the CLI flag &lt;code>--compaction-workers&lt;/code>.
 This is unlike other controllers which need at least one worker thread for the proper functioning of etcd-druid as snapshot compaction is not a core functionality for the etcd clusters to be deployed.
 The compaction controller should be explicitly enabled by the user, through the &lt;code>--enable-backup-compaction&lt;/code> CLI flag.&lt;/p>
-&lt;h2 id="etcdcopybackupstask-controller">Etcdcopybackupstask Controller&lt;/h2>
+&lt;h2 id="etcdcopybackupstask-controller">EtcdCopyBackupsTask Controller&lt;/h2>
 &lt;p>The &lt;em>etcdcopybackupstask controller&lt;/em> is responsible for deploying the &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/cmd/copy.go">&lt;code>etcdbrctl copy&lt;/code>&lt;/a> command as a job.
 This controller reacts to create/update events arising from EtcdCopyBackupsTask resources, and deploys the &lt;code>EtcdCopyBackupsTask&lt;/code> job with source and target backup storage providers as arguments, which are derived from source and target bucket secrets referenced by the &lt;code>EtcdCopyBackupsTask&lt;/code> resource.&lt;/p>
-&lt;p>The number of worker threads for the &lt;em>etcdcopybackupstask controller&lt;/em> needs to be greater than or equal to 0 (default being 3).
+&lt;p>The number of worker threads for the &lt;em>etcdcopybackupstask controller&lt;/em> needs to be greater than or equal to 0 (default being 3), controlled by the CLI flag &lt;code>--etcd-copy-backups-task-workers&lt;/code>.
 This is unlike other controllers who need at least one worker thread for the proper functioning of etcd-druid as &lt;code>EtcdCopyBackupsTask&lt;/code> is not a core functionality for the etcd clusters to be deployed.&lt;/p>
 &lt;h2 id="secret-controller">Secret Controller&lt;/h2>
 &lt;p>The &lt;em>secret controller&lt;/em>&amp;rsquo;s primary responsibility is to add a finalizer on &lt;code>Secret&lt;/code>s referenced by the &lt;code>Etcd&lt;/code> resource.
 The &lt;em>secret controller&lt;/em> is registered for &lt;code>Secret&lt;/code>s, and the controller keeps a watch on the &lt;code>Etcd&lt;/code> CR.
 This finalizer is added to ensure that &lt;code>Secret&lt;/code>s which are referenced by the &lt;code>Etcd&lt;/code> CR aren&amp;rsquo;t deleted while still being used by the &lt;code>Etcd&lt;/code> resource.&lt;/p>
 &lt;p>Events arising from the &lt;code>Etcd&lt;/code> resource are mapped to a list of &lt;code>Secret&lt;/code>s such as backup and TLS secrets that are referenced by the &lt;code>Etcd&lt;/code> resource, and are enqueued into the request queue, which the reconciler then acts on.&lt;/p>
-&lt;p>The number of worker threads for the secret controller must be at least 1 (default being 10) for this core controller, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.&lt;/p></description></item><item><title>Docs: DEP Title</title><link>https://gardener.cloud/docs/other-components/etcd-druid/proposals/00-template/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/proposals/00-template/</guid><description>
+&lt;p>The number of worker threads for the secret controller must be at least 1 (default being 10) for this core controller, controlled by the CLI flag &lt;code>--secret-workers&lt;/code>, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.&lt;/p></description></item><item><title>Docs: DEP Title</title><link>https://gardener.cloud/docs/other-components/etcd-druid/proposals/00-template/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/proposals/00-template/</guid><description>
 &lt;h1 id="dep-nn-your-short-descriptive-title">DEP-NN: Your short, descriptive title&lt;/h1>
 &lt;h2 id="table-of-contents">Table of Contents&lt;/h2>
 &lt;ul>
@@ -7094,9 +7276,9 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong>&lt;/p>
 &lt;ul>
-&lt;li>Etcd-druid uses &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> as it&amp;rsquo;s local Kubernetes engine. The local setup is configured for kind due to it&amp;rsquo;s convenience but any other kubernetes setup would also work.&lt;/li>
-&lt;li>To setup Etcd-Druid with backups enabled on a &lt;a href="https://github.com/localstack/localstack">LocalStack&lt;/a> provider, refer &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/getting-started-locally-localstack/">this document&lt;/a>&lt;/li>
-&lt;li>In the section &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/getting-started-locally/#annotate-etcd-cr-with-the-reconcile-annotation">Annotate Etcd CR with the reconcile annotation&lt;/a>, the flag &lt;code>ignore-operation-annotation&lt;/code> is set to false, which means a special annotation is required on the Etcd CR, for etcd-druid to reconcile it. To disable this behavior and allow auto-reconciliation of the Etcd CR for any change in the Etcd spec, set the &lt;code>ignoreOperationAnnotation&lt;/code> flag to &lt;code>true&lt;/code> in the &lt;code>values.yaml&lt;/code> located at &lt;a href="https://github.com/gardener/etcd-druid/blob/master/charts/druid/values.yaml">&lt;code>charts/druid/values.yaml&lt;/code>&lt;/a>. Or if etcd-druid is being run as a process, then while starting the process, set the CLI flag &lt;code>--ignore-operation-annotation=true&lt;/code> for it.&lt;/li>
+&lt;li>Etcd-druid uses &lt;a href="https://kind.sigs.k8s.io/">kind&lt;/a> as it&amp;rsquo;s local Kubernetes engine. The local setup is configured for kind due to its convenience but any other kubernetes setup would also work.&lt;/li>
+&lt;li>To set up etcd-druid with backups enabled on a &lt;a href="https://github.com/localstack/localstack">LocalStack&lt;/a> provider, refer &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/getting-started-locally-localstack/">this document&lt;/a>&lt;/li>
+&lt;li>In the section &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/getting-started-locally/#annotate-etcd-cr-with-the-reconcile-annotation">Annotate Etcd CR with the reconcile annotation&lt;/a>, the flag &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> is set to &lt;code>false&lt;/code>, which means a special annotation is required on the Etcd CR, for etcd-druid to reconcile it. To disable this behavior and allow auto-reconciliation of the Etcd CR for any change in the Etcd spec, set the &lt;code>controllers.etcd.enableEtcdSpecAutoReconcile&lt;/code> value to &lt;code>true&lt;/code> in the &lt;code>values.yaml&lt;/code> located at &lt;a href="https://github.com/gardener/etcd-druid/blob/master/charts/druid/values.yaml">&lt;code>charts/druid/values.yaml&lt;/code>&lt;/a>. Or if etcd-druid is being run as a process, then while starting the process, set the CLI flag &lt;code>--enable-etcd-spec-auto-reconcile=true&lt;/code> for it.&lt;/li>
 &lt;/ul>
 &lt;/blockquote>
 &lt;h2 id="setting-up-the-kind-cluster">Setting up the kind cluster&lt;/h2>
@@ -7106,15 +7288,37 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;p>To target this newly created cluster, set the &lt;code>KUBECONFIG&lt;/code> environment variable to the kubeconfig file located at &lt;code>./hack/e2e-test/infrastructure/kind/kubeconfig&lt;/code> by using the following&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="setting-up-etcd-druid">Setting up etcd-druid&lt;/h2>
+&lt;p>Either one of these commands may be used to deploy etcd-druid to the configured k8s cluster.&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>The following command deploys etcd-druid to the configured k8s cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>make deploy
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This generates the &lt;code>Etcd&lt;/code> CRD and deploys an etcd-druid pod into the cluster&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>The following command deploys etcd-druid to the configured k8s cluster using Skaffold &lt;code>dev&lt;/code> mode, such that changes in the etcd-druid code are automatically picked up and applied to the deployment. This helps with local development and quick iterative changes:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>make deploy-dev
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>The following command deploys etcd-druid to the configured k8s cluster using Skaffold &lt;code>debug&lt;/code> mode, so that a debugger can be attached to the running etcd-druid deployment. Please refer to &lt;a href="https://skaffold.dev/docs/workflows/debug/">this guide&lt;/a> for more information on Skaffold-based debugging:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>make deploy-debug
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>This generates the &lt;code>Etcd&lt;/code> and &lt;code>EtcdCopyBackupsTask&lt;/code> CRDs and deploys an etcd-druid pod into the cluster.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Before calling any of the &lt;code>make deploy*&lt;/code> commands, certain environment variables may be set in order to enable/disable certain functionalities of etcd-druid. These are:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true&lt;/code> : enables the &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/#etcd-components-webhook">etcdcomponents webhook&lt;/a>&lt;/li>
+&lt;li>&lt;code>DRUID_E2E_TEST=true&lt;/code> : sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.&lt;/li>
+&lt;li>&lt;code>USE_ETCD_DRUID_FEATURE_GATES=false&lt;/code> : enables etcd-druid feature gates.&lt;/li>
+&lt;/ul>
+&lt;/blockquote>
 &lt;h3 id="prepare-the-etcd-cr">Prepare the Etcd CR&lt;/h3>
 &lt;p>Etcd CR can be configured in 2 ways. Either to take backups to the store or disable them. Follow the appropriate section below based on the requirement.&lt;/p>
 &lt;p>The Etcd CR can be found at this location &lt;code>$PWD/config/samples/druid_v1alpha1_etcd.yaml&lt;/code>&lt;/p>
 &lt;ul>
 &lt;li>
 &lt;p>&lt;strong>Without Backups enabled&lt;/strong>&lt;/p>
-&lt;p>To setup Etcd-druid without backups enabled, make sure the &lt;code>spec.backup.store&lt;/code> section of the Etcd CR is commented out.&lt;/p>
+&lt;p>To set up etcd-druid without backups enabled, make sure the &lt;code>spec.backup.store&lt;/code> section of the Etcd CR is commented out.&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>&lt;strong>With Backups enabled (On Cloud Provider Object Stores)&lt;/strong>&lt;/p>
@@ -7160,15 +7364,7 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;p>Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Apply the prepared etcd CR yaml&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="annotate-etcd-cr-with-the-reconcile-annotation">Annotate Etcd CR with the reconcile annotation&lt;/h3>
-&lt;blockquote>
-&lt;p>&lt;strong>Note :&lt;/strong> If the &lt;code>ignore-operation-annotation&lt;/code> flag is set to &lt;code>true&lt;/code>, this step is not required&lt;/p>
-&lt;/blockquote>
-&lt;p>The above step creates an Etcd resource, however etcd-druid won&amp;rsquo;t pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following &lt;code>gardener.cloud/operation:reconcile&lt;/code>.&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Annotate etcd-test CR to reconcile&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl annotate etcd etcd-test gardener.cloud/operation=&lt;span style="color:#a31515">&amp;#34;reconcile&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This starts creating the etcd cluster&lt;/p>
-&lt;h3 id="verify-the-etcd-cluster">Verify the Etcd cluster&lt;/h3>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="verify-the-etcd-cluster">Verify the Etcd cluster&lt;/h3>
 &lt;p>To obtain information regarding the newly instantiated etcd cluster, perform the following step, which gives details such as the cluster size, readiness status of its members, and various other attributes.&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>kubectl get etcd -o=wide
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="verify-etcd-member-pods">Verify Etcd Member Pods&lt;/h4>
@@ -7184,6 +7380,15 @@ After they exit beta, it may not be practical for us to make more changes.&lt;/p
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For a multi-node etcd cluster, insert the key-value pair from the &lt;code>etcd&lt;/code> container of one etcd member and retrieve it from the &lt;code>etcd&lt;/code> container of another member to verify consensus among the multiple etcd members.&lt;/p>
 &lt;h4 id="view-etcd-database-file">View Etcd Database File&lt;/h4>
 &lt;p>The Etcd database file is located at &lt;code>var/etcd/data/new.etcd/snap/db&lt;/code> inside the &lt;code>backup-restore&lt;/code> container. In versions with an &lt;code>alpine&lt;/code> base image, you can exec directly into the container. However, in recent versions where the &lt;code>backup-restore&lt;/code> docker image started using a distroless image, a debug container is required to communicate with it, as mentioned in the previous section.&lt;/p>
+&lt;h3 id="updating-the-etcd-cr">Updating the Etcd CR&lt;/h3>
+&lt;p>The &lt;code>Etcd&lt;/code> spec can be updated with new changes, such as etcd cluster configuration or backup-restore configuration, and etcd-druid will reconcile these changes as expected, under certain conditions:&lt;/p>
+&lt;ol>
+&lt;li>If the &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> flag is set to &lt;code>true&lt;/code>, the spec change is automatically picked up and reconciled by etcd-druid.&lt;/li>
+&lt;li>If the &lt;code>--enable-etcd-spec-auto-reconcile&lt;/code> flag is unset, or set to &lt;code>false&lt;/code>, then etcd-druid will expect an additional annotation &lt;code>gardener.cloud/operation: reconcile&lt;/code> on the &lt;code>Etcd&lt;/code> resource in order to pick it up for reconciliation. Upon successful reconciliation, this annotation is removed by etcd-druid. The annotation can be added as follows:
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Annotate etcd-test CR to reconcile&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl annotate etcd etcd-test gardener.cloud/operation=&lt;span style="color:#a31515">&amp;#34;reconcile&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;/ol>
 &lt;h2 id="cleaning-the-setup">Cleaning the setup&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Delete the cluster&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>make kind-down
@@ -7990,40 +8195,46 @@ Labels:&lt;/p>
 &lt;/ul></description></item><item><title>Docs: Recovery From Permanent Quorum Loss In Etcd Cluster</title><link>https://gardener.cloud/docs/other-components/etcd-druid/recovery-from-permanent-quorum-loss-in-etcd-cluster/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/recovery-from-permanent-quorum-loss-in-etcd-cluster/</guid><description>
 &lt;h1 id="recovery-from-permanent-quorum-loss-in-an-etcd-cluster">Recovery from Permanent Quorum Loss in an Etcd Cluster&lt;/h1>
 &lt;h2 id="quorum-loss-in-etcd-cluster">Quorum loss in Etcd Cluster&lt;/h2>
-&lt;p>&lt;a href="https://etcd.io/docs/v3.4/op-guide/recovery/">Quorum loss&lt;/a> means when majority of Etcd pods(greater than or equal to n/2 + 1) are down simultaneously for some reason.&lt;/p>
+&lt;p>&lt;a href="https://etcd.io/docs/v3.4/op-guide/recovery/">Quorum loss&lt;/a> means when the majority of Etcd pods (greater than or equal to n/2 + 1) are down simultaneously for some reason.&lt;/p>
 &lt;p>There are two types of quorum loss that can happen to &lt;a href="https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node">Etcd multinode cluster&lt;/a> :&lt;/p>
 &lt;ol>
 &lt;li>
-&lt;p>&lt;strong>Transient quorum loss&lt;/strong> - A quorum loss is called transient when majority of Etcd pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages etc. When the pods come back after some time, they can re-join to the cluster and the quorum is recovered automatically without any manual intervention. There should not be a permanent failure for majority of etcd pods due to hardware failure or disk corruption.&lt;/p>
+&lt;p>&lt;strong>Transient quorum loss&lt;/strong> - A quorum loss is called transient when the majority of Etcd pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages etc. When the pods come back after some time, they can re-join the cluster and quorum is recovered automatically without any manual intervention. There should not be a permanent failure for the majority of etcd pods due to hardware failure or disk corruption.&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>&lt;strong>Permanent quorum loss&lt;/strong> - A quorum loss is called permanent when majority of Etcd cluster members experience permanent failure, whether due to hardware failure or disk corruption etc. then the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node Etcd cluster.&lt;/p>
+&lt;p>&lt;strong>Permanent quorum loss&lt;/strong> - A quorum loss is called permanent when the majority of Etcd cluster members experience permanent failure, whether due to hardware failure or disk corruption etc. then the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node Etcd cluster.&lt;/p>
 &lt;/li>
 &lt;/ol>
-&lt;p>If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to that Etcd cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of a Etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is &lt;code>etcd-main&lt;/code>.&lt;/p>
+&lt;p>If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to that Etcd cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of an etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is &lt;code>etcd-main&lt;/code>.&lt;/p>
 &lt;p>&lt;strong>Etcd cluster in shoot control plane of gardener deployment:&lt;/strong>
-There are two &lt;a href="https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node">Etcd clusters&lt;/a> running in shoot control plane. One is named as &lt;code>etcd-events&lt;/code> and another is named &lt;code>etcd-main&lt;/code>. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to &lt;code>etcd-events&lt;/code> cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to &lt;code>etcd-events&lt;/code> cluster and work on those resources only.&lt;/p>
+There are two &lt;a href="https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node">Etcd clusters&lt;/a> running in shoot control plane. One is named as &lt;code>etcd-events&lt;/code> and another is named &lt;code>etcd-main&lt;/code>. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to &lt;code>etcd-events&lt;/code> cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to &lt;code>etcd-events&lt;/code> cluster and work on those resources only.&lt;/p>
 &lt;p>⚠️ &lt;strong>Note:&lt;/strong> Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.&lt;/p>
 &lt;p>If etcd-druid and etcd-backup-restore is being used with gardener, then&lt;/p>
 &lt;p>Target the control plane of affected shoot cluster via &lt;code>kubectl&lt;/code>. Alternatively, you can use &lt;a href="https://github.com/gardener/gardenctl-v2">gardenctl&lt;/a> to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.&lt;/p>
 &lt;ol>
 &lt;li>
-&lt;p>Add the following annotation to the &lt;code>Etcd&lt;/code> resource &lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation=&amp;quot;true&amp;quot;&lt;/code>&lt;/p>
+&lt;p>Add the following annotations to the &lt;code>Etcd&lt;/code> resource &lt;code>etcd-main&lt;/code>:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile=&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/disable-resource-protection=&lt;/code>&lt;/p>
+&lt;/li>
+&lt;/ol>
 &lt;/li>
 &lt;li>
 &lt;p>Note down the configmap name that is attached to the &lt;code>etcd-main&lt;/code> statefulset. If you describe the statefulset with &lt;code>kubectl describe sts etcd-main&lt;/code>, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:&lt;/p>
-&lt;/li>
-&lt;/ol>
-&lt;pre tabindex="0">&lt;code> Volumes:
+&lt;pre tabindex="0">&lt;code>Volumes:
 etcd-config-file:
 Type: ConfigMap (a volume populated by a ConfigMap)
 Name: etcd-bootstrap-4785b0
 Optional: false
-&lt;/code>&lt;/pre>&lt;pre tabindex="0">&lt;code> Alternatively, the related configmap name can be obtained by executing following command as well:
-&lt;/code>&lt;/pre>&lt;p>&lt;code>kubectl get sts etcd-main -o jsonpath='{.spec.template.spec.volumes[?(@.name==&amp;quot;etcd-config-file&amp;quot;)].configMap.name}'&lt;/code>&lt;/p>
-&lt;ol start="3">
+&lt;/code>&lt;/pre>&lt;p>Alternatively, the related configmap name can be obtained by executing following command as well:&lt;/p>
+&lt;p>&lt;code>kubectl get sts etcd-main -o jsonpath='{.spec.template.spec.volumes[?(@.name==&amp;quot;etcd-config-file&amp;quot;)].configMap.name}'&lt;/code>&lt;/p>
+&lt;/li>
 &lt;li>
-&lt;p>Scale down the &lt;code>etcd-main&lt;/code> statefulset replicas to &lt;code>0&lt;/code>&lt;/p>
+&lt;p>Scale down the &lt;code>etcd-main&lt;/code> statefulset replicas to &lt;code>0&lt;/code>:&lt;/p>
 &lt;p>&lt;code>kubectl scale sts etcd-main --replicas=0&lt;/code>&lt;/p>
 &lt;/li>
 &lt;li>
@@ -8037,16 +8248,17 @@ main-etcd-etcd-main-2 Bound pv-shoot--garden--aws-ha-ff17323b-d62e-4d5e-a742-9de
 &lt;li>
 &lt;p>Check the etcd&amp;rsquo;s member leases. There should be leases starting with &lt;code>etcd-main&lt;/code> as many as &lt;code>etcd-main&lt;/code> replicas.
 One of those leases will have holder identity as &lt;code>&amp;lt;etcd-member-id&amp;gt;:Leader&lt;/code> and rest of etcd member leases have holder identities as &lt;code>&amp;lt;etcd-member-id&amp;gt;:Member&lt;/code>.
-Please ignore the snapshot leases i.e those leases which have suffix &lt;code>snap&lt;/code>.&lt;/p>
+Please ignore the snapshot leases i.e. those leases which have suffix &lt;code>snap&lt;/code>.&lt;/p>
+&lt;p>etcd-main member leases:&lt;/p>
+&lt;pre tabindex="0">&lt;code> NAME HOLDER AGE
+etcd-main-0 4c37667312a3912b:Member 1m
+etcd-main-1 75a9b74cfd3077cc:Member 1m
+etcd-main-2 c62ee6af755e890d:Leader 1m
+&lt;/code>&lt;/pre>&lt;p>Delete all &lt;code>etcd-main&lt;/code> member leases.&lt;/p>
 &lt;/li>
-&lt;/ol>
-&lt;p>etcd-main member leases:
-&lt;code>NAME HOLDER AGE etcd-main-0 4c37667312a3912b:Member 1m etcd-main-1 75a9b74cfd3077cc:Member 1m etcd-main-2 c62ee6af755e890d:Leader 1m&lt;/code>&lt;/p>
-&lt;pre tabindex="0">&lt;code> Delete all `etcd-main` member leases.
-&lt;/code>&lt;/pre>&lt;ol start="6">
 &lt;li>
 &lt;p>Edit the &lt;code>etcd-main&lt;/code> cluster&amp;rsquo;s configmap (ex: &lt;code>etcd-bootstrap-4785b0&lt;/code>) as follows:&lt;/p>
-&lt;p>Find the &lt;code>initial-cluster&lt;/code> field in the configmap. It will look like the following:&lt;/p>
+&lt;p>Find the &lt;code>initial-cluster&lt;/code> field in the configmap. It should look similar to the following:&lt;/p>
 &lt;pre tabindex="0">&lt;code># Initial cluster
 initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380,etcd-main-1=https://etcd-main-1.etcd-main-peer.default.svc:2380,etcd-main-2=https://etcd-main-2.etcd-main-peer.default.svc:2380
 &lt;/code>&lt;/pre>&lt;p>Change the &lt;code>initial-cluster&lt;/code> field to have only one member (&lt;code>etcd-main-0&lt;/code>) in the string. It should now look like this:&lt;/p>
@@ -8064,10 +8276,19 @@ initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380
 etcd-main-0 2/2 Running 0 1m
 &lt;/code>&lt;/pre>&lt;/li>
 &lt;li>
-&lt;p>Remove the following annotation from the &lt;code>Etcd&lt;/code> resource &lt;code>etcd-main&lt;/code>: &lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation-&lt;/code>&lt;/p>
+&lt;p>Remove the following annotations from the &lt;code>Etcd&lt;/code> resource &lt;code>etcd-main&lt;/code>:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile-&lt;/code>&lt;/p>
 &lt;/li>
 &lt;li>
-&lt;p>Finally add the following annotation to the &lt;code>Etcd&lt;/code> resource &lt;code>etcd-main&lt;/code>: &lt;code>kubectl annotate etcd etcd-main gardener.cloud/operation=&amp;quot;reconcile&amp;quot;&lt;/code>&lt;/p>
+&lt;p>&lt;code>kubectl annotate etcd etcd-main druid.gardener.cloud/disable-resource-protection-&lt;/code>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;li>
+&lt;p>Finally, add the following annotation to the &lt;code>Etcd&lt;/code> resource &lt;code>etcd-main&lt;/code>:&lt;/p>
+&lt;p>&lt;code>kubectl annotate etcd etcd-main gardener.cloud/operation='reconcile'&lt;/code>&lt;/p>
 &lt;/li>
 &lt;li>
 &lt;p>Verify that the etcd cluster is formed correctly.&lt;/p>
@@ -8138,4 +8359,26 @@ The following is a list of kubernetes versions supported by the respective &lt;c
 &lt;td>&amp;lt; 1.25&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table></description></item></channel></rss>
+&lt;/table></description></item><item><title>Docs: Webhooks</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</guid><description>
+&lt;h1 id="webhooks">Webhooks&lt;/h1>
+&lt;p>The &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/#controller-manager">etcd-druid controller-manager&lt;/a> registers certain &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a> that allow for validation or mutation of requests on resources in the cluster, in order to prevent misconfiguration and restrict access to the etcd cluster resources.&lt;/p>
+&lt;p>All webhooks that are a part of etcd-druid reside in package &lt;code>internal/webhook&lt;/code>, as sub-packages.&lt;/p>
+&lt;h2 id="package-structure">Package Structure&lt;/h2>
+&lt;p>The typical package structure for the webhooks that are part of etcd-druid is shown with the &lt;em>EtcdComponents Webhook&lt;/em>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>internal/webhook/etcdcomponents
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>├── config.go
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>├── handler.go
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>└── register.go
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>&lt;code>config.go&lt;/code>: contains all the logic for the configuration of the webhook, including feature gate activations, CLI flag parsing and validations.&lt;/li>
+&lt;li>&lt;code>register.go&lt;/code>: contains the logic for registering the webhook with the etcd-druid controller manager.&lt;/li>
+&lt;li>&lt;code>handler.go&lt;/code>: contains the webhook admission handler logic.&lt;/li>
+&lt;/ul>
+&lt;p>Each webhook package may also contain auxiliary files which are relevant to that specific webhook.&lt;/p>
+&lt;h2 id="etcd-components-webhook">Etcd Components Webhook&lt;/h2>
+&lt;p>Druid controller-manager registers and runs the &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/#etcd-controller">etcd controller&lt;/a>, which creates and manages various components/resources such as &lt;code>Leases&lt;/code>, &lt;code>ConfigMap&lt;/code>s, and the &lt;code>Statefulset&lt;/code> for the etcd cluster. It is essential for all these resources to contain correct configuration for the proper functioning of the etcd cluster.&lt;/p>
+&lt;p>Unintended changes to any of these &lt;em>managed resources&lt;/em> can lead to misconfiguration of the etcd cluster, leading to unwanted downtime for etcd traffic. To prevent such unintended changes, a validating webhook called &lt;em>EtcdComponents Webhook&lt;/em> guards these managed resources, ensuring that only authorized entities can perform operations on these managed resources.&lt;/p>
+&lt;p>&lt;em>EtcdComponents webhook&lt;/em> prevents &lt;em>UPDATE&lt;/em> and &lt;em>DELETE&lt;/em> operations on all resources managed by &lt;em>etcd controller&lt;/em>, unless such an operation is performed by druid itself, and during reconciliation of the &lt;code>Etcd&lt;/code> resource. Operations are also allowed if performed by one of the authorized entities specified by CLI flag &lt;code>--etcd-components-webhook-exempt-service-accounts&lt;/code>, but only if the &lt;code>Etcd&lt;/code> resource is not being reconciled by etcd-druid at that time.&lt;/p>
+&lt;p>There may be specific cases where a human operator may need to make changes to the managed resources, possibly to test or fix an etcd cluster. An example of this is &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/recovery-from-permanent-quorum-loss-in-etcd-cluster/">recovery from permanent quorum loss&lt;/a>, where a human operator will need to suspend reconciliation of the &lt;code>Etcd&lt;/code> resource, make changes to the underlying managed resources such as &lt;code>StatefulSet&lt;/code> and &lt;code>ConfigMap&lt;/code>, and then resume reconciliation for the &lt;code>Etcd&lt;/code> resource. Such manual interventions will require out-of-band changes to the managed resources. Protection of managed resources for such &lt;code>Etcd&lt;/code> resources can be turned off by adding an annotation &lt;code>druid.gardener.cloud/disable-etcd-component-protection&lt;/code> on the &lt;code>Etcd&lt;/code> resource. This will effectively disable &lt;em>EtcdComponents Webhook&lt;/em> protection for all managed resources for the specific &lt;code>Etcd&lt;/code>.&lt;/p>
+&lt;p>&lt;strong>Note:&lt;/strong> &lt;em>UPDATE&lt;/em> operations for &lt;code>Lease&lt;/code>s by etcd members are always allowed, since these are regularly updated by the etcd-backup-restore sidecar.&lt;/p>
+&lt;p>The &lt;em>Etcd Components Webhook&lt;/em> is disabled by default, and can be enabled via the CLI flag `&amp;ndash;enable-etcd-components-webhook.&lt;/p></description></item></channel></rss>

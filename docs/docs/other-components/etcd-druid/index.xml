@@ -2495,7 +2495,7 @@ Hence, if incremental snapshots are required to be applied, the etcd cluster mus
 &lt;li>The etcd-druid controller will provision a statefulset with the etcd main container and the etcd-backup-restore sidecar container. It will pass on the &lt;code>spec.replicas&lt;/code> field from the etcd resource to the statefulset. It will also supply the right pre-computed configuration to both the containers.&lt;/li>
 &lt;li>The statefulset controller will create the pods based on the pod template in the statefulset spec and these individual pods will be the members that form the etcd cluster.&lt;/li>
 &lt;/ul>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/01-multi-node-etcd_4ef218.png" alt="Component diagram">&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/01-multi-node-etcd_1afcbd.png" alt="Component diagram">&lt;/p>
 &lt;p>This approach makes it possible to satisfy the &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/01-multi-node-etcd-clusters/#assumption">assumption&lt;/a> that the DNS for the individual members of the etcd cluster must be known/computable.
 This can be achieved by using a &lt;code>headless&lt;/code> service (along with the statefulset) for each etcd cluster instance.
 Then we can address individual pods/etcd members via the predictable DNS name of &lt;code>&amp;lt;statefulset_name&amp;gt;-{0|1|2|3|…|n}.&amp;lt;headless_service_name&amp;gt;&lt;/code> from within the Kubernetes namespace (or from outside the Kubernetes namespace by appending &lt;code>.&amp;lt;namespace&amp;gt;.svc.&amp;lt;cluster_domain&amp;gt; suffix)&lt;/code>.
@@ -3261,7 +3261,7 @@ The superfluous members in the ETCD cluster will be cleaned up by the &lt;a href
 It also might have to handle the etcd database verification and restoration functionality differently in &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/01-multi-node-etcd-clusters/#restarting-an-existing-member-of-an-etcd-cluster">different&lt;/a> &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/01-multi-node-etcd-clusters/#recovering-an-etcd-cluster-from-failure-of-majority-of-members">scenarios&lt;/a>.&lt;/p>
 &lt;p>The initialization sequence itself is proposed to be as follows.
 It is an enhancement of the &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/doc/proposals/design.md#workflow">existing&lt;/a> initialization sequence.
-&lt;img src="https://gardener.cloud/__resources/01-etcd-member-initialization-sequence_a6c08d.png" alt="etcd member initialization sequence">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/01-etcd-member-initialization-sequence_364f5e.png" alt="etcd member initialization sequence">&lt;/p>
 &lt;p>The details of the decisions to be taken during the initialization are given below.&lt;/p>
 &lt;h3 id="1-first-member-during-bootstrap-of-a-fresh-etcd-cluster">1. First member during bootstrap of a fresh etcd cluster&lt;/h3>
 &lt;h4 id="observed-state-13">Observed state&lt;/h4>
@@ -3505,7 +3505,7 @@ Some existing flows like initialization, scheduled backups and defragmentation h
 Some new work-flows like status updates have been introduced.
 Some of these work-flows are sensitive to which &lt;code>etcd-backup-restore&lt;/code> container is &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/01-multi-node-etcd-clusters/#backup">leading&lt;/a> and some are not.&lt;/p>
 &lt;p>The life-cycle of these work-flows is shown below.
-&lt;img src="https://gardener.cloud/__resources/01-etcd-backup-restore-work-flows-life-cycle_03a532.png" alt="etcd-backup-restore work-flows life-cycle">&lt;/p>
+&lt;img src="https://gardener.cloud/__resources/01-etcd-backup-restore-work-flows-life-cycle_eec586.png" alt="etcd-backup-restore work-flows life-cycle">&lt;/p>
 &lt;h3 id="work-flows-independent-of-leader-election-in-all-members">Work-flows independent of leader election in all members&lt;/h3>
 &lt;ul>
 &lt;li>Serve the &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/master/pkg/server/httpAPI.go#L101-L107">HTTP API&lt;/a> that all members are expected to support currently but some HTTP API call which are used to take &lt;a href="https://github.com/gardener/etcd-backup-restore/blob/5dfcc1f848a9f325d41a24eae4defb70d997c215/pkg/server/httpAPI.go#L103-L105">out-of-sync delta or full snapshot&lt;/a> should delegate the incoming HTTP requests to the &lt;code>leading-sidecar&lt;/code> and one of the possible approach to achieve this is via an &lt;a href="https://pkg.go.dev/net/http/httputil#ReverseProxy.ServeHTTP">HTTP reverse proxy&lt;/a>.&lt;/li>
@@ -3758,7 +3758,7 @@ And with the help of this annotation and config-map values etcd-druid is able to
 &lt;p>After peer URL TLS enablement for single node etcd cluster, now etcd-druid adds a scale-up annotation: &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> to the etcd statefulset and etcd-druid will patch the statefulsets &lt;code>.spec.replicas&lt;/code> to &lt;code>3&lt;/code>(for example). The statefulset controller will then bring up new pods(etcd with backup-restore as a sidecar). Now etcd&amp;rsquo;s sidecar i.e backup-restore will check whether this member is already a part of a cluster or not and incase it is unable to check (may be due to some network issues) then backup-restore checks presence of this annotation: &lt;code>gardener.cloud/scaled-to-multi-node&lt;/code> in etcd statefulset to detect scale-up. If it finds out it is the scale-up case then backup-restore adds new etcd member as a &lt;a href="https://etcd.io/docs/v3.3/learning/learner/">learner&lt;/a> first and then starts the etcd learner by providing the correct configuration. Once learner gets in sync with the etcd cluster leader, it will get promoted to a voting member.&lt;/p>
 &lt;h2 id="providing-the-correct-etcd-config">Providing the correct etcd config&lt;/h2>
 &lt;p>As backup-restore detects that it&amp;rsquo;s a scale-up scenario, backup-restore sets &lt;code>initial-cluster-state&lt;/code> to &lt;code>existing&lt;/code> as this member will join an existing cluster and it calculates the rest of the config from the updated config-map provided by etcd-druid.&lt;/p>
-&lt;p>&lt;img src="https://gardener.cloud/__resources/03-scale-up-sequenceDiagram_b520cb.png" alt="Sequence diagram">&lt;/p>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/03-scale-up-sequenceDiagram_76558b.png" alt="Sequence diagram">&lt;/p>
 &lt;h2 id="future-improvements">Future improvements:&lt;/h2>
 &lt;p>The need of restarting etcd pods twice will change in the future. please refer: &lt;a href="https://github.com/gardener/etcd-backup-restore/issues/538">https://github.com/gardener/etcd-backup-restore/issues/538&lt;/a>&lt;/p></description></item><item><title>Docs: Controllers</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/</guid><description>
 &lt;h1 id="controllers">Controllers&lt;/h1>
@@ -6547,16 +6547,16 @@ This finalizer is added to ensure that &lt;code>Secret&lt;/code>s which are refe
 &lt;p>&lt;code>Started&lt;/code> - In this state the etcd-member is a full voting member. It can either be in &lt;code>Leader&lt;/code> or &lt;code>Follower&lt;/code> sub-states.&lt;/p>
 &lt;/li>
 &lt;/ul>
-&lt;img title="" src="https://gardener.cloud/__resources/04-top-level-state-transitions.excalidraw_2fe7c8.png" alt="" data-align="center">
+&lt;img title="" src="https://gardener.cloud/__resources/04-top-level-state-transitions.excalidraw_0af3b5.png" alt="" data-align="center">
 &lt;h4 id="starting-an-etcd-member-in-a-single-node-etcd-cluster">Starting an Etcd-Member in a Single-Node Etcd Cluster&lt;/h4>
 &lt;p>Following DFA represents the states, sub-states and transitions of a single etcd-member for a cluster that is bootstrapped from cluster size of 0 -&amp;gt; 1.&lt;/p>
-&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-bootstrap-0-1.excalidraw_2b9024.png" alt="" data-align="center">
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-bootstrap-0-1.excalidraw_5a2726.png" alt="" data-align="center">
 &lt;h4 id="addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">Addition of a New Etcd-Member in a Multi-Node Etcd Cluster&lt;/h4>
 &lt;p>Following DFA represents the states, sub-states and transitions of an etcd cluster which starts with having a single member (Leader) and then one or more new members are added which represents a scale-up of an etcd cluster from 1 -&amp;gt; n, where n is &lt;a href="https://etcd.io/docs/v3.5/faq/#why-an-odd-number-of-cluster-members">odd&lt;/a>.&lt;/p>
-&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-scaleup-1-n.excalidraw_7c53e2.png" alt="" data-align="center">
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-scaleup-1-n.excalidraw_cfa4bf.png" alt="" data-align="center">
 &lt;h4 id="restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster">Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster&lt;/h4>
 &lt;p>Following DFA represents the states, sub-states and transitions when a voting etcd-member in a multi-node etcd cluster restarts.&lt;/p>
-&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-restart-member.excalidraw_26e27a.png" alt="" data-align="center">
+&lt;img title="" src="https://gardener.cloud/__resources/04-state-transitions-restart-member.excalidraw_d23a8d.png" alt="" data-align="center">
 &lt;blockquote>
 &lt;p>NOTE: If the DB validation fails then data directory of the etcd-member is removed and etcd-member is removed from cluster membership, thus transitioning it to &lt;code>New&lt;/code> state. The state transitions from &lt;code>New&lt;/code> state are depicted by &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/proposals/04-etcd-member-custom-resource/#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">this section&lt;/a>.&lt;/p>
 &lt;/blockquote>

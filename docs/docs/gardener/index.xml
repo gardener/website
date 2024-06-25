@@ -225,6 +225,7 @@ Starting with release &lt;code>v1.97&lt;/code>, the &lt;code>VPAForETCD&lt;/code
 &lt;/tr>
 &lt;/tbody>
 &lt;/table>
+&lt;p>The API server&amp;rsquo;s min replicas count is 2, the max replicas count - 3.&lt;/p>
 &lt;p>The &lt;code>Baseline&lt;/code> mode is the used autoscaling mode when the &lt;code>HVPA&lt;/code> and &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gates are not enabled.&lt;/p>
 &lt;/li>
 &lt;li>
@@ -232,6 +233,7 @@ Starting with release &lt;code>v1.97&lt;/code>, the &lt;code>VPAForETCD&lt;/code
 &lt;p>In &lt;code>HVPA&lt;/code> mode, the Shoot Kubernetes API server is scaled by the &lt;a href="https://github.com/gardener/hvpa-controller">hvpa-controller&lt;/a>. The gardenlet is creating an &lt;code>HVPA&lt;/code> resource for the API server. The &lt;code>HVPA&lt;/code> resource is backed by HPA and VPA both in recommend-only mode. The hvpa-controller is responsible for enabling simultaneous horizontal and vertical scaling by incorporating the recommendations from the HPA and VPA.&lt;/p>
 &lt;p>The initial API server resource requests are &lt;code>500m&lt;/code> and &lt;code>1Gi&lt;/code>.
 HVPA&amp;rsquo;s HPA is scaling only on CPU (average utilization 80%). HVPA&amp;rsquo;s VPA max allowed values are &lt;code>8&lt;/code> CPU and &lt;code>25G&lt;/code>.&lt;/p>
+&lt;p>The API server&amp;rsquo;s min replicas count is 2, the max replicas count - 3.&lt;/p>
 &lt;p>The &lt;code>HVPA&lt;/code> mode is the used autoscaling mode when the &lt;code>HVPA&lt;/code> feature gate is enabled (and the &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gate is disabled).&lt;/p>
 &lt;/li>
 &lt;li>
@@ -240,10 +242,11 @@ HVPA&amp;rsquo;s HPA is scaling only on CPU (average utilization 80%). HVPA&amp;
 &lt;p>The &lt;code>VPAAndHPA&lt;/code> mode is introduced to address disadvantages with HVPA: additional component; modifies the deployment triggering unnecessary rollouts; vertical scaling only at max replicas; stuck vertical resource requests when scaling in again; etc.&lt;/p>
 &lt;p>The initial API server resource requests are &lt;code>250m&lt;/code> and &lt;code>500Mi&lt;/code>.
 VPA&amp;rsquo;s max allowed values are &lt;code>7&lt;/code> CPU and &lt;code>28G&lt;/code>. HPA&amp;rsquo;s average target usage values are &lt;code>6&lt;/code> CPU and &lt;code>24G&lt;/code>.&lt;/p>
+&lt;p>The API server&amp;rsquo;s min replicas count is 2, the max replicas count - 6.&lt;/p>
 &lt;p>The &lt;code>VPAAndHPA&lt;/code> mode is the used autoscaling mode when the &lt;code>VPAAndHPAForAPIServer&lt;/code> feature gate is enabled (takes precedence over the &lt;code>HVPA&lt;/code> feature gate).&lt;/p>
 &lt;/li>
 &lt;/ul>
-&lt;p>The API server&amp;rsquo;s replica count in all scaling modes varies between 2 and 3. The min replicas count of 2 is imposed by the &lt;a href="https://gardener.cloud/docs/gardener/high-availability/#control-plane-components">High Availability of Shoot Control Plane Components&lt;/a>.&lt;/p>
+&lt;p>In all scaling modes the min replicas count of 2 is imposed by the &lt;a href="https://gardener.cloud/docs/gardener/high-availability/#control-plane-components">High Availability of Shoot Control Plane Components&lt;/a>.&lt;/p>
 &lt;p>The gardenlet sets the initial API server resource requests only when the Deployment is not found. When the Deployment exists, it is not overwriting the kube-apiserver container resources.&lt;/p>
 &lt;h2 id="disabling-scale-down-for-components-in-the-shoot-control-plane">Disabling Scale Down for Components in the Shoot Control Plane&lt;/h2>
 &lt;p>Some Shoot clusters&amp;rsquo; control plane components can be overloaded and can have very high resource usage. The existing autoscaling solution could be imperfect to cover these cases. Scale down actions for such overloaded components could be disruptive.&lt;/p>
@@ -251,7 +254,7 @@ VPA&amp;rsquo;s max allowed values are &lt;code>7&lt;/code> CPU and &lt;code>28G
 &lt;p>There are the following specifics for when disabling scale-down for the Kubernetes API server component:&lt;/p>
 &lt;ul>
 &lt;li>In &lt;code>Baseline&lt;/code> and &lt;code>HVPA&lt;/code> modes the HPA&amp;rsquo;s min and max replicas count are set to 4.&lt;/li>
-&lt;li>In &lt;code>VPAAndHPA&lt;/code> mode if the HPA resource exists and HPA&amp;rsquo;s &lt;code>spec.minReplicas&lt;/code> is not nil then the min replicas count is &lt;code>max(spec.minReplicas, status.desiredReplicas)&lt;/code>. When scale-down is disabled, this allows operators to specify a custom value for HPA &lt;code>spec.minReplicas&lt;/code> and this value not to be reverted by gardenlet. I.e, HPA &lt;em>does&lt;/em> scale down to min replicas but not below min replicas. HPA&amp;rsquo;s max replicas count is 4.&lt;/li>
+&lt;li>In &lt;code>VPAAndHPA&lt;/code> mode if the HPA resource exists and HPA&amp;rsquo;s &lt;code>spec.minReplicas&lt;/code> is not nil then the min replicas count is &lt;code>max(spec.minReplicas, status.desiredReplicas)&lt;/code>. When scale-down is disabled, this allows operators to specify a custom value for HPA &lt;code>spec.minReplicas&lt;/code> and this value not to be reverted by gardenlet. I.e, HPA &lt;em>does&lt;/em> scale down to min replicas but not below min replicas. HPA&amp;rsquo;s max replicas count is 6.&lt;/li>
 &lt;/ul>
 &lt;blockquote>
 &lt;p>Note: The &lt;code>alpha.control-plane.scaling.shoot.gardener.cloud/scale-down-disabled&lt;/code> annotation is alpha and can be removed anytime without further notice. Only use it if you know what you do.&lt;/p>
@@ -266,7 +269,7 @@ VPA&amp;rsquo;s max allowed values are &lt;code>7&lt;/code> CPU and &lt;code>28G
 &lt;p>The Gardener API server&amp;rsquo;s autoscaling is the same as the Shoot Kubernetes API server&amp;rsquo;s with the following differences:&lt;/p>
 &lt;ul>
 &lt;li>The initial API server resource requests are &lt;code>600m&lt;/code> and &lt;code>512Mi&lt;/code> in all autoscaling modes.&lt;/li>
-&lt;li>The min replicas count is 2. The max replicas count is 4.&lt;/li>
+&lt;li>The min replicas count is 2 for a non-HA virtual cluster and 3 for an HA virtual cluster. The max replicas count is 6.&lt;/li>
 &lt;li>In &lt;code>HVPA&lt;/code> mode, HVPA&amp;rsquo;s HPA is scaling on both CPU and memory (average utilization 80% for both).&lt;/li>
 &lt;li>In &lt;code>HVPA&lt;/code> mode, HVPA&amp;rsquo;s VPA max allowed values are &lt;code>4&lt;/code> CPU and &lt;code>25G&lt;/code>.&lt;/li>
 &lt;/ul></description></item><item><title>Docs: Changing the API</title><link>https://gardener.cloud/docs/gardener/changing-the-api/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/changing-the-api/</guid><description>

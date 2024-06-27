@@ -759,7 +759,37 @@ Using a runtime cluster without VPA is not supported.&lt;/p>
 &lt;h4 id="volumes">Volumes&lt;/h4>
 &lt;p>It is possible to define the minimum size for &lt;code>PersistentVolumeClaim&lt;/code>s in the runtime cluster created by &lt;code>gardener-operator&lt;/code> via the &lt;code>.spec.runtimeCluster.volume.minimumSize&lt;/code> field.
 This can be relevant in case the runtime cluster runs on an infrastructure that does only support disks of at least a certain size.&lt;/p>
-&lt;h3 id="configuration-for-virtual-cluster">Configuration For Virtual Cluster&lt;/h3>
+&lt;h4 id="cert-management">Cert-Management&lt;/h4>
+&lt;p>The operator can deploy the Gardener &lt;a href="https://github.com/gardener/cert-management">cert-management&lt;/a> component optionally.
+A default issuer has to be specified and will be deployed, too. Please note that the &lt;code>cert-controller-manager&lt;/code> is configured to use &lt;code>DNSRecords&lt;/code> for ACME DNS challenges on certificate requests. A suitable provider extension must be deployed in this case, e.g. using an operator extension resource.
+The default issuer must be set at &lt;code>.spec.runtimeCluster.certManagement.defaultIssuer&lt;/code> either specifying an ACME or CA issuer.&lt;/p>
+&lt;p>If the &lt;code>cert-controller-manager&lt;/code> should make requests to any ACME servers running with self-signed TLS certificates, the related CA can be provided using a secret with data field &lt;code>bundle.crt&lt;/code> referenced with &lt;code>.spec.runtimeCluster.certManagement.config.caCertificatesSecretRef&lt;/code>.&lt;/p>
+&lt;h5 id="default-issuer-using-an-acme-server">Default Issuer using an ACME server&lt;/h5>
+&lt;p>Please provide at least server and e-mail address.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeCluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certManagement:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> defaultIssuer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ACME:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> server: https://acme-v02.api.letsencrypt.org/directory
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> email: some.name@my-email-domain.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># secretRef:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># name: defaultIssuerPrivateKey&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># precheckNameservers:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - 1.2.3.4&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># - 5.6.7.8&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If needed, an existing ACME account can be specified with the &lt;code>secretRef&lt;/code>. The referenced secret must contain a field &lt;code>privateKey&lt;/code>. Otherwise, an account is auto-registered if supported by the ACME server.
+If you are using a private DNS server, you may need to set the &lt;code>precheckNameservers&lt;/code> used to check the propagation of the DNS challenges.&lt;/p>
+&lt;h5 id="default-issuer-using-a-root-or-intermediate-ca">Default Issuer using a root or intermediate CA&lt;/h5>
+&lt;p>If you want to use a root or intermediate CA for signing the certificates, provide a TLS secret containing the CA and reference it as shown in the example below.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeCluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> certManagement:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> defaultIssuer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> CA:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-ca-tls-secret
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="configuration-for-virtual-cluster">Configuration For Virtual Cluster&lt;/h3>
 &lt;h4 id="etcd-encryption-config">ETCD Encryption Config&lt;/h4>
 &lt;p>The &lt;code>spec.virtualCluster.kubernetes.kubeAPIServer.encryptionConfig&lt;/code> field in the Garden API allows operators to customize encryption configurations for the &lt;code>kube-apiserver&lt;/code> of the virtual cluster. It provides options to specify additional resources for encryption. Similarly &lt;code>spec.virtualCluster.gardener.gardenerAPIServer.encryptionConfig&lt;/code> field allows operators to customize encryption configurations for the &lt;code>gardener-apiserver&lt;/code>.&lt;/p>
 &lt;ul>

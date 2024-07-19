@@ -238,7 +238,162 @@ Once the Shoot is created, we have to manually install the &lt;code>rsyslog-relp
 &lt;li>
 &lt;p>Create a PR with the changes.&lt;/p>
 &lt;/li>
-&lt;/ol></description></item><item><title>Docs: Shoot Rsyslog Relp</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</guid><description>
+&lt;/ol></description></item><item><title>Docs: Monitoring</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/monitoring/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/monitoring/</guid><description>
+&lt;h1 id="monitoring">Monitoring&lt;/h1>
+&lt;p>The &lt;code>shoot-rsyslog-relp&lt;/code> extension exposes metrics for the &lt;code>rsyslog&lt;/code> service running on a Shoot&amp;rsquo;s nodes so that they can be easily viewed by cluster owners and operators in the Shoot&amp;rsquo;s Prometheus and Plutono instances. The exposed monitoring data offers valuable insights into the operation of the &lt;code>rsyslog&lt;/code> service and can be used to detect and debug ongoing issues. This guide describes the various metrics, alerts and logs available to cluster owners and operators.&lt;/p>
+&lt;h2 id="metrics">Metrics&lt;/h2>
+&lt;p>Metrics for the &lt;code>rsyslog&lt;/code> service originate from its &lt;code>impstats&lt;/code> module. These include the number of messages in the various queues, the number of ingested messages, the number of processed messages by configured actions, system resources used by the &lt;code>rsyslog&lt;/code> service, and others. More information about them can be found in the &lt;a href="https://www.rsyslog.com/doc/configuration/modules/impstats.html">&lt;code>impstats&lt;/code> documentation&lt;/a> and the &lt;a href="https://www.rsyslog.com/doc/configuration/rsyslog_statistic_counter.html">statistics counter documentation&lt;/a>. They are exposed via the &lt;a href="https://github.com/prometheus/node_exporter?tab=readme-ov-file#node-exporter">&lt;code>node-exporter&lt;/code>&lt;/a> running on each Shoot node and are scraped by the Shoot&amp;rsquo;s &lt;a href="https://github.com/gardener/gardener/blob/release-v1.99/docs/monitoring/README.md#shoot-prometheus">Prometheus instance&lt;/a>.&lt;/p>
+&lt;p>These metrics can also be viewed in a dedicated dashboard named &lt;code>Rsyslog Stats&lt;/code> in the Shoot&amp;rsquo;s Plutono instance. You can select the node for which you wish the metrics to be displayed from the &lt;code>Node&lt;/code> dropdown menu (by default metrics are summed over all nodes).&lt;/p>
+&lt;p>Following is a list of all exposed &lt;code>rsyslog&lt;/code> metrics. The &lt;code>name&lt;/code> and &lt;code>origin&lt;/code> labels can be used to determine wether the metric is for: a &lt;a href="https://www.rsyslog.com/doc/configuration/rsyslog_statistic_counter.html#queue">queue&lt;/a>, an &lt;a href="https://www.rsyslog.com/doc/configuration/rsyslog_statistic_counter.html#queue">action&lt;/a>, &lt;a href="https://www.rsyslog.com/doc/configuration/rsyslog_statistic_counter.html#plugins">plugins&lt;/a> or &lt;a href="https://www.rsyslog.com/doc/configuration/modules/impstats.html#statistic-counter">system stats&lt;/a>; the &lt;code>node&lt;/code> label can be used to determine the node the metric originates from:&lt;/p>
+&lt;h4 id="rsyslog_pstat_submitted">rsyslog_pstat_submitted&lt;/h4>
+&lt;p>Number of messages that were submitted to the &lt;code>rsyslog&lt;/code> service from its input. Currently &lt;code>rsyslog&lt;/code> uses the &lt;code>/run/systemd/journal/syslog&lt;/code> socket as input.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_processed">rsyslog_pstat_processed&lt;/h4>
+&lt;p>Number of messages that are successfully processed by an action and sent to the target server.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_failed">rsyslog_pstat_failed&lt;/h4>
+&lt;p>Number of messages that could not be processed by an action nor sent to the target server.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_suspended">rsyslog_pstat_suspended&lt;/h4>
+&lt;p>Total number of times an action suspended itself. Note that this counts the number of times the action transitioned from active to suspended state. The counter is no indication of how long the action was suspended or how often it was retried.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_suspended_duration">rsyslog_pstat_suspended_duration&lt;/h4>
+&lt;p>The total number of seconds this action was disabled.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_resumed">rsyslog_pstat_resumed&lt;/h4>
+&lt;p>The total number of times this action resumed itself. A resumption occurs after the action has detected that a failure condition does no longer exist.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_utime">rsyslog_pstat_utime&lt;/h4>
+&lt;p>User time used in microseconds.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_stime">rsyslog_pstat_stime&lt;/h4>
+&lt;p>System time used in microsends.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_maxrss">rsyslog_pstat_maxrss&lt;/h4>
+&lt;p>Maximum resident set size&lt;/p>
+&lt;ul>
+&lt;li>Type: Gauge&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_minflt">rsyslog_pstat_minflt&lt;/h4>
+&lt;p>Total number of minor faults the task has made per second, those which have not required loading a memory page from disk.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_majflt">rsyslog_pstat_majflt&lt;/h4>
+&lt;p>Total number of major faults the task has made per second, those which have required loading a memory page from disk.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_inblock">rsyslog_pstat_inblock&lt;/h4>
+&lt;p>Filesystem input operations.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_oublock">rsyslog_pstat_oublock&lt;/h4>
+&lt;p>Filesystem output operations.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_nvcsw">rsyslog_pstat_nvcsw&lt;/h4>
+&lt;p>Voluntary context switches.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_nivcsw">rsyslog_pstat_nivcsw&lt;/h4>
+&lt;p>Involuntary context switches.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_openfiles">rsyslog_pstat_openfiles&lt;/h4>
+&lt;p>Number of open files.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_size">rsyslog_pstat_size&lt;/h4>
+&lt;p>Messages currently in queue.&lt;/p>
+&lt;ul>
+&lt;li>Type: Gauge&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_enqueued">rsyslog_pstat_enqueued&lt;/h4>
+&lt;p>Total messages enqueued.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_full">rsyslog_pstat_full&lt;/h4>
+&lt;p>Times queue was full.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_discarded_full">rsyslog_pstat_discarded_full&lt;/h4>
+&lt;p>Messages discarded due to queue being full.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_discarded_nf">rsyslog_pstat_discarded_nf&lt;/h4>
+&lt;p>Messages discarded when queue not full.&lt;/p>
+&lt;ul>
+&lt;li>Type: Counter&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h4 id="rsyslog_pstat_maxqsize">rsyslog_pstat_maxqsize&lt;/h4>
+&lt;p>Maximum size queue has reached.&lt;/p>
+&lt;ul>
+&lt;li>Type: Gauge&lt;/li>
+&lt;li>Labels: &lt;code>name&lt;/code> &lt;code>node&lt;/code> &lt;code>origin&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;h2 id="alerts">Alerts&lt;/h2>
+&lt;p>There are two alerts defined for the &lt;code>rsyslog&lt;/code> service in the Shoot&amp;rsquo;s Prometheus instance:&lt;/p>
+&lt;h4 id="rsyslogtoomanyrelpactionfailures">RsyslogTooManyRelpActionFailures&lt;/h4>
+&lt;p>This indicates that the cumulative failure rate in processing &lt;code>relp&lt;/code> action messages is greater than 2%. In other words, it compares the rate of processed &lt;code>relp&lt;/code> action messages to the rate of failed &lt;code>relp&lt;/code> action messages and fires an alert when the following expression evaluates to true:&lt;/p>
+&lt;pre tabindex="0">&lt;code>sum(rate(rsyslog_pstat_failed{origin=&amp;#34;core.action&amp;#34;,name=&amp;#34;rsyslg-relp&amp;#34;}[5m])) / sum(rate(rsyslog_pstat_processed{origin=&amp;#34;core.action&amp;#34;,name=&amp;#34;rsyslog-relp&amp;#34;}[5m])) &amp;gt; bool 0.02`
+&lt;/code>&lt;/pre>&lt;h4 id="rsyslogrelpactionprocessingrateiszero">RsyslogRelpActionProcessingRateIsZero&lt;/h4>
+&lt;p>This indicates that no messages are being sent to the upstream rsyslog target by the &lt;code>relp&lt;/code> action. An alert is fired when the following expression evaluates to true:&lt;/p>
+&lt;pre tabindex="0">&lt;code>rate(rsyslog_pstat_processed{origin=&amp;#34;core.action&amp;#34;,name=&amp;#34;rsyslog-relp&amp;#34;}[5m]) == 0
+&lt;/code>&lt;/pre>&lt;p>Users can subscribe to these alerts by following the Gardener &lt;a href="https://gardener.cloud/docs/gardener/monitoring/alerting/#alerting-for-users">alerting guide&lt;/a>.&lt;/p>
+&lt;h2 id="logging">Logging&lt;/h2>
+&lt;p>There are two ways to view the logs of the &lt;code>rsyslog&lt;/code> service running on the Shoot&amp;rsquo;s nodes - either using the &lt;code>Explore&lt;/code> tab of the Shoot&amp;rsquo;s Plutono instance, or &lt;code>ssh&lt;/code>-ing directly to a node.&lt;/p>
+&lt;p>To view logs in Plutono, navigate to the &lt;code>Explore&lt;/code> tab and select &lt;code>vali&lt;/code> from the &lt;code>Explore&lt;/code> dropdown menu. Afterwards enter the following &lt;code>vali&lt;/code> query:&lt;/p>
+&lt;p>&lt;code>{nodename=&amp;quot;&amp;lt;name-of-node&amp;gt;&amp;quot;} |~ &amp;quot;\&amp;quot;unit\&amp;quot;:\&amp;quot;rsyslog.service\&amp;quot;&amp;quot;&lt;/code>&lt;/p>
+&lt;p>Notice that you cannot use the &lt;code>unit&lt;/code> label to filter for the &lt;code>rsyslog.service&lt;/code> unit logs. Instead, you have to &lt;code>grep&lt;/code> for the service as displayed in the example above.&lt;/p>
+&lt;p>To view logs when directly &lt;code>ssh&lt;/code>-ing to a node in the Shoot cluster, use either of the following commands on the node:&lt;/p>
+&lt;p>&lt;code>systemctl status rsyslog&lt;/code>&lt;/p>
+&lt;p>&lt;code>journalctl -u rsyslog&lt;/code>&lt;/p></description></item><item><title>Docs: Shoot Rsyslog Relp</title><link>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/extensions/others/gardener-extension-shoot-rsyslog-relp/shoot-rsyslog-relp/</guid><description>
 &lt;h1 id="developer-docs-for-gardener-shoot-rsyslog-relp-extension">Developer Docs for Gardener Shoot Rsyslog Relp Extension&lt;/h1>
 &lt;p>This document outlines how Shoot reconciliation and deletion works for a Shoot with the shoot-rsyslog-relp extension enabled.&lt;/p>
 &lt;h2 id="shoot-reconciliation">Shoot Reconciliation&lt;/h2>

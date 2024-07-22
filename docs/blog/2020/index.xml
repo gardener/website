@@ -87,8 +87,8 @@ Come give it a try!&lt;/p>
 This is a guest commentary from &lt;span style="white-space:nowrap">&lt;a href="https://metal-stack.io/">metal-stack&lt;/a>&lt;/span>.&lt;br>&lt;br>metal-stack is a software that provides an API for provisioning and managing physical servers in the data center. To categorize this product, the terms &amp;ldquo;Metal-as-a-Service&amp;rdquo; (MaaS) or &amp;ldquo;bare metal cloud&amp;rdquo; are commonly used.
 &lt;/div>
 &lt;p>One reason that you stumbled upon this blog post could be that you saw errors like the following in your ETCD instances:&lt;/p>
-&lt;pre tabindex="0">&lt;code>etcd-main-0 etcd 2020-09-03 06:00:07.556157 W | etcdserver: read-only range request &amp;#34;key:\&amp;#34;/registry/deployments/shoot--pwhhcd--devcluster2/kube-apiserver\&amp;#34; &amp;#34; with result &amp;#34;range_response_count:1 size:9566&amp;#34; took too long (13.95374909s) to execute
-&lt;/code>&lt;/pre>&lt;p>As it turns out, 14 seconds are way too slow for running Kubernetes API servers. It makes them go into a crash loop (leader election fails). Even worse, this whole thing is self-amplifying: The longer a response takes, the more requests queue up, leading to response times increasing further and further. The system is very unlikely to recover. 😞&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>etcd-main-0 etcd 2020-09-03 06:00:07.556157 W | etcdserver: read-only range request &lt;span style="color:#a31515">&amp;#34;key:\&amp;#34;/registry/deployments/shoot--pwhhcd--devcluster2/kube-apiserver\&amp;#34; &amp;#34;&lt;/span> with result &lt;span style="color:#a31515">&amp;#34;range_response_count:1 size:9566&amp;#34;&lt;/span> took too long (13.95374909s) to execute
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>As it turns out, 14 seconds are way too slow for running Kubernetes API servers. It makes them go into a crash loop (leader election fails). Even worse, this whole thing is self-amplifying: The longer a response takes, the more requests queue up, leading to response times increasing further and further. The system is very unlikely to recover. 😞&lt;/p>
 &lt;p>On Github, you can easily find the reason for this problem. Most probably your disks are too slow (see &lt;a href="https://github.com/etcd-io/etcd/issues/10860">etcd-io/etcd#10860&lt;/a>). So, when you are (like in our case) on GKE and run your ETCD on their default persistent volumes, consider moving from standard disks to SSDs and the error messages should disappear. A guide on how to use SSD volumes on GKE can be found at &lt;a href="https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/ssd-pd">Using SSD persistent disks&lt;/a>.&lt;/p>
 &lt;p>Case closed? Well. For some people it might be. But when you are seeing this in your Gardener infrastructure, it&amp;rsquo;s likely that there is something going wrong. The entire ETCD management is fully managed by Gardener, which makes the problem a bit more interesting to look at. This blog post strives to cover topics such as:&lt;/p>
 &lt;ul>
@@ -122,60 +122,60 @@ This section contains code examples from Gardener v1.8.
 &lt;p>Now that we know how the ETCDs are managed by Gardener, we can come back to the original problem from the beginning of this article. It turned out that the real problem was a misconfiguration in our deployment. Gardener actually &lt;em>does&lt;/em> use SSD-backed storage on GCP for ETCDs by default. During reconciliation, the &lt;a href="https://github.com/gardener/gardener-extension-provider-gcp">gardener-extension-controller-gcp&lt;/a> deploys a storage class called &lt;code>gardener.cloud-fast&lt;/code> that enables accessing SSDs on GCP.&lt;/p>
 &lt;p>But for some reason, in our cluster we did not find such a storage class. And even more interesting, we did not use the &lt;code>gardener-extension-provider-gcp&lt;/code> for any shoot reconciliation, only for ETCD backup purposes. And that was the big mistake we made: We reconciled the shoot control plane completely with &lt;code>gardener-extension-provider-metal&lt;/code> even though our initial &lt;code>Seed&lt;/code> actually runs on GKE and specific parts of the shoot control plane should be reconciled by the GCP extension-controller instead!&lt;/p>
 &lt;p>This is how the initial &lt;code>Seed&lt;/code> resource looked like:&lt;/p>
-&lt;pre tabindex="0">&lt;code>apiVersion: core.gardener.cloud/v1beta1
-kind: Seed
-metadata:
-name: initial-seed
-spec:
-...
-provider:
-region: gke
-type: metal
-...
-...
-&lt;/code>&lt;/pre>&lt;p>Surprisingly, this configuration was working pretty well for a long time. The initial seed properly produced the Kubernetes control planes of our managed seeds that looked like this:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl get controlplanes.extensions.gardener.cloud
-NAME TYPE PURPOSE STATUS AGE
-fra-equ01 metal Succeeded 85d
-fra-equ01-exposure metal exposure Succeeded 85d
-&lt;/code>&lt;/pre>&lt;p>And this is another interesting observation: There are two &lt;code>ControlPlane&lt;/code> resources. One regular resource and one with an &lt;code>exposure&lt;/code> purpose. Gardener distinguishes between two types for this exact reason: Environments where the shoot control plane runs on a different cloud provider than the Kubernetes worker nodes. The regular &lt;code>ControlPlane&lt;/code> resource gets reconciled by the provider configured in the &lt;code>Shoot&lt;/code> resource, and the &lt;code>exposure&lt;/code> type &lt;code>ControlPlane&lt;/code> by the provider configured in the &lt;code>Seed&lt;/code> resource.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: initial-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: gke
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: metal
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Surprisingly, this configuration was working pretty well for a long time. The initial seed properly produced the Kubernetes control planes of our managed seeds that looked like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ kubectl get controlplanes.extensions.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME TYPE PURPOSE STATUS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>fra-equ01 metal Succeeded 85d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>fra-equ01-exposure metal exposure Succeeded 85d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>And this is another interesting observation: There are two &lt;code>ControlPlane&lt;/code> resources. One regular resource and one with an &lt;code>exposure&lt;/code> purpose. Gardener distinguishes between two types for this exact reason: Environments where the shoot control plane runs on a different cloud provider than the Kubernetes worker nodes. The regular &lt;code>ControlPlane&lt;/code> resource gets reconciled by the provider configured in the &lt;code>Shoot&lt;/code> resource, and the &lt;code>exposure&lt;/code> type &lt;code>ControlPlane&lt;/code> by the provider configured in the &lt;code>Seed&lt;/code> resource.&lt;/p>
 &lt;p>With the existing configuration the &lt;code>gardener-extension-provider-gcp&lt;/code> does not kick in and hence, it neither deploys the &lt;code>gardener.cloud-fast&lt;/code> storage class nor does it mutate the &lt;code>Etcd&lt;/code> resource to point to it. And in the end, we are left with ETCD volumes using the default storage class (which is what we do for ETCD stateful sets in the metal-stack seeds, because our default storage class uses &lt;a href="https://github.com/metal-stack/csi-lvm">csi-lvm&lt;/a> that writes into logical volumes on the SSD disks in our physical servers).&lt;/p>
 &lt;p>The correction we had to make was a one-liner: Setting the provider type of the initial &lt;code>Seed&lt;/code> resource to &lt;code>gcp&lt;/code>.&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl get seed initial-seed -o yaml
-apiVersion: core.gardener.cloud/v1beta1
-kind: Seed
-metadata:
-name: initial-seed
-spec:
-...
-provider:
-region: gke
-type: gcp # &amp;lt;-- here
-...
-...
-&lt;/code>&lt;/pre>&lt;p>This change moved over the control plane exposure reconciliation to the &lt;code>gardener-extension-provider-gcp&lt;/code>:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl get -n &amp;lt;shoot-namespace&amp;gt; controlplanes.extensions.gardener.cloud
-NAME TYPE PURPOSE STATUS AGE
-fra-equ01 metal Succeeded 85d
-fra-equ01-exposure gcp exposure Succeeded 85d
-&lt;/code>&lt;/pre>&lt;p>And boom, after some time of waiting for all sorts of magic reconciliations taking place in the background, the missing storage class suddenly appeared:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl get sc
-NAME PROVISIONER
-gardener.cloud-fast kubernetes.io/gce-pd
-standard (default) kubernetes.io/gce-pd
-&lt;/code>&lt;/pre>&lt;p>Also, the &lt;code>Etcd&lt;/code> resource was now configured properly to point to the new storage class:&lt;/p>
-&lt;pre tabindex="0">&lt;code>$ kubectl get -n &amp;lt;shoot-namespace&amp;gt; etcd etcd-main -o yaml
-apiVersion: druid.gardener.cloud/v1alpha1
-kind: Etcd
-metadata:
-...
-name: etcd-main
-spec:
-...
-storageClass: gardener.cloud-fast # &amp;lt;-- was pointing to default storage class before!
-volumeClaimTemplate: main-etcd
-...
-&lt;/code>&lt;/pre>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ kubectl get seed initial-seed -o yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: initial-seed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: gke
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: gcp &lt;span style="color:#008000"># &amp;lt;-- here&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This change moved over the control plane exposure reconciliation to the &lt;code>gardener-extension-provider-gcp&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ kubectl get -n &amp;lt;shoot-namespace&amp;gt; controlplanes.extensions.gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME TYPE PURPOSE STATUS AGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>fra-equ01 metal Succeeded 85d
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>fra-equ01-exposure gcp exposure Succeeded 85d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>And boom, after some time of waiting for all sorts of magic reconciliations taking place in the background, the missing storage class suddenly appeared:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ kubectl get sc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>NAME PROVISIONER
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>gardener.cloud-fast kubernetes.io/gce-pd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>standard (default) kubernetes.io/gce-pd
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Also, the &lt;code>Etcd&lt;/code> resource was now configured properly to point to the new storage class:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sh" data-lang="sh">&lt;span style="display:flex;">&lt;span>$ kubectl get -n &amp;lt;shoot-namespace&amp;gt; etcd etcd-main -o yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: druid.gardener.cloud/v1alpha1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: etcd-main
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> storageClass: gardener.cloud-fast &lt;span style="color:#008000"># &amp;lt;-- was pointing to default storage class before!&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> volumeClaimTemplate: main-etcd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;div class="alert alert-info" role="alert">
 &lt;h4 class="alert-heading">Note&lt;/h4>
 Only the &lt;code>etcd-main&lt;/code> storage class gets changed to &lt;code>gardener.cloud-fast&lt;/code>. The &lt;code>etcd-events&lt;/code> configuration will still point to standard disk storage because this ETCD is much less occupied as compared to the &lt;code>etcd-main&lt;/code> stateful set.
@@ -228,17 +228,17 @@ Only the &lt;code>etcd-main&lt;/code> storage class gets changed to &lt;code>gar
 &lt;h3 id="support-for-resource-quotas-gardenergardener2627httpsgithubcomgardenergardenerpull2627">Support for Resource Quotas (&lt;a href="https://github.com/gardener/gardener/pull/2627">gardener/gardener#2627&lt;/a>)&lt;/h3>
 &lt;p>After the Kubernetes upstream change (&lt;a href="https://github.com/kubernetes/kubernetes/pull/93537">kubernetes/kubernetes#93537&lt;/a>) for externalizing the backing admission plugin has been accepted, we are happy to announce the support of &lt;a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/">ResourceQuotas&lt;/a> for Gardener offered resource kinds. &lt;a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/">ResourceQuotas&lt;/a> allow you to specify a maximum number of objects per namespace, especially for end-user objects like &lt;code>Shoots&lt;/code> or &lt;code>SecretBindings&lt;/code> in a project namespace. Even though the admission plugin is enabled by default in the Gardener API Server, make sure the Kube Controller Manager runs the &lt;code>resourcequota&lt;/code> controller as well.&lt;/p>
 &lt;h3 id="watch-out-developers-terraformer-v2-is-coming-gardenergardener3034httpsgithubcomgardenergardenerpull3034">Watch Out Developers, Terraformer v2 is Coming! (&lt;a href="https://github.com/gardener/gardener/pull/3034">gardener/gardener#3034&lt;/a>)&lt;/h3>
-&lt;p>Although not related only to Gardener core, the preparation towards &lt;a href="https://github.com/gardener/terraformer/pull/48">Terraformer v2&lt;/a> in the &lt;a href="https://github.com/gardener/gardener/tree/master/extensions">extensions library&lt;/a> is still an important milestone to mention. With Terraformer v2, Gardener extensions using Terraform scripts will benefit from great consistency improvements. Please check out &lt;a href="https://github.com/gardener/gardener/pull/3034">PR #3034&lt;/a>), which demonstrates necessary steps to transition to Terraformer v2 as soon as it’s released.&lt;/p>
+&lt;p>Although not related only to Gardener core, the preparation towards &lt;a href="https://github.com/gardener/terraformer/pull/48">Terraformer v2&lt;/a> in the &lt;a href="https://github.com/gardener/gardener/tree/master/extensions">extensions library&lt;/a> is still an important milestone to mention. With Terraformer v2, Gardener extensions using Terraform scripts will benefit from great consistency improvements. Please check out &lt;a href="https://github.com/gardener/gardener/pull/3034">PR #3034&lt;/a>, which demonstrates necessary steps to transition to Terraformer v2 as soon as it’s released.&lt;/p>
 &lt;h2 id="notable-changes-in-v111">Notable Changes in v1.11&lt;/h2>
 &lt;p>The Gardener community worked eagerly to deliver plenty of improvements with version v1.11. Those help us to further progress with topics like &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md">control plane migration&lt;/a>, which is actively being worked on, or to harden our load balancer consolidation (&lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/08-shoot-apiserver-via-sni.md">APIServerSNI&lt;/a>) feature.
 Besides improvements and fixes (full list available in release notes), this release contains major features as well, and we don’t want to miss a chance to walk you through them.&lt;/p>
 &lt;h3 id="gardener-admission-controller-gardenergardener2832httpsgithubcomgardenergardenerpull2832-gardenergardener2781httpsgithubcomgardenergardenerpull2781">Gardener Admission Controller (&lt;a href="https://github.com/gardener/gardener/pull/2832">gardener/gardener#2832&lt;/a>), (&lt;a href="https://github.com/gardener/gardener/pull/2781">gardener/gardener#2781&lt;/a>)&lt;/h3>
 &lt;p>In this release, all admission related HTTP handlers moved from the Gardener Controller Manager (GCM) to the new component &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/">Gardener Admission Controller&lt;/a>. The admission controller is rather a small component as opposed to GCM with regards to memory footprint and CPU consumption, and thus allows you to run multiple replicas of it much cheaper than it was before. We certainly recommend specifying the admission controller deployment with more than one replica, since it reduces the odds of a system-wide outage and increases the performance of your Gardener service.&lt;/p>
 &lt;p>Besides the already known &lt;code>Namespace&lt;/code> and Kubeconfig &lt;code>Secret&lt;/code> validation, a new admission handler &lt;code>Resource-Size-Validator&lt;/code> was added to the admission controller. It allows operators to restrict the size for all kinds of Kubernetes objects, especially sent by end-users to the Kubernetes or Gardener API Server. We address a security concern with this feature to prevent denial of service attacks in which an attacker artificially increases the size of objects to exhaust your object store, API server caches, or to let Gardener and Kubernetes controllers run out-of-memory. The &lt;a href="https://gardener.cloud/docs/gardener/concepts/admission-controller/#resource-size-validator">documentation&lt;/a> reveals an approach of finding the right resource size for your setup and why you should create exceptions for technical users and operators.&lt;/p>
-&lt;h3 id="deferring-shoot-progress-reporting-gardenergardener2909httpsgithubcomgardenergardenerpull2909">Deferring Shoot Progress Reporting (&lt;a href="https://github.com/gardener/gardener/pull/2909">gardener/gardener#2909&lt;/a>),&lt;/h3>
+&lt;h3 id="deferring-shoot-progress-reporting-gardenergardener2909httpsgithubcomgardenergardenerpull2909">Deferring Shoot Progress Reporting (&lt;a href="https://github.com/gardener/gardener/pull/2909">gardener/gardener#2909&lt;/a>)&lt;/h3>
 &lt;p>Shoot progress reporting is the continuous update process of a shoot’s &lt;code>.status.lastOperation&lt;/code> field while the shoot is being reconciled by Gardener. Many steps are involved during reconciliation and depending on the size of your setup, the updates might become an issue for the Gardener API Server, which will refrain from processing further requests for a certain period.
 With &lt;code>.controllers.shoot.progressReportPeriod&lt;/code> in Gardenlet’s component configuration, you can now delay these updates for the specified period.&lt;/p>
-&lt;h3 id="new-policy-for-controller-registrations-gardenergardener2896httpsgithubcomgardenergardenerpull2896">New Policy for Controller Registrations (&lt;a href="https://github.com/gardener/gardener/pull/2896">gardener/gardener#2896&lt;/a>),&lt;/h3>
+&lt;h3 id="new-policy-for-controller-registrations-gardenergardener2896httpsgithubcomgardenergardenerpull2896">New Policy for Controller Registrations (&lt;a href="https://github.com/gardener/gardener/pull/2896">gardener/gardener#2896&lt;/a>)&lt;/h3>
 &lt;p>A while ago, we added support for different policies in &lt;code>ControllerRegistrations&lt;/code> which determine under which circumstances the deployments of registration controllers happen in affected seed clusters. If you specify the new policy &lt;code>AlwaysExceptNoShoots&lt;/code>, the respective extension controller will be deployed to all seed cluster hosting at least one shoot cluster. After all shoot clusters from a seed are gone, the extension deployment will be deleted again.
 A full list of supported policies can be found at &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#deployment-configuration-options">Registering Extension Controllers&lt;/a>.&lt;/p></description></item><item><title>Blog: Gardener Integrates with KubeVirt</title><link>https://gardener.cloud/blog/2020/10.19-gardener-integrates-with-kubevirt/</link><pubDate>Mon, 19 Oct 2020 00:00:00 +0000</pubDate><guid>https://gardener.cloud/blog/2020/10.19-gardener-integrates-with-kubevirt/</guid><description>
 &lt;p>The Gardener team is happy to announce that &lt;a href="https://gardener.cloud">Gardener&lt;/a> now offers support for an additional, often requested, infrastructure/virtualization technology, namely &lt;a href="https://kubevirt.io/">KubeVirt&lt;/a>! Gardener can now provide &lt;a href="https://github.com/cncf/k8s-conformance">Kubernetes-conformant&lt;/a> clusters using KubeVirt managed Virtual Machines in the environment of your choice. This integration has been tested and works with any qualified Kubernetes (provider) cluster that is compatibly configured to host the required KubeVirt components, in particular for example &lt;a href="https://www.openshift.com/blog/openshift-virtualization-containers-kvm-and-your-vms">Red Hat OpenShift Virtualization&lt;/a>.&lt;/p>
@@ -412,7 +412,7 @@ Components are mostly Kubernetes resources in a Gardener installation (e.g. the 
 &lt;li>every Shoot Control Plane has a dedicated namespace in the Seed.&lt;/li>
 &lt;/ul>
 &lt;/li>
-&lt;li>Cloud Provider (owned by Stakeholder).
+&lt;li>Cloud Provider (owned by Stakeholder)
 &lt;ul>
 &lt;li>Arguably part of the Shoot cluster but used by components in the Seed cluster to create the infrastructure for the Shoot.&lt;/li>
 &lt;/ul>
@@ -575,7 +575,7 @@ With Gardener v1.8, the Helm chart contains a liveness probe configuration by de
 &lt;p>The &lt;a href="https://gardener.cloud">Gardener project website&lt;/a> just received a serious facelift. Here are some of the highlights:&lt;/p>
 &lt;ul>
 &lt;li>&lt;strong>A completely new landing page&lt;/strong>, emphasizing both on Gardener&amp;rsquo;s value proposition and the open community behind it.&lt;/li>
-&lt;li>&lt;strong>The Community page&lt;/strong> was reconstructed for quick access to the various community channels and will soon merge the Adopters page. It will provide a better insight into success stories from the communty.&lt;/li>
+&lt;li>&lt;strong>The Community page&lt;/strong> was reconstructed for quick access to the various community channels and will soon merge the Adopters page. It will provide a better insight into success stories from the community.&lt;/li>
 &lt;li>&lt;strong>Improved blogs&lt;/strong> layout. One-click sharing options are available starting with simple URL copy link and twitter button and others will closely follow up. While we are at it, give it a try. Spread the word.&lt;/li>
 &lt;/ul>
 &lt;p>&lt;strong>Website builds&lt;/strong> also got to a new level with:&lt;/p>
@@ -589,5 +589,4 @@ With Gardener v1.8, the Helm chart contains a liveness probe configuration by de
 &lt;p>Stay tuned for more improvements around the corner. The biggest ones are aligning the documentation with the new theme and restructuring it along, more emphasis on community success stories all around, more sharing options and more than a handful of shortcodes for content development and &amp;hellip; let&amp;rsquo;s cut the spoilers here.&lt;/p>
 &lt;p>I hope you will like it. Let us know what you think about it. Feel free to leave comments and discuss on &lt;img src="https://gardener.cloud/__resources/twitter-logo-green_0b6bc3.svg" class="icon inline">&lt;a href="https://twitter.com/GardenerProject">Twitter&lt;/a> and &lt;img src="https://gardener.cloud/__resources/slack-logo-green_ed055f.svg" class="icon inline">&lt;a href="https://kubernetes.slack.com/archives/CB57N0BFG">Slack&lt;/a>, or in case of issues - on &lt;img src="https://gardener.cloud/__resources/github-mark-logo-green_650f96.svg" class="icon inline">&lt;a href="https://github.com/gardener/documentation/issues">GitHub&lt;/a>.&lt;/p>
 &lt;p>&lt;strong>Go ahead and help us spread the word: &lt;a href="https://gardener.cloud">&lt;a href="https://gardener.cloud">https://gardener.cloud&lt;/a>&lt;/a>&lt;/strong>&lt;/p>
-&lt;img src="https://gardener.cloud/__resources/website-screen-L_70f11a.png"/>
-&lt;br></description></item></channel></rss>
+&lt;img src="https://gardener.cloud/__resources/website-screen-L_70f11a.png"/></description></item></channel></rss>

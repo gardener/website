@@ -662,7 +662,7 @@ Currently, the reconciler retries only failed &lt;code>Shoot&lt;/code>s with an 
 &lt;p>Finally, the &lt;code>gardener-node-agent&lt;/code> runs a systemd service watching on secret resources located in the &lt;code>kube-system&lt;/code> namespace like our &lt;code>cloud-config&lt;/code> secret that contains the &lt;code>OperatingSystemConfig&lt;/code>. When &lt;code>gardener-node-agent&lt;/code> applies the OSC, it installs the &lt;code>kubelet&lt;/code> + configuration on the worker node.&lt;/p>
 &lt;h2 id="installation-and-bootstrapping">Installation and Bootstrapping&lt;/h2>
 &lt;p>This section describes how the &lt;code>gardener-node-agent&lt;/code> is initially installed onto the worker node.&lt;/p>
-&lt;p>In the beginning, there is a very small bash script called &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/extensions/operatingsystemconfig/original/components/containerd/templates/scripts/init.tpl.sh">&lt;code>gardener-node-init.sh&lt;/code>&lt;/a>, which will be copied to &lt;code>/var/lib/gardener-node-agent/init.sh&lt;/code> on the node with cloud-init data.
+&lt;p>In the beginning, there is a very small bash script called &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/component/extensions/operatingsystemconfig/nodeinit/templates/scripts/init.tpl.sh">&lt;code>gardener-node-init.sh&lt;/code>&lt;/a>, which will be copied to &lt;code>/var/lib/gardener-node-agent/init.sh&lt;/code> on the node with cloud-init data.
 This script&amp;rsquo;s sole purpose is downloading and starting the &lt;code>gardener-node-agent&lt;/code>.
 The binary artifact is extracted from an &lt;a href="https://github.com/opencontainers/image-spec/blob/main/manifest.md">OCI artifact&lt;/a> and lives at &lt;code>/opt/bin/gardener-node-agent&lt;/code>.&lt;/p>
 &lt;p>Along with the init script, a configuration for the &lt;code>gardener-node-agent&lt;/code> is carried over to the worker node at &lt;code>/var/lib/gardener-node-agent/config.yaml&lt;/code>.
@@ -807,8 +807,49 @@ If you are using a private DNS server, you may need to set the &lt;code>precheck
 &lt;blockquote>
 &lt;p>ℹ️ Note that configuring encryption for a custom resource for the &lt;code>kube-apiserver&lt;/code> is only supported for Kubernetes versions &amp;gt;= 1.26.&lt;/p>
 &lt;/blockquote>
+&lt;h2 id="extension-resource">&lt;code>Extension&lt;/code> Resource&lt;/h2>
+&lt;p>A Gardener installation relies on extension controllers to provide support for new cloud providers or to add new capabilities.
+You can find out more about Gardener&amp;rsquo;s extensions and how they can be used &lt;a href="https://gardener.cloud/docs/gardener/extensions/extension/#contract-extension-resource">here&lt;/a>.&lt;/p>
+&lt;p>The &lt;code>Extension&lt;/code> resource is intended to automate the installation and management of extensions in a Gardener landscape.
+It contains configuration for the following scenarios:&lt;/p>
+&lt;ul>
+&lt;li>The deployment of &lt;code>ControllerRegistration&lt;/code> and &lt;code>ControllerDeployment&lt;/code> resources in the (virtual) garden cluster.&lt;/li>
+&lt;li>The deployment of &lt;a href="https://gardener.cloud/docs/gardener/extensions/admission/">admission controllers&lt;/a> in the runtime cluster.&lt;/li>
+&lt;/ul>
+&lt;p>In the near future, the &lt;code>Extension&lt;/code> will be used by the &lt;code>gardener-operator&lt;/code> to automate the management of the backup bucket for ETCD and DNS records required by the garden cluster.
+To do that, &lt;code>gardener-operator&lt;/code> will leverage extensions that support &lt;code>DNSRecord&lt;/code> and &lt;code>BackupBucket&lt;/code> resources.
+As of today, the support for managed &lt;code>DNSRecords&lt;/code> and &lt;code>BackupBuckets&lt;/code> in the &lt;code>gardener-operator&lt;/code> is still being built.
+However, the &lt;code>Extension&lt;/code>&amp;rsquo;s specification already reflects the target picture.&lt;/p>
+&lt;p>Please find an exemplary &lt;code>Extension&lt;/code> resource &lt;a href="https://github.com/gardener/gardener/blob/master/example/operator/15-extension.yaml">here&lt;/a>.&lt;/p>
+&lt;h3 id="extension-deployment">Extension Deployment&lt;/h3>
+&lt;p>The &lt;code>.spec.deployment&lt;/code> specifies how an extension can be installed for a Gardener landscape and consists of the following parts:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.spec.deployment.extension&lt;/code> contains the deployment specification of an extension controller.&lt;/li>
+&lt;li>&lt;code>.spec.deployment.admission&lt;/code> contains the deployment specification of an admission controller.&lt;/li>
+&lt;/ul>
+&lt;p>Each one is described in more details below.&lt;/p>
+&lt;h4 id="configuration-for-extension-deployment">Configuration for Extension Deployment&lt;/h4>
+&lt;p>&lt;code>.spec.deployment.extension&lt;/code> contains configuration for the registration of an extension controller in the garden cluster.
+&lt;code>gardener-operator&lt;/code> follows the same principles described by &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#registering-extension-controllers">this document&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.spec.deployment.extension.helm&lt;/code> and &lt;code>.spec.deployment.extension.values&lt;/code> are used when creating the &lt;code>ControllerDeployment&lt;/code> in the garden cluster.&lt;/li>
+&lt;li>&lt;code>.spec.deployment.extension.policy&lt;/code> and &lt;code>.spec.deployment.extension.seedSelector&lt;/code> define the extension&amp;rsquo;s installation policy as per the &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#deployment-configuration-options">&lt;code>ControllerDeployment's&lt;/code> respective fields&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>The extension controller can also be deployed in the runtime cluster to manage resources required by the &lt;code>Garden&lt;/code> resource.
+Since the environment in the runtime cluster may differ from that of a &lt;code>Seed&lt;/code>, the extension is installed in the runtime cluster with a distinct set of Helm chart values specified in &lt;code>.spec.deployment.extension.runtimeValues&lt;/code>.
+This configuration allows for precise control over various extension parameters, such as requested resources, &lt;a href="https://gardener.cloud/docs/gardener/priority-classes/">priority classes&lt;/a>, and more.&lt;/p>
+&lt;h4 id="configuration-for-admission-deployment">Configuration for Admission Deployment&lt;/h4>
+&lt;p>The &lt;code>.spec.deployment.admission&lt;/code> defines how an extension&amp;rsquo;s admission controller may be deployed by the &lt;code>gardener-operator&lt;/code>.
+The deployment of an admission controller is optional and may be omitted.
+Typically, the admission controllers run in the runtime cluster alongside the virtual cluster deployment.
+However, to function properly, the admission controllers require access and permissions for the virtual garden cluster in order to watch the Gardener API resources like &lt;code>Shoot&lt;/code>s.
+As of today, deployment of admission controllers via &lt;code>.spec.deployment.admission&lt;/code> is not yet supported, but it is currently under active development.&lt;/p>
+&lt;h3 id="configuration-for-extension-resources">Configuration for Extension Resources&lt;/h3>
+&lt;p>The &lt;code>.spec.resources&lt;/code> field refers to the extension resources as defined by Gardener in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API.
+These include both well-known types such as &lt;code>Infrastructure&lt;/code>, &lt;code>Worker&lt;/code> etc. and &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#extension-resource-configurations">generic resources&lt;/a>.
+The field will be used to populate the respective field in the resulting &lt;code>ControllerRegistration&lt;/code> in the garden cluster.&lt;/p>
 &lt;h2 id="controllers">Controllers&lt;/h2>
-&lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has two controllers which are now described in more detail.&lt;/p>
+&lt;p>The &lt;code>gardener-operator&lt;/code> controllers are now described in more detail.&lt;/p>
 &lt;h3 id="garden-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden">&lt;code>Garden&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The Garden controller in the operator reconciles Garden objects with the help of the following reconcilers.&lt;/p>
 &lt;h4 id="main-reconcilerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardengarden">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/garden/garden">&lt;code>Main&lt;/code> Reconciler&lt;/a>&lt;/h4>
@@ -1146,6 +1187,10 @@ When an object is not actively referenced anymore because the &lt;code>Garden&lt
 &lt;/ul>
 &lt;p>The registration happens as soon as the &lt;code>Garden&lt;/code> resource is created.
 It contains the networking information of the garden runtime cluster which is required configuration for the &lt;code>NetworkPolicy&lt;/code> controller.&lt;/p>
+&lt;h3 id="extension-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollerextension">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/extension">&lt;code>Extension&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>Gardener relies on extensions to provide various capabilities, such as supporting cloud providers.
+This controller automates the management of extensions by managing all necessary resources in the runtime and virtual garden clusters.&lt;/p>
+&lt;p>Currently, this controller only supports the reconciliation of &lt;code>ControllerDeployment&lt;/code> and &lt;code>ControllerRegistration&lt;/code> resources in the virtual garden cluster.&lt;/p>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
 &lt;h3 id="validation">Validation&lt;/h3>

@@ -1197,6 +1197,15 @@ This is used to allow easy deployments of &lt;code>gardenlet&lt;/code>s into unm
 For a general overview, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet/">this document&lt;/a>.&lt;/p>
 &lt;p>On &lt;code>Gardenlet&lt;/code> reconciliation, the controller deploys the &lt;code>gardenlet&lt;/code> to the cluster (either its own, or the one provided via the &lt;code>.spec.kubeconfigSecretRef&lt;/code>) after downloading the Helm chart specified in &lt;code>.spec.deployment.helm.ociRepository&lt;/code> and rendering it with the provided values/configuration.&lt;/p>
 &lt;p>On &lt;code>Gardenlet&lt;/code> deletion, nothing happens: &lt;code>gardenlet&lt;/code>s must always be deleted manually (by deleting the &lt;code>Seed&lt;/code> and, once gone, then the &lt;code>gardenlet&lt;/code> &lt;code>Deployment&lt;/code>).&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+This controller only takes care of the very first &lt;code>gardenlet&lt;/code> deployment (since it only reacts when there is no &lt;code>Seed&lt;/code> resource yet).
+After the &lt;code>gardenlet&lt;/code> is running, it uses the &lt;a href="https://gardener.cloud/docs/gardener/deployment/deploy_gardenlet_manually/#self-upgrades">self-upgrade mechanism&lt;/a> by watching the &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> (see &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#gardenlet-controller">this&lt;/a> for more details.)&lt;/p>
+&lt;p>After a successful &lt;a href="https://gardener.cloud/docs/gardener/concepts/operator/#main-reconciler">&lt;code>Garden&lt;/code> reconciliation&lt;/a>, &lt;code>gardener-operator&lt;/code> also updates the &lt;code>.spec.deployment.helm.ociRepository.ref&lt;/code> to its own version in all &lt;code>Gardenlet&lt;/code> resources labeled with &lt;code>operator.gardener.cloud/auto-update-gardenlet-helm-chart-ref=true&lt;/code>.
+&lt;code>gardenlet&lt;/code>s then updates themselves.&lt;/p>
+&lt;p>⚠️ If you prefer to manage the &lt;code>Gardenlet&lt;/code> resources via GitOps, Flux, or similar tools, then you should better manage the &lt;code>.spec.deployment.helm.ociRepository.ref&lt;/code> field yourself and not label the resources as mentioned above (to prevent &lt;code>gardener-operator&lt;/code> from interfering with your desired state).
+Make sure to apply your &lt;code>Gardenlet&lt;/code> resources (potentially containing a new version) after the &lt;code>Garden&lt;/code> resource was successfully reconciled (i.e., after Gardener control plane was successfully rolled out, see &lt;a href="https://gardener.cloud/docs/gardener/deployment/version_skew_policy/#supported-component-upgrade-order">this&lt;/a> for more information.)&lt;/p>
+&lt;/blockquote>
 &lt;h2 id="webhooks">Webhooks&lt;/h2>
 &lt;p>As of today, the &lt;code>gardener-operator&lt;/code> only has one webhook handler which is now described in more detail.&lt;/p>
 &lt;h3 id="validation">Validation&lt;/h3>

@@ -127,9 +127,10 @@ We are truly looking forward to your feedback!&lt;/p>
 &lt;h2 id="shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> Subresource&lt;/h2>
 &lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md">&lt;code>shoots/adminkubeconfig&lt;/code>&lt;/a> subresource allows users to dynamically generate temporary &lt;code>kubeconfig&lt;/code>s that can be used to access shoot cluster with &lt;code>cluster-admin&lt;/code> privileges. The credentials associated with this &lt;code>kubeconfig&lt;/code> are client certificates which have a very short validity and must be renewed before they expire (by calling the subresource endpoint again).&lt;/p>
 &lt;p>The username associated with such &lt;code>kubeconfig&lt;/code> will be the same which is used for authenticating to the Gardener API. Apart from this advantage, the created &lt;code>kubeconfig&lt;/code> will not be persisted anywhere.&lt;/p>
-&lt;p>In order to request such a &lt;code>kubeconfig&lt;/code>, you can run the following commands:&lt;/p>
+&lt;p>In order to request such a &lt;code>kubeconfig&lt;/code>, you can run the following commands (targeting the garden cluster):&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=garden-my-namespace
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=&amp;lt;kubeconfig &lt;span style="color:#00f">for&lt;/span> garden cluster&amp;gt; &lt;span style="color:#008000"># can be set using &amp;#34;gardenctl target --garden &amp;lt;landscape&amp;gt;&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;(printf &lt;span style="color:#a31515">&amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;expirationSeconds&amp;#34;:600}}&amp;#39;&lt;/span>) &lt;span style="color:#a31515">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/adminkubeconfig | &lt;span style="color:#a31515">\
@@ -148,7 +149,7 @@ We are truly looking forward to your feedback!&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> err
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config = adminKubeconfigRequest.Status.Kubeconfig
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In Python you can use the native &lt;a href="https://github.com/kubernetes-client/python">&lt;code>kubernetes&lt;/code> client&lt;/a> to create such a kubeconfig like this:&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In Python, you can use the native &lt;a href="https://github.com/kubernetes-client/python">&lt;code>kubernetes&lt;/code> client&lt;/a> to create such a kubeconfig like this:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-python" data-lang="python">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># This script first loads an existing kubeconfig from your system, and then sends a request to the Gardener API to create a new kubeconfig for a shoot cluster. &lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># The received kubeconfig is then decoded and a new API client is created for interacting with the shoot cluster.&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
@@ -213,10 +214,10 @@ For example, in bash this looks like this:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> oidcConfig:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is the end-user&amp;rsquo;s responsibility to incorporate the OpenID Connect configurations in &lt;code>kubeconfig&lt;/code> for accessing the cluster (i.e., Gardener will not automatically generate &lt;code>kubeconfig&lt;/code> based on these OIDC settings).
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is the end-user&amp;rsquo;s responsibility to incorporate the OpenID Connect configurations in the &lt;code>kubeconfig&lt;/code> for accessing the cluster (i.e., Gardener will not automatically generate the &lt;code>kubeconfig&lt;/code> based on these OIDC settings).
 The recommended way is using the &lt;code>kubectl&lt;/code> plugin called &lt;a href="https://github.com/int128/kubelogin">&lt;code>kubectl oidc-login&lt;/code>&lt;/a> for OIDC authentication.&lt;/p>
 &lt;p>If you want to use the same OIDC configuration for all your shoots by default, then you can use the &lt;code>ClusterOpenIDConnectPreset&lt;/code> and &lt;code>OpenIDConnectPreset&lt;/code> API resources. They allow defaulting the &lt;code>.spec.kubernetes.kubeAPIServer.oidcConfig&lt;/code> fields for newly created &lt;code>Shoot&lt;/code>s such that you don&amp;rsquo;t have to repeat yourself every time (similar to &lt;code>PodPreset&lt;/code> resources in Kubernetes).
-&lt;code>ClusterOpenIDConnectPreset&lt;/code> specified OIDC configuration applies to &lt;code>Projects&lt;/code> and &lt;code>Shoots&lt;/code> cluster-wide (hence, only available to Gardener operators) while &lt;code>OpenIDConnectPreset&lt;/code> is &lt;code>Project&lt;/code>-scoped.
+&lt;code>ClusterOpenIDConnectPreset&lt;/code> specified OIDC configuration applies to &lt;code>Projects&lt;/code> and &lt;code>Shoots&lt;/code> cluster-wide (hence, only available to Gardener operators), while &lt;code>OpenIDConnectPreset&lt;/code> is &lt;code>Project&lt;/code>-scoped.
 Shoots have to &amp;ldquo;opt-in&amp;rdquo; for such defaulting by using the &lt;code>oidc=enable&lt;/code> label.&lt;/p>
 &lt;p>For further information on &lt;code>(Cluster)OpenIDConnectPreset&lt;/code>, refer to &lt;a href="https://gardener.cloud/docs/gardener/openidconnect-presets/">ClusterOpenIDConnectPreset and OpenIDConnectPreset&lt;/a>.&lt;/p>
 &lt;h2 id="static-token-kubeconfig">Static Token kubeconfig&lt;/h2>
@@ -234,13 +235,13 @@ It is created by default and persisted in the &lt;code>&amp;lt;shoot-name&amp;gt
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is &lt;strong>not&lt;/strong> the recommended method to access the shoot cluster, as the static token &lt;code>kubeconfig&lt;/code> has some security flaws associated with it:&lt;/p>
 &lt;ul>
-&lt;li>The static token in the &lt;code>kubeconfig&lt;/code> doesn&amp;rsquo;t have any expiration date. Read &lt;a href="https://gardener.cloud/docs/gardener/shoot_credentials_rotation/#kubeconfig">this document&lt;/a> to learn how to rotate the static token.&lt;/li>
+&lt;li>The static token in the &lt;code>kubeconfig&lt;/code> doesn&amp;rsquo;t have any expiration date. Read &lt;a href="https://gardener.cloud/docs/gardener/shoot_credentials_rotation/#kubeconfig">Credentials Rotation for Shoot Clusters&lt;/a> to learn how to rotate the static token.&lt;/li>
 &lt;li>The static token doesn&amp;rsquo;t have any user identity associated with it. The user in that token will always be &lt;code>system:cluster-admin&lt;/code>, irrespective of the person accessing the cluster. Hence, it is impossible to audit the events in cluster.&lt;/li>
 &lt;/ul>
-&lt;p>When &lt;code>enableStaticTokenKubeconfig&lt;/code> field is not explicitly set in the Shoot spec:&lt;/p>
+&lt;p>When the &lt;code>enableStaticTokenKubeconfig&lt;/code> field is not explicitly set in the Shoot spec:&lt;/p>
 &lt;ul>
-&lt;li>for Shoot clusters using Kubernetes version &amp;lt; 1.26 the field is defaulted to &lt;code>true&lt;/code>.&lt;/li>
-&lt;li>for Shoot clusters using Kubernetes version &amp;gt;= 1.26 the field is defaulted to &lt;code>false&lt;/code>.&lt;/li>
+&lt;li>for Shoot clusters using Kubernetes version &amp;lt; 1.26, the field is defaulted to &lt;code>true&lt;/code>.&lt;/li>
+&lt;li>for Shoot clusters using Kubernetes version &amp;gt;= 1.26, the field is defaulted to &lt;code>false&lt;/code>.&lt;/li>
 &lt;/ul>
 &lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> Starting with Kubernetes 1.27, the &lt;code>enableStaticTokenKubeconfig&lt;/code> field will be locked to &lt;code>false&lt;/code>.&lt;/p>

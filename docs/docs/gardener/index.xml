@@ -643,6 +643,10 @@ For more information, see &lt;a href="https://gardener.cloud/docs/gardener/node-
 &lt;p>&lt;strong>Consider making a &lt;code>Service&lt;/code> topology-aware&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/b0de7db96ad436fe32c25daae5e8cb552dac351f/pkg/component/vpa/admissioncontroller.go#L154">example&lt;/a>)&lt;/p>
 &lt;p>To reduce costs and to improve the network traffic latency in multi-zone Seed clusters, consider making a &lt;code>Service&lt;/code> topology-aware, if applicable. In short, when a &lt;code>Service&lt;/code> is topology-aware, Kubernetes routes network traffic to the &lt;code>Endpoint&lt;/code>s (&lt;code>Pod&lt;/code>s) which are located in the same zone where the traffic originated from. In this way, the cross availability zone traffic is avoided. See &lt;a href="https://gardener.cloud/docs/gardener/topology_aware_routing/">Topology-Aware Traffic Routing&lt;/a>.&lt;/p>
 &lt;/li>
+&lt;li>
+&lt;p>&lt;strong>Enable leader election unconditionally for controllers&lt;/strong> (&lt;a href="https://github.com/gardener/gardener/blob/bd0a90854f0a8751d361e6f1cedd97ce5a746e3c/pkg/component/kubernetes/controllermanager/controllermanager.go#L677">example 1&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/bd0a90854f0a8751d361e6f1cedd97ce5a746e3c/pkg/component/kubernetes/scheduler/scheduler.go#L75-L76">example 2&lt;/a>, &lt;a href="https://github.com/gardener/gardener/blob/bd0a90854f0a8751d361e6f1cedd97ce5a746e3c/pkg/component/gardener/resourcemanager/resource_manager.go#L519-L523">example 3&lt;/a>)&lt;/p>
+&lt;p>Enable leader election unconditionally for controllers independently from the number of replicas or from the high availability configurations. Having leader election enabled even for a single replica Deployment prevents having two Pods active at the same time. Otherwise, there are some corner cases that can result in two active Pods - Deployment rolling update or kubelet stops running on a Node and is not able to terminate the old replica while kube-controller-manager creates a new replica to match the Deployment&amp;rsquo;s desired replicas count.&lt;/p>
+&lt;/li>
 &lt;/ol>
 &lt;h2 id="scalability">Scalability&lt;/h2>
 &lt;ol>
@@ -3848,6 +3852,7 @@ The gardenlet manages the well-known &lt;code>PriorityClass&lt;/code>es listed i
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/process/#contributing-new-features-or-fixes">Contributing New Features or Fixes&lt;/a>
 &lt;ul>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/process/#todo-statements">TODO Statements&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/process/#deprecations-and-backwards-compatibility">Deprecations and Backwards-Compatibility&lt;/a>&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;li>&lt;a href="https://gardener.cloud/docs/gardener/process/#cherry-picks">Cherry Picks&lt;/a>
@@ -4606,7 +4611,7 @@ This phase includes the following steps:&lt;/p>
 &lt;p>Usually, the new release is triggered in the beginning of the second week if all tests are green, all checks were successful, and if all of the planned verifications were performed by the release responsible.&lt;/p>
 &lt;h2 id="contributing-new-features-or-fixes">Contributing New Features or Fixes&lt;/h2>
 &lt;p>Please refer to the &lt;a href="https://gardener.cloud/docs/contribute/">Gardener contributor guide&lt;/a>.
-Besides a lot of a general information, it also provides a checklist for newly created pull requests that may help you to prepare your changes for an efficient review process.
+Besides a lot of general information, it also provides a checklist for newly created pull requests that may help you to prepare your changes for an efficient review process.
 If you are contributing a fix or major improvement, please take care to open cherry-pick PRs to all affected and still supported versions once the change is approved and merged in the &lt;code>master&lt;/code> branch.&lt;/p>
 &lt;p>⚠️ Please ensure that your modifications pass the verification checks (linting, formatting, static code checks, tests, etc.) by executing&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make verify
@@ -4627,6 +4632,25 @@ Example:
 &lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>The associated person should actively drive the implementation of the referenced issue (unless it cannot be done because of third-party dependencies or conditions) so that the TODO statement does not get stale.&lt;/li>
 &lt;li>TODO statements without actionable tasks or those that are unlikely to ever be implemented (maybe because of very low priorities) should not be specified in the first place. If a TODO is specified, the associated person should make sure to actively follow-up.&lt;/li>
 &lt;/ul>
+&lt;h3 id="deprecations-and-backwards-compatibility">Deprecations and Backwards-Compatibility&lt;/h3>
+&lt;p>In case you have to remove functionality &lt;em>relevant to end-users&lt;/em> (e.g., a field or default value in the &lt;code>Shoot&lt;/code> API), please &lt;strong>connect it with a Kubernetes minor version upgrade&lt;/strong>.
+This way, end-users are forced to actively adapt their manifests when they perform their Kubernetes upgrades.
+For example, the &lt;code>.spec.kubernetes.enableStaticTokenKubeconfig&lt;/code> field in the &lt;code>Shoot&lt;/code> API is no longer allowed to be set for Kubernetes versions &lt;code>&amp;gt;= 1.27&lt;/code>.&lt;/p>
+&lt;p>In case you have to remove or change functionality &lt;em>which cannot be directly connected with a Kubernetes version upgrade&lt;/em>, please consider introducing a feature gate.
+This way, landscape operators can announce the planned changes to their users and communicate a timeline when they plan to activate the feature gate.
+End-users can then prepare for it accordingly.
+For example, the fact that changes to &lt;code>kubelet.kubeReserved&lt;/code> in the &lt;code>Shoot&lt;/code> API will lead to a rolling update of the worker nodes (previously, these changes were updated in-place) is controlled via the &lt;code>NewWorkerPoolHash&lt;/code> feature gate.&lt;/p>
+&lt;p>In case you have to remove functionality &lt;em>relevant to Gardener extensions&lt;/em>, please deprecate it first, and add a &lt;a href="https://gardener.cloud/docs/gardener/process/#todo-statements">TODO statement&lt;/a> to remove it only after &lt;strong>at least 9 releases&lt;/strong>.
+Do not forget to write a proper release note as part of your pull request.
+This gives extension developers enough time (~18 weeks) to adapt to the changes (and to release a new version of their extension) before Gardener finally removes the functionality.
+Examples are removing a field in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group, or removing a controller in the extensions library.&lt;/p>
+&lt;p>In case you have to run migration code (&lt;em>which is mostly internal&lt;/em>), please add a &lt;a href="https://gardener.cloud/docs/gardener/process/#todo-statements">TODO statement&lt;/a> to remove it only after &lt;strong>3 releases&lt;/strong>.
+This way, we can ensure that the Gardener version skew policy is not violated.
+For example, the migration code for moving the Prometheus instances under management of &lt;code>prometheus-operator&lt;/code> was running for three releases.&lt;/p>
+&lt;blockquote>
+&lt;p>[!TIP]
+Please revisit the &lt;a href="https://gardener.cloud/docs/gardener/deployment/version_skew_policy/">version skew policy&lt;/a>.&lt;/p>
+&lt;/blockquote>
 &lt;h2 id="cherry-picks">Cherry Picks&lt;/h2>
 &lt;p>This section explains how to initiate cherry picks on release branches within the &lt;code>gardener/gardener&lt;/code> repository.&lt;/p>
 &lt;ul>

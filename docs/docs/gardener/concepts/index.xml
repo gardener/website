@@ -436,6 +436,12 @@ If no such objects exist, then it removes the finalizer and allows the deletion.
 &lt;p>Its core task is to maintain a &lt;code>ClusterRoleBinding&lt;/code> resource referencing the respective &lt;code>ClusterRole&lt;/code>.
 This gets bound to all &lt;code>ServiceAccount&lt;/code>s in seed namespaces whose labels match the selector provided via the &lt;code>authorization.gardener.cloud/extensions-serviceaccount-selector&lt;/code> annotation of such &lt;code>ClusterRole&lt;/code>s.&lt;/p>
 &lt;p>You can read more about the purpose of this reconciler in &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/#additional-permissions">this document&lt;/a>.&lt;/p>
+&lt;h3 id="credentialsbinding-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollercredentialsbinding">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/credentialsbinding">&lt;code>CredentialsBinding&lt;/code> Controller&lt;/a>&lt;/h3>
+&lt;p>&lt;code>CredentialsBinding&lt;/code>s reference &lt;code>Secret&lt;/code>s, &lt;code>WorkloadIdentity&lt;/code>s and &lt;code>Quota&lt;/code>s and are themselves referenced by &lt;code>Shoot&lt;/code>s.&lt;/p>
+&lt;p>The controller adds finalizers to the referenced objects to ensure they don&amp;rsquo;t get deleted while still being referenced.
+Similarly, to ensure that &lt;code>CredentialsBinding&lt;/code>s in-use are always present in the system until the last referring &lt;code>Shoot&lt;/code> gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>Shoot&lt;/code> referencing the &lt;code>CredentialsBinding&lt;/code> anymore.&lt;/p>
+&lt;p>Referenced &lt;code>Secret&lt;/code>s and &lt;code>WorkloadIdentity&lt;/code>s will also be labeled with &lt;code>provider.shoot.gardener.cloud/&amp;lt;type&amp;gt;=true&lt;/code>, where &lt;code>&amp;lt;type&amp;gt;&lt;/code> is the value of the &lt;code>.provider.type&lt;/code> of the &lt;code>CredentialsBinding&lt;/code>.
+Also, all referenced &lt;code>Secret&lt;/code>s and &lt;code>WorkloadIdentity&lt;/code>s, as well as &lt;code>Quota&lt;/code>s, will be labeled with &lt;code>reference.gardener.cloud/credentialsbinding=true&lt;/code> to allow for easily filtering for objects referenced by &lt;code>CredentialsBinding&lt;/code>s.&lt;/p>
 &lt;h3 id="event-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerevent">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/event">&lt;code>Event&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>With the Gardener Event Controller, you can prolong the lifespan of events related to Shoot clusters.
 This is an optional controller which will become active once you provide the below mentioned configuration.&lt;/p>
@@ -491,7 +497,7 @@ The &lt;code>ManagedSeedSet&lt;/code> controller creates and deletes &lt;code>Ma
 &lt;/ol>
 &lt;h3 id="quota-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerquota">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/quota">&lt;code>Quota&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>&lt;code>Quota&lt;/code> object limits the resources consumed by shoot clusters either per provider secret or per project/namespace.&lt;/p>
-&lt;p>Consequently, to ensure that &lt;code>Quota&lt;/code>s in-use are always present in the system until the last &lt;code>SecretBinding&lt;/code> that references them gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>SecretBinding&lt;/code> referencing the &lt;code>Quota&lt;/code> anymore.&lt;/p>
+&lt;p>Consequently, to ensure that &lt;code>Quota&lt;/code>s in-use are always present in the system until the last &lt;code>SecretBinding&lt;/code> or &lt;code>CredentialsBinding&lt;/code> that references them gets deleted, the controller adds a finalizer which is only released when there is no &lt;code>SecretBinding&lt;/code> or &lt;code>CredentialsBinding&lt;/code> referencing the &lt;code>Quota&lt;/code> anymore.&lt;/p>
 &lt;h3 id="project-controllerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollerproject">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/project">&lt;code>Project&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>There are multiple controllers responsible for different aspects of &lt;code>Project&lt;/code> objects.
 Please also refer to the &lt;a href="https://gardener.cloud/docs/gardener/projects/">&lt;code>Project&lt;/code> documentation&lt;/a>.&lt;/p>
@@ -505,7 +511,7 @@ This is to prevent end-users from being able to adopt arbitrary namespaces and e
 These RBAC resources are prefixed with &lt;code>gardener.cloud:system:project{-member,-viewer}:&amp;lt;project-name&amp;gt;&lt;/code>.
 Gardener administrators and extension developers can define their own roles. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/project-roles/">Extending Project Roles&lt;/a> for more information.&lt;/p>
 &lt;p>In addition, operators can configure the Project controller to maintain a default &lt;a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/">ResourceQuota&lt;/a> for project namespaces.
-Quotas can especially limit the creation of user facing resources, e.g. &lt;code>Shoots&lt;/code>, &lt;code>SecretBindings&lt;/code>, &lt;code>Secrets&lt;/code> and thus protect the garden cluster from massive resource exhaustion but also enable operators to align quotas with respective enterprise policies.&lt;/p>
+Quotas can especially limit the creation of user facing resources, e.g. &lt;code>Shoots&lt;/code>, &lt;code>SecretBindings&lt;/code>, &lt;code>CredentialsBinding&lt;/code>, &lt;code>Secrets&lt;/code> and thus protect the garden cluster from massive resource exhaustion but also enable operators to align quotas with respective enterprise policies.&lt;/p>
 &lt;blockquote>
 &lt;p>⚠️ &lt;strong>Gardener itself is not exempted from configured quotas&lt;/strong>. For example, Gardener creates &lt;code>Secrets&lt;/code> for every shoot cluster in the project namespace and at the same time increases the available quota count. Please mind this additional resource consumption.&lt;/p>
 &lt;/blockquote>
@@ -520,6 +526,7 @@ Quotas can especially limit the creation of user facing resources, e.g. &lt;code
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> hard:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/shoots.core.gardener.cloud: &lt;span style="color:#a31515">&amp;#34;100&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/secretbindings.core.gardener.cloud: &lt;span style="color:#a31515">&amp;#34;10&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/credentialsbindings.security.gardener.cloud: &lt;span style="color:#a31515">&amp;#34;10&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> count/secrets: &lt;span style="color:#a31515">&amp;#34;800&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> projectSelector: {}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The Project controller takes the specified &lt;code>config&lt;/code> and creates a &lt;code>ResourceQuota&lt;/code> with the name &lt;code>gardener&lt;/code> in the project namespace.
@@ -543,8 +550,8 @@ This reconciler is enabled by default and works as follows:&lt;/p>
 &lt;ol>
 &lt;li>&lt;code>Shoot&lt;/code> resources.&lt;/li>
 &lt;li>&lt;code>BackupEntry&lt;/code> resources.&lt;/li>
-&lt;li>&lt;code>Secret&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
-&lt;li>&lt;code>Quota&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
+&lt;li>&lt;code>Secret&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> or a &lt;code>CredentialsBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
+&lt;li>&lt;code>Quota&lt;/code> resources that are referenced by a &lt;code>SecretBinding&lt;/code> or a &lt;code>CredentialsBinding&lt;/code> that is in use by a &lt;code>Shoot&lt;/code> (not necessarily in the same namespace).&lt;/li>
 &lt;li>The time period when the project was used for the last time (&lt;code>status.lastActivityTimestamp&lt;/code>) is longer than the configured &lt;code>minimumLifetimeDays&lt;/code>&lt;/li>
 &lt;/ol>
 &lt;/li>
@@ -630,7 +637,7 @@ It ignores &lt;a href="https://gardener.cloud/docs/gardener/shoot_status/#last-o
 It might auto-update the Kubernetes version or the operating system versions specified in the worker pools (&lt;code>.spec.provider.workers&lt;/code>).
 It could also add some operation or task annotations. For more information, see &lt;a href="https://gardener.cloud/docs/gardener/shoot_maintenance/">Shoot Maintenance&lt;/a>.&lt;/p>
 &lt;h4 id="quota-reconcilerhttpsgithubcomgardenergardenertreemasterpkgcontrollermanagercontrollershootquota">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/shoot/quota">&amp;ldquo;Quota&amp;rdquo; Reconciler&lt;/a>&lt;/h4>
-&lt;p>This reconciler might auto-delete shoot clusters in case their referenced &lt;code>SecretBinding&lt;/code> is itself referencing a &lt;code>Quota&lt;/code> with &lt;code>.spec.clusterLifetimeDays != nil&lt;/code>.
+&lt;p>This reconciler might auto-delete shoot clusters in case their referenced &lt;code>SecretBinding&lt;/code> or &lt;code>CredentialsBinding&lt;/code> is itself referencing a &lt;code>Quota&lt;/code> with &lt;code>.spec.clusterLifetimeDays != nil&lt;/code>.
 If the shoot cluster is older than the configured lifetime, then it gets deleted.
 It maintains the expiration time of the &lt;code>Shoot&lt;/code> in the value of the &lt;code>shoot.gardener.cloud/expiration-timestamp&lt;/code> annotation.
 This annotation might be overridden, however only by at most twice the value of the &lt;code>.spec.clusterLifetimeDays&lt;/code>.&lt;/p>

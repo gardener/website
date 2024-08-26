@@ -8467,7 +8467,165 @@ The following is a list of kubernetes versions supported by the respective &lt;c
 &lt;td>&amp;lt; 1.25&lt;/td>
 &lt;/tr>
 &lt;/tbody>
-&lt;/table></description></item><item><title>Docs: Webhooks</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</guid><description>
+&lt;/table></description></item><item><title>Docs: Testing</title><link>https://gardener.cloud/docs/other-components/etcd-druid/testing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/testing/</guid><description>
+&lt;h1 id="testing-strategy-and-developer-guideline">Testing Strategy and Developer Guideline&lt;/h1>
+&lt;p>Intent of this document is to introduce you (the developer) to the following:&lt;/p>
+&lt;ul>
+&lt;li>Libraries that are used to write tests.&lt;/li>
+&lt;li>Best practices to write tests that are correct, stable, fast and maintainable.&lt;/li>
+&lt;li>How to run tests.&lt;/li>
+&lt;/ul>
+&lt;p>The guidelines are not meant to be absolute rules. Always apply common sense and adapt the guideline if it doesn&amp;rsquo;t make much sense for some cases. If in doubt, don&amp;rsquo;t hesitate to ask questions during a PR review (as an author, but also as a reviewer). Add new learnings as soon as we make them!&lt;/p>
+&lt;p>For any new contributions &lt;strong>tests are a strict requirement&lt;/strong>. &lt;code>Boy Scouts Rule&lt;/code> is followed: If you touch a code for which either no tests exist or coverage is insufficient then it is expected that you will add relevant tests.&lt;/p>
+&lt;h2 id="common-guidelines-for-writing-tests">Common guidelines for writing tests&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>We use the &lt;code>Testing&lt;/code> package provided by the standard library in golang for writing all our tests. Refer to its &lt;a href="https://pkg.go.dev/testing">official documentation&lt;/a> to learn how to write tests using &lt;code>Testing&lt;/code> package. You can also refer to &lt;a href="https://go.dev/doc/tutorial/add-a-test">this&lt;/a> example.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>We use gomega as our matcher or assertion library. Refer to Gomega&amp;rsquo;s &lt;a href="https://onsi.github.io/gomega/">official documentation&lt;/a> for details regarding its installation and application in tests.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>For naming the individual test/helper functions, ensure that the name describes what the function tests/helps-with. Naming is important for code readability even when writing tests - &lt;a href="https://github.com/gardener/etcd-druid/blob/90995898b231a49a8f211e85160600e9e6019fe0/internal/webhook/etcdcomponents/handler_test.go#L157">example-testcase-naming&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Introduce helper functions for assertions to make test more readable where applicable - &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it/controller/etcd/assertions.go#L117">example-assertion-function&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Introduce custom matchers to make tests more readable where applicable - &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/utils/matcher.go#L89">example-custom-matcher&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Do not use &lt;code>time.Sleep&lt;/code> and friends as it renders the tests flaky.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If a function returns a specific error then ensure that the test correctly asserts the expected error instead of just asserting that an error occurred. To help make this assertion consider using &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/internal/errors/errors.go#L24">DruidError&lt;/a> where possible. &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/utils/errors.go#L23">example-test-utility&lt;/a> &amp;amp; &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/internal/component/clientservice/clientservice_test.go#L74">usage&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Creating sample data for tests can be a high effort. Consider writing test utilities to generate sample data instead. &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/utils/etcd.go#L61">example-test-object-builder&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If tests require any arbitrary sample data then ensure that you create a &lt;code>testdata&lt;/code> directory within the package and keep the sample data as files in it. From &lt;a href="https://pkg.go.dev/cmd/go/internal/test">https://pkg.go.dev/cmd/go/internal/test&lt;/a>&lt;/p>
+&lt;blockquote>
+&lt;p>The go tool will ignore a directory named &amp;ldquo;testdata&amp;rdquo;, making it available to hold ancillary data needed by the tests.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>Avoid defining shared variable/state across tests. This can lead to race conditions causing non-deterministic state. Additionally it limits the capability to run tests concurrently via &lt;code>t.Parallel()&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Do not assume or try and establish an order amongst different tests. This leads to brittle tests as the codebase evolves.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If you need to have logs produced by test runs (especially helpful in failing tests), then consider using &lt;a href="https://pkg.go.dev/testing#T.Log">t.Log&lt;/a> or &lt;a href="https://pkg.go.dev/testing#T.Logf">t.Logf&lt;/a>.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="unit-tests">Unit Tests&lt;/h2>
+&lt;ul>
+&lt;li>If you need a kubernetes &lt;code>client.Client&lt;/code>, prefer using &lt;a href="https://github.com/gardener/etcd-druid/blob/master/test/utils/client.go#L67">fake client&lt;/a> instead of mocking the client. You can inject errors when building the client which enables you test error handling code paths.
+&lt;ul>
+&lt;li>Mocks decrease maintainability because they expect the tested component to follow a certain way to reach the desired goal (e.g., call specific functions with particular arguments).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>All unit tests should be run quickly. Do not use &lt;a href="https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest">envtest&lt;/a> and do not set up a &lt;a href="https://kind.sigs.k8s.io/">Kind&lt;/a> cluster in unit tests.&lt;/li>
+&lt;li>If you have common setup for variations of a function, consider using &lt;a href="https://go.dev/wiki/TableDrivenTests">table-driven&lt;/a> tests. See &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/internal/component/rolebinding/rolebinding_test.go#L27">this&lt;/a> as an example.&lt;/li>
+&lt;li>An individual test should only test one and only one thing. Do not try and test multiple variants in a single test. Either use &lt;a href="https://go.dev/wiki/TableDrivenTests">table-driven&lt;/a> tests or write individual tests for each variation.&lt;/li>
+&lt;li>If a function/component has multiple steps, its probably better to split/refactor it into multiple functions/components that can be unit tested individually.&lt;/li>
+&lt;li>If there are a lot of edge cases, extract dedicated functions that cover them and use unit tests to test them.&lt;/li>
+&lt;/ul>
+&lt;h3 id="running-unit-tests">Running Unit Tests&lt;/h3>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> For unit tests we are currently transitioning away from &lt;a href="https://github.com/onsi/ginkgo">ginkgo&lt;/a> to using golang native tests. The &lt;code>make test-unit&lt;/code> target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.&lt;/p>
+&lt;/blockquote>
+&lt;p>Run all unit tests&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&amp;gt; make test-unit
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Run unit tests of specific packages:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># if you have not already installed gotestfmt tool then install it once.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># make test-unit target automatically installs this in ./hack/tools/bin. You can alternatively point the GOBIN to this directory and then directly invoke test-go.sh&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@v2.5.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; ./hack/test-go.sh &amp;lt;package-1&amp;gt; &amp;lt;package-2&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="de-flaking-unit-tests">De-flaking Unit Tests&lt;/h3>
+&lt;p>If tests have sporadic failures, then trying running &lt;code>./hack/stress-test.sh&lt;/code> which internally uses &lt;a href="https://pkg.go.dev/golang.org/x/tools/cmd/stress">stress tool&lt;/a>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># install the stress tool&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; go install golang.org/x/tools/cmd/stress@latest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># invoke the helper script to execute the stress test&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; ./hack/stress-test.sh test-package=&amp;lt;test-package&amp;gt; test-func=&amp;lt;test-function&amp;gt; tool-params=&lt;span style="color:#a31515">&amp;#34;&amp;lt;tool-params&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>An example invocation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&amp;gt; ./hack/stress-test.sh test-package=./internal/utils test-func=TestRunConcurrentlyWithAllSuccessfulTasks tool-params=&lt;span style="color:#a31515">&amp;#34;-p 10&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>5s: 877 runs so far, 0 failures
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>10s: 1906 runs so far, 0 failures
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>15s: 2885 runs so far, 0 failures
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;code>stress&lt;/code> tool will output a path to a file containing the full failure message when a test run fails.&lt;/p>
+&lt;h2 id="integration-tests-envtests">Integration Tests (envtests)&lt;/h2>
+&lt;p>Integration tests in etcd-druid use &lt;a href="https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest">envtest&lt;/a>. It sets up a minimal temporary control plane (etcd + kube-apiserver) and runs the test against it. Test suites (group of tests) start their individual &lt;code>envtest&lt;/code> environment before running the tests for the respective controller/webhook. Before exiting, the temporary test environment is shutdown.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> For integration-tests we are currently transitioning away from &lt;a href="https://github.com/onsi/ginkgo">ginkgo&lt;/a> to using golang native tests. All ginkgo integration tests can be found &lt;a href="https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/integration">here&lt;/a> and golang native integration tests can be found &lt;a href="https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it">here&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;ul>
+&lt;li>Integration tests in etcd-druid only targets a single controller. It is therefore advised that code (other than common utility functions should not be shared between any two controllers).&lt;/li>
+&lt;li>If you are sharing a common &lt;code>envtest&lt;/code> environment across tests then it is recommended that an individual test is run in a dedicated &lt;code>namespace&lt;/code>.&lt;/li>
+&lt;li>Since &lt;code>envtest&lt;/code> is used to setup a minimum environment where no controller (e.g. KCM, Scheduler) other than &lt;code>etcd&lt;/code> and &lt;code>kube-apiserver&lt;/code> runs, status updates to resources controller/reconciled by not-deployed-controllers will not happen. Tests should refrain from asserting changes to status. In case status needs to be set as part of a test setup then it must be done explicitly.&lt;/li>
+&lt;li>If you have common setup and teardown, then consider using &lt;a href="https://pkg.go.dev/testing#hdr-Main">TestMain&lt;/a> -&lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it/controller/etcd/reconciler_test.go#L34">example&lt;/a>.&lt;/li>
+&lt;li>If you have to wait for resources to be provisioned or reach a specific state, then it is recommended that you create smaller assertion functions and use Gomega&amp;rsquo;s &lt;a href="https://pkg.go.dev/github.com/onsi/gomega#AsyncAssertion">AsyncAssertion&lt;/a> functions - &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it/controller/etcd/assertions.go#L117-L140">example&lt;/a>.
+&lt;ul>
+&lt;li>Beware of the default &lt;code>Eventually&lt;/code> / &lt;code>Consistently&lt;/code> timeouts / poll intervals: &lt;a href="https://onsi.github.io/gomega/#eventually">docs&lt;/a>.&lt;/li>
+&lt;li>Don&amp;rsquo;t forget to call &lt;code>{Eventually,Consistently}.Should()&lt;/code>, otherwise the assertions always silently succeeds without errors: &lt;a href="https://github.com/onsi/gomega/issues/561">onsi/gomega#561&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="running-integration-tests">Running Integration Tests&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&amp;gt; make test-integration
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="debugging-integration-tests">Debugging Integration Tests&lt;/h3>
+&lt;p>There are two ways in which you can debug Integration Tests:&lt;/p>
+&lt;h4 id="using-ide">Using IDE&lt;/h4>
+&lt;p>All commonly used IDE&amp;rsquo;s provide in-built or easy integration with &lt;a href="https://pkg.go.dev/github.com/go-delve/delve">delve&lt;/a> debugger. For debugging integration tests the only additional requirement is to set &lt;code>KUBEBUILDER_ASSETS&lt;/code> environment variable. You can get the value of this environment variable by executing the following command:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># ENVTEST_K8S_VERSION is the k8s version that you wish to use for testing.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; setup-envtest --os &lt;span style="color:#00f">$(&lt;/span>go env GOOS&lt;span style="color:#00f">)&lt;/span> --arch &lt;span style="color:#00f">$(&lt;/span>go env GOARCH&lt;span style="color:#00f">)&lt;/span> use $ENVTEST_K8S_VERSION -p path
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>NOTE: All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.&lt;/p>
+&lt;/blockquote>
+&lt;h4 id="use-standalone-envtest">Use standalone envtest&lt;/h4>
+&lt;p>We also provide a capability to setup a stand-alone &lt;code>envtest&lt;/code> and leverage the cluster to run individual integration-test. This allows you more control over when this k8s control plane is destroyed and allows you to inspect the resources at the end of the integration-test run using &lt;code>kubectl&lt;/code>.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>NOTE:&lt;/strong> While you can use an existing cluster (e.g., &lt;code>kind&lt;/code>), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in &lt;code>envtest&lt;/code> test environments). Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.&lt;/p>
+&lt;/blockquote>
+&lt;p>To setup a standalone &lt;code>envtest&lt;/code> and run an integration test against it, do the following:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># In a terminal session use the following make target to setup a standalone envtest&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; make start-envtest
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># As part of output path to kubeconfig will be also be printed on the console.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># In another terminal session setup resource(s) watch:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; kubectl get po -A -w &lt;span style="color:#008000"># alternatively you can also use `watch -d &amp;lt;command&amp;gt;` utility.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># In another terminal session:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; export KUBECONFIG=&amp;lt;envtest-kubeconfig-path&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; export USE_EXISTING_K8S_CLUSTER=true
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># run the test&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;gt; go test -run=&lt;span style="color:#a31515">&amp;#34;&amp;lt;regex-for-test&amp;gt;&amp;#34;&lt;/span> &amp;lt;package&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># example: go test -run=&amp;#34;^TestEtcdDeletion/test deletion of all*&amp;#34; ./test/it/controller/etcd&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Once you are done the testing you can press &lt;code>Ctrl+C&lt;/code> in the terminal session where you started &lt;code>envtest&lt;/code>. This will shutdown the kubernetes control plane.&lt;/p>
+&lt;h2 id="end-to-end-e2e-tests">End-To-End (e2e) Tests&lt;/h2>
+&lt;p>End-To-End tests are run using &lt;a href="https://kind.sigs.k8s.io/">Kind&lt;/a> cluster and &lt;a href="https://skaffold.dev/">Skaffold&lt;/a>. These tests provide a high level of confidence that the code runs as expected by users when deployed to production.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Purpose of running these tests is to be able to catch bugs which result from interaction amongst different components within etcd-druid.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In CI pipelines e2e tests are run with S3 compatible &lt;a href="https://www.localstack.cloud/">LocalStack&lt;/a> (in cases where backup functionality has been enabled for an etcd cluster).&lt;/p>
+&lt;blockquote>
+&lt;p>In future we will only be using a file-system based local provider to reduce the run times for the e2e tests when run in a CI pipeline.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;li>
+&lt;p>e2e tests can be triggered either with other cloud provider object-store emulators or they can also be run against actual/remove cloud provider object-store services.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>In contrast to integration tests, in e2e tests, it might make sense to specify higher timeouts for Gomega&amp;rsquo;s &lt;a href="https://pkg.go.dev/github.com/onsi/gomega#AsyncAssertion">AsyncAssertion&lt;/a> calls.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="running-e2e-tests-locally">Running e2e tests locally&lt;/h3>
+&lt;p>Detailed instructions on how to run e2e tests can be found &lt;a href="https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/docs/development/local-e2e-tests.md">here&lt;/a>.&lt;/p></description></item><item><title>Docs: Webhooks</title><link>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/other-components/etcd-druid/concepts/webhooks/</guid><description>
 &lt;h1 id="webhooks">Webhooks&lt;/h1>
 &lt;p>The &lt;a href="https://gardener.cloud/docs/other-components/etcd-druid/concepts/controllers/#controller-manager">etcd-druid controller-manager&lt;/a> registers certain &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">admission webhooks&lt;/a> that allow for validation or mutation of requests on resources in the cluster, in order to prevent misconfiguration and restrict access to the etcd cluster resources.&lt;/p>
 &lt;p>All webhooks that are a part of etcd-druid reside in package &lt;code>internal/webhook&lt;/code>, as sub-packages.&lt;/p>

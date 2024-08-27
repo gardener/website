@@ -1268,6 +1268,10 @@ PDBs will not always work as expected and can also get in your way, e.g. if the 
 &lt;li>&lt;code>recommenderInterval&lt;/code> (default 1m): How often VPA retrieves the pods and metrics respectively how often it recomputes the recommendations and bounds.&lt;/li>
 &lt;/ul>
 &lt;p>There are many more options that you can only configure if you deploy your own VPA and which we will not discuss here, but you can check them out &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-recommender">here&lt;/a>.&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+Due to an implementation detail (smallest bucket size), VPA cannot create recommendations below &lt;a href="https://github.com/kubernetes/autoscaler/blob/1f89ff92cf87dd3700f74f9b387ae4846aa51846/vertical-pod-autoscaler/pkg/recommender/model/aggregations_config.go#L89-L99">10m cores&lt;/a> and &lt;a href="https://github.com/kubernetes/autoscaler/blob/1f89ff92cf87dd3700f74f9b387ae4846aa51846/vertical-pod-autoscaler/pkg/recommender/model/aggregations_config.go#L101-L111">10M memory&lt;/a> even if &lt;code>minAllowed&lt;/code> is lower.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="vpa-updater-options">VPA Updater Options&lt;/h3>
 &lt;p>You can read up the &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-updater">full VPA updater options&lt;/a> online and set some of them conveniently in your &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L298-L307">Gardener shoot cluster spec&lt;/a>:&lt;/p>
 &lt;ul>
@@ -1399,13 +1403,13 @@ containerPolicies:
 &lt;tbody>
 &lt;tr>
 &lt;td>Requests&lt;/td>
-&lt;td>- &lt;strong>Set them (recommended)&lt;/strong> unless:&lt;br/>- Do not set requests for QoS &lt;code>BestEffort&lt;/code>; useful only if pod can be evicted as often as needed &lt;strong>and&lt;/strong> pod can pick up where it left off without any penalty&lt;/td>
-&lt;td>Set &lt;code>requests&lt;/code> to 95th percentile of the actually observed CPU resp. memory usage in production if you do not use VPA and the 5th percentile if you use VPA (see below)&lt;/td>
+&lt;td>- &lt;strong>Set them (recommended)&lt;/strong> unless:&lt;br/>- Do not set requests for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#besteffort">&lt;code>BestEffort&lt;/code>&lt;/a>; useful only if pod can be evicted as often as needed &lt;strong>and&lt;/strong> pod can pick up where it left off without any penalty&lt;/td>
+&lt;td>Set &lt;code>requests&lt;/code> to &lt;strong>95th percentile (w/o VPA)&lt;/strong> of the actually observed CPU resp. memory usage in production resp. &lt;strong>5th percentile (w/ VPA)&lt;/strong> (see below)&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>Limits&lt;/td>
-&lt;td>- &lt;strong>Avoid them (recommended)&lt;/strong> unless:&lt;br/>- Set limits for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a>; useful only if pod has strictly static resource requirements&lt;br/>- Set limits if you know the healthy range, but no more than the node allocatable remainder (after daemon set pods) of the largest eligible machine type&lt;/td>
-&lt;td>Set &lt;code>limits&lt;/code> to theoretical max load&lt;/td>
+&lt;td>- &lt;strong>Avoid them (recommended)&lt;/strong> unless:&lt;br/>- Set limits for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a>; useful only if pod has strictly static resource requirements&lt;br/>- Set CPU limits if you want to throttle CPU usage for containers that can be throttled w/o any other disadvantage than processing time (never do that when time-critical operations like leases are involved)&lt;br/>- Set limits if you know the healthy range and want to shield against unbound busy loops, unbound memory leaks, or similar&lt;/td>
+&lt;td>If you really can (otherwise not), set &lt;code>limits&lt;/code> to healthy theoretical max load&lt;/td>
 &lt;/tr>
 &lt;/tbody>
 &lt;/table>
@@ -1425,21 +1429,21 @@ containerPolicies:
 &lt;td>&lt;strong>Use for pods that support horizontal scaling&lt;/strong>&lt;/td>
 &lt;td>Set initial &lt;code>replicas&lt;/code> to 5th percentile of the actually observed replica count in production (prefer scaling on usage, not utilization) and make sure to never overwrite it later when controlled by HPA&lt;/td>
 &lt;td>Set &lt;code>minReplicas&lt;/code> to 0 (requires &lt;a href="https://github.com/kubernetes/kubernetes/blob/4c7960a67c29b7954cccc6c7d77a62133af3484f/pkg/features/kube_features.go#L266-L267">feature gate&lt;/a> and &lt;a href="https://github.com/kubernetes/kubernetes/pull/74526">custom/external metrics&lt;/a>), to 1 (regular HPA minimum), or whatever the high availability requirements of the workload demand&lt;/td>
-&lt;td>Set &lt;code>maxReplicas&lt;/code> to theoretical max load&lt;/td>
+&lt;td>Set &lt;code>maxReplicas&lt;/code> to healthy theoretical max load&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>VPA&lt;/td>
 &lt;td>&lt;strong>Use for containers that have a significant usage&lt;/strong> (&amp;gt;50m/100M) &lt;strong>and a significant usage spread over time&lt;/strong> (&amp;gt;2x)&lt;/td>
 &lt;td>Set initial &lt;code>requests&lt;/code> to 5th percentile of the actually observed CPU resp. memory usage in production&lt;/td>
-&lt;td>Set &lt;code>minAllowed&lt;/code> to highest observed VPA recommendation (includes start-up phase) for an otherwise practically idle container&lt;/td>
-&lt;td>Set &lt;code>maxAllowed&lt;/code> to theoretical max load (better than limits as no throttling or OOM happens on under-utilized nodes)&lt;/td>
+&lt;td>Set &lt;code>minAllowed&lt;/code> to highest observed VPA recommendation (includes start-up phase) for an otherwise practically idle container (avoids pod trashing when pod gets evicted after idling)&lt;/td>
+&lt;td>Set &lt;code>maxAllowed&lt;/code> to fresh node allocatable remainder after daemonset pods (avoids pending pods when requests exeed fresh node allocatable remainder) or, if you really can (otherwise not), to healthy theoretical max load (less disruptive than limits as no throttling or OOM happens on under-utilized nodes)&lt;/td>
 &lt;/tr>
 &lt;tr>
 &lt;td>CA&lt;/td>
 &lt;td>&lt;strong>Use for dynamic workloads&lt;/strong>, definitely if you use HPA and/or VPA&lt;/td>
 &lt;td>N/A&lt;/td>
 &lt;td>Set &lt;code>minimum&lt;/code> to 0 or number of nodes required right after cluster creation or wake-up&lt;/td>
-&lt;td>Set &lt;code>maximum&lt;/code> to theoretical max load&lt;/td>
+&lt;td>Set &lt;code>maximum&lt;/code> to healthy theoretical max load&lt;/td>
 &lt;/tr>
 &lt;/tbody>
 &lt;/table>

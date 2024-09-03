@@ -848,9 +848,24 @@ This configuration allows for precise control over various extension parameters,
 &lt;h4 id="configuration-for-admission-deployment">Configuration for Admission Deployment&lt;/h4>
 &lt;p>The &lt;code>.spec.deployment.admission&lt;/code> defines how an extension&amp;rsquo;s admission controller may be deployed by the &lt;code>gardener-operator&lt;/code>.
 The deployment of an admission controller is optional and may be omitted.
-Typically, the admission controllers run in the runtime cluster alongside the virtual cluster deployment.
-However, to function properly, the admission controllers require access and permissions for the virtual garden cluster in order to watch the Gardener API resources like &lt;code>Shoot&lt;/code>s.
-As of today, deployment of admission controllers via &lt;code>.spec.deployment.admission&lt;/code> is not yet supported, but it is currently under active development.&lt;/p>
+Typically, the admission controllers are split in two parts:&lt;/p>
+&lt;h5 id="runtime">Runtime&lt;/h5>
+&lt;p>The &lt;code>runtime&lt;/code> part contains deployment relevant manifests, required to run the admission service in the runtime cluster.
+The following values are passed to the chart during reconciliation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> runtimeCluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> priorityClassName: &amp;lt;Class to be used for admission controller&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h5 id="virtual">Virtual&lt;/h5>
+&lt;p>The &lt;code>virtual&lt;/code> part includes the webhook registration (&lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/">MutatingWebhookConfiguration&lt;code>/&lt;/code>Validatingwebhookconfiguration&lt;/a>) and RBAC configuration.
+The following values are passed to the chart during reconciliation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>gardener:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> virtualCluster:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceAccount:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &amp;lt;Name of the service account used to connect to the garden cluster&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: &amp;lt;Namespace of the service account&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Admission controllers often need to retrieve additional context from the garden cluster in order to process validating or mutating requests.&lt;/p>
+&lt;p>For example, the corresponding &lt;code>CloudProfile&lt;/code> might be needed to perform a provider specific shoot validation.
+Therefore, Gardener automatically injects a kubeconfig into the admission deployment to interact with the (virtual) garden cluster (see &lt;a href="https://gardener.cloud/docs/gardener/extensions/garden-api-access/">this document&lt;/a> for more information).&lt;/p>
 &lt;h3 id="configuration-for-extension-resources">Configuration for Extension Resources&lt;/h3>
 &lt;p>The &lt;code>.spec.resources&lt;/code> field refers to the extension resources as defined by Gardener in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API.
 These include both well-known types such as &lt;code>Infrastructure&lt;/code>, &lt;code>Worker&lt;/code> etc. and &lt;a href="https://gardener.cloud/docs/gardener/extensions/controllerregistration/#extension-resource-configurations">generic resources&lt;/a>.
@@ -1197,7 +1212,11 @@ It contains the networking information of the garden runtime cluster which is re
 &lt;h3 id="extension-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollerextension">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/extension">&lt;code>Extension&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>Gardener relies on extensions to provide various capabilities, such as supporting cloud providers.
 This controller automates the management of extensions by managing all necessary resources in the runtime and virtual garden clusters.&lt;/p>
-&lt;p>Currently, this controller only supports the reconciliation of &lt;code>ControllerDeployment&lt;/code> and &lt;code>ControllerRegistration&lt;/code> resources in the virtual garden cluster.&lt;/p>
+&lt;p>Currently, this controller handles the following scenarios:&lt;/p>
+&lt;ul>
+&lt;li>Admission controller deployment for the virtual garden cluster.&lt;/li>
+&lt;li>&lt;code>ControllerDeployment&lt;/code> and &lt;code>ControllerRegistration&lt;/code> reconciliation in the virtual garden cluster.&lt;/li>
+&lt;/ul>
 &lt;h3 id="gardenlet-controllerhttpsgithubcomgardenergardenertreemasterpkgoperatorcontrollergardenlet">&lt;a href="https://github.com/gardener/gardener/tree/master/pkg/operator/controller/gardenlet">&lt;code>Gardenlet&lt;/code> Controller&lt;/a>&lt;/h3>
 &lt;p>The &lt;code>Gardenlet&lt;/code> controller reconciles a &lt;code>seedmanagement.gardener.cloud/v1alpha1.Gardenlet&lt;/code> resource in case there is no &lt;code>Seed&lt;/code> yet with the same name.
 This is used to allow easy deployments of &lt;code>gardenlet&lt;/code>s into unmanaged seed clusters.

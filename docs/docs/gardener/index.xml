@@ -4961,10 +4961,22 @@ vpn-seed-server pods can be rolled without disrupting open connections.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/vpn-ha-architecture_2f71aa.png" alt="VPN HA Architecture">&lt;/p>
 &lt;p>With bonding, there are 2 possible routing paths, ensuring that there is at least one routing path intact even if
 one &lt;code>vpn-seed-server&lt;/code> pod and one &lt;code>vpn-shoot&lt;/code> pod are unavailable at the same time.&lt;/p>
-&lt;p>As it is not possible to use multi-path routing, one routing path must be configured explicitly.
-For this purpose, the &lt;code>path-controller&lt;/code> script is running in another side-car of the kube-apiserver pod.
+&lt;p>As multi-path routing is not available on the worker nodes, one routing path must be configured explicitly.
+For this purpose, the &lt;code>path-controller&lt;/code> app is running in another side-car of the kube-apiserver pod.
 It pings all shoot-side VPN clients regularly every few seconds. If the active routing path is not responsive anymore,
 the routing is switched to the other responsive routing path.&lt;/p>
+&lt;p>Using an IPv6 transport network for communication between the bonding devices of the VPN clients, additional
+tunnel devices are needed on both ends to allow transport of both IPv4 and IPv6 packets.
+For this purpose, &lt;code>ip6tnl&lt;/code> type tunnel devices are in place (an IPv4/IPv6 over IPv6 tunnel interface).&lt;/p>
+&lt;p>The connection establishment with a reversed tunnel in HA case is:&lt;/p>
+&lt;p>&lt;code>APIServer[k] --&amp;gt; ip6tnl-device[j] --&amp;gt; bond-device --&amp;gt; tap-device[i] | VPN-Seed-Server[i] &amp;lt;-- Istio/Envoy-Proxy &amp;lt;-- SNI API Server Endpoint &amp;lt;-- LB (one for all clusters of a seed) &amp;lt;--- internet &amp;lt;--- VPN-Shoot-Client[j] --&amp;gt; tap-device[i] --&amp;gt; bond-device --&amp;gt; ip6tnl-device[k] --&amp;gt; Pods | Nodes | Services&lt;/code>&lt;/p>
+&lt;p>Here, &lt;code>[k]&lt;/code> is the index of the kube-apiserver instance, &lt;code>[j]&lt;/code> of the VPN shoot instance, and &lt;code>[i]&lt;/code> of VPN seed server.&lt;/p>
+&lt;p>For each kube-apiserver instance, an own &lt;code>ip6tnl&lt;/code> tunnel device is needed on the shoot side.
+Additionally, the back routes from the VPN shoot to any new kube-apiserver instance must be set dynamically.
+Both tasks are managed by the &lt;code>tunnel-controller&lt;/code> running in each VPN shoot client.
+It listens for &lt;code>UDP6&lt;/code> packets sent periodically from the &lt;code>path-controller&lt;/code> running in the kube-apiserver pods.
+These &lt;code>UDP6&lt;/code> packets contain the &lt;code>IPv6&lt;/code> address of the bond device.
+If the tunnel controller detects a new kube-apiserver this way, it creates a new tunnel device and route to it.&lt;/p>
 &lt;p>&lt;img src="https://gardener.cloud/__resources/vpn-ha-routing-paths_aa0d8d.png" alt="Four possible routing paths">&lt;/p>
 &lt;p>For general information about HA control-plane, see &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/20-ha-control-planes.md">GEP-20&lt;/a>.&lt;/p></description></item><item><title>Docs: Secrets Management</title><link>https://gardener.cloud/docs/gardener/secrets_management/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/secrets_management/</guid><description>
 &lt;h1 id="secrets-management-for-seed-and-shoot-cluster">Secrets Management for Seed and Shoot Cluster&lt;/h1>

@@ -68,7 +68,46 @@ annotations:&lt;/p>
 deletion of the old AWS load balancer resource. While this helps in a seamless migration by not cutting existing
 connections it may lead to wasted/forgotten resources. Therefore, the (manual) cleanup needs to be taken into account
 when migrating an existing &lt;code>Service&lt;/code> instance.&lt;/p>
-&lt;p>For more details see &lt;a href="https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/nlb/">AWS Load Balancer Documentation - Network Load Balancer&lt;/a>.&lt;/p></description></item><item><title>Docs: Manage Certificates with Gardener</title><link>https://gardener.cloud/docs/guides/networking/certificate-extension/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/networking/certificate-extension/</guid><description>
+&lt;p>For more details see &lt;a href="https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/nlb/">AWS Load Balancer Documentation - Network Load Balancer&lt;/a>.&lt;/p>
+&lt;h2 id="dns-considerations-to-prevent-downtime-during-a-dual-stack-migration">DNS Considerations to Prevent Downtime During a Dual-Stack Migration&lt;/h2>
+&lt;p>In case the migration of an existing service is desired, please check if there are DNS entries directly linked to the
+corresponding load balancer. The migrated load balancer will have a new domain name immediately, which will not be ready
+in the beginning. Therefore, a direct migration of the domain name entries is not desired as it may cause a short
+downtime, i.e. domain name entries without backing IP addresses.&lt;/p>
+&lt;p>If there are DNS entries directly linked to the corresponding load balancer and they are managed by the
+&lt;a href="https://github.com/gardener/gardener-extension-shoot-dns-service">shoot-dns-service&lt;/a>, you can identify this via
+annotations with the prefix &lt;code>dns.gardener.cloud/&lt;/code>. Those annotations can be linked to a &lt;code>Service&lt;/code>, &lt;code>Ingress&lt;/code> or
+&lt;code>Gateway&lt;/code> resources. Alternatively, they may also use &lt;code>DNSEntry&lt;/code> or &lt;code>DNSAnnotation&lt;/code> resources.&lt;/p>
+&lt;p>For a seamless migration without downtime use the following three step approach:&lt;/p>
+&lt;ol>
+&lt;li>Temporarily prevent direct DNS updates&lt;/li>
+&lt;li>Migrate the load balancer and wait until it is operational&lt;/li>
+&lt;li>Allow DNS updates again&lt;/li>
+&lt;/ol>
+&lt;p>To prevent direct updates of the DNS entries when the load balancer is migrated add the annotation
+&lt;code>dns.gardener.cloud/ignore: 'true'&lt;/code> to all affected resources next to the other &lt;code>dns.gardener.cloud/...&lt;/code> annotations
+before starting the migration. For example, in case of a &lt;code>Service&lt;/code> ensure that the service looks like the following:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>kind: Service
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/ignore: &lt;span style="color:#a31515">&amp;#39;true&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/class: garden
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> dns.gardener.cloud/dnsnames: &lt;span style="color:#a31515">&amp;#39;...&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Next, migrate the load balancer to be dual-stack enabled by adding/changing the corresponding annotations.&lt;/p>
+&lt;p>You have multiple options how to check that the load balancer has been provisioned successfully. It might be useful
+to peek into &lt;code>status.loadBalancer.ingress&lt;/code> of the corresponding &lt;code>Service&lt;/code> to identify the load balancer:&lt;/p>
+&lt;ul>
+&lt;li>Check in the AWS console for the corresponding load balancer provisioning state&lt;/li>
+&lt;li>Perform domain name lookups with &lt;code>nslookup&lt;/code>/&lt;code>dig&lt;/code> to check whether the name resolves to an IP address.&lt;/li>
+&lt;li>Call your workload via the new load balancer, e.g. using
+&lt;code>curl --resolve &amp;lt;my-domain-name&amp;gt;:&amp;lt;port&amp;gt;:&amp;lt;IP-address&amp;gt; https://&amp;lt;my-domain-name&amp;gt;:&amp;lt;port&amp;gt;&lt;/code>, which allows you to call your
+service with the &amp;ldquo;correct&amp;rdquo; domain name without using actual name resolution.&lt;/li>
+&lt;li>Wait a fixed period of time as load balancer creation is usually finished within 15 minutes&lt;/li>
+&lt;/ul>
+&lt;p>Once the load balancer has been provisioned, you can remove the annotation &lt;code>dns.gardener.cloud/ignore: 'true'&lt;/code> again
+from the affected resources. It may take some additional time until the domain name change finally propagates
+(up to one hour).&lt;/p></description></item><item><title>Docs: Manage Certificates with Gardener</title><link>https://gardener.cloud/docs/guides/networking/certificate-extension/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/guides/networking/certificate-extension/</guid><description>
 &lt;h1 id="manage-certificates-with-gardener-for-public-domain">Manage certificates with Gardener for public domain&lt;/h1>
 &lt;h2 id="introduction">Introduction&lt;/h2>
 &lt;p>Dealing with applications on Kubernetes which offer a secure service endpoints (e.g. HTTPS) also require you to enable a

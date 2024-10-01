@@ -517,7 +517,7 @@ If no managed service principal can be assigned then the next operation on the S
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># name: my-identity-name&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># resourceGroup: my-identity-resource-group&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># acrAccess: true&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Currently, it&amp;rsquo;s not yet possible to deploy into existing resource groups, but in the future it will.
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Currently, it&amp;rsquo;s not yet possible to deploy into existing resource groups.
 The &lt;code>.resourceGroup.name&lt;/code> field will allow specifying the name of an already existing resource group that the shoot cluster and all infrastructure resources will be deployed to.&lt;/p>
 &lt;p>Via the &lt;code>.zoned&lt;/code> boolean you can tell whether you want to use Azure availability zones or not.
 If you don&amp;rsquo;t use zones then an availability set will be created and only basic load balancers will be used.
@@ -531,6 +531,7 @@ You can freely choose a private CIDR range.&lt;/li>
 &lt;li>The &lt;code>networks.vnet.ddosProtectionPlanID&lt;/code> field can be used to specify the id of a ddos protection plan which should be assigned to the VNet. This will only work for a VNet managed by Gardener. For externally managed VNets the ddos protection plan must be assigned by other means.&lt;/li>
 &lt;li>If a vnet name is given and cilium shoot clusters are created without a network overlay within one vnet make sure that the pod CIDR specified in &lt;code>shoot.spec.networking.pods&lt;/code> is not overlapping with any other pod CIDR used in that vnet.
 Overlapping pod CIDRs will lead to disfunctional shoot clusters.&lt;/li>
+&lt;li>It&amp;rsquo;s possible to place multiple shoot cluster into the same vnet&lt;/li>
 &lt;/ul>
 &lt;p>The &lt;code>networks.workers&lt;/code> section describes the CIDR for a subnet that is used for all shoot worker nodes, i.e., VMs which later run your applications.
 The specified CIDR range must be contained in the VNet CIDR specified above, or the VNet CIDR of your already existing VNet.
@@ -728,6 +729,13 @@ The following YAML is a snippet of a &lt;code>Shoot&lt;/code> resource:&lt;/p>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>diagnosticsProfile:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># storageURI: https://&amp;lt;storage-account-name&amp;gt;.blob.core.windows.net/&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dataVolumes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: test-image
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> imageRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> communityGalleryImageID: /CommunityGalleries/gardenlinux-13e998fe-534d-4b0a-8a27-f16a73aef620/Images/gardenlinux/Versions/1443.10.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># sharedGalleryImageID: /SharedGalleries/82fc46df-cc38-4306-9880-504e872cee18-VSMP_MEMORYONE_GALLERY/Images/vSMP_MemoryONE/Versions/1062800168.0.0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># id: /Subscriptions/2ebd38b6-270b-48a2-8e0b-2077106dc615/Providers/Microsoft.Compute/Locations/westeurope/Publishers/sap/ArtifactTypes/VMImage/Offers/gardenlinux/Skus/greatest/Versions/1443.10.0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># urn: sap:gardenlinux:greatest:1443.10.0&lt;/span>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>.nodeTemplate&lt;/code> is used to specify resource information of the machine during runtime. This then helps in Scale-from-Zero.
 Some points to note for this field:&lt;/p>
 &lt;ul>
@@ -738,6 +746,11 @@ Some points to note for this field:&lt;/p>
 &lt;p>The &lt;code>.diagnosticsProfile&lt;/code> is used to enable &lt;a href="https://learn.microsoft.com/en-us/azure/virtual-machines/boot-diagnostics">machine boot diagnostics&lt;/a> (disabled per default).
 A storage account is used for storing vm&amp;rsquo;s boot console output and screenshots.
 If &lt;code>.diagnosticsProfile.StorageURI&lt;/code> is not specified azure managed storage will be used (recommended way).&lt;/p>
+&lt;p>The &lt;code>.dataVolumes&lt;/code> field is used to add provider specific configurations for dataVolumes.
+&lt;code>.dataVolumes[].name&lt;/code> must match with one of the names in &lt;code>workers.dataVolumes[].name&lt;/code>.
+To specify an image source for the dataVolume either use &lt;code>communityGalleryImageID&lt;/code>, &lt;code>sharedGalleryImageID&lt;/code>, &lt;code>id&lt;/code> or &lt;code>urn&lt;/code> as &lt;code>imageRef&lt;/code>.
+However, users have to make sure that the image really exists, there&amp;rsquo;s yet no check in place.
+If the image does not exist the machine will get stuck in creation.&lt;/p>
 &lt;h2 id="example-shoot-manifest-non-zoned">Example &lt;code>Shoot&lt;/code> manifest (non-zoned)&lt;/h2>
 &lt;p>Please find below an example &lt;code>Shoot&lt;/code> manifest for a non-zoned cluster:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1

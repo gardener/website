@@ -3408,9 +3408,15 @@ While reading the change log, add the tasks (along with the respective PR in &lt
 &lt;/ul>
 &lt;/li>
 &lt;li>Ensure that &lt;a href="https://github.com/gardener/gardener/tree/master/pkg/controllermanager/controller/shoot/maintenance">maintenance-controller&lt;/a> is able to auto-update shoots to the new Kubernetes version. Changes to the shoot spec required for the Kubernetes update should be enforced in such cases (&lt;a href="https://github.com/gardener/gardener/blob/bdfc06dc5cb4e5764800fd31ba1dd07727ad78bf/pkg/controllermanager/controller/shoot/maintenance/reconciler.go#L146-L162">examples&lt;/a>).&lt;/li>
-&lt;li>Bump the used Kubernetes version for local e2e test.
+&lt;li>Add the new Kubernetes version to the CloudProfile in local setup.
 &lt;ul>
-&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/5255/commits/5707c4c7a4fd265b176387178b755cabeea89ffe">this&lt;/a> example commit.&lt;/li>
+&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/9689/commits/b067a468285a570d5950b62dd99d679ffa4a8bae">this&lt;/a> example commit.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>In the next Gardener release, file a PR that bumps the used Kubernetes version for local e2e test.
+&lt;ul>
+&lt;li>This step must be performed in a PR that targets the next Gardener release because of the e2e upgrade tests. The e2e upgrade tests deploy the previous Gardener version where the new Kubernetes version is not present in the CloudProfile. If the e2e tests are adapted in the same PR that adds the support for the Kubernetes version, then the e2e upgrade tests for that PR will fail because the newly added Kubernetes version in missing in the local CloudProfile from the old release.&lt;/li>
+&lt;li>See &lt;a href="https://github.com/gardener/gardener/pull/9745">this&lt;/a> example commit PR.&lt;/li>
 &lt;/ul>
 &lt;/li>
 &lt;/ul>
@@ -3428,11 +3434,16 @@ Generally, it is great if you add the PRs also to the umbrella issue so that the
 &lt;li>Work on release-specific tasks related to this provider.&lt;/li>
 &lt;/ul>
 &lt;h4 id="maintaining-the-cloud-controller-manager-images">Maintaining the &lt;code>cloud-controller-manager&lt;/code> Images&lt;/h4>
-&lt;p>Some of the cloud providers are not yet using upstream &lt;code>cloud-controller-manager&lt;/code> images.
-Instead, we build and maintain them ourselves:&lt;/p>
+&lt;p>Provider extensions are using upstream &lt;code>cloud-controller-manager&lt;/code> images.
+Make sure to adopt the new &lt;code>cloud-controller-manager&lt;/code> release for the new Kubernetes minor version (&lt;a href="https://github.com/gardener/gardener-extension-provider-aws/pull/1055">example PR&lt;/a>).&lt;/p>
+&lt;p>Some of the cloud providers are not using upstream &lt;code>cloud-controller-manager&lt;/code> images for some of the supported Kubernetes versions.
+Instead, we build and maintain the images ourselves:&lt;/p>
 &lt;ul>
 &lt;li>&lt;a href="https://github.com/gardener/cloud-provider-gcp">cloud-provider-gcp&lt;/a>&lt;/li>
 &lt;/ul>
+&lt;p>Use the instructions below in case you need to maintain a release branch for such &lt;code>cloud-controller-manager&lt;/code> image:&lt;/p>
+&lt;details>
+&lt;summary>Expand the instructions!&lt;/summary>
 &lt;p>Until we switch to upstream images, you need to update the Kubernetes dependencies and release a new image.
 The required steps are as follows:&lt;/p>
 &lt;ul>
@@ -3447,6 +3458,25 @@ The required steps are as follows:&lt;/p>
 In this case, you need to checkout the &lt;code>release-vX.{Y-{1,2,3}}&lt;/code> branches and only perform the last three steps (&lt;a href="https://github.com/gardener/cloud-provider-gcp/commits/release-v1.20">example branch&lt;/a>, &lt;a href="https://github.com/gardener/cloud-provider-gcp/commit/372aa43fbacdeb76b3da9f6fad6cfd924d916227">example commit&lt;/a>).&lt;/p>
 &lt;/blockquote>
 &lt;p>Now you need to update the new releases in the &lt;code>imagevector/images.yaml&lt;/code> of the respective provider extension so that they are used (see this &lt;a href="https://github.com/gardener/gardener-extension-provider-aws/pull/942/commits/7e5c0d95ff95d65459d13ae7f79a030049322c71">example commit&lt;/a> for reference).&lt;/p>
+&lt;/details>
+&lt;h4 id="maintaining-additional-images">Maintaining Additional Images&lt;/h4>
+&lt;p>Provider extensions might also deploy additional images other than &lt;code>cloud-controller-manager&lt;/code> that are specific for a given Kubernetes minor version.&lt;/p>
+&lt;p>Make sure to use a new image for the following components:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>The &lt;code>ecr-credential-provider&lt;/code> image for the provider-aws extension.&lt;/p>
+&lt;p>We are building the &lt;code>ecr-credential-provider&lt;/code> image ourselves because the upstream community does not provide an OCI image for the corresponding component. For more details, see this &lt;a href="https://github.com/kubernetes/cloud-provider-aws/issues/823">upstream issue&lt;/a>.&lt;/p>
+&lt;p>Use the following steps to prepare a release of the &lt;code>ecr-credential-provider&lt;/code> image for the new Kubernetes minor version:&lt;/p>
+&lt;ul>
+&lt;li>Update the &lt;code>VERSION&lt;/code> file in the &lt;a href="https://github.com/gardener/ecr-credential-provider">gardener/ecr-credential-provider&lt;/a> repository (&lt;a href="https://github.com/gardener/ecr-credential-provider/pull/2">example PR&lt;/a>).&lt;/li>
+&lt;li>Once the PR is merged, trigger a new release from the CI/CD.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>The &lt;code>csi-driver-cinder&lt;/code> and &lt;code>csi-driver-manila&lt;/code> images for the provider-openstack extension.&lt;/p>
+&lt;p>The upstream community is providing &lt;code>csi-driver-cinder&lt;/code> and &lt;code>csi-driver-manila&lt;/code> releases per Kubernetes minor version. Make sure to adopt the new &lt;code>csi-driver-cinder&lt;/code> and &lt;code>csi-driver-manila&lt;/code> releases for the new Kubernetes minor version (&lt;a href="https://github.com/gardener/gardener-extension-provider-openstack/pull/856">example PR&lt;/a>).&lt;/p>
+&lt;/li>
+&lt;/ul>
 &lt;h4 id="filing-the-pull-request-1">Filing the Pull Request&lt;/h4>
 &lt;p>Again, work on all the tasks you have collected.
 This time, you cannot use the local provider for validation but should create real clusters on the various infrastructures.

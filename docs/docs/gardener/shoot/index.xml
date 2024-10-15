@@ -1,0 +1,648 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Shoot</title><link>https://gardener.cloud/docs/gardener/shoot/</link><description>Recent content in Shoot on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/shoot/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Accessing Shoot Clusters</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_access/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_access/</guid><description>
+&lt;h1 id="accessing-shoot-clusters">Accessing Shoot Clusters&lt;/h1>
+&lt;p>After creation of a shoot cluster, end-users require a &lt;code>kubeconfig&lt;/code> to access it. There are several options available to get to such &lt;code>kubeconfig&lt;/code>.&lt;/p>
+&lt;h2 id="shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> Subresource&lt;/h2>
+&lt;p>The &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md">&lt;code>shoots/adminkubeconfig&lt;/code>&lt;/a> subresource allows users to dynamically generate temporary &lt;code>kubeconfig&lt;/code>s that can be used to access shoot cluster with &lt;code>cluster-admin&lt;/code> privileges. The credentials associated with this &lt;code>kubeconfig&lt;/code> are client certificates which have a very short validity and must be renewed before they expire (by calling the subresource endpoint again).&lt;/p>
+&lt;p>The username associated with such &lt;code>kubeconfig&lt;/code> will be the same which is used for authenticating to the Gardener API. Apart from this advantage, the created &lt;code>kubeconfig&lt;/code> will not be persisted anywhere.&lt;/p>
+&lt;p>In order to request such a &lt;code>kubeconfig&lt;/code>, you can run the following commands (targeting the garden cluster):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=garden-my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export KUBECONFIG=&amp;lt;kubeconfig &lt;span style="color:#00f">for&lt;/span> garden cluster&amp;gt; &lt;span style="color:#008000"># can be set using &amp;#34;gardenctl target --garden &amp;lt;landscape&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;(printf &lt;span style="color:#a31515">&amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;expirationSeconds&amp;#34;:600}}&amp;#39;&lt;/span>) &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/adminkubeconfig | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> jq -r &lt;span style="color:#a31515">&amp;#34;.status.kubeconfig&amp;#34;&lt;/span> | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> base64 -d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>You also can use controller-runtime &lt;code>client&lt;/code> (&amp;gt;= v0.14.3) to create such a kubeconfig from your go code like so:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-go" data-lang="go">&lt;span style="display:flex;">&lt;span>expiration := 10 * time.Minute
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>expirationSeconds := int64(expiration.Seconds())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>adminKubeconfigRequest := &amp;amp;authenticationv1alpha1.AdminKubeconfigRequest{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ExpirationSeconds: &amp;amp;expirationSeconds,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>err := client.SubResource(&lt;span style="color:#a31515">&amp;#34;adminkubeconfig&amp;#34;&lt;/span>).Create(ctx, shoot, adminKubeconfigRequest)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">if&lt;/span> err != &lt;span style="color:#00f">nil&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#00f">return&lt;/span> err
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config = adminKubeconfigRequest.Status.Kubeconfig
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In Python, you can use the native &lt;a href="https://github.com/kubernetes-client/python">&lt;code>kubernetes&lt;/code> client&lt;/a> to create such a kubeconfig like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-python" data-lang="python">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># This script first loads an existing kubeconfig from your system, and then sends a request to the Gardener API to create a new kubeconfig for a shoot cluster. &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># The received kubeconfig is then decoded and a new API client is created for interacting with the shoot cluster.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> base64
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> json
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">from&lt;/span> kubernetes &lt;span style="color:#00f">import&lt;/span> client, config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#00f">import&lt;/span> yaml
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Set configuration options&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot_name=&lt;span style="color:#a31515">&amp;#34;my-shoot&amp;#34;&lt;/span> &lt;span style="color:#008000"># Name of the shoot&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>project_namespace=&lt;span style="color:#a31515">&amp;#34;garden-my-namespace&amp;#34;&lt;/span> &lt;span style="color:#008000"># Namespace of the project&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Load kubeconfig from default ~/.kube/config&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>config.load_kube_config()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>api = client.ApiClient()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Create kubeconfig request&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubeconfig_request = {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;apiVersion&amp;#39;&lt;/span>: &lt;span style="color:#a31515">&amp;#39;authentication.gardener.cloud/v1alpha1&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;kind&amp;#39;&lt;/span>: &lt;span style="color:#a31515">&amp;#39;AdminKubeconfigRequest&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;spec&amp;#39;&lt;/span>: {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a31515">&amp;#39;expirationSeconds&amp;#39;&lt;/span>: 600
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>response = api.call_api(resource_path=&lt;span style="color:#a31515">f&lt;/span>&lt;span style="color:#a31515">&amp;#39;/apis/core.gardener.cloud/v1beta1/namespaces/&lt;/span>&lt;span style="color:#a31515">{&lt;/span>project_namespace&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/shoots/&lt;/span>&lt;span style="color:#a31515">{&lt;/span>shoot_name&lt;span style="color:#a31515">}&lt;/span>&lt;span style="color:#a31515">/adminkubeconfig&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> method=&lt;span style="color:#a31515">&amp;#39;POST&amp;#39;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> body=kubeconfig_request,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> auth_settings=[&lt;span style="color:#a31515">&amp;#39;BearerToken&amp;#39;&lt;/span>],
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> _preload_content=&lt;span style="color:#00f">False&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> _return_http_data_only=&lt;span style="color:#00f">True&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>decoded_kubeconfig = base64.b64decode(json.loads(response.data)[&lt;span style="color:#a31515">&amp;#34;status&amp;#34;&lt;/span>][&lt;span style="color:#a31515">&amp;#34;kubeconfig&amp;#34;&lt;/span>]).decode(&lt;span style="color:#a31515">&amp;#39;utf-8&amp;#39;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>print(decoded_kubeconfig)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># Create an API client to interact with the shoot cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>shoot_api_client = config.new_client_from_config_dict(yaml.safe_load(decoded_kubeconfig))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>v1 = client.CoreV1Api(shoot_api_client)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> The &lt;a href="https://github.com/gardener/gardenctl-v2">&lt;code>gardenctl-v2&lt;/code>&lt;/a> tool simplifies targeting shoot clusters. It automatically downloads a kubeconfig that uses the &lt;a href="https://github.com/gardener/gardenlogin">gardenlogin&lt;/a> kubectl auth plugin. This transparently manages authentication and certificate renewal without containing any credentials.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="shootsviewerkubeconfig-subresource">&lt;code>shoots/viewerkubeconfig&lt;/code> Subresource&lt;/h2>
+&lt;p>The &lt;code>shoots/viewerkubeconfig&lt;/code> subresource works similar to the &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code>&lt;/a>.
+The difference is that it returns a kubeconfig with read-only access for all APIs except the &lt;code>core/v1.Secret&lt;/code> API and the resources which are specified in the &lt;code>spec.kubernetes.kubeAPIServer.encryptionConfig&lt;/code> field in the Shoot (see &lt;a href="https://gardener.cloud/docs/gardener/security/etcd_encryption_config/">this document&lt;/a>).&lt;/p>
+&lt;p>In order to request such a &lt;code>kubeconfig&lt;/code>, you can run follow almost the same code as above - the only difference is that you need to use the &lt;code>viewerkubeconfig&lt;/code> subresource.
+For example, in bash this looks like this:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>export NAMESPACE=garden-my-namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>export SHOOT_NAME=my-shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl create &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> -f &amp;lt;(printf &lt;span style="color:#a31515">&amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;expirationSeconds&amp;#34;:600}}&amp;#39;&lt;/span>) &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> --raw /apis/core.gardener.cloud/v1beta1/namespaces/&lt;span style="color:#a31515">${&lt;/span>NAMESPACE&lt;span style="color:#a31515">}&lt;/span>/shoots/&lt;span style="color:#a31515">${&lt;/span>SHOOT_NAME&lt;span style="color:#a31515">}&lt;/span>/viewerkubeconfig | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> jq -r &lt;span style="color:#a31515">&amp;#34;.status.kubeconfig&amp;#34;&lt;/span> | &lt;span style="color:#a31515">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> base64 -d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The examples for other programming languages are similar to &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#shootsadminkubeconfig-subresource">the above&lt;/a> and can be adapted accordingly.&lt;/p>
+&lt;h2 id="openid-connect">OpenID Connect&lt;/h2>
+&lt;p>The &lt;code>kube-apiserver&lt;/code> of shoot clusters can be provided with &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens">OpenID Connect configuration&lt;/a> via the Shoot spec:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> oidcConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is the end-user&amp;rsquo;s responsibility to incorporate the OpenID Connect configurations in the &lt;code>kubeconfig&lt;/code> for accessing the cluster (i.e., Gardener will not automatically generate the &lt;code>kubeconfig&lt;/code> based on these OIDC settings).
+The recommended way is using the &lt;code>kubectl&lt;/code> plugin called &lt;a href="https://github.com/int128/kubelogin">&lt;code>kubectl oidc-login&lt;/code>&lt;/a> for OIDC authentication.&lt;/p>
+&lt;p>If you want to use the same OIDC configuration for all your shoots by default, then you can use the &lt;code>ClusterOpenIDConnectPreset&lt;/code> and &lt;code>OpenIDConnectPreset&lt;/code> API resources. They allow defaulting the &lt;code>.spec.kubernetes.kubeAPIServer.oidcConfig&lt;/code> fields for newly created &lt;code>Shoot&lt;/code>s such that you don&amp;rsquo;t have to repeat yourself every time (similar to &lt;code>PodPreset&lt;/code> resources in Kubernetes).
+&lt;code>ClusterOpenIDConnectPreset&lt;/code> specified OIDC configuration applies to &lt;code>Projects&lt;/code> and &lt;code>Shoots&lt;/code> cluster-wide (hence, only available to Gardener operators), while &lt;code>OpenIDConnectPreset&lt;/code> is &lt;code>Project&lt;/code>-scoped.
+Shoots have to &amp;ldquo;opt-in&amp;rdquo; for such defaulting by using the &lt;code>oidc=enable&lt;/code> label.&lt;/p>
+&lt;p>For further information on &lt;code>(Cluster)OpenIDConnectPreset&lt;/code>, refer to &lt;a href="https://gardener.cloud/docs/gardener/security/openidconnect-presets/">ClusterOpenIDConnectPreset and OpenIDConnectPreset&lt;/a>.&lt;/p>
+&lt;p>For shoots with Kubernetes version &lt;code>&amp;gt;= 1.30&lt;/code>, which have &lt;code>StructuredAuthenticationConfiguration&lt;/code> feature gate enabled (enabled by default), it is advised to use Structured Authentication instead of configuring &lt;code>.spec.kubernetes.kubeAPIServer.oidcConfig&lt;/code>.
+If &lt;code>oidcConfig&lt;/code> is configured, it is translated into an &lt;code>AuthenticationConfiguration&lt;/code> file to use for &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-authentication-configuration">Structured Authentication configuration&lt;/a>&lt;/p>
+&lt;h2 id="structured-authentication">Structured Authentication&lt;/h2>
+&lt;p>For shoots with Kubernetes version &lt;code>&amp;gt;= 1.30&lt;/code>, which have &lt;code>StructuredAuthenticationConfiguration&lt;/code> feature gate enabled (enabled by default), &lt;code>kube-apiserver&lt;/code> of shoot clusters can be provided with &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-authentication-configuration">Structured Authentication configuration&lt;/a> via the Shoot spec:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> structuredAuthentication:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configMapName: name-of-configmap-containing-authentication-config
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>configMapName&lt;/code> references a user created &lt;code>ConfigMap&lt;/code> in the project namespace containing the &lt;code>AuthenticationConfiguration&lt;/code> in it&amp;rsquo;s &lt;code>config.yaml&lt;/code> data field.
+Here is an example of such &lt;code>ConfigMap&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: name-of-configmap-containing-authentication-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-my-project
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config.yaml: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> apiVersion: apiserver.config.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kind: AuthenticationConfiguration
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> jwt:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - issuer:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> url: https://issuer1.example.com
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> audiences:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - audience1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - audience2
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> claimMappings:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> username:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expression: &amp;#39;claims.username&amp;#39;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> groups:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expression: &amp;#39;claims.groups&amp;#39;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> uid:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expression: &amp;#39;claims.uid&amp;#39;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> claimValidationRules:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expression: &amp;#39;claims.hd == &amp;#34;example.com&amp;#34;&amp;#39;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> message: &amp;#34;the hosted domain name must be example.com&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The user is responsible for the validity of the configured &lt;code>JWTAuthenticator&lt;/code>s.&lt;/p>
+&lt;h2 id="static-token-kubeconfig">Static Token kubeconfig&lt;/h2>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Static token kubeconfig is not available for Shoot clusters using Kubernetes version &amp;gt;= 1.27. The &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> should be used instead.&lt;/p>
+&lt;/blockquote>
+&lt;p>This &lt;code>kubeconfig&lt;/code> contains a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#static-token-file">static token&lt;/a> and provides &lt;code>cluster-admin&lt;/code> privileges.
+It is created by default and persisted in the &lt;code>&amp;lt;shoot-name&amp;gt;.kubeconfig&lt;/code> secret in the project namespace in the garden cluster.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enableStaticTokenKubeconfig: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is &lt;strong>not&lt;/strong> the recommended method to access the shoot cluster, as the static token &lt;code>kubeconfig&lt;/code> has some security flaws associated with it:&lt;/p>
+&lt;ul>
+&lt;li>The static token in the &lt;code>kubeconfig&lt;/code> doesn&amp;rsquo;t have any expiration date. Read &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/#kubeconfig">Credentials Rotation for Shoot Clusters&lt;/a> to learn how to rotate the static token.&lt;/li>
+&lt;li>The static token doesn&amp;rsquo;t have any user identity associated with it. The user in that token will always be &lt;code>system:cluster-admin&lt;/code>, irrespective of the person accessing the cluster. Hence, it is impossible to audit the events in cluster.&lt;/li>
+&lt;/ul>
+&lt;p>When the &lt;code>enableStaticTokenKubeconfig&lt;/code> field is not explicitly set in the Shoot spec:&lt;/p>
+&lt;ul>
+&lt;li>for Shoot clusters using Kubernetes version &amp;lt; 1.26, the field is defaulted to &lt;code>true&lt;/code>.&lt;/li>
+&lt;li>for Shoot clusters using Kubernetes version &amp;gt;= 1.26, the field is defaulted to &lt;code>false&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Starting with Kubernetes 1.27, the &lt;code>enableStaticTokenKubeconfig&lt;/code> field will be locked to &lt;code>false&lt;/code>.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Shoot Cluster Purposes</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_purposes/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_purposes/</guid><description>
+&lt;h1 id="shoot-cluster-purpose">Shoot Cluster Purpose&lt;/h1>
+&lt;p>The &lt;code>Shoot&lt;/code> resource contains a &lt;code>.spec.purpose&lt;/code> field indicating how the shoot is used, whose allowed values are as follows:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>evaluation&lt;/code> (default): Indicates that the shoot cluster is for evaluation scenarios.&lt;/li>
+&lt;li>&lt;code>development&lt;/code>: Indicates that the shoot cluster is for development scenarios.&lt;/li>
+&lt;li>&lt;code>testing&lt;/code>: Indicates that the shoot cluster is for testing scenarios.&lt;/li>
+&lt;li>&lt;code>production&lt;/code>: Indicates that the shoot cluster is for production scenarios.&lt;/li>
+&lt;li>&lt;code>infrastructure&lt;/code>: Indicates that the shoot cluster is for infrastructure scenarios (only allowed for shoots in the &lt;code>garden&lt;/code> namespace).&lt;/li>
+&lt;/ul>
+&lt;h2 id="behavioral-differences">Behavioral Differences&lt;/h2>
+&lt;p>The following enlists the differences in the way the shoot clusters are set up based on the selected purpose:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>testing&lt;/code> shoot clusters &lt;strong>do not&lt;/strong> get a monitoring or a logging stack as part of their control planes.&lt;/li>
+&lt;li>for &lt;code>production&lt;/code> and &lt;code>infrastructure&lt;/code> shoot clusters auto-scaling scale down of the main ETCD is disabled.&lt;/li>
+&lt;/ul>
+&lt;p>There are also differences with respect to how &lt;code>testing&lt;/code> shoots are scheduled after creation, please consult the &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/">Scheduler documentation&lt;/a>.&lt;/p>
+&lt;h2 id="future-steps">Future Steps&lt;/h2>
+&lt;p>We might introduce more behavioral difference depending on the shoot purpose in the future.
+As of today, there are no plans yet.&lt;/p></description></item><item><title>Docs: Shoot Hibernation</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/</guid><description>
+&lt;h1 id="shoot-hibernation">Shoot Hibernation&lt;/h1>
+&lt;p>Clusters are only needed 24 hours a day if they run productive workload. So whenever you do development in a cluster, or just use it for tests or demo purposes, you can save a lot of money if you scale-down your Kubernetes resources whenever you don&amp;rsquo;t need them. However, scaling them down manually can become time-consuming the more resources you have.&lt;/p>
+&lt;p>Gardener offers a clever way to automatically scale-down all resources to zero: cluster hibernation. You can either hibernate a cluster by pushing a button, or by defining a hibernation schedule.&lt;/p>
+&lt;blockquote>
+&lt;p>To save costs, it&amp;rsquo;s recommended to define a hibernation schedule before the creation of a cluster. You can hibernate your cluster or wake up your cluster manually even if there&amp;rsquo;s a schedule for its hibernation.&lt;/p>
+&lt;/blockquote>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#hibernate-a-cluster">Hibernate a Cluster&lt;/a>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#what-is-hibernation">What Is Hibernation?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#what-isnt-affected-by-the-hibernation">What Isn’t Affected by the Hibernation?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#hibernate-your-cluster-manually">Hibernate Your Cluster Manually&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#wake-up-your-cluster-manually">Wake Up Your Cluster Manually&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_hibernate/#create-a-schedule-to-hibernate-your-cluster">Create a Schedule to Hibernate Your Cluster&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="what-is-hibernation">What Is Hibernation?&lt;/h2>
+&lt;p>When a cluster is hibernated, Gardener scales down the worker nodes and the cluster&amp;rsquo;s control plane to free resources at the IaaS provider. This affects:&lt;/p>
+&lt;ul>
+&lt;li>Your workload, for example, pods, deployments, custom resources.&lt;/li>
+&lt;li>The virtual machines running your workload.&lt;/li>
+&lt;li>The resources of the control plane of your cluster.&lt;/li>
+&lt;/ul>
+&lt;h2 id="what-isnt-affected-by-the-hibernation">What Isn’t Affected by the Hibernation?&lt;/h2>
+&lt;p>To scale up everything where it was before hibernation, Gardener doesn’t delete state-related information, that is, information stored in persistent volumes. The cluster state as persistent in &lt;code>etcd&lt;/code> is also preserved.&lt;/p>
+&lt;h2 id="hibernate-your-cluster-manually">Hibernate Your Cluster Manually&lt;/h2>
+&lt;p>The &lt;code>.spec.hibernation.enabled&lt;/code> field specifies whether the cluster needs to be hibernated or not. If the field is set to &lt;code>true&lt;/code>, the cluster&amp;rsquo;s desired state is to be hibernated. If it is set to &lt;code>false&lt;/code> or not specified at all, the cluster&amp;rsquo;s desired state is to be awakened.&lt;/p>
+&lt;p>To hibernate your cluster, you can run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code>$ kubectl patch shoot -n $NAMESPACE $SHOOT_NAME -p &amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;hibernation&amp;#34;:{&amp;#34;enabled&amp;#34;: true}}}&amp;#39;
+&lt;/code>&lt;/pre>&lt;h2 id="wake-up-your-cluster-manually">Wake Up Your Cluster Manually&lt;/h2>
+&lt;p>To wake up your cluster, you can run the following &lt;code>kubectl&lt;/code> command:&lt;/p>
+&lt;pre tabindex="0">&lt;code>$ kubectl patch shoot -n $NAMESPACE $SHOOT_NAME -p &amp;#39;{&amp;#34;spec&amp;#34;:{&amp;#34;hibernation&amp;#34;:{&amp;#34;enabled&amp;#34;: false}}}&amp;#39;
+&lt;/code>&lt;/pre>&lt;h2 id="create-a-schedule-to-hibernate-your-cluster">Create a Schedule to Hibernate Your Cluster&lt;/h2>
+&lt;p>You can specify a hibernation schedule to automatically hibernate/wake up a cluster.&lt;/p>
+&lt;p>Let&amp;rsquo;s have a look into the following example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span> hibernation:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> schedules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - start: &lt;span style="color:#a31515">&amp;#34;0 20 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Start hibernation every day at 8PM&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: &lt;span style="color:#a31515">&amp;#34;0 6 * * *&amp;#34;&lt;/span> &lt;span style="color:#008000"># Stop hibernation every day at 6AM&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> location: &lt;span style="color:#a31515">&amp;#34;America/Los_Angeles&amp;#34;&lt;/span> &lt;span style="color:#008000"># Specify a location for the cron to run in&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The above section configures a hibernation schedule that hibernates the cluster every day at 08:00 PM and wakes it up at 06:00 AM. The &lt;code>start&lt;/code> or &lt;code>end&lt;/code> fields can be omitted, though at least one of them has to be specified. Hence, it is possible to configure a hibernation schedule that only hibernates or wakes up a cluster. The &lt;code>location&lt;/code> field is the time location used to evaluate the cron expressions.&lt;/p></description></item><item><title>Docs: Shoot Info Configmap</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_info_configmap/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_info_configmap/</guid><description>
+&lt;h1 id="shoot-info-configmap">Shoot Info &lt;code>ConfigMap&lt;/code>&lt;/h1>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>The gardenlet maintains a &lt;a href="https://kubernetes.io/docs/concepts/configuration/configmap/">ConfigMap&lt;/a> inside the Shoot cluster that contains information about the cluster itself. The ConfigMap is named &lt;code>shoot-info&lt;/code> and located in the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
+&lt;h2 id="fields">Fields&lt;/h2>
+&lt;p>The following fields are provided:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: shoot-info
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> domain: crazy-botany.core.my-custom-domain.com &lt;span style="color:#008000"># .spec.dns.domain field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> extensions: foobar,foobaz &lt;span style="color:#008000"># List of extensions that are enabled&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: 1.25.4 &lt;span style="color:#008000"># .spec.kubernetes.version field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenanceBegin: 220000+0100 &lt;span style="color:#008000"># .spec.maintenance.timeWindow.begin field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenanceEnd: 230000+0100 &lt;span style="color:#008000"># .spec.maintenance.timeWindow.end field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeNetwork: 10.250.0.0/16 &lt;span style="color:#008000"># .spec.networking.nodes field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> podNetwork: 100.96.0.0/11 &lt;span style="color:#008000"># .spec.networking.pods field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> projectName: dev &lt;span style="color:#008000"># .metadata.name of the Project&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider: &amp;lt;some-provider-name&amp;gt; &lt;span style="color:#008000"># .spec.provider.type field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: europe-central-1 &lt;span style="color:#008000"># .spec.region field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> serviceNetwork: 100.64.0.0/13 &lt;span style="color:#008000"># .spec.networking.services field from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shootName: crazy-botany &lt;span style="color:#008000"># .metadata.name from the Shoot resource&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Shoot Maintenance</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/</guid><description>
+&lt;h1 id="shoot-maintenance">Shoot Maintenance&lt;/h1>
+&lt;p>Shoots configure a maintenance time window in which Gardener performs certain operations that may restart the control plane, roll out the nodes, result in higher network traffic, etc. A summary of what was changed in the last maintenance time window in shoot specification is kept in the shoot status &lt;code>.status.lastMaintenance&lt;/code> field.&lt;/p>
+&lt;p>This document outlines what happens during a shoot maintenance.&lt;/p>
+&lt;h2 id="time-window">Time Window&lt;/h2>
+&lt;p>Via the &lt;code>.spec.maintenance.timeWindow&lt;/code> field in the shoot specification, end-users can configure the time window in which maintenance operations are executed.
+Gardener runs one maintenance operation per day in this time window:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> timeWindow:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> begin: 220000+0100
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> end: 230000+0100
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The offset (&lt;code>+0100&lt;/code>) is considered with respect to UTC time.
+The minimum time window is &lt;code>30m&lt;/code> and the maximum is &lt;code>6h&lt;/code>.&lt;/p>
+&lt;p>⚠️ Please note that there is no guarantee that a maintenance operation that, e.g., starts a node roll-out will finish &lt;em>within&lt;/em> the time window.
+Especially for large clusters, it may take several hours until a graceful rolling update of the worker nodes succeeds (also depending on the workload and the configured pod disruption budgets/termination grace periods).&lt;/p>
+&lt;p>Internally, Gardener is subtracting &lt;code>15m&lt;/code> from the end of the time window to (best-effort) try to finish the maintenance until the end is reached, however, this might not work in all cases.&lt;/p>
+&lt;p>If you don&amp;rsquo;t specify a time window, then Gardener will randomly compute it.
+You can change it later, of course.&lt;/p>
+&lt;h2 id="automatic-version-updates">Automatic Version Updates&lt;/h2>
+&lt;p>The &lt;code>.spec.maintenance.autoUpdate&lt;/code> field in the shoot specification allows you to control how/whether automatic updates of Kubernetes patch and machine image versions are performed.
+Machine image versions are updated per worker pool.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoUpdate:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetesVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImageVersion: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>During the daily maintenance, the Gardener Controller Manager updates the Shoot&amp;rsquo;s Kubernetes and machine image version if any of the following criteria applies:&lt;/p>
+&lt;ul>
+&lt;li>There is a higher version available and the Shoot opted-in for automatic version updates.&lt;/li>
+&lt;li>The currently used version is &lt;code>expired&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;p>The target version for machine image upgrades is controlled by the &lt;code>updateStrategy&lt;/code> field for the machine image in the CloudProfile. Allowed update strategies are &lt;code>patch&lt;/code>, &lt;code>minor&lt;/code> and &lt;code>major&lt;/code>.&lt;/p>
+&lt;p>Gardener (gardener-controller-manager) populates the &lt;code>lastMaintenance&lt;/code> field in the Shoot status with the maintenance results.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>Last Maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Description: &lt;span style="color:#a31515">&amp;#34;All maintenance operations successful. Control Plane: Updated Kubernetes version from 1.26.4 to 1.27.1. Reason: Kubernetes version expired - force update required&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> State: Succeeded
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Triggered Time: 2023-07-28T09:07:27Z
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Additionally, Gardener creates events with the type &lt;code>MachineImageVersionMaintenance&lt;/code> or &lt;code>KubernetesVersionMaintenance&lt;/code> on the Shoot describing the action performed during maintenance, including the reason why an update has been triggered.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-text" data-lang="text">&lt;span style="display:flex;">&lt;span>LAST SEEN TYPE REASON OBJECT MESSAGE
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>30m Normal MachineImageVersionMaintenance shoot/local Worker pool &amp;#34;local&amp;#34;: Updated image from &amp;#39;gardenlinux&amp;#39; version &amp;#39;xy&amp;#39; to version &amp;#39;abc&amp;#39;. Reason: Automatic update of the machine image version is configured (image update strategy: major).
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>30m Normal KubernetesVersionMaintenance shoot/local Control Plane: Updated Kubernetes version from &amp;#34;1.26.4&amp;#34; to &amp;#34;1.27.1&amp;#34;. Reason: Kubernetes version expired - force update required.
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>15m Normal KubernetesVersionMaintenance shoot/local Worker pool &amp;#34;local&amp;#34;: Updated Kubernetes version &amp;#39;1.26.3&amp;#39; to version &amp;#39;1.27.1&amp;#39;. Reason: Kubernetes version expired - force update required.
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If at least one maintenance operation fails, the &lt;code>lastMaintenance&lt;/code> field in the Shoot status is set to &lt;code>Failed&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>Last Maintenance:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Description: &lt;span style="color:#a31515">&amp;#34;(1/2) maintenance operations successful: Control Plane: Updated Kubernetes version from 1.26.4 to 1.27.1. Reason: Kubernetes version expired - force update required, Worker pool x: &amp;#39;gardenlinux&amp;#39; machine image version maintenance failed. Reason for update: machine image version expired&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> FailureReason: &lt;span style="color:#a31515">&amp;#34;Worker pool x: either the machine image &amp;#39;gardenlinux&amp;#39; is reaching end of life and migration to another machine image is required or there is a misconfiguration in the CloudProfile.&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> State: Failed
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Triggered Time: 2023-07-28T09:07:27Z
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please refer to the &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_versions/">Shoot Kubernetes and Operating System Versioning in Gardener&lt;/a> topic for more information about Kubernetes and machine image versions in Gardener.&lt;/p>
+&lt;h2 id="cluster-reconciliation">Cluster Reconciliation&lt;/h2>
+&lt;p>Gardener administrators/operators can configure the gardenlet in a way that it only reconciles shoot clusters during their maintenance time windows.
+This behaviour is not controllable by end-users but might make sense for large Gardener installations.
+Concretely, your shoot will be reconciled regularly during its maintenance time window.
+Outside of the maintenance time window it will only reconcile if you change the specification or if you explicitly trigger it, see also &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/">Trigger Shoot Operations&lt;/a>.&lt;/p>
+&lt;h2 id="confine-specification-changesupdates-roll-out">Confine Specification Changes/Updates Roll Out&lt;/h2>
+&lt;p>Via the &lt;code>.spec.maintenance.confineSpecUpdateRollout&lt;/code> field you can control whether you want to make Gardener roll out changes/updates to your shoot specification only during the maintenance time window.
+It is &lt;code>false&lt;/code> by default, i.e., any change to your shoot specification triggers a reconciliation (even outside of the maintenance time window).
+This is helpful if you want to update your shoot but don&amp;rsquo;t want the changes to be applied immediately. One example use-case would be a Kubernetes version upgrade that you want to roll out during the maintenance time window.
+Any update to the specification will not increase the &lt;code>.metadata.generation&lt;/code> of the &lt;code>Shoot&lt;/code>, which is something you should be aware of.
+Also, even if Gardener administrators/operators have not enabled the &amp;ldquo;reconciliation in maintenance time window only&amp;rdquo; configuration (as mentioned above), then your shoot will only reconcile in the maintenance time window.
+The reason is that Gardener cannot differentiate between create/update/reconcile operations.&lt;/p>
+&lt;p>⚠️ If &lt;code>confineSpecUpdateRollout=true&lt;/code>, please note that if you change the maintenance time window itself, then it will only be effective after the upcoming maintenance.&lt;/p>
+&lt;p>⚠️ As exceptions to the above rules, &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#immediate-reconciliation">manually triggered reconciliations&lt;/a> and changes to the &lt;code>.spec.hibernation.enabled&lt;/code> field trigger immediate rollouts.
+I.e., if you hibernate or wake-up your shoot, or you explicitly tell Gardener to reconcile your shoot, then Gardener gets active right away.&lt;/p>
+&lt;h2 id="shoot-operations">Shoot Operations&lt;/h2>
+&lt;p>In case you would like to perform a &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#credentials-rotation-operations">shoot credential rotation&lt;/a> or a &lt;code>reconcile&lt;/code> operation during your maintenance time window, you can annotate the &lt;code>Shoot&lt;/code> with&lt;/p>
+&lt;pre tabindex="0">&lt;code>maintenance.gardener.cloud/operation=&amp;lt;operation&amp;gt;
+&lt;/code>&lt;/pre>&lt;p>This will execute the specified &lt;code>&amp;lt;operation&amp;gt;&lt;/code> during the next maintenance reconciliation.
+Note that Gardener will remove this annotation after it has been performed in the maintenance reconciliation.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ This is skipped when the &lt;code>Shoot&lt;/code>&amp;rsquo;s &lt;code>.status.lastOperation.state=Failed&lt;/code>. Make sure to &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#retry-failed-reconciliation">retry&lt;/a> your shoot reconciliation beforehand.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="special-operations-during-maintenance">Special Operations During Maintenance&lt;/h2>
+&lt;p>The shoot maintenance controller triggers special operations that are performed as part of the shoot reconciliation.&lt;/p>
+&lt;h3 id="infrastructure-and-dnsrecord-reconciliation">&lt;code>Infrastructure&lt;/code> and &lt;code>DNSRecord&lt;/code> Reconciliation&lt;/h3>
+&lt;p>The reconciliation of the &lt;code>Infrastructure&lt;/code> and &lt;code>DNSRecord&lt;/code> extension resources is only demanded during the shoot&amp;rsquo;s maintenance time window.
+The rationale behind it is to prevent sending too many requests against the cloud provider APIs, especially on large landscapes or if a user has many shoot clusters in the same cloud provider account.&lt;/p>
+&lt;h3 id="restart-control-plane-controllers">Restart Control Plane Controllers&lt;/h3>
+&lt;p>Gardener operators can make Gardener restart/delete certain control plane pods during a shoot maintenance.
+This feature helps to automatically solve service denials of controllers due to stale caches, dead-locks or starving routines.&lt;/p>
+&lt;p>Please note that these are exceptional cases but they are observed from time to time.
+Gardener, for example, takes this precautionary measure for &lt;code>kube-controller-manager&lt;/code> pods.&lt;/p>
+&lt;p>See &lt;a href="https://gardener.cloud/docs/gardener/extensions/shoot-maintenance/">Shoot Maintenance&lt;/a> to see how extension developers can extend this behaviour.&lt;/p>
+&lt;h3 id="restart-some-core-addons">Restart Some Core Addons&lt;/h3>
+&lt;p>Gardener operators can make Gardener restart some core addons (at the moment only CoreDNS) during a shoot maintenance.&lt;/p>
+&lt;p>CoreDNS benefits from this feature as it automatically solve problems with clients stuck to single replica of the deployment and thus overloading it.
+Please note that these are exceptional cases but they are observed from time to time.&lt;/p></description></item><item><title>Docs: Shoot Scheduling Profiles</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_scheduling_profiles/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_scheduling_profiles/</guid><description>
+&lt;h1 id="shoot-scheduling-profiles">Shoot Scheduling Profiles&lt;/h1>
+&lt;p>This guide describes the available scheduling profiles and how they can be configured in the Shoot cluster. It also clarifies how a custom scheduling profile can be configured.&lt;/p>
+&lt;h2 id="scheduling-profiles">Scheduling Profiles&lt;/h2>
+&lt;p>The scheduling process in the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/">kube-scheduler&lt;/a> happens in a series of stages. A &lt;a href="https://kubernetes.io/docs/reference/scheduling/config/#profiles">scheduling profile&lt;/a> allows configuring the different stages of the scheduling.&lt;/p>
+&lt;p>As of today, Gardener supports two predefined scheduling profiles:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>balanced&lt;/code> (default)&lt;/p>
+&lt;p>&lt;strong>Overview&lt;/strong>&lt;/p>
+&lt;p>The &lt;code>balanced&lt;/code> profile attempts to spread Pods evenly across Nodes to obtain a more balanced resource usage. This profile provides the default kube-scheduler behavior.&lt;/p>
+&lt;p>&lt;strong>How it works?&lt;/strong>&lt;/p>
+&lt;p>The kube-scheduler is started without any profiles. In such case, by default, one profile with the scheduler name &lt;code>default-scheduler&lt;/code> is created. This profile includes the default plugins. If a Pod doesn&amp;rsquo;t specify the &lt;code>.spec.schedulerName&lt;/code> field, kube-apiserver sets it to &lt;code>default-scheduler&lt;/code>. Then, the Pod gets scheduled by the &lt;code>default-scheduler&lt;/code> accordingly.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>bin-packing&lt;/code>&lt;/p>
+&lt;p>&lt;strong>Overview&lt;/strong>&lt;/p>
+&lt;p>The &lt;code>bin-packing&lt;/code> profile scores Nodes based on the allocation of resources. It prioritizes Nodes with the most allocated resources. By favoring the Nodes with the most allocation, some of the other Nodes become under-utilized over time (because new Pods keep being scheduled to the most allocated Nodes). Then, the cluster-autoscaler identifies such under-utilized Nodes and removes them from the cluster. In this way, this profile provides a greater overall resource utilization (compared to the &lt;code>balanced&lt;/code> profile).&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> The decision of when to remove a Node is a trade-off between optimizing for utilization or the availability of resources. Removing under-utilized Nodes improves cluster utilization, but new workloads might have to wait for resources to be provisioned again before they can run.&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;strong>How it works?&lt;/strong>&lt;/p>
+&lt;p>The kube-scheduler is configured with the following bin packing profile:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: kubescheduler.config.k8s.io/v1beta3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: KubeSchedulerConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>profiles:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- schedulerName: bin-packing-scheduler
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pluginConfig:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NodeResourcesFit
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> args:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scoringStrategy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: MostAllocated
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> plugins:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> score:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> disabled:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: NodeResourcesBalancedAllocation
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To impose the new profile, a &lt;code>MutatingWebhookConfiguration&lt;/code> is deployed in the Shoot cluster. The &lt;code>MutatingWebhookConfiguration&lt;/code> intercepts &lt;code>CREATE&lt;/code> operations for Pods and sets the &lt;code>.spec.schedulerName&lt;/code> field to &lt;code>bin-packing-scheduler&lt;/code>. Then, the Pod gets scheduled by the &lt;code>bin-packing-scheduler&lt;/code> accordingly. Pods that specify a custom scheduler (i.e., having &lt;code>.spec.schedulerName&lt;/code> different from &lt;code>default-scheduler&lt;/code> and &lt;code>bin-packing-scheduler&lt;/code>) are not affected.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="configuring-the-scheduling-profile">Configuring the Scheduling Profile&lt;/h2>
+&lt;p>The scheduling profile can be configured via the &lt;code>.spec.kubernetes.kubeScheduler.profile&lt;/code> field in the Shoot:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeScheduler:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> profile: &lt;span style="color:#a31515">&amp;#34;balanced&amp;#34;&lt;/span> &lt;span style="color:#008000"># or &amp;#34;bin-packing&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="custom-scheduling-profiles">Custom Scheduling Profiles&lt;/h2>
+&lt;p>The kube-scheduler&amp;rsquo;s component configs allows configuring custom scheduling profiles to match the cluster needs. As of today, Gardener supports only two predefined scheduling profiles. The profile configuration in the component config is quite expressive and it is not possible to easily define profiles that would match the needs of every cluster. Because of these reasons, there are no plans to add support for new predefined scheduling profiles. If a cluster owner wants to use a custom scheduling profile, then they have to deploy (and maintain) a dedicated kube-scheduler deployment in the cluster itself.&lt;/p></description></item><item><title>Docs: Shoot Status</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_status/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_status/</guid><description>
+&lt;h1 id="shoot-status">Shoot Status&lt;/h1>
+&lt;p>This document provides an overview of the &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#shootstatus">ShootStatus&lt;/a>.&lt;/p>
+&lt;h2 id="conditions">Conditions&lt;/h2>
+&lt;p>The Shoot status consists of a set of conditions. A &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#condition">Condition&lt;/a> has the following fields:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Field name&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>type&lt;/code>&lt;/td>
+&lt;td>Name of the condition.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>status&lt;/code>&lt;/td>
+&lt;td>Indicates whether the condition is applicable, with possible values &lt;code>True&lt;/code>, &lt;code>False&lt;/code>, &lt;code>Unknown&lt;/code> or &lt;code>Progressing&lt;/code>.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>lastTransitionTime&lt;/code>&lt;/td>
+&lt;td>Timestamp for when the condition last transitioned from one status to another.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>lastUpdateTime&lt;/code>&lt;/td>
+&lt;td>Timestamp for when the condition was updated. Usually changes when &lt;code>reason&lt;/code> or &lt;code>message&lt;/code> in condition is updated.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>reason&lt;/code>&lt;/td>
+&lt;td>Machine-readable, UpperCamelCase text indicating the reason for the condition&amp;rsquo;s last transition.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>message&lt;/code>&lt;/td>
+&lt;td>Human-readable message indicating details about the last status transition.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>codes&lt;/code>&lt;/td>
+&lt;td>Well-defined error codes in case the condition reports a problem.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>Currently, the available Shoot condition types are:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>APIServerAvailable&lt;/code>&lt;/li>
+&lt;li>&lt;code>ControlPlaneHealthy&lt;/code>&lt;/li>
+&lt;li>&lt;code>EveryNodeReady&lt;/code>&lt;/li>
+&lt;li>&lt;code>ObservabilityComponentsHealthy&lt;/code>&lt;/li>
+&lt;li>&lt;code>SystemComponentsHealthy&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>The Shoot conditions are maintained by the &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/controller/shoot/care/reconciler.go">shoot care reconciler&lt;/a> of the gardenlet.
+Find more information in the &lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/#shoot-controller">gardelent documentation&lt;/a>.&lt;/p>
+&lt;h3 id="sync-period">Sync Period&lt;/h3>
+&lt;p>The condition checks are executed periodically at an interval which is configurable in the &lt;code>GardenletConfiguration&lt;/code> (&lt;code>.controllers.shootCare.syncPeriod&lt;/code>, defaults to &lt;code>1m&lt;/code>).&lt;/p>
+&lt;h3 id="condition-thresholds">Condition Thresholds&lt;/h3>
+&lt;p>The &lt;code>GardenletConfiguration&lt;/code> also allows configuring condition thresholds (&lt;code>controllers.shootCare.conditionThresholds&lt;/code>). A condition threshold is the amount of time to consider a condition as &lt;code>Processing&lt;/code> on condition status changes.&lt;/p>
+&lt;p>Let&amp;rsquo;s check the following example to get a better understanding. Let&amp;rsquo;s say that the &lt;code>APIServerAvailable&lt;/code> condition of our Shoot is with status &lt;code>True&lt;/code>. If the next condition check fails (for example kube-apiserver becomes unreachable), then the condition first goes to &lt;code>Processing&lt;/code> state. Only if this state remains for condition threshold amount of time, then the condition is finally updated to &lt;code>False&lt;/code>.&lt;/p>
+&lt;h3 id="constraints">Constraints&lt;/h3>
+&lt;p>Constraints represent conditions of a Shoot’s current state that constraint some operations on it.
+The current constraints are:&lt;/p>
+&lt;p>&lt;strong>&lt;code>HibernationPossible&lt;/code>&lt;/strong>:&lt;/p>
+&lt;p>This constraint indicates whether a Shoot is allowed to be hibernated.
+The rationale behind this constraint is that a Shoot can have &lt;code>ValidatingWebhookConfiguration&lt;/code>s or &lt;code>MutatingWebhookConfiguration&lt;/code>s acting on resources that are critical for waking up a cluster.
+For example, if a webhook has rules for &lt;code>CREATE/UPDATE&lt;/code> Pods or Nodes and &lt;code>failurePolicy=Fail&lt;/code>, the webhook will block joining &lt;code>Nodes&lt;/code> and creating critical system component Pods and thus block the entire wakeup operation, because the server backing the webhook is not running.&lt;/p>
+&lt;p>Even if the &lt;code>failurePolicy&lt;/code> is set to &lt;code>Ignore&lt;/code>, high timeouts (&lt;code>&amp;gt;15s&lt;/code>) can lead to blocking requests of control plane components.
+That&amp;rsquo;s because most control-plane API calls are made with a client-side timeout of &lt;code>30s&lt;/code>, so if a webhook has &lt;code>timeoutSeconds=30&lt;/code>
+the overall request might still fail as there is overhead in communication with the API server and potential other webhooks.&lt;/p>
+&lt;p>Generally, it&amp;rsquo;s &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#timeouts">best practice&lt;/a> to specify low timeouts in WebhookConfigs.&lt;/p>
+&lt;p>As an effort to correct this common problem, the webhook remediator has been created. This is enabled by setting &lt;code>.controllers.shootCare.webhookRemediatorEnabled=true&lt;/code> in the &lt;code>gardenlet&lt;/code>&amp;rsquo;s configuration. This feature simply checks whether webhook configurations in shoot clusters match a set of rules described &lt;a href="https://github.com/gardener/gardener/blob/master/pkg/gardenlet/operation/botanist/matchers/matcher.go">here&lt;/a>. If at least one of the rules matches, it will change set &lt;code>status=False&lt;/code> for the &lt;code>.status.constraints&lt;/code> of type &lt;code>HibernationPossible&lt;/code> and &lt;code>MaintenancePreconditionsSatisfied&lt;/code> in the &lt;code>Shoot&lt;/code> resource. In addition, the &lt;code>failurePolicy&lt;/code> in the affected webhook configurations will be set from &lt;code>Fail&lt;/code> to &lt;code>Ignore&lt;/code>. Gardenlet will also add an annotation to make it visible to end-users that their webhook configurations were mutated and should be fixed/adapted according to the rules and best practices.&lt;/p>
+&lt;p>In most cases, you can avoid this by simply excluding the &lt;code>kube-system&lt;/code> namespace from your webhook via the &lt;code>namespaceSelector&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: admissionregistration.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: MutatingWebhookConfiguration
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>webhooks:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: my-webhook.example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespaceSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchExpressions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - key: gardener.cloud/purpose
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> operator: NotIn
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> values:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - operations: [&lt;span style="color:#a31515">&amp;#34;*&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroups: [&lt;span style="color:#a31515">&amp;#34;&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersions: [&lt;span style="color:#a31515">&amp;#34;v1&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;pods&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scope: &lt;span style="color:#a31515">&amp;#34;Namespaced&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>However, some other resources (some of them cluster-scoped) might still trigger the remediator, namely:&lt;/p>
+&lt;ul>
+&lt;li>endpoints&lt;/li>
+&lt;li>nodes&lt;/li>
+&lt;li>clusterroles&lt;/li>
+&lt;li>clusterrolebindings&lt;/li>
+&lt;li>customresourcedefinitions&lt;/li>
+&lt;li>apiservices&lt;/li>
+&lt;li>certificatesigningrequests&lt;/li>
+&lt;li>priorityclasses&lt;/li>
+&lt;/ul>
+&lt;p>If one of the above resources triggers the remediator, the preferred solution is to remove that particular resource from your webhook&amp;rsquo;s &lt;code>rules&lt;/code>. You can also use the &lt;code>objectSelector&lt;/code> to reduce the scope of webhook&amp;rsquo;s &lt;code>rules&lt;/code>. However, in special cases where a webhook is absolutely needed for the workload, it is possible to add the &lt;code>remediation.webhook.shoot.gardener.cloud/exclude=true&lt;/code> label to your webhook so that the remediator ignores it. This label &lt;strong>should not be used to silence an alert&lt;/strong>, but rather to confirm that a webhook won&amp;rsquo;t cause problems. Note that all of this is no perfect solution and just done on a best effort basis, and only the owner of the webhook can know whether it indeed is problematic and configured correctly.&lt;/p>
+&lt;p>In a special case, if a webhook has a rule for &lt;code>CREATE/UPDATE&lt;/code> lease resources in &lt;code>kube-system&lt;/code> namespace, its &lt;code>timeoutSeconds&lt;/code> is updated to 3 seconds. This is required to ensure the proper functioning of the leader election of essential control plane controllers.&lt;/p>
+&lt;p>You can also find more help from the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings">Kubernetes documentation&lt;/a>&lt;/p>
+&lt;p>&lt;strong>&lt;code>MaintenancePreconditionsSatisfied&lt;/code>&lt;/strong>:&lt;/p>
+&lt;p>This constraint indicates whether all preconditions for a safe maintenance operation are satisfied (see &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/">Shoot Maintenance&lt;/a> for more information about what happens during a shoot maintenance).
+As of today, the same checks as in the &lt;code>HibernationPossible&lt;/code> constraint are being performed (user-deployed webhooks that might interfere with potential rolling updates of shoot worker nodes).
+There is no further action being performed on this constraint&amp;rsquo;s status (maintenance is still being performed).
+It is meant to make the user aware of potential problems that might occur due to his configurations.&lt;/p>
+&lt;p>&lt;strong>&lt;code>CACertificateValiditiesAcceptable&lt;/code>&lt;/strong>:&lt;/p>
+&lt;p>This constraint indicates that there is at least one CA certificate which expires in less than &lt;code>1y&lt;/code>.
+It will not be added to the &lt;code>.status.constraints&lt;/code> if there is no such CA certificate.
+However, if it&amp;rsquo;s visible, then a &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/#certificate-authorities">credentials rotation operation&lt;/a> should be considered.&lt;/p>
+&lt;p>&lt;strong>&lt;code>CRDsWithProblematicConversionWebhooks&lt;/code>&lt;/strong>:&lt;/p>
+&lt;p>This constraint indicates that there is at least one &lt;code>CustomResourceDefinition&lt;/code> in the cluster which has multiple stored versions and a conversion webhook configured. This could break the reconciliation flow of a &lt;code>Shoot&lt;/code> cluster in some cases. See &lt;a href="https://github.com/gardener/gardener/issues/7471">https://github.com/gardener/gardener/issues/7471&lt;/a> for more details.
+It will not be added to the &lt;code>.status.constraints&lt;/code> if there is no such CRD.
+However, if it&amp;rsquo;s visible, then you should consider upgrading the existing objects to the current stored version. See &lt;a href="https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#upgrade-existing-objects-to-a-new-stored-version">Upgrade existing objects to a new stored version&lt;/a> for detailed steps.&lt;/p>
+&lt;h3 id="last-operation">Last Operation&lt;/h3>
+&lt;p>The Shoot status holds information about the last operation that is performed on the Shoot. The last operation field reflects overall progress and the tasks that are currently being executed. Allowed operation types are &lt;code>Create&lt;/code>, &lt;code>Reconcile&lt;/code>, &lt;code>Delete&lt;/code>, &lt;code>Migrate&lt;/code>, and &lt;code>Restore&lt;/code>. Allowed operation states are &lt;code>Processing&lt;/code>, &lt;code>Succeeded&lt;/code>, &lt;code>Error&lt;/code>, &lt;code>Failed&lt;/code>, &lt;code>Pending&lt;/code>, and &lt;code>Aborted&lt;/code>. An operation in &lt;code>Error&lt;/code> state is an operation that will be retried for a configurable amount of time (&lt;code>controllers.shoot.retryDuration&lt;/code> field in &lt;code>GardenletConfiguration&lt;/code>, defaults to &lt;code>12h&lt;/code>). If the operation cannot complete successfully for the configured retry duration, it will be marked as &lt;code>Failed&lt;/code>. An operation in &lt;code>Failed&lt;/code> state is an operation that won&amp;rsquo;t be retried automatically (to retry such an operation, see &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#retry-failed-operation">Retry failed operation&lt;/a>).&lt;/p>
+&lt;h3 id="last-errors">Last Errors&lt;/h3>
+&lt;p>The Shoot status also contains information about the last occurred error(s) (if any) during an operation. A &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#lasterror">LastError&lt;/a> consists of identifier of the task returned error, human-readable message of the error and error codes (if any) associated with the error.&lt;/p>
+&lt;h3 id="error-codes">Error Codes&lt;/h3>
+&lt;p>Known error codes and their classification are:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Error code&lt;/th>
+&lt;th style="text-align:center">User error&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_UNAUTHENTICATED&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to the client request not being completed because it lacks valid authentication credentials for the requested resource. It is classified as a non-retryable error code.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_UNAUTHORIZED&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to the server understanding the request but refusing to authorize it. It is classified as a non-retryable error code.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_QUOTA_EXCEEDED&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to infrastructure quota limits. It is classified as a non-retryable error code.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code>&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td>Indicates that the last error occurred due to exceeded infrastructure request rate limits.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_DEPENDENCIES&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to dependent objects on the infrastructure level. It is classified as a non-retryable error code.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_RETRYABLE_INFRA_DEPENDENCIES&lt;/code>&lt;/td>
+&lt;td style="text-align:center">false&lt;/td>
+&lt;td>Indicates that the last error occurred due to dependent objects on the infrastructure level, but the operation should be retried.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_INFRA_RESOURCES_DEPLETED&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to depleted resource in the infrastructure.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_CLEANUP_CLUSTER_RESOURCES&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to resources in the cluster that are stuck in deletion.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_CONFIGURATION_PROBLEM&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to a configuration problem. It is classified as a non-retryable error code.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_RETRYABLE_CONFIGURATION_PROBLEM&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to a retryable configuration problem. &amp;ldquo;Retryable&amp;rdquo; means that the occurred error is likely to be resolved in a ungraceful manner after given period of time.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>ERR_PROBLEMATIC_WEBHOOK&lt;/code>&lt;/td>
+&lt;td style="text-align:center">true&lt;/td>
+&lt;td>Indicates that the last error occurred due to a webhook not following the &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings">Kubernetes best practices&lt;/a>.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>&lt;strong>Please note:&lt;/strong> Errors classified as &lt;code>User error: true&lt;/code> do not require a Gardener operator to resolve but can be remediated by the user (e.g. by refreshing expired infrastructure credentials).
+Even though &lt;code>ERR_INFRA_RATE_LIMITS_EXCEEDED&lt;/code> and &lt;code>ERR_RETRYABLE_INFRA_DEPENDENCIES&lt;/code> is mentioned as User error: false` operator can&amp;rsquo;t provide any resolution because it is related to cloud provider issue.&lt;/p>
+&lt;h3 id="status-label">Status Label&lt;/h3>
+&lt;p>Shoots will be automatically labeled with the &lt;code>shoot.gardener.cloud/status&lt;/code> label.
+Its value might either be &lt;code>healthy&lt;/code>, &lt;code>progressing&lt;/code>, &lt;code>unhealthy&lt;/code> or &lt;code>unknown&lt;/code> depending on the &lt;code>.status.conditions&lt;/code>, &lt;code>.status.lastOperation&lt;/code>, and &lt;code>status.lastErrors&lt;/code> of the &lt;code>Shoot&lt;/code>.
+This can be used as an easy filter method to find shoots based on their &amp;ldquo;health&amp;rdquo; status.&lt;/p></description></item><item><title>Docs: Shoot Supported Architectures</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_supported_architectures/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_supported_architectures/</guid><description>
+&lt;h1 id="supported-cpu-architectures-for-shoot-worker-nodes">Supported CPU Architectures for Shoot Worker Nodes&lt;/h1>
+&lt;p>Users can create shoot clusters with worker groups having virtual machines of different architectures. CPU architecture of each worker pool can be specified in the &lt;code>Shoot&lt;/code> specification as follows:&lt;/p>
+&lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: cpu-worker
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machine:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> architecture: &amp;lt;some-cpu-architecture&amp;gt; &lt;span style="color:#008000"># optional&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If no value is specified for the architecture field, it defaults to &lt;code>amd64&lt;/code>. For a valid shoot object, a machine type should be present in the respective &lt;code>CloudProfile&lt;/code> with the same CPU architecture as specified in the &lt;code>Shoot&lt;/code> yaml. Also, a valid machine image should be present in the &lt;code>CloudProfile&lt;/code> that supports the required architecture specified in the &lt;code>Shoot&lt;/code> worker pool.&lt;/p>
+&lt;h2 id="example-usage-in-a-cloudprofile">Example Usage in a &lt;code>CloudProfile&lt;/code>&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineImages:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: test-image
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - architectures: &lt;span style="color:#008000"># optional&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &amp;lt;architecture-1&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &amp;lt;architecture-2&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.2.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> machineTypes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - architecture: &amp;lt;some-cpu-architecture&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: &lt;span style="color:#a31515">&amp;#34;2&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gpu: &lt;span style="color:#a31515">&amp;#34;0&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 8Gi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: test-machine
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Currently, Gardener supports two of the most widely used CPU architectures:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>amd64&lt;/code>&lt;/li>
+&lt;li>&lt;code>arm64&lt;/code>&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Shoot Worker Nodes Settings</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_workers_settings/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_workers_settings/</guid><description>
+&lt;h1 id="shoot-worker-nodes-settings">Shoot Worker Nodes Settings&lt;/h1>
+&lt;p>Users can configure settings affecting all worker nodes via &lt;code>.spec.provider.workersSettings&lt;/code> in the &lt;code>Shoot&lt;/code> resource.&lt;/p>
+&lt;h2 id="ssh-access">SSH Access&lt;/h2>
+&lt;p>&lt;code>SSHAccess&lt;/code> indicates whether the &lt;code>sshd.service&lt;/code> should be running on the worker nodes. This is ensured by a systemd service called &lt;code>sshd-ensurer.service&lt;/code> which runs every 15 seconds on each worker node. When set to &lt;code>true&lt;/code>, the systemd service ensures that the &lt;code>sshd.service&lt;/code> is unmasked, enabled and running. If it is set to &lt;code>false&lt;/code>, the systemd service ensures that &lt;code>sshd.service&lt;/code> is disabled, masked and stopped. This also terminates all established SSH connections on the host. In addition, when this value is set to &lt;code>false&lt;/code>, existing &lt;code>Bastion&lt;/code> resources are deleted during &lt;code>Shoot&lt;/code> reconciliation and new ones are prevented from being created, SSH keypairs are not created/rotated, SSH keypair secrets are deleted from the Garden cluster, and the &lt;code>gardener-user.service&lt;/code> is not deployed to the worker nodes.&lt;/p>
+&lt;p>&lt;code>sshAccess.enabled&lt;/code> is set to &lt;code>true&lt;/code> by default.&lt;/p>
+&lt;h3 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workersSettings:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sshAccess:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">false&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Workerless `Shoot`s</title><link>https://gardener.cloud/docs/gardener/shoot/shoot_workerless/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot/shoot_workerless/</guid><description>
+&lt;h1 id="workerless-shoots">Workerless &lt;code>Shoot&lt;/code>s&lt;/h1>
+&lt;p>Starting from &lt;code>v1.71&lt;/code>, users can create a &lt;code>Shoot&lt;/code> without any workers, known as a &amp;ldquo;workerless &lt;code>Shoot&lt;/code>&amp;rdquo;. Previously, worker nodes had to always be included even if users only needed the Kubernetes control plane. With workerless &lt;code>Shoot&lt;/code>s, Gardener will not create any worker nodes or anything related to them.&lt;/p>
+&lt;p>Here&amp;rsquo;s an example manifest for a local workerless &lt;code>Shoot&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cloudProfile:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> region: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: local
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.26.0
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>⚠️ It&amp;rsquo;s important to note that a workerless &lt;code>Shoot&lt;/code> cannot be converted to a &lt;code>Shoot&lt;/code> with workers or vice versa.&lt;/p>
+&lt;/blockquote>
+&lt;p>As part of the control plane, the following components are deployed in the seed cluster for workerless &lt;code>Shoot&lt;/code>:&lt;/p>
+&lt;ul>
+&lt;li>etcds&lt;/li>
+&lt;li>kube-apiserver&lt;/li>
+&lt;li>kube-controller-manager&lt;/li>
+&lt;li>gardener-resource-manager&lt;/li>
+&lt;li>logging and monitoring components&lt;/li>
+&lt;li>extension components (if they support workerless &lt;code>Shoot&lt;/code>s, see &lt;a href="https://gardener.cloud/docs/gardener/extensions/extension/#what-is-required-to-register-and-support-an-extension-type">here&lt;/a>)&lt;/li>
+&lt;/ul></description></item></channel></rss>

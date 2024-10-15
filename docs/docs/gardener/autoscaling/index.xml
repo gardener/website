@@ -1,0 +1,438 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Autoscaling</title><link>https://gardener.cloud/docs/gardener/autoscaling/</link><description>Recent content in Autoscaling on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/autoscaling/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: DNS Autoscaling</title><link>https://gardener.cloud/docs/gardener/autoscaling/dns-autoscaling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/autoscaling/dns-autoscaling/</guid><description>
+&lt;h1 id="dns-autoscaling">DNS Autoscaling&lt;/h1>
+&lt;p>This is a short guide describing different options how to automatically scale CoreDNS in the shoot cluster.&lt;/p>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>Currently, Gardener uses CoreDNS as DNS server. Per default, it is installed as a deployment into the shoot cluster that is auto-scaled horizontally to cover for QPS-intensive applications. However, doing so does not seem to be enough to completely circumvent DNS bottlenecks such as:&lt;/p>
+&lt;ul>
+&lt;li>Cloud provider limits for DNS lookups.&lt;/li>
+&lt;li>Unreliable UDP connections that forces a period of timeout in case packets are dropped.&lt;/li>
+&lt;li>Unnecessary node hopping since CoreDNS is not deployed on all nodes, and as a result DNS queries end-up traversing multiple nodes before reaching the destination server.&lt;/li>
+&lt;li>Inefficient load-balancing of services (e.g., round-robin might not be enough when using IPTables mode).&lt;/li>
+&lt;li>Overload of the CoreDNS replicas as the maximum amount of replicas is fixed.&lt;/li>
+&lt;li>and more &amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>As an alternative with extended configuration options, Gardener provides cluster-proportional autoscaling of CoreDNS. This guide focuses on the configuration of cluster-proportional autoscaling of CoreDNS and its advantages/disadvantages compared to the horizontal
+autoscaling.
+Please note that there is also the option to use a &lt;a href="https://gardener.cloud/docs/gardener/networking/node-local-dns/">node-local DNS cache&lt;/a>, which helps mitigate potential DNS bottlenecks (see &lt;a href="https://gardener.cloud/docs/gardener/autoscaling/dns-autoscaling/#trade-offs-in-conjunction-with-nodelocaldns">Trade-offs in conjunction with NodeLocalDNS&lt;/a> for considerations regarding using NodeLocalDNS together with one of the CoreDNS autoscaling approaches).&lt;/p>
+&lt;h2 id="configuring-cluster-proportional-dns-autoscaling">Configuring Cluster-Proportional DNS Autoscaling&lt;/h2>
+&lt;p>All that needs to be done to enable the usage of cluster-proportional autoscaling of CoreDNS is to set the corresponding option (&lt;code>spec.systemComponents.coreDNS.autoscaling.mode&lt;/code>) in the &lt;code>Shoot&lt;/code> resource to &lt;code>cluster-proportional&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> systemComponents:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> coreDNS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> autoscaling:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> mode: cluster-proportional
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>To switch back to horizontal DNS autoscaling, you can set the &lt;code>spec.systemComponents.coreDNS.autoscaling.mode&lt;/code> to &lt;code>horizontal&lt;/code> (or remove the &lt;code>coreDNS&lt;/code> section).&lt;/p>
+&lt;p>Once the cluster-proportional autoscaling of CoreDNS has been enabled and the Shoot cluster has been reconciled afterwards, a ConfigMap called &lt;code>coredns-autoscaler&lt;/code> will be created in the &lt;code>kube-system&lt;/code> namespace with the default settings. The content will be similar to the following:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>linear: &lt;span style="color:#a31515">&amp;#39;{&amp;#34;coresPerReplica&amp;#34;:256,&amp;#34;min&amp;#34;:2,&amp;#34;nodesPerReplica&amp;#34;:16}&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is possible to adapt the ConfigMap according to your needs in case the defaults do not work as desired. The number of CoreDNS replicas is calculated according to the following formula:&lt;/p>
+&lt;pre tabindex="0">&lt;code>replicas = max( ceil( cores × 1 / coresPerReplica ) , ceil( nodes × 1 / nodesPerReplica ) )
+&lt;/code>&lt;/pre>&lt;p>Depending on your needs, you can adjust &lt;code>coresPerReplica&lt;/code> or &lt;code>nodesPerReplica&lt;/code>, but it is also possible to override &lt;code>min&lt;/code> if required.&lt;/p>
+&lt;h2 id="trade-offs-of-horizontal-and-cluster-proportional-dns-autoscaling">Trade-Offs of Horizontal and Cluster-Proportional DNS Autoscaling&lt;/h2>
+&lt;p>The horizontal autoscaling of CoreDNS as implemented by Gardener is fully managed, i.e., you do not need to perform any configuration changes. It scales according to the CPU usage of CoreDNS replicas, meaning that it will create new replicas if the existing ones are under heavy load. This approach scales between 2 and 5 instances, which is sufficient for most workloads. In case this is not enough, the cluster-proportional autoscaling approach can be used instead, with its more flexible configuration options.&lt;/p>
+&lt;p>The cluster-proportional autoscaling of CoreDNS as implemented by Gardener is fully managed, but allows more configuration options to adjust the default settings to your individual needs. It scales according to the cluster size, i.e., if your cluster grows in terms of cores/nodes so will the amount of CoreDNS replicas. However, it does not take the actual workload, e.g., CPU consumption, into account.&lt;/p>
+&lt;p>Experience shows that the horizontal autoscaling of CoreDNS works for a variety of workloads. It does reach its limits if a cluster has a high amount of DNS requests, though. The cluster-proportional autoscaling approach allows to fine-tune the amount of CoreDNS replicas. It helps to scale in clusters of changing size. However, please keep in mind that you need to cater for the maximum amount of DNS requests as the replicas will not be adapted according to the workload, but only according to the cluster size (cores/nodes).&lt;/p>
+&lt;h2 id="trade-offs-in-conjunction-with-nodelocaldns">Trade-Offs in Conjunction with NodeLocalDNS&lt;/h2>
+&lt;p>Using a &lt;a href="https://gardener.cloud/docs/gardener/networking/node-local-dns/">node-local DNS cache&lt;/a> can mitigate a lot of the potential DNS related problems. It works fine with a DNS workload that can be handle through the cache and reduces the inter-node DNS communication. As &lt;a href="https://gardener.cloud/docs/gardener/networking/node-local-dns/">node-local DNS cache&lt;/a> reduces the amount of traffic being sent to the cluster&amp;rsquo;s CoreDNS replicas, it usually works fine with horizontally scaled CoreDNS. Nevertheless, it also works with CoreDNS scaled in a cluster-proportional approach. In this mode, though, it might make sense to adapt the default settings as the CoreDNS workload is likely significantly reduced.&lt;/p>
+&lt;p>Overall, you can view the DNS options on a scale. Horizontally scaled DNS provides a small amount of DNS servers. Especially for bigger clusters, a cluster-proportional approach will yield more CoreDNS instances and hence may yield a more balanced DNS solution. By adapting the settings you can further increase the amount of CoreDNS replicas. On the other end of the spectrum, a &lt;a href="https://gardener.cloud/docs/gardener/networking/node-local-dns/">node-local DNS cache&lt;/a> provides DNS on every node and allows to reduce the amount of (backend) CoreDNS instances regardless if they are horizontally or cluster-proportionally scaled.&lt;/p></description></item><item><title>Docs: Shoot Autoscaling</title><link>https://gardener.cloud/docs/gardener/autoscaling/shoot_autoscaling/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/autoscaling/shoot_autoscaling/</guid><description>
+&lt;h1 id="auto-scaling-in-shoot-clusters">Auto-Scaling in Shoot Clusters&lt;/h1>
+&lt;p>There are three auto-scaling scenarios of relevance in Kubernetes clusters in general and Gardener shoot clusters in particular:&lt;/p>
+&lt;ul>
+&lt;li>Horizontal node auto-scaling, i.e., dynamically adding and removing worker nodes.&lt;/li>
+&lt;li>Horizontal pod auto-scaling, i.e., dynamically adding and removing pod replicas.&lt;/li>
+&lt;li>Vertical pod auto-scaling, i.e., dynamically raising or shrinking the resource requests/limits of pods.&lt;/li>
+&lt;/ul>
+&lt;p>This document provides an overview of these scenarios and how the respective auto-scaling components can be enabled and configured. For more details, please see our &lt;a href="https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/">pod auto-scaling best practices&lt;/a>.&lt;/p>
+&lt;h2 id="horizontal-node-auto-scaling">Horizontal Node Auto-Scaling&lt;/h2>
+&lt;p>Every shoot cluster that has at least one worker pool with &lt;code>minimum &amp;lt; maximum&lt;/code> nodes configuration will get a &lt;code>cluster-autoscaler&lt;/code> deployment.
+Gardener is leveraging the upstream community Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler">&lt;code>cluster-autoscaler&lt;/code> component&lt;/a>.
+We have forked it to &lt;a href="https://github.com/gardener/autoscaler/">gardener/autoscaler&lt;/a> so that it supports the way how Gardener manages the worker nodes (leveraging &lt;a href="https://github.com/gardener/machine-controller-manager">gardener/machine-controller-manager&lt;/a>).
+However, we have not touched the logic how it performs auto-scaling decisions.
+Consequently, please refer to the &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler#faqdocumentation">official documentation&lt;/a> for this component.&lt;/p>
+&lt;p>The &lt;code>Shoot&lt;/code> API allows to configure a few flags of the &lt;code>cluster-autoscaler&lt;/code>:&lt;/p>
+&lt;p>There are &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#core.gardener.cloud/v1beta1.ClusterAutoscaler">general options for &lt;code>cluster-autoscaler&lt;/code>&lt;/a>, and these values will be used for all worker groups except for those overwriting them. Additionally, there are some &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#core.gardener.cloud/v1beta1.ClusterAutoscalerOptions">&lt;code>cluster-autoscaler&lt;/code> flags to be set per worker pool&lt;/a>. They override any general value such as those specified in the general flags above.&lt;/p>
+&lt;blockquote>
+&lt;p>Only some &lt;code>cluster-autoscaler&lt;/code> flags can be configured per worker pool, and is limited by NodeGroupAutoscalingOptions of the upstream community Kubernetes repository. This list can be found &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/config/autoscaling_options.go#L37-L55">here&lt;/a>.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="horizontal-pod-auto-scaling">Horizontal Pod Auto-Scaling&lt;/h2>
+&lt;p>This functionality (HPA) is a standard functionality of any Kubernetes cluster (implemented as part of the &lt;code>kube-controller-manager&lt;/code> that all Kubernetes clusters have). It is always enabled.&lt;/p>
+&lt;p>The &lt;code>Shoot&lt;/code> API allows to configure most of the &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#core.gardener.cloud/v1beta1.HorizontalPodAutoscalerConfig">flags of the &lt;code>horizontal-pod-autoscaler&lt;/code>&lt;/a>.&lt;/p>
+&lt;h2 id="vertical-pod-auto-scaling">Vertical Pod Auto-Scaling&lt;/h2>
+&lt;p>This form of auto-scaling (VPA) is enabled by default, but it can be switched off in the &lt;code>Shoot&lt;/code> by setting &lt;code>.spec.kubernetes.verticalPodAutoscaler.enabled=false&lt;/code> in case you deploy your own VPA into your cluster (having more than one VPA on the same set of pods will lead to issues, eventually).&lt;/p>
+&lt;p>Gardener is leveraging the upstream community Kubernetes &lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">&lt;code>vertical-pod-autoscaler&lt;/code>&lt;/a>.
+If enabled, Gardener will deploy it as part of the control plane into the seed cluster.
+It will also be used for the vertical autoscaling of Gardener&amp;rsquo;s system components deployed into the &lt;code>kube-system&lt;/code> namespace of shoot clusters, for example, &lt;code>kube-proxy&lt;/code> or &lt;code>metrics-server&lt;/code>.&lt;/p>
+&lt;p>You might want to refer to the &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md">official documentation&lt;/a> for this component to get more information how to use it.&lt;/p>
+&lt;p>The &lt;code>Shoot&lt;/code> API allows to configure a few &lt;a href="https://gardener.cloud/docs/gardener/api-reference/core/#core.gardener.cloud/v1beta1.VerticalPodAutoscaler">flags of the &lt;code>vertical-pod-autoscaler&lt;/code>&lt;/a>.&lt;/p>
+&lt;p>⚠️ Please note that if you disable VPA, the related &lt;code>CustomResourceDefinition&lt;/code>s (ours and yours) will remain in your shoot cluster (whether someone acts on them or not).
+You can delete these &lt;code>CustomResourceDefinition&lt;/code>s yourself using &lt;code>kubectl delete crd&lt;/code> if you want to get rid of them (in case you statically size all resources, which we do not recommend).&lt;/p>
+&lt;h1 id="pod-auto-scaling-best-practices">Pod Auto-Scaling Best Practices&lt;/h1>
+&lt;p>Please continue reading our &lt;a href="https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/">pod auto-scaling best practices&lt;/a> for more details and recommendations.&lt;/p></description></item><item><title>Docs: Shoot Pod Autoscaling Best Practices</title><link>https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/</guid><description>
+&lt;h1 id="introduction">Introduction&lt;/h1>
+&lt;p>There are two types of pod autoscaling in Kubernetes: Horizontal Pod Autoscaling (HPA) and Vertical Pod Autoscaling (VPA). HPA (implemented as part of the kube-controller-manager) scales the number of pod replicas, while VPA (implemented as independent community project) adjusts the CPU and memory requests for the pods. Both types of autoscaling aim to optimize resource usage/costs and maintain the performance and (high) availability of applications running on Kubernetes.&lt;/p>
+&lt;h2 id="horizontal-pod-autoscaling-hpahttpskubernetesiodocstasksrun-applicationhorizontal-pod-autoscale">&lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale">Horizontal Pod Autoscaling (HPA)&lt;/a>&lt;/h2>
+&lt;p>Horizontal Pod Autoscaling involves increasing or decreasing the number of pod replicas in a deployment, replica set, stateful set, or &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-autoscaling/853-configurable-hpa-scale-velocity/README.md#summary">anything really with a scale subresource that manages pods&lt;/a>. HPA adjusts the number of replicas based on specified metrics, such as CPU or memory average utilization (usage divided by requests; most common) or average value (usage; less common). When the demand on your application increases, HPA automatically scales out the number of pods to meet the demand. Conversely, when the demand decreases, it scales in the number of pods to reduce resource usage.&lt;/p>
+&lt;p>HPA targets (mostly stateless) applications where adding more instances of the application can linearly increase the ability to handle additional load. It is very useful for applications that experience variable traffic patterns, as it allows for real-time scaling without the need for manual intervention.&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+HPA continuously monitors the metrics of the targeted pods and adjusts the number of replicas based on the observed metrics. It operates solely on the current metrics when it calculates the averages across all pods, meaning it reacts to the immediate resource usage without considering past trends or patterns. Also, all pods are treated equally based on the average metrics. This could potentially lead to situations where some pods are under high load while others are underutilized. Therefore, particular care must be applied to (fair) load-balancing (connection vs. request vs. actual resource load balancing are crucial).&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="a-few-words-on-the-cluster-proportional-horizontal-autoscaler-cpahttpsgithubcomkubernetes-sigscluster-proportional-autoscaler-and-the-cluster-proportional-vertical-autoscaler-cpvahttpsgithubcomkubernetes-sigscluster-proportional-vertical-autoscaler">A Few Words on the &lt;a href="https://github.com/kubernetes-sigs/cluster-proportional-autoscaler">Cluster-Proportional (Horizontal) Autoscaler (CPA)&lt;/a> and the &lt;a href="https://github.com/kubernetes-sigs/cluster-proportional-vertical-autoscaler">Cluster-Proportional Vertical Autoscaler (CPVA)&lt;/a>&lt;/h3>
+&lt;p>Besides HPA and VPA, CPA and CPVA are further options for scaling horizontally or vertically (neither is deployed by Gardener and must be deployed by the user). Unlike HPA and VPA, CPA and CPVA do not monitor the actual pod metrics, but scale solely on the number of nodes or CPU cores in the cluster. While this approach may be helpful and sufficient in a few rare cases, it is often a risky and crude scaling scheme that we do not recommend. More often than not, cluster-proportional scaling results in either under- or over-reserving your resources.&lt;/p>
+&lt;h2 id="vertical-pod-autoscaling-vpahttpsgithubcomkubernetesautoscalertreemastervertical-pod-autoscalerreadme">&lt;a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler#readme">Vertical Pod Autoscaling (VPA)&lt;/a>&lt;/h2>
+&lt;p>Vertical Pod Autoscaling, on the other hand, focuses on adjusting the CPU and memory resources allocated to the pods themselves. Instead of changing the number of replicas, VPA tweaks the resource requests (and limits, but only &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#keeping-limit-proportional-to-request">proportionally&lt;/a>, if configured) for the pods in a deployment, replica set, stateful set, daemon set, or &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#how-can-i-apply-vpa-to-my-custom-resource">anything really with a scale subresource that manages pods&lt;/a>. This means that each pod can be given more, or fewer resources as needed.&lt;/p>
+&lt;p>VPA is very useful for optimizing the resource requests of pods that have dynamic resource needs over time. It does so by mutating pod requests (unfortunately, &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/autoscaling/vertical-pod-autoscaler.md#in-place-updates">not in-place&lt;/a>). Therefore, in order to apply new recommendations, pods that are &amp;ldquo;out of bounds&amp;rdquo; (i.e. below a configured/computed lower or above a configured/computed upper recommendation percentile) will be evicted proactively, but also pods that are &amp;ldquo;within bounds&amp;rdquo; may be evicted after a grace period. The corresponding higher-level replication controller will then recreate a new pod that VPA will then mutate to set the currently recommended requests (and proportional limits, if configured).&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+VPA continuously monitors all targeted pods and calculates recommendations based on their usage (one recommendation for the entire target). This calculation is influenced by configurable percentiles, with a greater emphasis on recent usage data and a gradual decrease (=decay) in the relevance of older data. However, this means, that VPA doesn&amp;rsquo;t take into account individual needs of single pods - eventually, all pods will receive the same recommendation, which may lead to considerable resource waste. Ideally, VPA would update pods &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/1287-in-place-update-pod-resources/README.md">in-place&lt;/a> depending on their individual needs, but that&amp;rsquo;s (individual recommendations) not in its design, even if &lt;a href="https://github.com/kubernetes/design-proposals-archive/blob/main/autoscaling/vertical-pod-autoscaler.md#in-place-updates">in-place updates&lt;/a> get implemented, which may be years away for VPA based on current activity on the component.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="selecting-the-appropriate-autoscaler">Selecting the Appropriate Autoscaler&lt;/h2>
+&lt;p>Before deciding on an autoscaling strategy, it&amp;rsquo;s important to understand the characteristics of your application:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Interruptibility:&lt;/strong> Most importantly, if the clients of your workload are too sensitive to disruptions/cannot cope well with terminating pods, then maybe neither HPA nor VPA is an option (both, HPA and VPA cause pods and connections to be terminated, though VPA even more frequently). Clients must retry on disruptions, which is a reasonable ask in a highly dynamic (and self-healing) environment such as Kubernetes, but this is often not respected (or expected) by your clients (they may not know or care you run the workload in a Kubernetes cluster and have different expectations to the stability of the workload unless you communicated those through &lt;a href="https://cloud.google.com/blog/products/devops-sre/sre-fundamentals-slis-slas-and-slos">SLIs/SLOs/SLAs&lt;/a>).&lt;/li>
+&lt;li>&lt;strong>Statelessness:&lt;/strong> Is your application stateless or stateful? Stateless applications are typically better candidates for HPA as they can be easily scaled out by adding more replicas without worrying about maintaining state.&lt;/li>
+&lt;li>&lt;strong>Traffic Patterns:&lt;/strong> Does your application experience variable traffic? If so, HPA can help manage these fluctuations by adjusting the number of replicas to handle the load.&lt;/li>
+&lt;li>&lt;strong>Resource Usage:&lt;/strong> Does your application&amp;rsquo;s resource usage change over time? VPA can adjust the CPU and memory reservations dynamically, which is beneficial for applications with non-uniform resource requirements.&lt;/li>
+&lt;li>&lt;strong>Scalability:&lt;/strong> Can your application handle increased load by scaling vertically (more resources per pod) or does it require horizontal scaling (more pod instances)?&lt;/li>
+&lt;/ul>
+&lt;p>HPA is the right choice if:&lt;/p>
+&lt;ul>
+&lt;li>Your application is stateless and can handle increased load by adding more instances.&lt;/li>
+&lt;li>You experience short-term fluctuations in traffic that require quick scaling responses.&lt;/li>
+&lt;li>You want to maintain a specific performance metric, such as requests per second per pod.&lt;/li>
+&lt;/ul>
+&lt;p>VPA is the right choice if:&lt;/p>
+&lt;ul>
+&lt;li>Your application&amp;rsquo;s resource requirements change over time, and you want to optimize resource usage without manual intervention.&lt;/li>
+&lt;li>You want to avoid the complexity of managing resource requests for each pod, especially when they run code where it&amp;rsquo;s impossible for you to suggest static requests.&lt;/li>
+&lt;/ul>
+&lt;p>In essence:&lt;/p>
+&lt;ul>
+&lt;li>For applications that can handle increased load by simply adding more replicas, HPA should be used to handle short-term fluctuations in load by scaling the number of replicas.&lt;/li>
+&lt;li>For applications that require more resources per pod to handle additional work, VPA should be used to adjust the resource allocation for longer-term trends in resource usage.&lt;/li>
+&lt;/ul>
+&lt;p>Consequently, if both cases apply (VPA often applies), HPA and VPA can also be combined. However, combining both, especially on the same metrics (CPU and memory), requires understanding and care to avoid conflicts and ensure that the autoscaling actions do not interfere with and rather complement each other. For more details, see &lt;a href="https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/#combining-hpa-and-vpa">Combining HPA and VPA&lt;/a>.&lt;/p>
+&lt;h1 id="horizontal-pod-autoscaler-hpa">Horizontal Pod Autoscaler (HPA)&lt;/h1>
+&lt;p>HPA operates by monitoring resource metrics for all pods in a target. It computes the desired number of replicas from the current average metrics and the desired user-defined metrics &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details">as follows&lt;/a>:&lt;/p>
+&lt;p>&lt;code>desiredReplicas = ceil[currentReplicas * (currentMetricValue / desiredMetricValue)]&lt;/code>&lt;/p>
+&lt;p>HPA checks the metrics at regular intervals, which can be configured by the user. &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#support-for-metrics-apis">Several types of metrics&lt;/a> are supported (classical resource metrics like CPU and memory, but also custom and external metrics like requests per second or queue length can be configured, if available). If a scaling event is necessary, HPA adjusts the replica count for the targeted resource.&lt;/p>
+&lt;h2 id="defining-an-hpa-resource">Defining an HPA Resource&lt;/h2>
+&lt;p>To configure HPA, you need to create an HPA resource in your cluster. This resource specifies the target to scale, the metrics to be used for scaling decisions, and the desired thresholds. Here&amp;rsquo;s an example of an HPA configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: autoscaling/v2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: HorizontalPodAutoscaler
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: foo-hpa
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleTargetRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: foo-deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minReplicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxReplicas: 10
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metrics:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: Resource
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resource:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: cpu
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: AverageValue
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> averageValue: 2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: Resource
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resource:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: memory
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> target:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: AverageValue
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> averageValue: 8G
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> behavior:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleUp:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stabilizationWindowSeconds: 30
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> policies:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: Percent
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: 100
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> periodSeconds: 60
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> scaleDown:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> stabilizationWindowSeconds: 1800
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> policies:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - type: Pods
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> value: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> periodSeconds: 300
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this example, HPA is configured to scale &lt;code>foo-deployment&lt;/code> based on pod average CPU and memory usage. It will maintain an average CPU and memory usage (not utilization, which is usage divided by requests!) across all replicas of 2 CPUs and 8G or lower with as few replicas as possible. The number of replicas will be scaled between a minimum of 1 and a maximum of 10 based on this target.&lt;/p>
+&lt;p>Since a while, you can also &lt;a href="https://kubernetes.io/blog/2023/05/02/hpa-container-resource-metric">configure the autoscaling based on the resource usage of individual containers&lt;/a>, not only on the resource usage of the entire pod. All you need to do is to switch the &lt;code>type&lt;/code> from &lt;code>Resource&lt;/code> to &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#container-resource-metrics">&lt;code>ContainerResource&lt;/code> and specify the container name&lt;/a>.&lt;/p>
+&lt;p>In the official documentation (&lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale">[1]&lt;/a> and &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough">[2]&lt;/a>) you will find examples with average utilization (&lt;code>averageUtilization&lt;/code>), not average usage (&lt;code>averageValue&lt;/code>), but this is not particularly helpful, especially if you plan to combine HPA together with VPA on the same metrics (generally discouraged in the documentation). If you want to safely combine both on the same metrics, you should scale on average usage (&lt;code>averageValue&lt;/code>) as shown above. For more details, see &lt;a href="https://gardener.cloud/docs/gardener/autoscaling/shoot_pod_autoscaling_best_practices/#combining-hpa-and-vpa">Combining HPA and VPA&lt;/a>.&lt;/p>
+&lt;p>Finally, the behavior section influences how fast you scale up and down. Most of the time (depends on your workload), you like to scale out faster than you scale in. In this example, the configuration will trigger a scale-out only after observing the need to scale out for 30s (&lt;code>stabilizationWindowSeconds&lt;/code>) and will then only scale out at most 100% (&lt;code>value&lt;/code> + &lt;code>type&lt;/code>) of the current number of replicas every 60s (&lt;code>periodSeconds&lt;/code>). The configuration will trigger a scale-in only after observing the need to scale in for 1800s (&lt;code>stabilizationWindowSeconds&lt;/code>) and will then only scale in at most 1 pod (&lt;code>value&lt;/code> + &lt;code>type&lt;/code>) every 300s (&lt;code>periodSeconds&lt;/code>). As you can see, scale-out happens quicker than scale-in in this example.&lt;/p>
+&lt;h2 id="hpa-actually-kcm-options">HPA (actually KCM) Options&lt;/h2>
+&lt;p>HPA is a function of the kube-controller-manager (KCM).&lt;/p>
+&lt;p>You can read up the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager">full KCM options&lt;/a> online and set most of them conveniently in your &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L221-L226">Gardener shoot cluster spec&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>downscaleStabilization&lt;/code> (default 5m): HPA will scale out whenever the formula (in accordance with the behavior section, if present in the HPA resource) yields a higher replica count, but it won&amp;rsquo;t scale in just as eagerly. This option lets you define a trailing time window that HPA must check and only if the recommended replica count is consistently lower throughout the entire time window, HPA will scale in (in accordance with the behavior section, if present in the HPA resource). If at any point in time in that trailing time window the recommended replica count isn&amp;rsquo;t lower, scale-in won&amp;rsquo;t happen. This setting is just a default, if nothing is defined in the behavior section of an HPA resource. The default for the upscale stabilization is 0s and it cannot be set via a KCM option (&lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-autoscaling/853-configurable-hpa-scale-velocity/README.md">downscale stabilization was historically more important than upscale stabilization and when later the behavior sections were added to the HPA resources, upscale stabilization remained missing from the KCM options&lt;/a>).&lt;/li>
+&lt;li>&lt;code>tolerance&lt;/code> (default +/-10%): HPA will not scale out or in if the desired replica count is (mathematically as a float) near the actual replica count (see &lt;a href="https://github.com/kubernetes/kubernetes/blob/f3f5dd99ac7bdc61c61c3d587575090c3473ab5a/pkg/controller/podautoscaler/replica_calculator.go#L97-L103">source code&lt;/a> for details), which is a form of hysteresis to avoid replica flapping around a threshold.&lt;/li>
+&lt;/ul>
+&lt;p>There are a few more configurable options of lesser interest:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;code>syncPeriod&lt;/code> (default 15s): How often HPA retrieves the pods and metrics respectively how often it recomputes and sets the desired replica count.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>cpuInitializationPeriod&lt;/code> (default 30s) and &lt;code>initialReadinessDelay&lt;/code> (default 5m): Both settings only affect whether or not CPU metrics are considered for scaling decisions. They can be easily misinterpreted as the &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details">official docs&lt;/a> are &lt;a href="https://github.com/kubernetes/website/issues/12657">somewhat hard to read&lt;/a> (see &lt;a href="https://github.com/kubernetes/kubernetes/blob/f3f5dd99ac7bdc61c61c3d587575090c3473ab5a/pkg/controller/podautoscaler/replica_calculator.go#L399-L418">source code&lt;/a> for details, which is more readable, if you ignore the comments). Normally, you have little reason to modify them, but here is what they do:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>cpuInitializationPeriod&lt;/code>: Defines a grace period after a pod starts during which HPA won&amp;rsquo;t consider CPU metrics of the pod for scaling if the pod is either not ready &lt;strong>or&lt;/strong> it is ready, but a given CPU metric is older than the last state transition (to ready). This is to ignore CPU metrics that predate the current readiness while still in initialization to not make scaling decisions based on potentially misleading data. If the pod is ready and a CPU metric was collected after it became ready, it is considered also within this grace period.&lt;/li>
+&lt;li>&lt;code>initialReadinessDelay&lt;/code>: Defines another grace period after a pod starts during which HPA won&amp;rsquo;t consider CPU metrics of the pod for scaling if the pod is not ready &lt;strong>and&lt;/strong> it became not ready within this grace period (the docs/comments want to check whether the pod was ever ready, but the &lt;a href="https://github.com/kubernetes/kubernetes/blob/f3f5dd99ac7bdc61c61c3d587575090c3473ab5a/pkg/controller/podautoscaler/replica_calculator.go#L411">code only checks whether the pod condition last transition time to not ready happened within that grace period&lt;/a> which it could have &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-conditions">from being ready or simply unknown before&lt;/a>). This is to ignore not (ever have been) ready pods while still in initialization to not make scaling decisions based on potentially misleading data. If the pod is ready, it is considered also within this grace period.&lt;/li>
+&lt;/ul>
+&lt;p>So, regardless of the values of these settings, if a pod is reporting ready and it has a CPU metric from the time after it became ready, that pod and its metric will be considered. This holds true even if the pod becomes ready very early into its initialization. These settings cannot be used to &amp;ldquo;black-out&amp;rdquo; pods for a certain duration before being considered for scaling decisions. Instead, if it is your goal to ignore a potentially resource-intensive initialization phase that could wrongly lead to further scale-out, you would need to configure your pods to not report as ready until that resource-intensive initialization phase is over.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="considerations-when-using-hpa">Considerations When Using HPA&lt;/h2>
+&lt;ul>
+&lt;li>&lt;strong>Selection of metrics:&lt;/strong> Besides CPU and memory, HPA can also target custom or external metrics. Pick those (in addition or exclusively), if you guarantee certain SLOs in your SLAs.&lt;/li>
+&lt;li>&lt;strong>Targeting usage or utilization:&lt;/strong> HPA supports usage (absolute) and utilization (relative). Utilization is often preferred in simple examples, but usage is more precise and versatile.&lt;/li>
+&lt;li>&lt;strong>Compatibility with VPA:&lt;/strong> Care must be taken when using HPA in conjunction with VPA, as they can potentially interfere with each other&amp;rsquo;s scaling decisions.&lt;/li>
+&lt;/ul>
+&lt;h1 id="vertical-pod-autoscaler-vpa">Vertical Pod Autoscaler (VPA)&lt;/h1>
+&lt;p>VPA operates by monitoring resource metrics for all pods in a target. It computes a resource requests recommendation from the historic and current resource metrics. VPA checks the metrics at regular intervals, which can be configured by the user. Only CPU and memory are supported. If VPA detects that a pod&amp;rsquo;s resource allocation is too high or too low, it may evict pods (if within the permitted disruption budget), which will trigger the creation of a new pod by the corresponding higher-level replication controller, which will then be mutated by VPA to match resource requests recommendation. This happens in three different components that work together:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>VPA Recommender:&lt;/strong> The Recommender observes the historic and current resource metrics of pods and generates recommendations based on this data.&lt;/li>
+&lt;li>&lt;strong>VPA Updater:&lt;/strong> The Updater component checks the recommendations from the Recommender and decides whether any pod&amp;rsquo;s resource requests need to be updated. If an update is needed, the Updater will evict the pod.&lt;/li>
+&lt;li>&lt;strong>VPA Admission Controller:&lt;/strong> When a pod is (re-)created, the Admission Controller modifies the pod&amp;rsquo;s resource requests based on the recommendations from the Recommender. This ensures that the pod starts with the optimal amount of resources.&lt;/li>
+&lt;/ul>
+&lt;p>Since VPA doesn&amp;rsquo;t support in-place updates, pods will be evicted. You will want to control voluntary evictions by means of &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb">Pod Disruption Budgets (PDBs)&lt;/a>. Please make yourself familiar with those and use them.&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+PDBs will not always work as expected and can also get in your way, e.g. if the PDB is violated or would be violated, it may possibly block evictions that would actually help your workload, e.g. to get a pod out of an &lt;code>OOMKilled&lt;/code> &lt;code>CrashLoopBackoff&lt;/code> (if the PDB is or would be violated, not even unhealthy pods would be evicted as they could theoretically become healthy again, which VPA doesn&amp;rsquo;t know). In order to overcome this issue, it is now possible (alpha since Kubernetes &lt;code>v1.26&lt;/code> in combination with the feature gate &lt;code>PDBUnhealthyPodEvictionPolicy&lt;/code> on the API server, beta and enabled by default since Kubernetes &lt;code>v1.27&lt;/code>) to configure the so-called &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy">unhealthy pod eviction policy&lt;/a>. The default is still &lt;code>IfHealthyBudget&lt;/code> as a change in default would have changed the behavior (as described above), but you can now also set &lt;code>AlwaysAllow&lt;/code> at the PDB (&lt;code>spec.unhealthyPodEvictionPolicy&lt;/code>). For more information, please check out &lt;a href="https://github.com/kubernetes/kubernetes/issues/72320">this discussion&lt;/a>, &lt;a href="https://github.com/kubernetes/kubernetes/pull/105296">the PR&lt;/a> and &lt;a href="https://groups.google.com/g/kubernetes-sig-apps/c/_joO4swogKY?pli=1">this document&lt;/a> and balance the pros and cons for yourself. In short, the new &lt;code>AlwaysAllow&lt;/code> option is probably the better choice in most of the cases while &lt;code>IfHealthyBudget&lt;/code> is useful only if you have frequent temporary transitions or for special cases where you have already implemented controllers that depend on the old behavior.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="defining-a-vpa-resource">Defining a VPA Resource&lt;/h2>
+&lt;p>To configure VPA, you need to create a VPA resource in your cluster. This resource specifies the target to scale, the metrics to be used for scaling decisions, and the policies for resource updates. Here&amp;rsquo;s an example of an VPA configuration:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: autoscaling.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: VerticalPodAutoscaler
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: foo-vpa
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> targetRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiVersion: &lt;span style="color:#a31515">&amp;#34;apps/v1&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: foo-deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> updatePolicy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> updateMode: &lt;span style="color:#a31515">&amp;#34;Auto&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resourcePolicy:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerPolicies:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerName: foo-container
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> controlledValues: RequestsOnly
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> minAllowed:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 50m
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 200M
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxAllowed:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> cpu: 4
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> memory: 16G
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In this example, VPA is configured to scale &lt;code>foo-deployment&lt;/code> requests (&lt;code>RequestsOnly&lt;/code>) from 50m cores (&lt;code>minAllowed&lt;/code>) up to 4 cores (&lt;code>maxAllowed&lt;/code>) and 200M memory (&lt;code>minAllowed&lt;/code>) up to 16G memory (&lt;code>maxAllowed&lt;/code>) automatically (&lt;code>updateMode&lt;/code>). VPA doesn&amp;rsquo;t support in-place updates, so in &lt;code>updateMode&lt;/code> &lt;code>Auto&lt;/code> it will evict pods under certain conditions and then mutate the requests (and possibly limits if you omit &lt;code>controlledValues&lt;/code> or set it to &lt;code>RequestsAndLimits&lt;/code>, which is the default) of upcoming new pods.&lt;/p>
+&lt;p>&lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#quick-start">Multiple update modes exist&lt;/a>. They influence eviction and mutation. The most important ones are:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Off&lt;/code>: In this mode, recommendations are computed, but never applied. This mode is useful, if you want to learn more about your workload or if you have a custom controller that depends on VPA&amp;rsquo;s recommendations but shall act instead of VPA.&lt;/li>
+&lt;li>&lt;code>Initial&lt;/code>: In this mode, recommendations are computed and applied, but pods are never proactively evicted to enforce new recommendations over time. This mode is useful, if you want to control pod evictions yourself (similar to the &lt;a href="https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies">&lt;code>StatefulSet&lt;/code> &lt;code>updateStrategy&lt;/code> &lt;code>OnDelete&lt;/code>&lt;/a>) or your workload is sensitive to evictions, e.g. some brownfield singleton application or a daemon set pod that is critical for the node.&lt;/li>
+&lt;li>&lt;code>Auto&lt;/code> (default): In this mode, recommendations are computed, applied, and pods are even proactively evicted to enforce new recommendations over time. This applies recommendations continuously without you having to worry too much.&lt;/li>
+&lt;/ul>
+&lt;p>As mentioned, &lt;code>controlledValues&lt;/code> influences whether only requests or requests and limits are scaled:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>RequestsOnly&lt;/code>: Updates only requests and doesn&amp;rsquo;t change limits. Useful if you have defined absolute limits (unrelated to the requests).&lt;/li>
+&lt;li>&lt;code>RequestsAndLimits&lt;/code> (default): Updates requests and proportionally scales limits along with the requests. Useful if you have defined relative limits (related to the requests). In this case, the gap between requests and limits should be either zero for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a> or small for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#burstable">&lt;code>Burstable&lt;/code>&lt;/a> to avoid useless (way beyond the threshold of unhealthy behavior) or absurd (larger than node capacity) values.&lt;/li>
+&lt;/ul>
+&lt;p>VPA doesn&amp;rsquo;t offer many more settings that can be tuned per VPA resource than you see above (different than HPA&amp;rsquo;s &lt;code>behavior&lt;/code> section). However, there is one more that isn&amp;rsquo;t shown above, which allows to &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#controlling-eviction-behavior-based-on-scaling-direction-and-resource">scale only up or only down (&lt;code>evictionRequirements[].changeRequirement&lt;/code>)&lt;/a>, in case you need that, e.g. to provide resources when needed, but avoid disruptions otherwise.&lt;/p>
+&lt;h2 id="vpa-options">VPA Options&lt;/h2>
+&lt;p>VPA is an independent community project that &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#components-of-vpa">consists of&lt;/a> a recommender (computing target recommendations and bounds), an updater (evicting pods that are out of recommendation bounds), and an admission controller (mutating webhook applying the target recommendation to newly created pods). As such, they have independent options.&lt;/p>
+&lt;h3 id="vpa-recommender-options">VPA Recommender Options&lt;/h3>
+&lt;p>You can read up the &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-recommender">full VPA recommender options&lt;/a> online and set some of them conveniently in your &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L298-L307">Gardener shoot cluster spec&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>recommendationMarginFraction&lt;/code> (default 15%): Safety margin that will be added to the recommended requests.&lt;/li>
+&lt;li>&lt;code>targetCPUPercentile&lt;/code> (default 90%): CPU usage percentile that will be targeted with the CPU recommendation (i.e. recommendation will &amp;ldquo;fit&amp;rdquo; e.g. 90% of the observed CPU usages). This setting is relevant for balancing your requests reservations vs. your costs. If you want to reduce costs, you can reduce this value (higher risk because of potential under-reservation, but lower costs), because CPU is compressible, but then VPA may lack the necessary signals for scale-up as throttling on an otherwise fully utilized node will go unnoticed by VPA. If you want to err on the safe side, you can increase this value, but you will then target more and more a worst case scenario, quickly (maybe even exponentially) increasing the costs.&lt;/li>
+&lt;li>&lt;code>targetMemoryPercentile&lt;/code> (default 90%): Memory usage percentile that will be targeted with the memory recommendation (i.e. recommendation will &amp;ldquo;fit&amp;rdquo; e.g. 90% of the observed memory usages). This setting is relevant for balancing your requests reservations vs. your costs. If you want to reduce costs, you can reduce this value (higher risk because of potential under-reservation, but lower costs), because OOMs will trigger bump-ups, but those will disrupt the workload. If you want to err on the safe side, you can increase this value, but you will then target more and more a worst case scenario, quickly (maybe even exponentially) increasing the costs.&lt;/li>
+&lt;/ul>
+&lt;p>There are a few more configurable options of lesser interest:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>recommenderInterval&lt;/code> (default 1m): How often VPA retrieves the pods and metrics respectively how often it recomputes the recommendations and bounds.&lt;/li>
+&lt;/ul>
+&lt;p>There are many more options that you can only configure if you deploy your own VPA and which we will not discuss here, but you can check them out &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-recommender">here&lt;/a>.&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+Due to an implementation detail (smallest bucket size), VPA cannot create recommendations below &lt;a href="https://github.com/kubernetes/autoscaler/blob/1f89ff92cf87dd3700f74f9b387ae4846aa51846/vertical-pod-autoscaler/pkg/recommender/model/aggregations_config.go#L89-L99">10m cores&lt;/a> and &lt;a href="https://github.com/kubernetes/autoscaler/blob/1f89ff92cf87dd3700f74f9b387ae4846aa51846/vertical-pod-autoscaler/pkg/recommender/model/aggregations_config.go#L101-L111">10M memory&lt;/a> even if &lt;code>minAllowed&lt;/code> is lower.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="vpa-updater-options">VPA Updater Options&lt;/h3>
+&lt;p>You can read up the &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-updater">full VPA updater options&lt;/a> online and set some of them conveniently in your &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L298-L307">Gardener shoot cluster spec&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>evictAfterOOMThreshold&lt;/code> (default 10m): Pods where at least one container OOMs within this time period since its start will be actively evicted, which will implicitly apply the new target recommendation that will have been &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#custom-memory-bump-up-after-oomkill">bumped up after &lt;code>OOMKill&lt;/code>&lt;/a>. Please note, the kubelet may evict pods even before an OOM, but only if &lt;code>kube-reserved&lt;/code> is underrun, i.e. &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#pod-selection-for-kubelet-eviction">node-level resources are running low&lt;/a>. In these cases, eviction will happen first by pod priority and second by how much the usage overruns the requests.&lt;/li>
+&lt;li>&lt;code>evictionTolerance&lt;/code> (default 50%): Defines a threshold below which no further eligible pod will be evited anymore, i.e. limits how many eligible pods may be in eviction in parallel (but at least 1). The &lt;a href="https://github.com/kubernetes/autoscaler/blob/4d0511363eeeff657119797dd8d26e851dcc3459/vertical-pod-autoscaler/pkg/updater/eviction/pods_eviction_restriction.go#L108-L117">threshold is computed as follows&lt;/a>: &lt;code>running - evicted &amp;gt; replicas - tolerance&lt;/code>. Example: 10 replicas, 9 running, 8 eligible for eviction, 20% tolerance with 10 replicas which amounts to 2 pods, and no pod evicted in this round yet, then &lt;code>9 - 0 &amp;gt; 10 - 2&lt;/code> is true and a pod would be evicted, but the next one would be in violation as &lt;code>9 - 1 = 10 - 2&lt;/code> and no further pod would be evicted anymore in this round.&lt;/li>
+&lt;li>&lt;code>evictionRateBurst&lt;/code> (default 1): Defines how many eligible pods may be evicted in one go.&lt;/li>
+&lt;li>&lt;code>evictionRateLimit&lt;/code> (default disabled): Defines how many eligible pods may be evicted per second (a value of 0 or -1 disables the rate limiting).&lt;/li>
+&lt;/ul>
+&lt;p>In general, avoid modifying these eviction settings unless you have good reasons and try to rely on &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb">Pod Disruption Budgets (PDBs)&lt;/a> instead. However, &lt;a href="https://github.com/kubernetes/kubernetes/issues/108124">PDBs are not available for daemon sets&lt;/a>.&lt;/p>
+&lt;p>There are a few more configurable options of lesser interest:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>updaterInterval&lt;/code> (default 1m): How often VPA evicts the pods.&lt;/li>
+&lt;/ul>
+&lt;p>There are many more options that you can only configure if you deploy your own VPA and which we will not discuss here, but you can check them out &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/FAQ.md#what-are-the-parameters-to-vpa-updater">here&lt;/a>.&lt;/p>
+&lt;h2 id="considerations-when-using-vpa">Considerations When Using VPA&lt;/h2>
+&lt;ul>
+&lt;li>&lt;strong>Initial Resource Estimates:&lt;/strong> VPA requires historical resource usage data to base its recommendations on. Until they kick in, your initial resource requests apply and should be sensible.&lt;/li>
+&lt;li>&lt;strong>Pod Disruption:&lt;/strong> When VPA adjusts the resources for a pod, it may need to &amp;ldquo;recreate&amp;rdquo; the pod, which can cause temporary disruptions. This should be taken into account.&lt;/li>
+&lt;li>&lt;strong>Compatibility with HPA:&lt;/strong> Care must be taken when using VPA in conjunction with HPA, as they can potentially interfere with each other&amp;rsquo;s scaling decisions.&lt;/li>
+&lt;/ul>
+&lt;h1 id="combining-hpa-and-vpa">Combining HPA and VPA&lt;/h1>
+&lt;p>HPA and VPA serve different purposes and operate on different axes of scaling. HPA increases or decreases the number of pod replicas based on metrics like CPU or memory usage, effectively scaling the application out or in. VPA, on the other hand, adjusts the CPU and memory reservations of individual pods, scaling the application up or down.&lt;/p>
+&lt;p>When used together, these autoscalers can provide both horizontal and vertical scaling. However, they can also conflict with each other if used on the same metrics (e.g. both on CPU or both on memory). In particular, if VPA adjusts the requests, the utilization, i.e. the ratio between usage and requests, will approach 100% (for various reasons not exactly right, but for this consideration, close enough), which may trigger HPA to scale out, if it&amp;rsquo;s configured to scale on utilization below 100% (often seen in simple examples), which will spread the load across more pods, which may trigger VPA again to adjust the requests to match the new pod usages.&lt;/p>
+&lt;p>This is a feedback loop and it stems from &lt;a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details">HPA&amp;rsquo;s method of calculating the desired number of replicas&lt;/a>, which is:&lt;/p>
+&lt;p>&lt;code>desiredReplicas = ceil[currentReplicas * (currentMetricValue / desiredMetricValue)]&lt;/code>&lt;/p>
+&lt;p>If &lt;code>desiredMetricValue&lt;/code> is utilization and VPA adjusts the requests, which changes the utilization, this may inadvertently trigger HPA and create said feedback loop. On the other hand, if &lt;code>desiredMetricValue&lt;/code> is usage and VPA adjusts the requests now, this will have no impact on HPA anymore (HPA will always influence VPA, but we can control whether VPA influences HPA).&lt;/p>
+&lt;p>Therefore, to safely combine HPA and VPA, consider the following strategies:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Configure HPA and VPA on different metrics:&lt;/strong> One way to avoid conflicts is to use HPA and VPA based on different metrics. For instance, you could configure HPA to scale based on requests per seconds (or another representative custom/external metric) and VPA to adjust CPU and memory requests. This way, each autoscaler operates independently based on its specific metric(s).&lt;/li>
+&lt;li>&lt;strong>Configure HPA to scale on usage, not utilization, when used with VPA:&lt;/strong> Another way to avoid conflicts is to use HPA not on average utilization (&lt;code>averageUtilization&lt;/code>), but instead on average usage (&lt;code>averageValue&lt;/code>) as replicas driver, which is an absolute metric (requests don&amp;rsquo;t affect usage). This way, you can combine both autoscalers even on the same metrics.&lt;/li>
+&lt;/ul>
+&lt;h1 id="pod-autoscaling-and-cluster-autoscaler">Pod Autoscaling and Cluster Autoscaler&lt;/h1>
+&lt;p>Autoscaling within Kubernetes can be implemented at different levels: pod autoscaling (HPA and VPA) and cluster autoscaling (CA). While pod autoscaling adjusts the number of pod replicas or their resource reservations, cluster autoscaling focuses on the number of nodes in the cluster, so that your pods can be hosted. If your workload isn&amp;rsquo;t static and especially if you make use of pod autoscaling, it only works if you have sufficient node capacity available. The most effective way to do that, without running a worst-case number of nodes, is to configure burstable worker pools in your shoot spec, i.e. define a true minimum node count and a worst-case maximum node count and leave the node autoscaling to Gardener that internally uses the Cluster Autoscaler to provision and deprovision nodes as needed.&lt;/p>
+&lt;p>Cluster Autoscaler automatically adjusts the number of nodes by adding or removing nodes based on the demands of the workloads and the available resources. It interacts with the cloud provider&amp;rsquo;s APIs to provision or deprovision nodes as needed. Cluster Autoscaler monitors the utilization of nodes and the scheduling of pods. If it detects that pods cannot be scheduled due to a lack of resources, it will trigger the addition of new nodes to the cluster. Conversely, if nodes are underutilized for some time and their pods can be placed on other nodes, it will remove those nodes to reduce costs and improve resource efficiency.&lt;/p>
+&lt;p>Best Practices:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Resource Buffering:&lt;/strong> Maintain a buffer of resources to accommodate temporary spikes in demand without waiting for node provisioning. This can be done by &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-can-i-configure-overprovisioning-with-cluster-autoscaler">deploying pods with low priority that can be preempted when real workloads require resources&lt;/a>. This helps in faster pod scheduling and avoids delays in scaling out or up.&lt;/li>
+&lt;li>&lt;strong>Pod Disruption Budgets (PDBs):&lt;/strong> Use &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb">PDBs&lt;/a> to ensure that during scale-down events, the availability of applications is maintained as the Cluster Autoscaler will not voluntarily evict a pod if a PDB would be violated.&lt;/li>
+&lt;/ul>
+&lt;h2 id="interesting-ca-options">Interesting CA Options&lt;/h2>
+&lt;p>CA can be configured in your &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L281-L297">Gardener shoot cluster spec globally&lt;/a> and also in parts &lt;a href="https://github.com/gardener/gardener/blob/957e4c7/example/90-shoot.yaml#L48-L53">per worker pool&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>Can only be configured globally:
+&lt;ul>
+&lt;li>&lt;code>expander&lt;/code> (default least-waste): Defines the &amp;ldquo;expander&amp;rdquo; algorithm to use during scale-up, see &lt;a href="https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md#what-are-expanders">FAQ&lt;/a>.&lt;/li>
+&lt;li>&lt;code>scaleDownDelayAfterAdd&lt;/code> (default 1h): Defines how long after scaling up a node, a node may be scaled down.&lt;/li>
+&lt;li>&lt;code>scaleDownDelayAfterFailure&lt;/code> (default 3m): Defines how long after scaling down a node failed, scaling down will be resumed.&lt;/li>
+&lt;li>&lt;code>scaleDownDelayAfterDelete&lt;/code> (default 0s): Defines how long after scaling down a node, another node may be scaled down.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Can be configured globally and also overwritten individually per worker pool:
+&lt;ul>
+&lt;li>&lt;code>scaleDownUtilizationThreshold&lt;/code> (default 50%): Defines the threshold below which a node becomes eligible for scaling down.&lt;/li>
+&lt;li>&lt;code>scaleDownUnneededTime&lt;/code> (default 30m): Defines the trailing time window the node must be consistently below a certain utilization threshold before it can finally be scaled down.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>There are many more options that you can only configure if you deploy your own CA and which we will not discuss here, but you can check them out &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#what-are-the-parameters-to-ca">here&lt;/a>.&lt;/p>
+&lt;h1 id="importance-of-monitoring">Importance of Monitoring&lt;/h1>
+&lt;p>Monitoring is a critical component of autoscaling for several reasons:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Performance Insights:&lt;/strong> It provides insights into how well your autoscaling strategy is meeting the performance requirements of your applications.&lt;/li>
+&lt;li>&lt;strong>Resource Utilization:&lt;/strong> It helps you understand resource utilization patterns, enabling you to optimize resource allocation and reduce waste.&lt;/li>
+&lt;li>&lt;strong>Cost Management:&lt;/strong> It allows you to track the cost implications of scaling actions, helping you to maintain control over your cloud spending.&lt;/li>
+&lt;li>&lt;strong>Troubleshooting:&lt;/strong> It enables you to quickly identify and address issues with autoscaling, such as unexpected scaling behavior or resource bottlenecks.&lt;/li>
+&lt;/ul>
+&lt;p>To effectively monitor autoscaling, you should leverage the following tools and metrics:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>&lt;a href="https://sigs.k8s.io/metrics-server">Kubernetes Metrics Server&lt;/a>:&lt;/strong> Collects resource metrics from kubelets and provides them to HPA and VPA for autoscaling decisions (automatically provided by Gardener).&lt;/li>
+&lt;li>&lt;strong>Prometheus:&lt;/strong> An open-source monitoring system that can collect and store custom metrics, providing a rich dataset for autoscaling decisions.&lt;/li>
+&lt;li>&lt;strong>Grafana/Plutono:&lt;/strong> A visualization tool that integrates with Prometheus to create dashboards for monitoring autoscaling metrics and events.&lt;/li>
+&lt;li>&lt;strong>Cloud Provider Tools:&lt;/strong> Most cloud providers offer native monitoring solutions that can be used to track the performance and costs associated with autoscaling.&lt;/li>
+&lt;/ul>
+&lt;p>Key metrics to monitor include:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>CPU and Memory Utilization:&lt;/strong> Track the resource utilization of your pods and nodes to understand how they correlate with scaling events.&lt;/li>
+&lt;li>&lt;strong>Pod Count:&lt;/strong> Monitor the number of pod replicas over time to see how HPA is responding to changes in load.&lt;/li>
+&lt;li>&lt;strong>Scaling Events:&lt;/strong> Keep an eye on scaling events triggered by HPA and VPA to ensure they align with expected behavior.&lt;/li>
+&lt;li>&lt;strong>Application Performance Metrics:&lt;/strong> Track application-specific metrics such as response times, error rates, and throughput.&lt;/li>
+&lt;/ul>
+&lt;p>Based on the insights gained from monitoring, you may need to adjust your autoscaling configurations:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Refine Thresholds:&lt;/strong> If you notice frequent scaling actions or periods of underutilization or overutilization, adjust the thresholds used by HPA and VPA to better match the workload patterns.&lt;/li>
+&lt;li>&lt;strong>Update Policies:&lt;/strong> Modify VPA update policies if you observe that the current settings are causing too much or too little pod disruption.&lt;/li>
+&lt;li>&lt;strong>Custom Metrics:&lt;/strong> If using custom metrics, ensure they accurately reflect the load on your application and adjust them if they do not.&lt;/li>
+&lt;li>&lt;strong>Scaling Limits:&lt;/strong> Review and adjust the minimum and maximum scaling limits to prevent over-scaling or under-scaling based on the capacity of your cluster and the criticality of your applications.&lt;/li>
+&lt;/ul>
+&lt;h1 id="quality-of-service-qos">Quality of Service (QoS)&lt;/h1>
+&lt;p>A few words on the &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod">quality of service for pods&lt;/a>. Basically, there are 3 classes of QoS and they influence the eviction of pods when &lt;code>kube-reserved&lt;/code> is underrun, i.e. &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#pod-selection-for-kubelet-eviction">node-level resources are running low&lt;/a>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#besteffort">&lt;code>BestEffort&lt;/code>&lt;/a>, i.e. pods where no container has CPU or memory requests or limits: &lt;strong>Avoid them&lt;/strong> unless you have really good reasons. The kube-scheduler will place them just anywhere according to its policy, e.g. &lt;code>balanced&lt;/code> or &lt;code>bin-packing&lt;/code>, but whatever resources these pods consume, may bring other pods into trouble or even the kubelet and the container runtime itself, if it happens very suddenly.&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#burstable">&lt;code>Burstable&lt;/code>&lt;/a>, i.e. pods where at least one container has CPU or memory requests and at least one has no limits or limits that don&amp;rsquo;t match the requests: &lt;strong>Prefer them&lt;/strong> unless you have really good reasons for the other QoS classes. Always specify proper requests or use VPA to recommend those. &lt;a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#how-pods-with-resource-requests-are-scheduled">This helps the kube-scheduler to make the right scheduling decisions&lt;/a>. Not having limits will additionally provide upward resource flexibility, if the node is not under pressure.&lt;/li>
+&lt;li>&lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a>, i.e. pods where all containers have CPU and memory requests and equal limits: &lt;strong>Avoid them&lt;/strong> unless you really know the limits or throttling/killing is intended. While &amp;ldquo;Guaranteed&amp;rdquo; sounds like something &amp;ldquo;positive&amp;rdquo; in the English language, this class comes with the downside, that pods will be actively CPU-throttled and will actively go OOM, even if the node is not under pressure and has excess capacity left. Worse, if containers in the pod are under VPA, their CPU requests/limits will often not be scaled up as CPU throttling will go unnoticed by VPA.&lt;/li>
+&lt;/ul>
+&lt;h1 id="summary">Summary&lt;/h1>
+&lt;ul>
+&lt;li>As a rule of thumb, always set CPU and memory requests (or let VPA do that) and always avoid CPU and memory limits.
+&lt;ul>
+&lt;li>CPU limits aren&amp;rsquo;t helpful on an under-utilized node (=may result in needless outages) and even suppress the signals for VPA to act. On a nearly or fully utilized node, CPU limits are practically irrelevant as only the requests matter, which are translated into CPU shares that provide a fair use of the CPU anyway (see &lt;a href="https://docs.kernel.org/scheduler/sched-design-CFS.html">CFS&lt;/a>).&lt;br/>
+Therefore, if you do not know the healthy range, do not set CPU limits. If you as author of the source code know its healthy range, set them to the upper threshold of that healthy range (everything above, from your knowledge of that code, is definitely an unbound busy loop or similar, which is the main reason for CPU limits, besides batch jobs where throttling is acceptable or even desired).&lt;/li>
+&lt;li>Memory limits may be more useful, but suffer a similar, though not as negative downside. As with CPU limits, memory limits aren&amp;rsquo;t helpful on an under-utilized node (=may result in needless outages), but different than CPU limits, they result in an OOM, which triggers VPA to provide more memory suddenly (modifies the currently computed recommendations by a configurable factor, defaulting to +20%, see &lt;a href="https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/README.md#custom-memory-bump-up-after-oomkill">docs&lt;/a>).&lt;br/>
+Therefore, if you do not know the healthy range, do not set memory limits. If you as author of the source code know its healthy range, set them to the upper threshold of that healthy range (everything above, from your knowledge of that code, is definitely an unbound memory leak or similar, which is the main reason for memory limits)&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Horizontal Pod Autoscaling (HPA): Use for pods that support horizontal scaling. Prefer scaling on usage, not utilization, as this is more predictable (not dependent on a second variable, namely the current requests) and conflict-free with vertical pod autoscaling (VPA).&lt;/li>
+&lt;li>As a rule of thumb, set the initial replicas to the 5th percentile of the actually observed replica count in production. Since HPA reacts fast, this is not as critical, but may help reduce initial load on the control plane early after deployment. However, be cautious when you update the higher-level resource not to inadvertently reset the current HPA-controlled replica count (very easy to make mistake that can lead to catastrophic loss of pods). HPA modifies the replica count directly in the spec and you do not want to overwrite that. Even if it reacts fast, it is not instant (not via a mutating webhook as VPA operates) and the damage may already be done.&lt;/li>
+&lt;li>As for minimum and maximum, let your high availability requirements determine the minimum and your theoretical maximum load determine the maximum, flanked with alerts to detect erroneous run-away out-scaling or the actual nearing of your practical maximum load, so that you can intervene.&lt;/li>
+&lt;li>Vertical Pod Autoscaling (VPA): Use for containers that have a significant usage (e.g. any container above 50m CPU or 100M memory) and a significant usage spread over time (by more than 2x), i.e. ignore small (e.g. side-cars) or static (e.g. Java statically allocated heap) containers, but otherwise use it to provide the resources needed on the one hand and keep the costs in check on the other hand.&lt;/li>
+&lt;li>As a rule of thumb, set the initial requests to the 5th percentile of the actually observed CPU resp. memory usage in production. Since VPA may need some time at first to respond and evict pods, this is especially critical early after deployment. The lower bound, below which pods will be immediately evicted, converges much faster than the upper bound, above which pods will be immediately evicted, but it isn&amp;rsquo;t instant, e.g. after 5 minutes the lower bound is just at 60% of the computed lower bound; after 12 hours the upper bound is still at 300% of the computed upper bound (see &lt;a href="https://github.com/kubernetes/autoscaler/blob/b3a501cbe11e46bea1f8879d39c8436ef03e7139/vertical-pod-autoscaler/pkg/recommender/logic/recommender.go#L118-L143">code&lt;/a>). Unlike with HPA, you don&amp;rsquo;t need to be as cautious when updating the higher-level resource in the case of VPA. As long as VPA&amp;rsquo;s mutating webhook (VPA Admission Controller) is operational (which also the VPA Updater checks before evicting pods), it&amp;rsquo;s generally safe to update the higher-level resource. However, if it&amp;rsquo;s not up and running, any new pods that are spawned (e.g. as a consequence of a rolling update of the higher-level resource or for any other reason) will not be mutated. Instead, they will receive whatever requests are currently configured at the higher-level resource, which can lead to catastrophic resource under-reservation. Gardener deploys the VPA Admission Controller in HA - if unhealthy, it is reported under the &lt;code>ControlPlaneHealthy&lt;/code> shoot status condition.&lt;/li>
+&lt;li>If you have defined absolute limits (unrelated to the requests), configure VPA to only scale the requests or else it will proportionally scale the limits as well, which can easily become useless (way beyond the threshold of unhealthy behavior) or absurd (larger than node capacity):
+&lt;pre tabindex="0">&lt;code>spec:
+resourcePolicy:
+containerPolicies:
+- controlledValues: RequestsOnly
+...
+&lt;/code>&lt;/pre>If you have defined relative limits (related to the requests), the default policy to scale the limits proportionally with the requests is fine, but the gap between requests and limits must be zero for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a> and should best be small for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#burstable">&lt;code>Burstable&lt;/code>&lt;/a> to avoid useless or absurd limits either, e.g. prefer limits being 5 to at most 20% larger than requests as opposed to being 100% larger or more.&lt;/li>
+&lt;li>As a rule of thumb, set &lt;code>minAllowed&lt;/code> to the highest observed VPA recommendation (usually during the initialization phase or during any periodical activity) for an otherwise practically idle container, so that you avoid needless trashing (e.g. resource usage calms down over time and recommendations drop consecutively until eviction, which will then lead again to initialization or later periodical activity and higher recommendations and new evictions).&lt;br/>⚠️ You may want to provide higher &lt;code>minAllowed&lt;/code> values, if you observe that up-scaling takes too long for CPU or memory for a too large percentile of your workload. This will get you out of the danger zone of too few resources for too many pods at the expense of providing too many resources for a few pods. Memory may react faster than CPU, because CPU throttling is not visible and memory gets aided by OOM bump-up incidents, but still, if you observe that up-scaling takes too long, you may want to increase &lt;code>minAllowed&lt;/code> accordingly.&lt;/li>
+&lt;li>As a rule of thumb, set &lt;code>maxAllowed&lt;/code> to your theoretical maximum load, flanked with alerts to detect erroneous run-away usage or the actual nearing of your practical maximum load, so that you can intervene. However, VPA can easily recommend requests larger than what is allocatable on a node, so you must either ensure large enough nodes (Gardener can scale up from zero, in case you like to &lt;a href="https://gardener.cloud/docs/getting-started/features/cluster-autoscaler/#scaling-by-priority">define a low-priority worker pool with more resources&lt;/a> for very large pods) and/or cap VPA&amp;rsquo;s target recommendations using &lt;code>maxAllowed&lt;/code> at the node allocatable remainder (after daemon set pods) of the largest eligible machine type (may result in under-provisioning resources for a pod). Use your monitoring and check maximum pod usage to decide about the maximum machine type.&lt;/li>
+&lt;/ul>
+&lt;h2 id="recommendations-in-a-box">Recommendations in a Box&lt;/h2>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Container&lt;/th>
+&lt;th>When to use&lt;/th>
+&lt;th>Value&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Requests&lt;/td>
+&lt;td>- &lt;strong>Set them (recommended)&lt;/strong> unless:&lt;br/>- Do not set requests for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#besteffort">&lt;code>BestEffort&lt;/code>&lt;/a>; useful only if pod can be evicted as often as needed &lt;strong>and&lt;/strong> pod can pick up where it left off without any penalty&lt;/td>
+&lt;td>Set &lt;code>requests&lt;/code> to &lt;strong>95th percentile (w/o VPA)&lt;/strong> of the actually observed CPU resp. memory usage in production resp. &lt;strong>5th percentile (w/ VPA)&lt;/strong> (see below)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Limits&lt;/td>
+&lt;td>- &lt;strong>Avoid them (recommended)&lt;/strong> unless:&lt;br/>- Set limits for QoS &lt;a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#guaranteed">&lt;code>Guaranteed&lt;/code>&lt;/a>; useful only if pod has strictly static resource requirements&lt;br/>- Set CPU limits if you want to throttle CPU usage for containers that can be throttled w/o any other disadvantage than processing time (never do that when time-critical operations like leases are involved)&lt;br/>- Set limits if you know the healthy range and want to shield against unbound busy loops, unbound memory leaks, or similar&lt;/td>
+&lt;td>If you really can (otherwise not), set &lt;code>limits&lt;/code> to healthy theoretical max load&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Scaler&lt;/th>
+&lt;th>When to use&lt;/th>
+&lt;th>Initial&lt;/th>
+&lt;th>Minimum&lt;/th>
+&lt;th>Maximum&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>HPA&lt;/td>
+&lt;td>&lt;strong>Use for pods that support horizontal scaling&lt;/strong>&lt;/td>
+&lt;td>Set initial &lt;code>replicas&lt;/code> to 5th percentile of the actually observed replica count in production (prefer scaling on usage, not utilization) and make sure to never overwrite it later when controlled by HPA&lt;/td>
+&lt;td>Set &lt;code>minReplicas&lt;/code> to 0 (requires &lt;a href="https://github.com/kubernetes/kubernetes/blob/4c7960a67c29b7954cccc6c7d77a62133af3484f/pkg/features/kube_features.go#L266-L267">feature gate&lt;/a> and &lt;a href="https://github.com/kubernetes/kubernetes/pull/74526">custom/external metrics&lt;/a>), to 1 (regular HPA minimum), or whatever the high availability requirements of the workload demand&lt;/td>
+&lt;td>Set &lt;code>maxReplicas&lt;/code> to healthy theoretical max load&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>VPA&lt;/td>
+&lt;td>&lt;strong>Use for containers that have a significant usage&lt;/strong> (&amp;gt;50m/100M) &lt;strong>and a significant usage spread over time&lt;/strong> (&amp;gt;2x)&lt;/td>
+&lt;td>Set initial &lt;code>requests&lt;/code> to 5th percentile of the actually observed CPU resp. memory usage in production&lt;/td>
+&lt;td>Set &lt;code>minAllowed&lt;/code> to highest observed VPA recommendation (includes start-up phase) for an otherwise practically idle container (avoids pod trashing when pod gets evicted after idling)&lt;/td>
+&lt;td>Set &lt;code>maxAllowed&lt;/code> to fresh node allocatable remainder after daemonset pods (avoids pending pods when requests exeed fresh node allocatable remainder) or, if you really can (otherwise not), to healthy theoretical max load (less disruptive than limits as no throttling or OOM happens on under-utilized nodes)&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>CA&lt;/td>
+&lt;td>&lt;strong>Use for dynamic workloads&lt;/strong>, definitely if you use HPA and/or VPA&lt;/td>
+&lt;td>N/A&lt;/td>
+&lt;td>Set &lt;code>minimum&lt;/code> to 0 or number of nodes required right after cluster creation or wake-up&lt;/td>
+&lt;td>Set &lt;code>maximum&lt;/code> to healthy theoretical max load&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;blockquote>
+&lt;p>[!NOTE]
+Theoretical max load may be very difficult to ascertain, especially with modern software that consists of building blocks you do not own or know in detail. If you have comprehensive monitoring in place, you may be tempted to pick the observed maximum and add a safety margin or even factor on top (2x, 4x, or any other number), but this is not to be confused with &amp;ldquo;theoretical max load&amp;rdquo; (solely depending on the code, not observations from the outside). At any point in time, your numbers may change, e.g. because you updated a software component or your usage increased. If you decide to use numbers that are set based only on observations, make sure to flank those numbers with monitoring alerts, so that you have sufficient time to investigate, revise, and readjust if necessary.&lt;/p>
+&lt;/blockquote>
+&lt;h1 id="conclusion">Conclusion&lt;/h1>
+&lt;p>Pod autoscaling is a dynamic and complex aspect of Kubernetes, but it is also one of the most powerful tools at your disposal for maintaining efficient, reliable, and cost-effective applications. By carefully selecting the appropriate autoscaler, setting well-considered thresholds, and continuously monitoring and adjusting your strategies, you can ensure that your Kubernetes deployments are well-equipped to handle your resource demands while not over-paying for the provided resources at the same time.&lt;/p>
+&lt;p>As Kubernetes continues to evolve (e.g. &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/1287-in-place-update-pod-resources/README.md">in-place updates&lt;/a>) and as new patterns and practices emerge, the approaches to autoscaling may also change. However, the principles discussed above will remain foundational to creating scalable and resilient Kubernetes workloads. Whether you&amp;rsquo;re a developer or operations engineer, a solid understanding of pod autoscaling will be instrumental in the successful deployment and management of containerized applications.&lt;/p></description></item></channel></rss>

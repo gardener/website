@@ -1,0 +1,189 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Observability</title><link>https://gardener.cloud/docs/gardener/observability/</link><description>Recent content in Observability on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/observability/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Logging</title><link>https://gardener.cloud/docs/gardener/observability/logging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/observability/logging/</guid><description>
+&lt;h1 id="logging-stack">Logging Stack&lt;/h1>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>Kubernetes uses the underlying container runtime logging, which does not persist logs for stopped and destroyed containers. This makes it difficult to investigate issues in the very common case of not running containers. Gardener provides a solution to this problem for the managed cluster components by introducing its own logging stack.&lt;/p>
+&lt;h2 id="components">Components&lt;/h2>
+&lt;ul>
+&lt;li>A Fluent-bit daemonset which works like a log collector and custom Golang plugin which spreads log messages to their Vali instances.&lt;/li>
+&lt;li>One Vali Statefulset in the &lt;code>garden&lt;/code> namespace which contains logs for the seed cluster and one per shoot namespace which contains logs for shoot&amp;rsquo;s controlplane.&lt;/li>
+&lt;li>One Plutono Deployment in &lt;code>garden&lt;/code> namespace and two Deployments per shoot namespace (one exposed to the end users and one for the operators). Plutono is the UI component used in the logging stack.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/logging-architecture_8711a9.png" alt="">&lt;/p>
+&lt;h2 id="container-logs-rotation-and-retention">Container Logs Rotation and Retention&lt;/h2>
+&lt;p>Container &lt;a href="https://kubernetes.io/docs/concepts/cluster-administration/logging/#log-rotation">log rotation&lt;/a> in Kubernetes describes a subtile but important implementation detail depending on the type of the used high-level container runtime. When the used container runtime is not CRI compliant (such as &lt;code>dockershim&lt;/code>), then the &lt;code>kubelet&lt;/code> does not provide any rotation or retention implementations, hence leaving those aspects to the downstream components. When the used container runtime is CRI compliant (such as &lt;code>containerd&lt;/code>), then the &lt;code>kubelet&lt;/code> provides the necessary implementation with two configuration options:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>ContainerLogMaxSize&lt;/code> for rotation&lt;/li>
+&lt;li>&lt;code>ContainerLogMaxFiles&lt;/code> for retention&lt;/li>
+&lt;/ul>
+&lt;h3 id="containerd-runtime">ContainerD Runtime&lt;/h3>
+&lt;p>In this case, it is possible to configure the &lt;code>containerLogMaxSize&lt;/code> and &lt;code>containerLogMaxFiles&lt;/code> fields in the Shoot specification. Both fields are optional and if nothing is specified, then the &lt;code>kubelet&lt;/code> rotates on the size &lt;code>100M&lt;/code>. Those fields are part of provider&amp;rsquo;s workers definition. Here is an example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - cri:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: containerd
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubelet:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#008000"># accepted values are of resource.Quantity&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerLogMaxSize: 150Mi
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containerLogMaxFiles: 10
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The values of the &lt;code>containerLogMaxSize&lt;/code> and &lt;code>containerLogMaxFiles&lt;/code> fields need to be considered with care since container log files claim disk space from the host. On the opposite side, log rotations on too small sizes may result in frequent rotations which can be missed by other components (log shippers) observing these rotations.&lt;/p>
+&lt;p>In the majority of the cases, the defaults should do just fine. Custom configuration might be of use under rare conditions.&lt;/p>
+&lt;h2 id="extension-of-the-logging-stack">Extension of the Logging Stack&lt;/h2>
+&lt;p>The logging stack is extended to scrape logs from the systemd services of each shoots&amp;rsquo; nodes and from all Gardener components in the shoot &lt;code>kube-system&lt;/code> namespace. These logs are exposed only to the Gardener operators.&lt;/p>
+&lt;p>Also, in the shoot control plane an &lt;code>event-logger&lt;/code> pod is deployed, which scrapes events from the shoot &lt;code>kube-system&lt;/code> namespace and shoot &lt;code>control-plane&lt;/code> namespace in the seed. The &lt;code>event-logger&lt;/code> logs the events to the standard output. Then the &lt;code>fluent-bit&lt;/code> gets these events as container logs and sends them to the Vali in the shoot control plane (similar to how it works for any other control plane component).
+&lt;img src="https://gardener.cloud/__resources/shoot-node-logging-architecture_7a14d4.png" alt="">&lt;/p>
+&lt;h2 id="how-to-access-the-logs">How to Access the Logs&lt;/h2>
+&lt;p>The logs are accessible via Plutono. To access them:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Authenticate via basic auth to gain access to Plutono.
+The Plutono URL can be found in the &lt;code>Logging and Monitoring&lt;/code> section of a cluster in the Gardener Dashboard alongside the credentials.
+The secret containing the credentials is stored in the project namespace following the naming pattern &lt;code>&amp;lt;shoot-name&amp;gt;.monitoring&lt;/code>.
+For Gardener operators, the credentials are also stored in the control-plane (&lt;code>shoot--&amp;lt;project-name&amp;gt;--&amp;lt;shoot-name&amp;gt;&lt;/code>) namespace in the &lt;code>observability-ingress-users-&amp;lt;hash&amp;gt;&lt;/code> secret in the seed.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Plutono contains several dashboards that aim to facilitate the work of operators and users.
+From the &lt;code>Explore&lt;/code> tab, users and operators have unlimited abilities to extract and manipulate logs.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Gardener Operators are people part of the Gardener team with operator permissions, not operators of the end-user cluster!&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="how-to-use-the-explore-tab">How to Use the &lt;code>Explore&lt;/code> Tab&lt;/h3>
+&lt;p>If you click on the &lt;code>Log browser &amp;gt;&lt;/code> button, you will see all of the available labels.
+Clicking on the label, you can see all of its available values for the given period of time you have specified.
+If you are searching for logs for the past one hour, do not expect to see labels or values for which there were no logs for that period of time.
+By clicking on a value, Plutono automatically eliminates all other labels and/or values with which no valid log stream can be made.
+After choosing the right labels and their values, click on the &lt;code>Show logs&lt;/code> button.
+This will build &lt;code>Log query&lt;/code> and execute it.
+This approach is convenient when you don&amp;rsquo;t know the labels names or they values.
+&lt;img src="https://gardener.cloud/__resources/explore-button-usage_fa5898.png" alt="">&lt;/p>
+&lt;p>Once you feel comfortable, you can start to use the &lt;a href="https://github.com/credativ/plutono">LogQL&lt;/a> language to search for logs.
+Next to the &lt;code>Log browser &amp;gt;&lt;/code> button is the place where you can type log queries.&lt;/p>
+&lt;p>Examples:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>If you want to get logs for &lt;code>calico-node-&amp;lt;hash&amp;gt;&lt;/code> pod in the cluster &lt;code>kube-system&lt;/code>:
+The name of the node on which &lt;code>calico-node&lt;/code> was running is known, but not the hash suffix of the &lt;code>calico-node&lt;/code> pod.
+Also we want to search for errors in the logs.&lt;/p>
+&lt;p>&lt;code>{pod_name=~&amp;quot;calico-node-.+&amp;quot;, nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} |~ &amp;quot;error&amp;quot;&lt;/code>&lt;/p>
+&lt;p>Here, you will get as much help as possible from the Plutono by giving you suggestions and auto-completion.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If you want to get the logs from &lt;code>kubelet&lt;/code> systemd service of a given node and search for a pod name in the logs:&lt;/p>
+&lt;p>&lt;code>{unit=&amp;quot;kubelet.service&amp;quot;, nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} |~ &amp;quot;pod name&amp;quot;&lt;/code>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Under &lt;code>unit&lt;/code> label there is only the &lt;code>docker&lt;/code>, &lt;code>containerd&lt;/code>, &lt;code>kubelet&lt;/code> and &lt;code>kernel&lt;/code> logs.&lt;/p>
+&lt;/blockquote>
+&lt;ol start="3">
+&lt;li>
+&lt;p>If you want to get the logs from &lt;code>gardener-node-agent&lt;/code> systemd service of a given node and search for a string in the logs:&lt;/p>
+&lt;p>&lt;code>{job=&amp;quot;systemd-combine-journal&amp;quot;,nodename=&amp;quot;ip-10-222-31-182.eu-central-1.compute.internal&amp;quot;} | unpack | unit=&amp;quot;gardener-node-agent.service&amp;quot;&lt;/code>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> &lt;code>{job=&amp;quot;systemd-combine-journal&amp;quot;,nodename=&amp;quot;&amp;lt;node name&amp;gt;&amp;quot;}&lt;/code> stream &lt;a href="https://github.com/credativ/plutono">pack&lt;/a> all logs from systemd services except &lt;code>docker&lt;/code>, &lt;code>containerd&lt;/code>, &lt;code>kubelet&lt;/code>, and &lt;code>kernel&lt;/code>. To filter those log by unit, you have to &lt;a href="https://github.com/credativ/plutono">unpack&lt;/a> them first.&lt;/p>
+&lt;/blockquote>
+&lt;ol start="4">
+&lt;li>Retrieving events:&lt;/li>
+&lt;/ol>
+&lt;ul>
+&lt;li>
+&lt;p>If you want to get the events from the shoot &lt;code>kube-system&lt;/code> namespace generated by &lt;code>kubelet&lt;/code> and related to the &lt;code>node-problem-detector&lt;/code>:&lt;/p>
+&lt;p>&lt;code>{job=&amp;quot;event-logging&amp;quot;} | unpack | origin_extracted=&amp;quot;shoot&amp;quot;,source=&amp;quot;kubelet&amp;quot;,object=~&amp;quot;.*node-problem-detector.*&amp;quot;&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>If you want to get the events generated by MCM in the shoot control plane in the seed:&lt;/p>
+&lt;p>&lt;code>{job=&amp;quot;event-logging&amp;quot;} | unpack | origin_extracted=&amp;quot;seed&amp;quot;,source=~&amp;quot;.*machine-controller-manager.*&amp;quot;&lt;/code>&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> In order to group events by origin, one has to specify &lt;code>origin_extracted&lt;/code> because the &lt;code>origin&lt;/code> label is reserved for all of the logs from the seed and the &lt;code>event-logger&lt;/code> resides in the seed, so all of its logs are coming as they are only from the seed. The actual origin is embedded in the unpacked event. When unpacked, the embedded &lt;code>origin&lt;/code> becomes &lt;code>origin_extracted&lt;/code>.&lt;/p>
+&lt;/blockquote>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="expose-logs-for-component-to-user-plutono">Expose Logs for Component to User Plutono&lt;/h2>
+&lt;p>Exposing logs for a new component to the User&amp;rsquo;s Plutono is described in the &lt;a href="https://gardener.cloud/docs/gardener/extensions/logging-and-monitoring/#how-to-expose-logs-to-the-users">How to Expose Logs to the Users&lt;/a> section.&lt;/p>
+&lt;h2 id="configuration">Configuration&lt;/h2>
+&lt;h3 id="fluent-bit">Fluent-bit&lt;/h3>
+&lt;p>The Fluent-bit configurations can be found on &lt;code>pkg/component/observability/logging/fluentoperator/customresources&lt;/code>
+There are six different specifications:&lt;/p>
+&lt;ul>
+&lt;li>FluentBit: Defines the fluent-bit DaemonSet specifications&lt;/li>
+&lt;li>ClusterFluentBitConfig: Defines the labelselectors of the resources which fluent-bit will match&lt;/li>
+&lt;li>ClusterInput: Defines the location of the input stream of the logs&lt;/li>
+&lt;li>ClusterOutput: Defines the location of the output source (Vali for example)&lt;/li>
+&lt;li>ClusterFilter: Defines filters which match specific keys&lt;/li>
+&lt;li>ClusterParser: Defines parsers which are used by the filters&lt;/li>
+&lt;/ul>
+&lt;h3 id="vali">Vali&lt;/h3>
+&lt;p>The Vali configurations can be found on &lt;code>charts/seed-bootstrap/charts/vali/templates/vali-configmap.yaml&lt;/code>&lt;/p>
+&lt;p>The main specifications there are:&lt;/p>
+&lt;ul>
+&lt;li>Index configuration: Currently the following one is used:&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code> schema_config:
+configs:
+- from: 2018-04-15
+store: boltdb
+object_store: filesystem
+schema: v11
+index:
+prefix: index_
+period: 24h
+&lt;/code>&lt;/pre>&lt;ul>
+&lt;li>&lt;code>from&lt;/code>: Is the date from which logs collection is started. Using a date in the past is okay.&lt;/li>
+&lt;li>&lt;code>store&lt;/code>: The DB used for storing the index.&lt;/li>
+&lt;li>&lt;code>object_store&lt;/code>: Where the data is stored.&lt;/li>
+&lt;li>&lt;code>schema&lt;/code>: Schema version which should be used (v11 is currently recommended).&lt;/li>
+&lt;li>&lt;code>index.prefix&lt;/code>: The prefix for the index.&lt;/li>
+&lt;li>&lt;code>index.period&lt;/code>: The period for updating the indices.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Adding a new index happens with new config block definition. The &lt;code>from&lt;/code> field should start from the current day + previous &lt;code>index.period&lt;/code> and should not overlap with the current index. The &lt;code>prefix&lt;/code> also should be different.&lt;/strong>&lt;/p>
+&lt;pre tabindex="0">&lt;code> schema_config:
+configs:
+- from: 2018-04-15
+store: boltdb
+object_store: filesystem
+schema: v11
+index:
+prefix: index_
+period: 24h
+- from: 2020-06-18
+store: boltdb
+object_store: filesystem
+schema: v11
+index:
+prefix: index_new_
+period: 24h
+&lt;/code>&lt;/pre>&lt;ul>
+&lt;li>chunk_store_config Configuration&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code> chunk_store_config:
+max_look_back_period: 336h
+&lt;/code>&lt;/pre>&lt;p>&lt;strong>&lt;code>chunk_store_config.max_look_back_period&lt;/code> should be the same as the &lt;code>retention_period&lt;/code>&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>table_manager Configuration&lt;/li>
+&lt;/ul>
+&lt;pre tabindex="0">&lt;code> table_manager:
+retention_deletes_enabled: true
+retention_period: 336h
+&lt;/code>&lt;/pre>&lt;p>&lt;code>table_manager.retention_period&lt;/code> is the living time for each log message. Vali will keep messages for (&lt;code>table_manager.retention_period&lt;/code> - &lt;code>index.period&lt;/code>) time due to specification in the Vali implementation.&lt;/p>
+&lt;h3 id="plutono">Plutono&lt;/h3>
+&lt;p>This is the Vali configuration that Plutono uses:&lt;/p>
+&lt;pre tabindex="0">&lt;code> - name: vali
+type: vali
+access: proxy
+url: http://logging.{{ .Release.Namespace }}.svc:3100
+jsonData:
+maxLines: 5000
+&lt;/code>&lt;/pre>&lt;ul>
+&lt;li>&lt;code>name&lt;/code>: Is the name of the datasource.&lt;/li>
+&lt;li>&lt;code>type&lt;/code>: Is the type of the datasource.&lt;/li>
+&lt;li>&lt;code>access&lt;/code>: Should be set to proxy.&lt;/li>
+&lt;li>&lt;code>url&lt;/code>: Vali&amp;rsquo;s url&lt;/li>
+&lt;li>&lt;code>svc&lt;/code>: Vali&amp;rsquo;s port&lt;/li>
+&lt;li>&lt;code>jsonData.maxLines&lt;/code>: The limit of the log messages which Plutono will show to the users.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>Decrease this value if the browser works slowly!&lt;/strong>&lt;/p></description></item></channel></rss>

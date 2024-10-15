@@ -1,0 +1,417 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Networking</title><link>https://gardener.cloud/docs/gardener/networking/</link><description>Recent content in Networking on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/networking/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Custom DNS Configuration</title><link>https://gardener.cloud/docs/gardener/networking/custom-dns-config/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/custom-dns-config/</guid><description>
+&lt;h1 id="custom-dns-configuration">Custom DNS Configuration&lt;/h1>
+&lt;p>Gardener provides Kubernetes-Clusters-As-A-Service where all the system components (e.g., kube-proxy, networking, dns) are managed.
+As a result, Gardener needs to ensure and auto-correct additional configuration to those system components to avoid unnecessary down-time.&lt;/p>
+&lt;p>In some cases, auto-correcting system components can prevent users from deploying applications on top of the cluster that requires bits of customization, DNS configuration can be a good example.&lt;/p>
+&lt;p>To allow for customizations for DNS configuration (that could potentially lead to downtime) while having the option to &amp;ldquo;undo&amp;rdquo;, we utilize the &lt;code>import&lt;/code> plugin from CoreDNS [1].
+which enables in-line configuration changes.&lt;/p>
+&lt;h2 id="how-to-use">How to use&lt;/h2>
+&lt;p>To customize your CoreDNS cluster config, you can simply edit a &lt;code>ConfigMap&lt;/code> named &lt;code>coredns-custom&lt;/code> in the &lt;code>kube-system&lt;/code> namespace.
+By editing, this &lt;code>ConfigMap&lt;/code>, you are modifying CoreDNS configuration, therefore care is advised.&lt;/p>
+&lt;p>For example, to apply new config to CoreDNS that would point all &lt;code>.global&lt;/code> DNS requests to another DNS pod, simply edit the configuration as follows:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: coredns-custom
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: kube-system
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> istio.server: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> global:8053 {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> errors
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> cache 30
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> forward . 1.2.3.4
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> }&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> corefile.override: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> # &amp;lt;some-plugin&amp;gt; &amp;lt;some-plugin-config&amp;gt;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> debug
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> whoami&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The port number 8053 in &lt;code>global:8053&lt;/code> is the specific port that CoreDNS is bound to and cannot be changed to any other port if it should act on ordinary name resolution requests from pods. Otherwise, CoreDNS will open a second port, but you are responsible to direct the traffic to this port. &lt;code>kube-dns&lt;/code> service in &lt;code>kube-system&lt;/code> namespace will direct name resolution requests within the cluster to port 8053 on the CoreDNS pods.
+Moreover, additional network policies are needed to allow corresponding ingress traffic to CoreDNS pods.
+In order for the destination DNS server to be reachable, it must listen on port 53 as it is required by network policies. Other ports are only possible if additional network policies allow corresponding egress traffic from CoreDNS pods.&lt;/p>
+&lt;p>It is important to have the &lt;code>ConfigMap&lt;/code> keys ending with &lt;code>*.server&lt;/code> (if you would like to add a new server) or &lt;code>*.override&lt;/code>
+if you want to customize the current server configuration (it is optional setting both).&lt;/p>
+&lt;h2 id="optional-reload-coredns">[Optional] Reload CoreDNS&lt;/h2>
+&lt;p>As Gardener is configuring the &lt;code>reload&lt;/code> &lt;a href="https://coredns.io/plugins/reload/">plugin&lt;/a> of CoreDNS a restart of the CoreDNS components is typically not necessary to propagate &lt;code>ConfigMap&lt;/code> changes. However, if you don&amp;rsquo;t want to wait for the default (30s) to kick in, you can roll-out your CoreDNS deployment using:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n kube-system rollout restart deploy coredns
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will reload the config into CoreDNS.&lt;/p>
+&lt;p>The approach we follow here was inspired by AKS&amp;rsquo;s approach [2].&lt;/p>
+&lt;h2 id="anti-pattern">Anti-Pattern&lt;/h2>
+&lt;p>Applying a configuration that is in-compatible with the running version of CoreDNS is an anti-pattern (sometimes plugin configuration changes,
+simply applying a configuration can break DNS).&lt;/p>
+&lt;p>If incompatible changes are applied by mistake, simply delete the content of the &lt;code>ConfigMap&lt;/code> and re-apply.
+This should bring the cluster DNS back to functioning state.&lt;/p>
+&lt;h2 id="node-local-dns">Node Local DNS&lt;/h2>
+&lt;p>Custom DNS configuration] may not work as expected in conjunction with &lt;code>NodeLocalDNS&lt;/code>.
+With &lt;code>NodeLocalDNS&lt;/code>, ordinary DNS queries targeted at the upstream DNS servers, i.e. non-kubernetes domains,
+will not end up at CoreDNS, but will instead be directly sent to the upstream DNS server. Therefore, configuration
+applying to non-kubernetes entities, e.g. the &lt;code>istio.server&lt;/code> block in the
+&lt;a href="https://gardener.cloud/docs/gardener/networking/custom-dns-config/">custom DNS configuration&lt;/a> example, may not have any effect with &lt;code>NodeLocalDNS&lt;/code> enabled.
+If this kind of custom configuration is required, forwarding to upstream DNS has to be disabled.
+This can be done by setting the option (&lt;code>spec.systemComponents.nodeLocalDNS.disableForwardToUpstreamDNS&lt;/code>) in the &lt;code>Shoot&lt;/code> resource to &lt;code>true&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> systemComponents:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeLocalDNS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> disableForwardToUpstreamDNS: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="references">References&lt;/h2>
+&lt;p>[1] &lt;a href="https://github.com/coredns/coredns/tree/master/plugin/import">Import plugin&lt;/a>
+[2] &lt;a href="https://docs.microsoft.com/en-us/azure/aks/coredns-custom">AKS Custom DNS&lt;/a>&lt;/p></description></item><item><title>Docs: DNS Search Path Optimization</title><link>https://gardener.cloud/docs/gardener/networking/dns-search-path-optimization/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/dns-search-path-optimization/</guid><description>
+&lt;h1 id="dns-search-path-optimization">DNS Search Path Optimization&lt;/h1>
+&lt;h2 id="dns-search-path">DNS Search Path&lt;/h2>
+&lt;p>Using fully qualified names has some downsides, e.g., it may become harder to move deployments from one landscape to the
+next. It is far easier and simple to rely on short/local names, which may have different meaning depending on the context
+they are used in.&lt;/p>
+&lt;p>The DNS search path allows for the usage of short/local names. It is an ordered list of DNS suffixes to append to short/local
+names to create a fully qualified name.&lt;/p>
+&lt;p>If a short/local name should be resolved, each entry is appended to it one by one to check whether it can be resolved. The
+process stops when either the name could be resolved or the DNS search path ends. As the last step after trying the search
+path, the short/local name is attempted to be resolved on it own.&lt;/p>
+&lt;h2 id="dns-option-ndots">DNS Option &lt;code>ndots&lt;/code>&lt;/h2>
+&lt;p>As explained in the &lt;a href="https://gardener.cloud/docs/gardener/networking/dns-search-path-optimization/#dns-search-path">section above&lt;/a>, the DNS search path is used for short/local names to create fully
+qualified names. The DNS option &lt;code>ndots&lt;/code> specifies how many dots (&lt;code>.&lt;/code>) a name needs to have to be considered fully qualified.
+For names with less than &lt;code>ndots&lt;/code> dots (&lt;code>.&lt;/code>), the &lt;a href="https://gardener.cloud/docs/gardener/networking/dns-search-path-optimization/#dns-search-path">DNS search path&lt;/a> will be applied.&lt;/p>
+&lt;h2 id="dns-search-path-ndots-and-kubernetes">DNS Search Path, &lt;code>ndots&lt;/code>, and Kubernetes&lt;/h2>
+&lt;p>Kubernetes tries to make it easy/convenient for developers to use name resolution. It provides several means to address a
+service, most notably by its name directly, using the namespace as suffix, utilizing &lt;code>&amp;lt;namespace&amp;gt;.svc&lt;/code> as suffix or as a
+fully qualified name as &lt;code>&amp;lt;service&amp;gt;.&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code> (assuming &lt;code>cluster.local&lt;/code> to be the cluster domain).&lt;/p>
+&lt;p>This is why the DNS search path is fairly long in Kubernetes, usually consisting of &lt;code>&amp;lt;namespace&amp;gt;.svc.cluster.local&lt;/code>,
+&lt;code>svc.cluster.local&lt;/code>, &lt;code>cluster.local&lt;/code>, and potentially some additional entries coming from the local network of the cluster.
+For various reasons, the default &lt;code>ndots&lt;/code> value in the context of Kubernetes is with &lt;code>5&lt;/code>, also fairly large. See
+&lt;a href="https://github.com/kubernetes/kubernetes/issues/33554#issuecomment-266251056">this comment&lt;/a> for a more detailed description.&lt;/p>
+&lt;h2 id="dns-search-pathndots-problem-in-kubernetes">DNS Search Path/&lt;code>ndots&lt;/code> Problem in Kubernetes&lt;/h2>
+&lt;p>As the DNS search path is long and &lt;code>ndots&lt;/code> is large, a lot of DNS queries might traverse the DNS search path. This results
+in an explosion of DNS requests.&lt;/p>
+&lt;p>For example, consider the name resolution of the default kubernetes service &lt;code>kubernetes.default.svc.cluster.local&lt;/code>. As this
+name has only four dots, it is not considered a fully qualified name according to the default &lt;code>ndots=5&lt;/code> setting. Therefore,
+the DNS search path is applied, resulting in the following queries being created&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.some-namespace.svc.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.svc.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.cluster.local&lt;/code>&lt;/li>
+&lt;li>&lt;code>kubernetes.default.svc.cluster.local.network-domain&lt;/code>&lt;/li>
+&lt;li>&amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>In IPv4/IPv6 dual stack systems, the amount of DNS requests may even double as each name is resolved for IPv4 and IPv6.&lt;/p>
+&lt;h2 id="general-workaroundsmitigations">General Workarounds/Mitigations&lt;/h2>
+&lt;p>Kubernetes provides the capability to set the DNS options for each pod (see
+&lt;a href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config">Pod DNS config&lt;/a> for details).
+However, this has to be applied for every pod (doing name resolution) to resolve the problem. A mutating webhook may be
+useful in this regard. Unfortunately, the DNS requirements may be different depending on the workload. Therefore, a general
+solution may difficult to impossible.&lt;/p>
+&lt;p>Another approach is to use always fully qualified names and append a dot (&lt;code>.&lt;/code>) to the name to prevent the name resolution
+system from using the DNS search path. This might be somewhat counterintuitive as most developers are not used to the
+trailing dot (&lt;code>.&lt;/code>). Furthermore, it makes moving to different landscapes more difficult/error-prone.&lt;/p>
+&lt;h2 id="gardener-specific-workaroundsmitigations">Gardener Specific Workarounds/Mitigations&lt;/h2>
+&lt;p>Gardener allows users to &lt;a href="https://gardener.cloud/docs/gardener/networking/custom-dns-config/">customize their DNS configuration&lt;/a>. CoreDNS allows several approaches to deal with
+the requests generated by the DNS search path. &lt;a href="https://coredns.io/plugins/cache/">Caching&lt;/a> is possible as well as
+&lt;a href="https://coredns.io/plugins/rewrite/">query rewriting&lt;/a>. There are also several other &lt;a href="https://coredns.io/plugins/">plugins&lt;/a>
+available, which may mitigate the situation.&lt;/p>
+&lt;h2 id="gardener-dns-query-rewriting">Gardener DNS Query Rewriting&lt;/h2>
+&lt;p>As explained &lt;a href="https://gardener.cloud/docs/gardener/networking/dns-search-path-optimization/#dns-search-path-ndots-and-kubernetes">above&lt;/a>, the application of the DNS search path may lead to the undesired
+creation of DNS requests. Especially with the default setting of &lt;code>ndots=5&lt;/code>, seemingly fully qualified names pointing to
+services in the cluster may trigger the DNS search path application.&lt;/p>
+&lt;p>Gardener allows to automatically rewrite some obviously incorrect DNS names, which stem from an application of the DNS search
+path to the most likely desired name. This will automatically rewrite requests like &lt;code>service.namespace.svc.cluster.local.svc.cluster.local&lt;/code> to
+&lt;code>service.namespace.svc.cluster.local&lt;/code>.&lt;/p>
+&lt;p>In case the applications also target services for name resolution, which are outside of the cluster and have less than &lt;code>ndots&lt;/code> dots,
+it might be helpful to prevent search path application for them as well. One way to achieve it is by adding them to the
+&lt;code>commonSuffixes&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> systemComponents:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> coreDNS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rewriting:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> commonSuffixes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - gardener.cloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - example.com
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>DNS requests containing a common suffix and ending in &lt;code>.svc.cluster.local&lt;/code> are assumed to be incorrect application of the DNS
+search path. Therefore, they are rewritten to everything ending in the common suffix. For example, &lt;code>www.gardener.cloud.svc.cluster.local&lt;/code>
+would be rewritten to &lt;code>www.gardener.cloud&lt;/code>.&lt;/p>
+&lt;p>Please note that the common suffixes should be long enough and include enough dots (&lt;code>.&lt;/code>) to prevent random overlap with
+other DNS queries. For example, it would be a bad idea to simply put &lt;code>com&lt;/code> on the list of common suffixes, as there may be
+services/namespaces which have &lt;code>com&lt;/code> as part of their name. The effect would be seemingly random DNS requests. Gardener
+requires that common suffixes contain at least one dot (.) and adds a second dot at the beginning. For instance, a common
+suffix of &lt;code>example.com&lt;/code> in the configuration would match &lt;code>*.example.com&lt;/code>.&lt;/p>
+&lt;p>Since some clients verify the host in the response of a DNS query, the host must also be rewritten.
+For that reason, we can&amp;rsquo;t rewrite a query for &lt;code>service.dst-namespace.svc.cluster.local.src-namespace.svc.cluster.local&lt;/code> or
+&lt;code>www.example.com.src-namespace.svc.cluster.local&lt;/code>, as for an answer rewrite &lt;code>src-namespace&lt;/code> would not be known.&lt;/p></description></item><item><title>Docs: ExposureClasses</title><link>https://gardener.cloud/docs/gardener/networking/exposureclasses/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/exposureclasses/</guid><description>
+&lt;h1 id="exposureclasses">ExposureClasses&lt;/h1>
+&lt;p>The Gardener API server provides a cluster-scoped &lt;code>ExposureClass&lt;/code> resource.
+This resource is used to allow exposing the control plane of a Shoot cluster in various network environments like restricted corporate networks, DMZ, etc.&lt;/p>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>The &lt;code>ExposureClass&lt;/code> resource is based on the concept for the &lt;code>RuntimeClass&lt;/code> resource in Kubernetes.&lt;/p>
+&lt;p>A &lt;code>RuntimeClass&lt;/code> abstracts the installation of a certain container runtime (e.g., gVisor, Kata Containers) on all nodes or a subset of the nodes in a Kubernetes cluster.
+See &lt;a href="https://kubernetes.io/docs/concepts/containers/runtime-class/">Runtime Class&lt;/a> for more information.&lt;/p>
+&lt;p>In contrast, an &lt;code>ExposureClass&lt;/code> abstracts the ability to expose a Shoot clusters control plane in certain network environments (e.g., corporate networks, DMZ, internet) on all Seeds or a subset of the Seeds.&lt;/p>
+&lt;p>Example: &lt;code>RuntimeClass&lt;/code> and &lt;code>ExposureClass&lt;/code>&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: node.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RuntimeClass
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: gvisor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>handler: gvisorconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># scheduling:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># nodeSelector:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># env: prod&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ExposureClass
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: internet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>handler: internet-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># scheduling:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># seedSelector:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># matchLabels:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#008000"># network/env: internet&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Similar to &lt;code>RuntimeClasses&lt;/code>, &lt;code>ExposureClasses&lt;/code> also define a &lt;code>.handler&lt;/code> field reflecting the name reference for the corresponding CRI configuration of the &lt;code>RuntimeClass&lt;/code> and the control plane exposure configuration for the &lt;code>ExposureClass&lt;/code>.&lt;/p>
+&lt;p>The CRI handler for &lt;code>RuntimeClasses&lt;/code> is usually installed by an administrator (e.g., via a &lt;code>DaemonSet&lt;/code> which installs the corresponding container runtime on the nodes).
+The control plane exposure configuration for &lt;code>ExposureClasses&lt;/code> will be also provided by an administrator.
+This exposure configuration is part of the gardenlet configuration, as this component is responsible to configure the control plane accordingly.
+See the &lt;a href="https://gardener.cloud/docs/gardener/networking/exposureclasses/#gardenlet-configuration-exposureclass-handlers">gardenlet Configuration &lt;code>ExposureClass&lt;/code> Handlers&lt;/a> section for more information.&lt;/p>
+&lt;p>The &lt;code>RuntimeClass&lt;/code> also supports the selection of a node subset (which have the respective controller runtime binaries installed) for pod scheduling via its &lt;code>.scheduling&lt;/code> section.
+The &lt;code>ExposureClass&lt;/code> also supports the selection of a subset of available Seed clusters whose gardenlet is capable of applying the exposure configuration for the Shoot control plane accordingly via its &lt;code>.scheduling&lt;/code> section.&lt;/p>
+&lt;h2 id="usage-by-a-shoot">Usage by a &lt;code>Shoot&lt;/code>&lt;/h2>
+&lt;p>A &lt;code>Shoot&lt;/code> can reference an &lt;code>ExposureClass&lt;/code> via the &lt;code>.spec.exposureClassName&lt;/code> field.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ When creating a &lt;code>Shoot&lt;/code> resource, the Gardener scheduler will try to assign the &lt;code>Shoot&lt;/code> to a &lt;code>Seed&lt;/code> which will host its control plane.&lt;/p>
+&lt;/blockquote>
+&lt;p>The scheduling behaviour can be influenced via the &lt;code>.spec.seedSelectors&lt;/code> and/or &lt;code>.spec.tolerations&lt;/code> fields in the &lt;code>Shoot&lt;/code>.
+&lt;code>ExposureClass&lt;/code>es can also contain scheduling instructions.
+If a &lt;code>Shoot&lt;/code> is referencing an &lt;code>ExposureClass&lt;/code>, then the scheduling instructions of both will be merged into the &lt;code>Shoot&lt;/code>.
+Those unions of scheduling instructions might lead to a selection of a &lt;code>Seed&lt;/code> which is not able to deal with the &lt;code>handler&lt;/code> of the &lt;code>ExposureClass&lt;/code> and the &lt;code>Shoot&lt;/code> creation might end up in an error.
+In such case, the &lt;code>Shoot&lt;/code> scheduling instructions should be revisited to check that they are not interfering with the ones from the &lt;code>ExposureClass&lt;/code>.
+If this is not feasible, then the combination with the &lt;code>ExposureClass&lt;/code> might not be possible and you need to contact your Gardener administrator.&lt;/p>
+&lt;details>
+&lt;summary>Example: Shoot and ExposureClass scheduling instructions merge flow&lt;/summary>
+&lt;ol>
+&lt;li>Assuming there is the following &lt;code>Shoot&lt;/code> which is referencing the &lt;code>ExposureClass&lt;/code> below:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exposureClassName: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seedSelectors:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> env: prod
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ExposureClass
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>handler: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>scheduling:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seedSelector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> network: internal
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="2">
+&lt;li>Both &lt;code>seedSelectors&lt;/code> would be merged into the &lt;code>Shoot&lt;/code>. The result would be the following:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exposureClassName: abc
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> seedSelectors:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> env: prod
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> network: internal
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>Now the Gardener Scheduler would try to find a &lt;code>Seed&lt;/code> with those labels.&lt;/li>
+&lt;/ol>
+&lt;ul>
+&lt;li>If there are &lt;strong>no&lt;/strong> Seeds with matching labels for the seed selector, then the &lt;code>Shoot&lt;/code> will be unschedulable.&lt;/li>
+&lt;li>If there are Seeds with matching labels for the seed selector, then the Shoot will be assigned to the best candidate after the scheduling strategy is applied, see &lt;a href="https://gardener.cloud/docs/gardener/concepts/scheduler/#algorithm-overview">Gardener Scheduler&lt;/a>.
+&lt;ul>
+&lt;li>If the &lt;code>Seed&lt;/code> is &lt;strong>not&lt;/strong> able to serve the &lt;code>ExposureClass&lt;/code> handler &lt;code>abc&lt;/code>, then the Shoot will end up in error state.&lt;/li>
+&lt;li>If the &lt;code>Seed&lt;/code> is able to serve the &lt;code>ExposureClass&lt;/code> handler &lt;code>abc&lt;/code>, then the &lt;code>Shoot&lt;/code> will be created.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/details>
+&lt;h2 id="gardenlet-configuration-exposureclass-handlers">gardenlet Configuration &lt;code>ExposureClass&lt;/code> Handlers&lt;/h2>
+&lt;p>The gardenlet is responsible to realize the control plane exposure strategy defined in the referenced &lt;code>ExposureClass&lt;/code> of a &lt;code>Shoot&lt;/code>.&lt;/p>
+&lt;p>Therefore, the &lt;code>GardenletConfiguration&lt;/code> can contain an &lt;code>.exposureClassHandlers&lt;/code> list with the respective configuration.&lt;/p>
+&lt;p>Example of the &lt;code>GardenletConfiguration&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>exposureClassHandlers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: internet-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerService:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadbalancer/network: internet
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- name: internal-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadBalancerService:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> loadbalancer/network: internal
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sni:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ingress:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: ingress-internal
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> network: internal
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Each gardenlet can define how the handler of a certain &lt;code>ExposureClass&lt;/code> needs to be implemented for the Seed(s) where it is responsible for.&lt;/p>
+&lt;p>The &lt;code>.name&lt;/code> is the name of the handler config and it must match to the &lt;code>.handler&lt;/code> in the &lt;code>ExposureClass&lt;/code>.&lt;/p>
+&lt;p>All control planes on a &lt;code>Seed&lt;/code> are exposed via a load balancer, either a dedicated one or a central shared one.
+The load balancer service needs to be configured in a way that it is reachable from the target network environment.
+Therefore, the configuration of load balancer service need to be specified, which can be done via the &lt;code>.loadBalancerService&lt;/code> section.
+The common way to influence load balancer service behaviour is via annotations where the respective cloud-controller-manager will react on and configure the infrastructure load balancer accordingly.&lt;/p>
+&lt;p>The control planes on a &lt;code>Seed&lt;/code> will be exposed via a central load balancer and with Envoy via TLS SNI passthrough proxy.
+In this case, the gardenlet will install a dedicated ingress gateway (Envoy + load balancer + respective configuration) for each handler on the &lt;code>Seed&lt;/code>.
+The configuration of the ingress gateways can be controlled via the &lt;code>.sni&lt;/code> section in the same way like for the default ingress gateways.&lt;/p></description></item><item><title>Docs: KUBERNETES_SERVICE_HOST Environment Variable Injection</title><link>https://gardener.cloud/docs/gardener/networking/shoot_kubernetes_service_host_injection/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/shoot_kubernetes_service_host_injection/</guid><description>
+&lt;h1 id="kubernetes_service_host-environment-variable-injection">&lt;code>KUBERNETES_SERVICE_HOST&lt;/code> Environment Variable Injection&lt;/h1>
+&lt;p>In each Shoot cluster&amp;rsquo;s &lt;code>kube-system&lt;/code> namespace a &lt;code>DaemonSet&lt;/code> called &lt;code>apiserver-proxy&lt;/code> is deployed. It routes traffic to the upstream Shoot Kube APIServer. See the &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/08-shoot-apiserver-via-sni.md">APIServer SNI GEP&lt;/a> for more details.&lt;/p>
+&lt;p>To skip this extra network hop, a &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#mutatingadmissionwebhook">mutating webhook&lt;/a> called &lt;code>apiserver-proxy.networking.gardener.cloud&lt;/code> is deployed next to the API server in the Seed. It adds a &lt;code>KUBERNETES_SERVICE_HOST&lt;/code> environment variable to each container and init container that do not specify it. See the webhook &lt;a href="https://github.com/gardener/apiserver-proxy/">repository&lt;/a> for more information.&lt;/p>
+&lt;h2 id="opt-out-of-pod-injection">Opt-Out of Pod Injection&lt;/h2>
+&lt;p>In some cases it&amp;rsquo;s desirable to opt-out of Pod injection:&lt;/p>
+&lt;ul>
+&lt;li>DNS is disabled on that individual Pod, but it still needs to talk to the kube-apiserver.&lt;/li>
+&lt;li>Want to test the &lt;code>kube-proxy&lt;/code> and &lt;code>kubelet&lt;/code> in-cluster discovery.&lt;/li>
+&lt;/ul>
+&lt;h3 id="opt-out-of-pod-injection-for-specific-pods">Opt-Out of Pod Injection for Specific Pods&lt;/h3>
+&lt;p>To opt out of the injection, the Pod should be labeled with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: apps/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Deployment
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> replicas: 1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> selector:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> matchLabels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> template:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> app: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> containers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: nginx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> image: nginx:1.14.2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ports:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - containerPort: 80
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="opt-out-of-pod-injection-on-namespace-level">Opt-Out of Pod Injection on Namespace Level&lt;/h3>
+&lt;p>To opt out of the injection of &lt;strong>all&lt;/strong> Pods in a namespace, you should label your namespace with &lt;code>apiserver-proxy.networking.gardener.cloud/inject: disable&lt;/code>, e.g.:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Namespace
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> labels:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiserver-proxy.networking.gardener.cloud/inject: disable
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-namespace
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing namespace:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label namespace my-namespace apiserver-proxy.networking.gardener.cloud/inject=disable
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a namespace level and enable it for individual pods in it.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="opt-out-of-pod-injection-for-the-entire-cluster">Opt-Out of Pod Injection for the Entire Cluster&lt;/h3>
+&lt;p>If the injection is causing problems for different workloads and ignoring individual pods or namespaces is not possible, then the feature could be disabled for the entire cluster with the &lt;code>alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector&lt;/code> annotation with value &lt;code>disable&lt;/code> on the &lt;code>Shoot&lt;/code> resource itself:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector: &lt;span style="color:#a31515">&amp;#39;disable&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: my-cluster
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>or via &lt;code>kubectl&lt;/code> for existing shoot cluster:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-console" data-lang="console">&lt;span style="display:flex;">&lt;span>kubectl label shoot my-cluster alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector=disable
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> Please be aware that it&amp;rsquo;s not possible to disable injection on a cluster level and enable it for individual pods in it.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: NodeLocalDNS Configuration</title><link>https://gardener.cloud/docs/gardener/networking/node-local-dns/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/node-local-dns/</guid><description>
+&lt;h1 id="nodelocaldns-configuration">NodeLocalDNS Configuration&lt;/h1>
+&lt;p>This is a short guide describing how to enable DNS caching on the shoot cluster nodes.&lt;/p>
+&lt;h2 id="background">Background&lt;/h2>
+&lt;p>Currently in Gardener we are using CoreDNS as a deployment that is auto-scaled horizontally to cover for QPS-intensive applications. However, doing so does not seem to be enough to completely circumvent DNS bottlenecks such as:&lt;/p>
+&lt;ul>
+&lt;li>Cloud provider limits for DNS lookups.&lt;/li>
+&lt;li>Unreliable UDP connections that forces a period of timeout in case packets are dropped.&lt;/li>
+&lt;li>Unnecessary node hopping since CoreDNS is not deployed on all nodes, and as a result DNS queries end-up traversing multiple nodes before reaching the destination server.&lt;/li>
+&lt;li>Inefficient load-balancing of services (e.g., round-robin might not be enough when using IPTables mode)&lt;/li>
+&lt;li>and more &amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>To workaround the issues described above, &lt;code>node-local-dns&lt;/code> was introduced. The architecture is described below. The idea is simple:&lt;/p>
+&lt;ul>
+&lt;li>For new queries, the connection is upgraded from UDP to TCP and forwarded towards the cluster IP for the original CoreDNS server.&lt;/li>
+&lt;li>For previously resolved queries, an immediate response from the same node where the requester workload / pod resides is provided.&lt;/li>
+&lt;/ul>
+&lt;p>&lt;img src="https://gardener.cloud/__resources/node-local-dns_741b99.png" alt="node-local-dns-architecture">&lt;/p>
+&lt;h2 id="configuring-nodelocaldns">Configuring NodeLocalDNS&lt;/h2>
+&lt;p>All that needs to be done to enable the usage of the &lt;code>node-local-dns&lt;/code> feature is to set the corresponding option (&lt;code>spec.systemComponents.nodeLocalDNS.enabled&lt;/code>) in the &lt;code>Shoot&lt;/code> resource to &lt;code>true&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> systemComponents:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeLocalDNS:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> enabled: &lt;span style="color:#00f">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It is worth noting that:&lt;/p>
+&lt;ul>
+&lt;li>When migrating from IPVS to IPTables, existing pods will continue to leverage the node-local-dns cache.&lt;/li>
+&lt;li>When migrating from IPtables to IPVS, only newer pods will be switched to the node-local-dns cache.&lt;/li>
+&lt;li>During the reconfiguration of the node-local-dns there might be a short disruption in terms of domain name resolution depending on the setup. Usually, DNS requests are repeated for some time as UDP is an unreliable protocol, but that strictly depends on the application/way the domain name resolution happens. It is recommended to let the shoot be reconciled during the next maintenance period.&lt;/li>
+&lt;li>Enabling or disabling node-local-dns triggers a rollout of all shoot worker nodes, see also &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_updates/#rolling-update-triggers">this document&lt;/a>.&lt;/li>
+&lt;/ul>
+&lt;p>For more information about &lt;code>node-local-dns&lt;/code>, please refer to the &lt;a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-network/1024-nodelocal-cache-dns/README.md">KEP&lt;/a> or to the &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/">usage documentation&lt;/a>.&lt;/p>
+&lt;h2 id="known-issues">Known Issues&lt;/h2>
+&lt;p>Custom DNS configuration may not work as expected in conjunction with &lt;code>NodeLocalDNS&lt;/code>.
+Please refer to &lt;a href="https://gardener.cloud/docs/gardener/networking/custom-dns-config/#node-local-dns">Custom DNS Configuration&lt;/a>.&lt;/p></description></item><item><title>Docs: Shoot Networking Configurations</title><link>https://gardener.cloud/docs/gardener/networking/shoot_networking/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/networking/shoot_networking/</guid><description>
+&lt;h1 id="shoot-networking-configurations">Shoot Networking Configurations&lt;/h1>
+&lt;p>This document contains network related information for Shoot clusters.&lt;/p>
+&lt;h2 id="pod-network">Pod Network&lt;/h2>
+&lt;p>A Pod network is imperative for any kind of cluster communication with Pods not started within the Node&amp;rsquo;s host network.
+More information about the Kubernetes network model can be found in the &lt;a href="https://kubernetes.io/docs/concepts/cluster-administration/networking/">Cluster Networking&lt;/a> topic.&lt;/p>
+&lt;p>Gardener allows users to configure the Pod network&amp;rsquo;s CIDR during Shoot creation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type: &amp;lt;some-network-extension-name&amp;gt; &lt;span style="color:#008000"># {calico,cilium}&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> pods: 100.96.0.0/16
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodes: ...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> services: ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>⚠️ The &lt;code>networking.pods&lt;/code> IP configuration is immutable and cannot be changed afterwards.
+Please consider the following paragraph to choose a configuration which will meet your demands.&lt;/p>
+&lt;/blockquote>
+&lt;p>One of the network plugin&amp;rsquo;s (CNI) tasks is to assign IP addresses to Pods started in the Pod network.
+Different network plugins come with different IP address management (IPAM) features, so we can&amp;rsquo;t give any definite advice how IP ranges should be configured.
+Nevertheless, we want to outline the standard configuration.&lt;/p>
+&lt;p>Information in &lt;code>.spec.networking.pods&lt;/code> matches the &lt;a href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/">&amp;ndash;cluster-cidr flag&lt;/a> of the Kube-Controller-Manager of your Shoot cluster.
+This IP range is divided into smaller subnets, also called &lt;code>podCIDRs&lt;/code> (default mask &lt;code>/24&lt;/code>) and assigned to Node objects &lt;code>.spec.podCIDR&lt;/code>.
+Pods get their IP address from this smaller node subnet in a default IPAM setup.
+Thus, it must be guaranteed that enough of these subnets can be created for the maximum amount of nodes you expect in the cluster.&lt;/p>
+&lt;p>&lt;em>&lt;strong>Example 1&lt;/strong>&lt;/em>&lt;/p>
+&lt;pre tabindex="0">&lt;code>Pod network: 100.96.0.0/16
+nodeCIDRMaskSize: /24
+-------------------------
+Number of podCIDRs: 256 --&amp;gt; max. Node count
+Number of IPs per podCIDRs: 256
+&lt;/code>&lt;/pre>&lt;p>With the configuration above a Shoot cluster can at most have &lt;strong>256 nodes&lt;/strong> which are ready to run workload in the Pod network.&lt;/p>
+&lt;p>&lt;em>&lt;strong>Example 2&lt;/strong>&lt;/em>&lt;/p>
+&lt;pre tabindex="0">&lt;code>Pod network: 100.96.0.0/20
+nodeCIDRMaskSize: /24
+-------------------------
+Number of podCIDRs: 16 --&amp;gt; max. Node count
+Number of IPs per podCIDRs: 256
+&lt;/code>&lt;/pre>&lt;p>With the configuration above a Shoot cluster can at most have &lt;strong>16 nodes&lt;/strong> which are ready to run workload in the Pod network.&lt;/p>
+&lt;p>Beside the configuration in &lt;code>.spec.networking.pods&lt;/code>, users can tune the &lt;code>nodeCIDRMaskSize&lt;/code> used by Kube-Controller-Manager on shoot creation.
+A smaller IP range per node means more &lt;code>podCIDRs&lt;/code> and thus the ability to provision more nodes in the cluster, but less available IPs for Pods running on each of the nodes.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeControllerManager:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> nodeCIDRMaskSize: 24 (default)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>⚠️ The &lt;code>nodeCIDRMaskSize&lt;/code> configuration is immutable and cannot be changed afterwards.&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;em>&lt;strong>Example 3&lt;/strong>&lt;/em>&lt;/p>
+&lt;pre tabindex="0">&lt;code>Pod network: 100.96.0.0/20
+nodeCIDRMaskSize: /25
+-------------------------
+Number of podCIDRs: 32 --&amp;gt; max. Node count
+Number of IPs per podCIDRs: 128
+&lt;/code>&lt;/pre>&lt;p>With the configuration above, a Shoot cluster can at most have &lt;strong>32 nodes&lt;/strong> which are ready to run workload in the Pod network.&lt;/p></description></item></channel></rss>

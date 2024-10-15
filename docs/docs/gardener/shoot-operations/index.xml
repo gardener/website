@@ -1,0 +1,550 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Shoot Operations</title><link>https://gardener.cloud/docs/gardener/shoot-operations/</link><description>Recent content in Shoot Operations on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/shoot-operations/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Controlling the Kubernetes Versions for Specific Worker Pools</title><link>https://gardener.cloud/docs/gardener/shoot-operations/worker_pool_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/worker_pool_k8s_versions/</guid><description>
+&lt;h1 id="controlling-the-kubernetes-versions-for-specific-worker-pools">Controlling the Kubernetes Versions for Specific Worker Pools&lt;/h1>
+&lt;p>Since Gardener &lt;code>v1.36&lt;/code>, worker pools can have different Kubernetes versions specified than the control plane.&lt;/p>
+&lt;p>In earlier Gardener versions, all worker pools inherited the Kubernetes version of the control plane. Once the Kubernetes version of the control plane was modified, all worker pools have been updated as well (either by rolling the nodes in case of a minor version change, or in-place for patch version changes).&lt;/p>
+&lt;p>In order to gracefully perform Kubernetes upgrades (triggering a rolling update of the nodes) with workloads sensitive to restarts (e.g., those dealing with lots of data), it might be required to be able to gradually perform the upgrade process.
+In such cases, the Kubernetes version for the worker pools can be pinned (&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code>) while the control plane Kubernetes version (&lt;code>.spec.kubernetes.version&lt;/code>) is updated.
+This results in the nodes being untouched while the control plane is upgraded.
+Now a new worker pool (with the version equal to the control plane version) can be added.
+Administrators can then reschedule their workloads to the new worker pool according to their upgrade requirements and processes.&lt;/p>
+&lt;h2 id="example-usage-in-a-shoot">Example Usage in a &lt;code>Shoot&lt;/code>&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.27.4
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> provider:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> workers:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.26.8
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: data2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;ul>
+&lt;li>If &lt;code>.kubernetes.version&lt;/code> is not specified in a worker pool, then the Kubernetes version of the kubelet is inherited from the control plane (&lt;code>.spec.kubernetes.version&lt;/code>), i.e., in the above example, the &lt;code>data2&lt;/code> pool will use &lt;code>1.26.8&lt;/code>.&lt;/li>
+&lt;li>If &lt;code>.kubernetes.version&lt;/code> is specified in a worker pool, then it must meet the following constraints:
+&lt;ul>
+&lt;li>It must be at most two minor versions lower than the control plane version.&lt;/li>
+&lt;li>If it was not specified before, then no downgrade is possible (you cannot set it to &lt;code>1.26.8&lt;/code> while &lt;code>.spec.kubernetes.version&lt;/code> is already &lt;code>1.27.4&lt;/code>). The &amp;ldquo;two minor version skew&amp;rdquo; is only possible if the worker pool version is set to the control plane version and then the control plane was updated gradually by two minor versions.&lt;/li>
+&lt;li>If the version is removed from the worker pool, only one minor version difference is allowed to the control plane (you cannot upgrade a pool from version &lt;code>1.25.0&lt;/code> to &lt;code>1.27.0&lt;/code> in one go).&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>Automatic updates of Kubernetes versions (see &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/#automatic-version-updates">Shoot Maintenance&lt;/a>) also apply to worker pool Kubernetes versions.&lt;/p></description></item><item><title>Docs: Shoot Credentials Rotation</title><link>https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/</guid><description>
+&lt;h1 id="credentials-rotation-for-shoot-clusters">Credentials Rotation for Shoot Clusters&lt;/h1>
+&lt;p>There are a lot of different credentials for &lt;code>Shoot&lt;/code>s to make sure that the various components can communicate with each other and to make sure it is usable and operable.&lt;/p>
+&lt;p>This page explains how the varieties of credentials can be rotated so that the cluster can be considered secure.&lt;/p>
+&lt;h2 id="user-provided-credentials">User-Provided Credentials&lt;/h2>
+&lt;h3 id="cloud-provider-keys">Cloud Provider Keys&lt;/h3>
+&lt;p>End-users must provide credentials such that Gardener and Kubernetes controllers can communicate with the respective cloud provider APIs in order to perform infrastructure operations.
+For example, Gardener uses them to setup and maintain the networks, security groups, subnets, etc., while the &lt;a href="https://kubernetes.io/docs/concepts/architecture/cloud-controller/">cloud-controller-manager&lt;/a> uses them to reconcile load balancers and routes, and the &lt;a href="https://kubernetes-csi.github.io/docs/">CSI controller&lt;/a> uses them to reconcile volumes and disks.&lt;/p>
+&lt;p>Depending on the cloud provider, the required &lt;a href="https://github.com/gardener/gardener/blob/master/example/70-secret-provider.yaml">data keys of the &lt;code>Secret&lt;/code> differ&lt;/a>.
+Please consult the documentation of the respective provider extension documentation to get to know the concrete data keys (e.g., &lt;a href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/usage/#provider-secret-data">this document for AWS&lt;/a>).&lt;/p>
+&lt;p>&lt;strong>It is the responsibility of the end-user to regularly rotate those credentials.&lt;/strong>
+The following steps are required to perform the rotation:&lt;/p>
+&lt;ol>
+&lt;li>Update the data in the &lt;code>Secret&lt;/code> with new credentials.&lt;/li>
+&lt;li>⚠️ Wait until all &lt;code>Shoot&lt;/code>s using the &lt;code>Secret&lt;/code> are reconciled before you disable the old credentials in your cloud provider account! Otherwise, the &lt;code>Shoot&lt;/code>s will no longer work as expected. Check out &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#immediate-reconciliation">this document&lt;/a> to learn how to trigger a reconciliation of your &lt;code>Shoot&lt;/code>s.&lt;/li>
+&lt;li>After all &lt;code>Shoot&lt;/code>s using the &lt;code>Secret&lt;/code> were reconciled, you can go ahead and deactivate the old credentials in your provider account.&lt;/li>
+&lt;/ol>
+&lt;h2 id="gardener-provided-credentials">Gardener-Provided Credentials&lt;/h2>
+&lt;p>The below credentials are generated by Gardener when shoot clusters are being created.
+Those include:&lt;/p>
+&lt;ul>
+&lt;li>kubeconfig (if enabled)&lt;/li>
+&lt;li>certificate authorities (and related server and client certificates)&lt;/li>
+&lt;li>observability passwords for Plutono&lt;/li>
+&lt;li>SSH key pair for worker nodes&lt;/li>
+&lt;li>ETCD encryption key&lt;/li>
+&lt;li>&lt;code>ServiceAccount&lt;/code> token signing key&lt;/li>
+&lt;li>&amp;hellip;&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>🚨 There is no auto-rotation of those credentials, and it is the responsibility of the end-user to regularly rotate them.&lt;/strong>&lt;/p>
+&lt;p>While it is possible to rotate them one by one, there is also a convenient method to combine the rotation of all of those credentials.
+The rotation happens in two phases since it might be required to update some API clients (e.g., when CAs are rotated).
+In order to start the rotation (first phase), you have to annotate the shoot with the &lt;code>rotate-credentials-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-credentials-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> You can check the &lt;code>.status.credentials.rotation&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated and last completed.&lt;/p>
+&lt;/blockquote>
+&lt;p>Kindly consider the detailed descriptions below to learn how the rotation is performed and what your responsibilities are.
+Please note that all respective individual actions apply for this combined rotation as well (e.g., worker nodes are rolled out in the first phase).&lt;/p>
+&lt;p>You can complete the rotation (second phase) by annotating the shoot with the &lt;code>rotate-credentials-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-credentials-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="kubeconfig">Kubeconfig&lt;/h3>
+&lt;p>If the &lt;code>.spec.kubernetes.enableStaticTokenKubeconfig&lt;/code> field is set to &lt;code>true&lt;/code> (default), then Gardener generates a &lt;code>kubeconfig&lt;/code> with &lt;code>cluster-admin&lt;/code> privileges for the &lt;code>Shoot&lt;/code>s containing credentials for communication with the &lt;code>kube-apiserver&lt;/code> (see &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#static-token-kubeconfig">this document&lt;/a> for more information).&lt;/p>
+&lt;p>This &lt;code>Secret&lt;/code> is stored with the name &lt;code>&amp;lt;shoot-name&amp;gt;.kubeconfig&lt;/code> in the project namespace in the garden cluster and has multiple data keys:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>kubeconfig&lt;/code>: the completed kubeconfig&lt;/li>
+&lt;li>&lt;code>ca.crt&lt;/code>: the CA bundle for establishing trust to the API server (same as in the &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/#cluster-certificate-authority-bundle">Cluster CA bundle secret&lt;/a>)&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>&lt;code>Shoots&lt;/code> created with Gardener &amp;lt;= 0.28 used to have a &lt;code>kubeconfig&lt;/code> based on a client certificate instead of a static token. With the first kubeconfig rotation, such clusters will get a static token as well.&lt;/p>
+&lt;p>⚠️ This does not invalidate the old client certificate. In order to do this, you should perform a rotation of the CAs (see section below).&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;strong>It is the responsibility of the end-user to regularly rotate those credentials (or disable this &lt;code>kubeconfig&lt;/code> entirely).&lt;/strong>
+In order to rotate the &lt;code>token&lt;/code> in this &lt;code>kubeconfig&lt;/code>, annotate the &lt;code>Shoot&lt;/code> with &lt;code>gardener.cloud/operation=rotate-kubeconfig-credentials&lt;/code>.
+This operation is not allowed for &lt;code>Shoot&lt;/code>s that are already marked for deletion.
+Please note that only the token (and basic auth password, if enabled) are exchanged.
+The CA certificate remains the same (see section below for information about the rotation).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-kubeconfig-credentials
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.kubeconfig&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated and last completed.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="certificate-authorities">Certificate Authorities&lt;/h3>
+&lt;p>Gardener generates several certificate authorities (CAs) to ensure secured communication between the various components and actors.
+Most of those CAs are used for internal communication (e.g., &lt;code>kube-apiserver&lt;/code> talks to etcd, &lt;code>vpn-shoot&lt;/code> talks to the &lt;code>vpn-seed-server&lt;/code>, &lt;code>kubelet&lt;/code> talks to &lt;code>kube-apiserver&lt;/code>).
+However, there is also the &amp;ldquo;cluster CA&amp;rdquo; which is part of all &lt;code>kubeconfig&lt;/code>s and used to sign the server certificate exposed by the &lt;code>kube-apiserver&lt;/code>.&lt;/p>
+&lt;p>Gardener populates a &lt;code>ConfigMap&lt;/code> with the name &lt;code>&amp;lt;shoot-name&amp;gt;.ca-cluster&lt;/code> in the project namespace in the garden cluster which contains the following data keys:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>ca.crt&lt;/code>: the CA bundle of the cluster&lt;/li>
+&lt;/ul>
+&lt;p>This bundle contains one or multiple CAs which are used for signing serving certificates of the &lt;code>Shoot&lt;/code>&amp;rsquo;s API server.
+Hence, the certificates contained in this &lt;code>ConfigMap&lt;/code> can be used to verify the API server&amp;rsquo;s identity when communicating with its public endpoint (e.g., as &lt;code>certificate-authority-data&lt;/code> in a &lt;code>kubeconfig&lt;/code>).
+This is the same certificate that is also contained in the &lt;code>kubeconfig&lt;/code>&amp;rsquo;s &lt;code>certificate-authority-data&lt;/code> field.&lt;/p>
+&lt;blockquote>
+&lt;p>&lt;code>Shoot&lt;/code>s created with Gardener &amp;gt;= v1.45 have a dedicated client CA which verifies the legitimacy of client certificates. For older &lt;code>Shoot&lt;/code>s, the client CA is equal to the cluster CA. With the first CA rotation, such clusters will get a dedicated client CA as well.&lt;/p>
+&lt;/blockquote>
+&lt;p>All of the certificates are valid for 10 years.
+Since it requires adaptation for the consumers of the &lt;code>Shoot&lt;/code>, there is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the CA certificates.&lt;/strong>&lt;/p>
+&lt;p>The rotation happens in three stages (see also &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/18-shoot-CA-rotation.md">GEP-18&lt;/a> for the full details):&lt;/p>
+&lt;ul>
+&lt;li>In stage one, new CAs are created and added to the bundle (together with the old CAs). Client certificates are re-issued immediately.&lt;/li>
+&lt;li>In stage two, end-users update all cluster API clients that communicate with the control plane.&lt;/li>
+&lt;li>In stage three, the old CAs are dropped from the bundle and server certificate are re-issued.&lt;/li>
+&lt;/ul>
+&lt;p>Technically, the &lt;code>Preparing&lt;/code> phase indicates stage one.
+Once it is completed, the &lt;code>Prepared&lt;/code> phase indicates readiness for stage two.
+The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>Completed&lt;/code> phase states that the rotation process has finished.&lt;/p>
+&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.certificateAuthorities&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated, last completed, and in which phase it currently is.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to start the rotation (stage one), you have to annotate the shoot with the &lt;code>rotate-ca-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-ca-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs stage one.
+After it is completed, the &lt;code>.status.credentials.rotation.certificateAuthorities.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.&lt;/p>
+&lt;p>Now you must update all API clients outside the cluster (such as the &lt;code>kubeconfig&lt;/code>s on developer machines) to use the newly issued CA bundle in the &lt;code>&amp;lt;shoot-name&amp;gt;.ca-cluster&lt;/code> &lt;code>ConfigMap&lt;/code>.
+Please also note that client certificates must be re-issued now.&lt;/p>
+&lt;p>After updating all API clients, you can complete the rotation by annotating the shoot with the &lt;code>rotate-ca-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-ca-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
+After it is completed, the &lt;code>.status.credentials.rotation.certificateAuthorities.phase&lt;/code> is set to &lt;code>Completed&lt;/code>.
+You could update your API clients again and drop the old CA from their bundle.&lt;/p>
+&lt;blockquote>
+&lt;p>Note that the CA rotation also rotates all internal CAs and signed certificates.
+Hence, most of the components need to be restarted (including etcd and &lt;code>kube-apiserver&lt;/code>).&lt;/p>
+&lt;p>⚠️ In stage one, all worker nodes of the &lt;code>Shoot&lt;/code> will be rolled out to ensure that the &lt;code>Pod&lt;/code>s as well as the &lt;code>kubelet&lt;/code>s get the updated credentials as well.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="observability-passwords-for-plutono-and-prometheus">Observability Password(s) For Plutono and Prometheus&lt;/h3>
+&lt;p>For &lt;code>Shoot&lt;/code>s with &lt;code>.spec.purpose!=testing&lt;/code>, Gardener deploys an observability stack with Prometheus for monitoring, Alertmanager for alerting (optional), Vali for logging, and Plutono for visualization.
+The Plutono instance is exposed via &lt;code>Ingress&lt;/code> and accessible for end-users via basic authentication credentials generated and managed by Gardener.&lt;/p>
+&lt;p>Those credentials are stored in a &lt;code>Secret&lt;/code> with the name &lt;code>&amp;lt;shoot-name&amp;gt;.monitoring&lt;/code> in the project namespace in the garden cluster and has multiple data keys:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>username&lt;/code>: the user name&lt;/li>
+&lt;li>&lt;code>password&lt;/code>: the password&lt;/li>
+&lt;li>&lt;code>auth&lt;/code>: the user name with SHA-1 representation of the password&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>It is the responsibility of the end-user to regularly rotate those credentials.&lt;/strong>
+In order to rotate the &lt;code>password&lt;/code>, annotate the &lt;code>Shoot&lt;/code> with &lt;code>gardener.cloud/operation=rotate-observability-credentials&lt;/code>.
+This operation is not allowed for &lt;code>Shoot&lt;/code>s that are already marked for deletion.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-observability-credentials
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.observability&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated and last completed.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="ssh-key-pair-for-worker-nodes">SSH Key Pair for Worker Nodes&lt;/h3>
+&lt;p>Gardener generates an SSH key pair whose public key is propagated to all worker nodes of the &lt;code>Shoot&lt;/code>.
+The private key can be used to establish an SSH connection to the workers for troubleshooting purposes.
+It is recommended to use &lt;a href="https://github.com/gardener/gardenctl-v2/">&lt;code>gardenctl-v2&lt;/code>&lt;/a> and its &lt;code>gardenctl ssh&lt;/code> command since it is required to first open up the security groups and create a bastion VM (no direct SSH access to the worker nodes is possible).&lt;/p>
+&lt;p>The private key is stored in a &lt;code>Secret&lt;/code> with the name &lt;code>&amp;lt;shoot-name&amp;gt;.ssh-keypair&lt;/code> in the project namespace in the garden cluster and has multiple data keys:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>id_rsa&lt;/code>: the private key&lt;/li>
+&lt;li>&lt;code>id_rsa.pub&lt;/code>: the public key for SSH&lt;/li>
+&lt;/ul>
+&lt;p>In order to rotate the keys, annotate the &lt;code>Shoot&lt;/code> with &lt;code>gardener.cloud/operation=rotate-ssh-keypair&lt;/code>.
+This will propagate a new key to all worker nodes while keeping the old key active and valid as well (it will only be invalidated/removed with the next rotation).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-ssh-keypair
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.sshKeypair&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated or last completed.&lt;/p>
+&lt;/blockquote>
+&lt;p>The old key is stored in a &lt;code>Secret&lt;/code> with the name &lt;code>&amp;lt;shoot-name&amp;gt;.ssh-keypair.old&lt;/code> in the project namespace in the garden cluster and has the same data keys as the regular &lt;code>Secret&lt;/code>.&lt;/p>
+&lt;h3 id="etcd-encryption-key">ETCD Encryption Key&lt;/h3>
+&lt;p>This key is used to encrypt the data of &lt;code>Secret&lt;/code> resources inside etcd (see &lt;a href="https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/">upstream Kubernetes documentation&lt;/a>).&lt;/p>
+&lt;p>The encryption key has no expiration date.
+There is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the encryption key.&lt;/strong>&lt;/p>
+&lt;p>The rotation happens in three stages:&lt;/p>
+&lt;ul>
+&lt;li>In stage one, a new encryption key is created and added to the bundle (together with the old encryption key).&lt;/li>
+&lt;li>In stage two, all &lt;code>Secret&lt;/code>s in the cluster and resources configured in the &lt;code>spec.kubernetes.kubeAPIServer.encryptionConfig&lt;/code> of the Shoot (see &lt;a href="https://gardener.cloud/docs/gardener/security/etcd_encryption_config/">ETCD Encryption Config&lt;/a>) are rewritten by the &lt;code>kube-apiserver&lt;/code> so that they become encrypted with the new encryption key.&lt;/li>
+&lt;li>In stage three, the old encryption is dropped from the bundle.&lt;/li>
+&lt;/ul>
+&lt;p>Technically, the &lt;code>Preparing&lt;/code> phase indicates the stages one and two.
+Once it is completed, the &lt;code>Prepared&lt;/code> phase indicates readiness for stage three.
+The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>Completed&lt;/code> phase states that the rotation process has finished.&lt;/p>
+&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.etcdEncryptionKey&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated, last completed, and in which phase it currently is.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to start the rotation (stage one), you have to annotate the shoot with the &lt;code>rotate-etcd-encryption-key-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-etcd-encryption-key-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs the stages one and two.
+After it is completed, the &lt;code>.status.credentials.rotation.etcdEncryptionKey.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.
+Now you can complete the rotation by annotating the shoot with the &lt;code>rotate-etcd-encryption-key-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-etcd-encryption-key-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
+After it is completed, the &lt;code>.status.credentials.rotation.etcdEncryptionKey.phase&lt;/code> is set to &lt;code>Completed&lt;/code>.&lt;/p>
+&lt;h3 id="serviceaccount-token-signing-key">&lt;code>ServiceAccount&lt;/code> Token Signing Key&lt;/h3>
+&lt;p>Gardener generates a key which is used to sign the tokens for &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">&lt;code>ServiceAccount&lt;/code>s&lt;/a>.
+Those tokens are typically used by workload &lt;code>Pod&lt;/code>s running inside the cluster in order to authenticate themselves with the &lt;code>kube-apiserver&lt;/code>.
+This also includes system components running in the &lt;code>kube-system&lt;/code> namespace.&lt;/p>
+&lt;p>The token signing key has no expiration date.
+Since it might require adaptation for the consumers of the &lt;code>Shoot&lt;/code>, there is no automatic rotation and &lt;strong>it is the responsibility of the end-user to regularly rotate the signing key.&lt;/strong>&lt;/p>
+&lt;p>The rotation happens in three stages, similar to how the &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/#certificate-authorities">CA certificates&lt;/a> are rotated:&lt;/p>
+&lt;ul>
+&lt;li>In stage one, a new signing key is created and added to the bundle (together with the old signing key).&lt;/li>
+&lt;li>In stage two, end-users update all out-of-cluster API clients that communicate with the control plane via &lt;code>ServiceAccount&lt;/code> tokens.&lt;/li>
+&lt;li>In stage three, the old signing key is dropped from the bundle.&lt;/li>
+&lt;/ul>
+&lt;p>Technically, the &lt;code>Preparing&lt;/code> phase indicates stage one.
+Once it is completed, the &lt;code>Prepared&lt;/code> phase indicates readiness for stage two.
+The &lt;code>Completing&lt;/code> phase indicates stage three, and the &lt;code>Completed&lt;/code> phase states that the rotation process has finished.&lt;/p>
+&lt;blockquote>
+&lt;p>You can check the &lt;code>.status.credentials.rotation.serviceAccountKey&lt;/code> field in the &lt;code>Shoot&lt;/code> to see when the rotation was last initiated, last completed, and in which phase it currently is.&lt;/p>
+&lt;/blockquote>
+&lt;p>In order to start the rotation (stage one), you have to annotate the shoot with the &lt;code>rotate-serviceaccount-key-start&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-serviceaccount-key-start
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger a &lt;code>Shoot&lt;/code> reconciliation and performs stage one.
+After it is completed, the &lt;code>.status.credentials.rotation.serviceAccountKey.phase&lt;/code> is set to &lt;code>Prepared&lt;/code>.&lt;/p>
+&lt;p>Now you must update all API clients outside the cluster using a &lt;code>ServiceAccount&lt;/code> token (such as the &lt;code>kubeconfig&lt;/code>s on developer machines) to use a token issued by the new signing key.
+Gardener already generates new secrets for those &lt;code>ServiceAccount&lt;/code>s in the cluster, whose static token was automatically created by Kubernetes (typically before &lt;code>v1.22&lt;/code> - &lt;a href="https://github.com/kubernetes/website/blob/ce481bee92c7c1e110eb81207ec3883a975f9587/content/en/docs/reference/access-authn-authz/service-accounts-admin.md?plain=1#L216">ref&lt;/a>)
+However, if you need to create it manually, you can check out &lt;a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#manually-create-a-service-account-api-token">this document&lt;/a> for instructions.&lt;/p>
+&lt;p>After updating all API clients, you can complete the rotation by annotating the shoot with the &lt;code>rotate-serviceaccount-key-complete&lt;/code> operation:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n &amp;lt;shoot-namespace&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=rotate-serviceaccount-key-complete
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will trigger another &lt;code>Shoot&lt;/code> reconciliation and performs stage three.
+After it is completed, the &lt;code>.status.credentials.rotation.serviceAccountKey.phase&lt;/code> is set to &lt;code>Completed&lt;/code>.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ In stage one, all worker nodes of the &lt;code>Shoot&lt;/code> will be rolled out to ensure that the &lt;code>Pod&lt;/code>s use a new token.&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="openvpn-tls-auth-keys">OpenVPN TLS Auth Keys&lt;/h3>
+&lt;p>This key is used to ensure encrypted communication for the VPN connection between the control plane in the seed cluster and the shoot cluster.
+It is currently &lt;strong>not&lt;/strong> rotated automatically and there is no way to trigger it manually.&lt;/p></description></item><item><title>Docs: Shoot Kubernetes and Operating System Versioning in Gardener</title><link>https://gardener.cloud/docs/gardener/shoot-operations/shoot_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/shoot_versions/</guid><description>
+&lt;h1 id="shoot-kubernetes-and-operating-system-versioning-in-gardener">Shoot Kubernetes and Operating System Versioning in Gardener&lt;/h1>
+&lt;h2 id="motivation">Motivation&lt;/h2>
+&lt;p>On the one hand-side, Gardener is responsible for managing the Kubernetes and the Operating System (OS) versions of its Shoot clusters.
+On the other hand-side, Gardener needs to be configured and updated based on the availability and support of the Kubernetes and Operating System version it provides.
+For instance, the Kubernetes community releases &lt;strong>minor&lt;/strong> versions roughly every three months and usually maintains &lt;strong>three minor&lt;/strong> versions (the current and the last two) with bug fixes and security updates.
+Patch releases are done more frequently.&lt;/p>
+&lt;p>When using the term &lt;code>Machine image&lt;/code> in the following, we refer to the OS version that comes with the machine image of the node/worker pool of a Gardener Shoot cluster.
+As such, we are not referring to the &lt;code>CloudProvider&lt;/code> specific machine image like the &lt;a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html">&lt;code>AMI&lt;/code>&lt;/a> for AWS.
+For more information on how Gardener maps machine image versions to &lt;code>CloudProvider&lt;/code> specific machine images, take a look at the individual gardener extension providers, such as the &lt;a href="https://gardener.cloud/docs/extensions/infrastructure-extensions/gardener-extension-provider-aws/operations/">provider for AWS&lt;/a>.&lt;/p>
+&lt;p>Gardener should be configured accordingly to reflect the &amp;ldquo;logical state&amp;rdquo; of a version.
+It should be possible to define the Kubernetes or Machine image versions that still receive bug fixes and security patches, and also vice-versa to define the version that are out-of-maintenance and are potentially vulnerable.
+Moreover, this allows Gardener to &amp;ldquo;understand&amp;rdquo; the current state of a version and act upon it (more information in the following sections).&lt;/p>
+&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>&lt;strong>As a Gardener operator&lt;/strong>:&lt;/p>
+&lt;ul>
+&lt;li>I can classify a version based on it&amp;rsquo;s logical state (&lt;code>preview&lt;/code>, &lt;code>supported&lt;/code>, &lt;code>deprecated&lt;/code>, and &lt;code>expired&lt;/code>; see &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_versions/#version-classifications">Version Classification&lt;/a>).&lt;/li>
+&lt;li>I can define which Machine image and Kubernetes versions are eligible for the auto update of clusters during the maintenance time.&lt;/li>
+&lt;li>I can define a moment in time when Shoot clusters are forcefully migrated off a certain version (through an &lt;code>expirationDate&lt;/code>).&lt;/li>
+&lt;li>I can define an update path for machine images for auto and force updates; see &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_versions/#update-path-for-machine-image-versions">Update path for machine image versions&lt;/a>).&lt;/li>
+&lt;li>I can disallow the creation of clusters having a certain version (think of severe security issues).&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>As an end-user/Shoot owner of Gardener&lt;/strong>:&lt;/p>
+&lt;ul>
+&lt;li>I can get information about which Kubernetes and Machine image versions exist and their classification.&lt;/li>
+&lt;li>I can determine the time when my Shoot clusters Machine image and Kubernetes version will be forcefully updated to the next patch or minor version (in case the cluster is running a deprecated version with an expiration date).&lt;/li>
+&lt;li>I can get this information via API from the &lt;code>CloudProfile&lt;/code>.&lt;/li>
+&lt;/ul>
+&lt;h2 id="version-classifications">Version Classifications&lt;/h2>
+&lt;p>Administrators can classify versions into four distinct &amp;ldquo;logical states&amp;rdquo;: &lt;code>preview&lt;/code>, &lt;code>supported&lt;/code>, &lt;code>deprecated&lt;/code>, and &lt;code>expired&lt;/code>.
+The version classification serves as a &amp;ldquo;point-of-reference&amp;rdquo; for end-users and also has implications during shoot creation and the maintenance time.&lt;/p>
+&lt;p>If a version is unclassified, Gardener cannot make those decision based on the &amp;ldquo;logical state&amp;rdquo;.
+Nevertheless, Gardener can operate without version classifications and can be added at any time to the Kubernetes and machine image versions in the &lt;code>CloudProfile&lt;/code>.&lt;/p>
+&lt;p>As a best practice, versions usually start with the classification &lt;code>preview&lt;/code>, then are promoted to &lt;code>supported&lt;/code>, eventually &lt;code>deprecated&lt;/code> and finally &lt;code>expired&lt;/code>.
+This information is programmatically available in the &lt;code>CloudProfiles&lt;/code> of the Garden cluster.&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>preview:&lt;/strong> A &lt;code>preview&lt;/code> version is a new version that has not yet undergone thorough testing, possibly a new release, and needs time to be validated.
+Due to its short early age, there is a higher probability of undiscovered issues and is therefore not yet recommended for production usage.
+A Shoot does not update (neither &lt;code>auto-update&lt;/code> or &lt;code>force-update&lt;/code>) to a &lt;code>preview&lt;/code> version during the maintenance time.
+Also, &lt;code>preview&lt;/code> versions are not considered for the defaulting to the highest available version when deliberately omitting the patch version during Shoot creation.
+Typically, after a fresh release of a new Kubernetes (e.g., v1.25.0) or Machine image version (e.g., suse-chost 15.4.20220818), the operator tags it as &lt;code>preview&lt;/code> until they have gained sufficient experience and regards this version to be reliable.
+After the operator has gained sufficient trust, the version can be manually promoted to &lt;code>supported&lt;/code>.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>supported:&lt;/strong> A &lt;code>supported&lt;/code> version is the recommended version for new and existing Shoot clusters. This is the version that new Shoot clusters should use and existing clusters should update to.
+Typically for Kubernetes versions, the latest Kubernetes patch versions of the actual (if not still in &lt;code>preview&lt;/code>) and the last 3 minor Kubernetes versions are maintained by the community. An operator could define these versions as being &lt;code>supported&lt;/code> (e.g., v1.27.6, v1.26.10, and v1.25.12).&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>deprecated:&lt;/strong> A &lt;code>deprecated&lt;/code> version is a version that approaches the end of its lifecycle and can contain issues which are probably resolved in a supported version.
+New Shoots should not use this version anymore.
+Existing Shoots will be updated to a newer version if &lt;code>auto-update&lt;/code> is enabled (&lt;code>.spec.maintenance.autoUpdate.kubernetesVersion&lt;/code> for Kubernetes version &lt;code>auto-update&lt;/code>, or &lt;code>.spec.maintenance.autoUpdate.machineImageVersion&lt;/code> for machine image version &lt;code>auto-update&lt;/code>).
+Using automatic upgrades, however, does not guarantee that a Shoot runs a non-deprecated version, as the latest version (overall or of the minor version) can be deprecated as well.
+Deprecated versions &lt;strong>should&lt;/strong> have an expiration date set for eventual expiration.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>expired:&lt;/strong> An &lt;code>expired&lt;/code> versions has an expiration date (based on the &lt;a href="https://golang.org/src/time/time.go">Golang time package&lt;/a>) in the past.
+New clusters with that version cannot be created and existing clusters are forcefully migrated to a higher version during the maintenance time.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>Below is an example how the relevant section of the &lt;code>CloudProfile&lt;/code> might look like:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: CloudProfile
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: alicloud
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: preview
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.27.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: preview
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.26.3
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: supported
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.26.2
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: preview
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.25.5
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: supported
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.25.4
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: supported
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.6
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - classification: deprecated
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;2022-11-30T23:59:59Z&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> version: 1.24.5
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="automatic-version-upgrades">Automatic Version Upgrades&lt;/h2>
+&lt;p>There are two ways, the Kubernetes version of the control plane as well as the Kubernetes and machine image version of a worker pool can be upgraded: &lt;code>auto update&lt;/code> and &lt;code>forceful&lt;/code> update.
+See &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/#automatic-version-updates">Automatic Version Updates&lt;/a> for how to enable &lt;code>auto updates&lt;/code> for Kubernetes or machine image versions on the Shoot cluster.&lt;/p>
+&lt;p>If a Shoot is running a version after its expiration date has passed, it will be forcefully updated during its maintenance time.
+This happens &lt;strong>even if the owner has opted out of automatic cluster updates!&lt;/strong>&lt;/p>
+&lt;p>&lt;strong>When an auto update is triggered?&lt;/strong>:&lt;/p>
+&lt;ul>
+&lt;li>The &lt;code>Shoot&lt;/code> has auto-update enabled and the version is not the &lt;em>latest eligible version&lt;/em> for the auto-update. Please note that this &lt;em>latest version&lt;/em> that qualifies for an auto-update is not necessarily the overall latest version in the CloudProfile:
+&lt;ul>
+&lt;li>For Kubernetes version, the latest eligible version for auto-updates is the latest patch version of the current minor.&lt;/li>
+&lt;li>For machine image version, the latest eligible version for auto-updates is controlled by the &lt;code>updateStrategy&lt;/code> field of the machine image in the CloudProfile.&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>The &lt;code>Shoot&lt;/code> has auto-update disabled and the version is either expired or does not exist.&lt;/li>
+&lt;/ul>
+&lt;p>The auto update can fail if the version is already on the &lt;em>latest eligible version&lt;/em> for the auto-update. A failed auto update triggers a &lt;strong>force update&lt;/strong>.
+The force and auto update path for Kubernetes and machine image versions differ slightly and are described in more detail below.&lt;/p>
+&lt;p>&lt;strong>Update rules for both Kubernetes and machine image versions&lt;/strong>&lt;/p>
+&lt;ul>
+&lt;li>Both auto and force update first try to update to the latest patch version of the same minor.&lt;/li>
+&lt;li>An auto update prefers supported versions over deprecated versions. If there is a lower supported version and a higher deprecated version, auto update will pick the supported version. If all qualifying versions are deprecated, update to the latest deprecated version.&lt;/li>
+&lt;li>An auto update never updates to an expired version.&lt;/li>
+&lt;li>A force update prefers to update to not-expired versions. If all qualifying versions are expired, update to the latest expired version. Please note that therefore &lt;strong>multiple consecutive version upgrades&lt;/strong> are possible. In this case, the version is again upgraded in the &lt;strong>next&lt;/strong> maintenance time.&lt;/li>
+&lt;/ul>
+&lt;h3 id="update-path-for-machine-image-versions">Update path for machine image versions&lt;/h3>
+&lt;p>Administrators can define three different &lt;strong>update strategies&lt;/strong> (field &lt;code>updateStrategy&lt;/code>) for machine images in the CloudProfile: &lt;code>patch&lt;/code>, &lt;code>minor&lt;/code>, &lt;code>major (default)&lt;/code>. This is to accommodate the different version schemes of Operating Systems (e.g. Gardenlinux only updates major and minor versions with occasional patches).&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>patch&lt;/code>: update to the latest patch version of the current minor version. When using an expired version: force update to the latest patch of the current minor. If already on the latest patch version, then force update to the next higher (not necessarily +1) minor version.&lt;/li>
+&lt;li>&lt;code>minor&lt;/code>: update to the latest minor and patch version. When using an expired version: force update to the latest minor and patch of the current major. If already on the latest minor and patch of the current major, then update to the next higher (not necessarily +1) major version.&lt;/li>
+&lt;li>&lt;code>major&lt;/code>: always update to the overall latest version. This is the legacy behavior for automatic machine image version upgrades. Force updates are not possible and will fail if the latest version in the CloudProfile for that image is expired (EOL scenario).&lt;/li>
+&lt;/ul>
+&lt;p>Example configuration in the CloudProfile:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>machineImages:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: gardenlinux
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> updateStrategy: minor
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1096.1.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 934.8.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 934.7.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - name: suse-chost
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> updateStrategy: patch
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 15.3.20220818
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 15.3.20221118
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>Please note that force updates for machine images can skip minor versions (strategy: patch) or major versions (strategy: minor) if the next minor/major version has no qualifying versions (only &lt;code>preview&lt;/code> versions).&lt;/p>
+&lt;h3 id="update-path-for-kubernetes-versions">Update path for Kubernetes versions&lt;/h3>
+&lt;p>For &lt;strong>Kubernetes versions&lt;/strong>, the auto update picks the latest &lt;code>non-preview&lt;/code> patch version of the current minor version.&lt;/p>
+&lt;p>If the cluster is already on the latest patch version and the latest patch version is also expired,
+it will continue with the latest patch version of the &lt;strong>next consecutive minor (minor +1) Kubernetes version&lt;/strong>,
+so &lt;strong>it will result in an update of a minor Kubernetes version!&lt;/strong>&lt;/p>
+&lt;p>Kubernetes &amp;ldquo;minor version jumps&amp;rdquo; are not allowed - meaning to skip the update to the consecutive minor version and directly update to any version after that.
+For instance, the version &lt;code>1.24.x&lt;/code> can only update to a version &lt;code>1.25.x&lt;/code>, not to &lt;code>1.26.x&lt;/code> or any other version.
+This is because Kubernetes does not guarantee upgradability in this case, leading to possibly broken Shoot clusters.
+The administrator has to set up the &lt;code>CloudProfile&lt;/code> in such a way that consecutive Kubernetes minor versions are available.
+Otherwise, Shoot clusters will fail to upgrade during the maintenance time.&lt;/p>
+&lt;p>Consider the &lt;code>CloudProfile&lt;/code> below with a Shoot using the Kubernetes version &lt;code>1.24.12&lt;/code>.
+Even though the version is &lt;code>expired&lt;/code>, due to missing &lt;code>1.25.x&lt;/code> versions, the Gardener Controller Manager cannot upgrade the Shoot&amp;rsquo;s Kubernetes version.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.26.10
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.26.9
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.24.12
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;&amp;lt;expiration date in the past&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>CloudProfile&lt;/code> must specify versions &lt;code>1.25.x&lt;/code> of the &lt;strong>consecutive&lt;/strong> minor version.
+Configuring the &lt;code>CloudProfile&lt;/code> in such a way, the Shoot&amp;rsquo;s Kubernetes version will be upgraded to version &lt;code>1.25.10&lt;/code> in the next maintenance time.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> versions:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.26.9
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.25.10
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.25.9
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - version: 1.24.12
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> expirationDate: &lt;span style="color:#a31515">&amp;#34;&amp;lt;expiration date in the past&amp;gt;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="version-requirements-kubernetes-and-machine-image">Version Requirements (Kubernetes and Machine Image)&lt;/h2>
+&lt;p>The Gardener API server enforces the following requirements for versions:&lt;/p>
+&lt;ul>
+&lt;li>A version that is in use by a Shoot cannot be deleted from the &lt;code>CloudProfile&lt;/code>.&lt;/li>
+&lt;li>Creating a new version with expiration date in the past is not allowed.&lt;/li>
+&lt;li>There can be only one &lt;code>supported&lt;/code> version per minor version.&lt;/li>
+&lt;li>The latest Kubernetes version cannot have an expiration date.
+&lt;ul>
+&lt;li>NOTE: The latest version for a machine image can have an expiration date. [*]&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>&lt;sub>[*] Useful for cases in which support for a given machine image needs to be deprecated and removed (for example, the machine image reaches end of life).&lt;/sub>&lt;/p>
+&lt;h2 id="related-documentation">Related Documentation&lt;/h2>
+&lt;p>You might want to read about the &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_updates/">Shoot Updates and Upgrades&lt;/a> procedures to get to know the effects of such operations.&lt;/p></description></item><item><title>Docs: Shoot Updates and Upgrades</title><link>https://gardener.cloud/docs/gardener/shoot-operations/shoot_updates/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/shoot_updates/</guid><description>
+&lt;h1 id="shoot-updates-and-upgrades">Shoot Updates and Upgrades&lt;/h1>
+&lt;p>This document describes what happens during shoot updates (changes incorporated in a newly deployed Gardener version) and during shoot upgrades (changes for version controllable by end-users).&lt;/p>
+&lt;h2 id="updates">Updates&lt;/h2>
+&lt;p>Updates to all aspects of the shoot cluster happen when the gardenlet reconciles the &lt;code>Shoot&lt;/code> resource.&lt;/p>
+&lt;h3 id="when-are-reconciliations-triggered">When are Reconciliations Triggered&lt;/h3>
+&lt;p>Generally, when you change the specification of your &lt;code>Shoot&lt;/code> the reconciliation will start immediately, potentially updating your cluster.
+Please note that you can also confine the reconciliation triggered due to your specification updates to the cluster&amp;rsquo;s maintenance time window. Please find more information in &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/#confine-specification-changesupdates-roll-out">Confine Specification Changes/Updates Roll Out&lt;/a>.&lt;/p>
+&lt;p>You can also annotate your shoot with special operation annotations (for more information, see &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/">Trigger Shoot Operations&lt;/a>), which will cause the reconciliation to start due to your actions.&lt;/p>
+&lt;p>There is also an automatic reconciliation by Gardener.
+The period, i.e., how often it is performed, depends on the configuration of the Gardener administrators/operators.
+In some Gardener installations the operators might enable &amp;ldquo;reconciliation in maintenance time window only&amp;rdquo; (for more information, see &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/#cluster-reconciliation">Cluster Reconciliation&lt;/a>), which will result in at least one reconciliation during the time configured in the &lt;code>Shoot&lt;/code>&amp;rsquo;s &lt;code>.spec.maintenance.timeWindow&lt;/code> field.&lt;/p>
+&lt;h3 id="which-updates-are-applied">Which Updates are Applied&lt;/h3>
+&lt;p>As end-users can only control the &lt;code>Shoot&lt;/code> resource&amp;rsquo;s specification but not the used Gardener version, they don&amp;rsquo;t have any influence on which of the updates are rolled out (other than those settings configurable in the &lt;code>Shoot&lt;/code>).
+A Gardener operator can deploy a new Gardener version at any point in time.
+Any subsequent reconciliation of &lt;code>Shoot&lt;/code>s will update them by rolling out the changes incorporated in this new Gardener version.&lt;/p>
+&lt;p>Some examples for such shoot updates are:&lt;/p>
+&lt;ul>
+&lt;li>Add a new/remove an old component to/from the shoot&amp;rsquo;s control plane running in the seed, or to/from the shoot&amp;rsquo;s system components running on the worker nodes.&lt;/li>
+&lt;li>Change the configuration of an existing control plane/system component.&lt;/li>
+&lt;li>Restart of existing control plane/system components (this might result in a short unavailability of the Kubernetes API server, e.g., when etcd or a kube-apiserver itself is being restarted)&lt;/li>
+&lt;/ul>
+&lt;h3 id="behavioural-changes">Behavioural Changes&lt;/h3>
+&lt;p>Generally, some of such updates (e.g., configuration changes) could theoretically result in different behaviour of controllers.
+If such changes would be backwards-incompatible, then we usually follow one of those approaches (depends on the concrete change):&lt;/p>
+&lt;ul>
+&lt;li>Only apply the change for new clusters.&lt;/li>
+&lt;li>Expose a new field in the &lt;code>Shoot&lt;/code> resource that lets users control this changed behaviour to enable it at a convenient point in time.&lt;/li>
+&lt;li>Put the change behind an alpha feature gate (disabled by default) in the gardenlet (only controllable by Gardener operators), which will be promoted to beta (enabled by default) in subsequent releases (in this case, end-users have no influence on when the behaviour changes - Gardener operators should inform their end-users and provide clear timelines when they will enable the feature gate).&lt;/li>
+&lt;/ul>
+&lt;h2 id="upgrades">Upgrades&lt;/h2>
+&lt;p>We consider shoot upgrades to change either the:&lt;/p>
+&lt;ul>
+&lt;li>Kubernetes version (&lt;code>.spec.kubernetes.version&lt;/code>)&lt;/li>
+&lt;li>Kubernetes version of the worker pool if specified (&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code>)&lt;/li>
+&lt;li>Machine image version of at least one worker pool (&lt;code>.spec.provider.workers[].machine.image.version&lt;/code>)&lt;/li>
+&lt;/ul>
+&lt;p>Generally, an upgrade is also performed through a reconciliation of the &lt;code>Shoot&lt;/code> resource, i.e., the same concepts as for &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_updates/#updates">shoot updates&lt;/a> apply.
+If an end-user triggers an upgrade (e.g., by changing the Kubernetes version) after a new Gardener version was deployed but before the shoot was reconciled again, then this upgrade might incorporate the changes delivered with this new Gardener version.&lt;/p>
+&lt;h3 id="in-place-vs-rolling-updates">In-Place vs. Rolling Updates&lt;/h3>
+&lt;p>If the Kubernetes patch version is changed, then the upgrade happens in-place.
+This means that the shoot worker nodes remain untouched and only the &lt;code>kubelet&lt;/code> process restarts with the new Kubernetes version binary.
+The same applies for configuration changes of the kubelet.&lt;/p>
+&lt;p>If the Kubernetes minor version is changed, then the upgrade is done in a &amp;ldquo;rolling update&amp;rdquo; fashion, similar to how pods in Kubernetes are updated (when backed by a &lt;code>Deployment&lt;/code>).
+The worker nodes will be terminated one after another and replaced by new machines.
+The existing workload is gracefully drained and evicted from the old worker nodes to new worker nodes, respecting the configured &lt;code>PodDisruptionBudget&lt;/code>s (see &lt;a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/">Specifying a Disruption Budget for your Application&lt;/a>).&lt;/p>
+&lt;h4 id="customize-rolling-update-behaviour-of-shoot-worker-nodes">Customize Rolling Update Behaviour of Shoot Worker Nodes&lt;/h4>
+&lt;p>The &lt;code>.spec.provider.workers[]&lt;/code> list exposes two fields that you might configure based on your workload&amp;rsquo;s needs: &lt;code>maxSurge&lt;/code> and &lt;code>maxUnavailable&lt;/code>.
+The same concepts &lt;a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-update-deployment">like in Kubernetes&lt;/a> apply.
+Additionally, you might customize how the machine-controller-manager (abbrev.: MCM; the component instrumenting this rolling update) is behaving. You can configure the following fields in &lt;code>.spec.provider.worker[].machineControllerManager&lt;/code>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>machineDrainTimeout&lt;/code>: Timeout (in duration) used while draining of machine before deletion, beyond which MCM forcefully deletes the machine (default: &lt;code>2h&lt;/code>).&lt;/li>
+&lt;li>&lt;code>machineHealthTimeout&lt;/code>: Timeout (in duration) used while re-joining (in case of temporary health issues) of a machine before it is declared as failed (default: &lt;code>10m&lt;/code>).&lt;/li>
+&lt;li>&lt;code>machineCreationTimeout&lt;/code>: Timeout (in duration) used while joining (during creation) of a machine before it is declared as failed (default: &lt;code>10m&lt;/code>).&lt;/li>
+&lt;li>&lt;code>maxEvictRetries&lt;/code>: Maximum number of times evicts would be attempted on a pod before it is forcibly deleted during the draining of a machine (default: &lt;code>10&lt;/code>).&lt;/li>
+&lt;li>&lt;code>nodeConditions&lt;/code>: List of case-sensitive node-conditions which will change a machine to a &lt;code>Failed&lt;/code> state after the &lt;code>machineHealthTimeout&lt;/code> duration. It may further be replaced with a new machine if the machine is backed by a machine-set object (defaults: &lt;code>KernelDeadlock&lt;/code>, &lt;code>ReadonlyFilesystem&lt;/code> , &lt;code>DiskPressure&lt;/code>).&lt;/li>
+&lt;/ul>
+&lt;h4 id="rolling-update-triggers">Rolling Update Triggers&lt;/h4>
+&lt;p>Apart from the above mentioned triggers, a rolling update of the shoot worker nodes is also triggered for some changes to your worker pool specification (&lt;code>.spec.provider.workers[]&lt;/code>, even if you don&amp;rsquo;t change the Kubernetes or machine image version).
+The complete list of fields that trigger a rolling update:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.spec.kubernetes.version&lt;/code> (except for patch version changes)&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].machine.image.name&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].machine.image.version&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].machine.type&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].volume.type&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].volume.size&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].providerConfig&lt;/code> (except if feature gate &lt;code>NewWorkerPoolHash&lt;/code>)&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].cri.name&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.version&lt;/code> (except for patch version changes)&lt;/li>
+&lt;li>&lt;code>.spec.systemComponents.nodeLocalDNS.enabled&lt;/code>&lt;/li>
+&lt;li>&lt;code>.status.credentials.rotation.certificateAuthorities.lastInitiationTime&lt;/code> (changed by Gardener when a shoot CA rotation is initiated)&lt;/li>
+&lt;li>&lt;code>.status.credentials.rotation.serviceAccountKey.lastInitiationTime&lt;/code> (changed by Gardener when a shoot service account signing key rotation is initiated)&lt;/li>
+&lt;/ul>
+&lt;p>If feature gate &lt;code>NewWorkerPoolHash&lt;/code> is enabled:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>.spec.kubernetes.kubelet.kubeReserved&lt;/code> (unless a worker pool-specific value is set)&lt;/li>
+&lt;li>&lt;code>.spec.kubernetes.kubelet.systemReserved&lt;/code> (unless a worker pool-specific value is set)&lt;/li>
+&lt;li>&lt;code>.spec.kubernetes.kubelet.evictionHard&lt;/code> (unless a worker pool-specific value is set)&lt;/li>
+&lt;li>&lt;code>.spec.kubernetes.kubelet.cpuManagerPolicy&lt;/code> (unless a worker pool-specific value is set)&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.kubelet.kubeReserved&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.kubelet.systemReserved&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.kubelet.evictionHard&lt;/code>&lt;/li>
+&lt;li>&lt;code>.spec.provider.workers[].kubernetes.kubelet.cpuManagerPolicy&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>Changes to &lt;code>kubeReserved&lt;/code> or &lt;code>systemReserved&lt;/code> do not trigger a node roll if their sum does not change.&lt;/p>
+&lt;p>Generally, the provider extension controllers might have additional constraints for changes leading to rolling updates, so please consult the respective documentation as well.
+In particular, if the feature gate &lt;code>NewWorkerPoolHash&lt;/code> is enabled and a worker pool uses the new hash, then the &lt;code>providerConfig&lt;/code> as a whole is not included. Instead only fields selected by the provider extension are considered.&lt;/p>
+&lt;h2 id="related-documentation">Related Documentation&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/">Shoot Operations&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/">Shoot Maintenance&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_maintenance/#confine-specification-changesupdates-roll-out">Confine Specification Changes/Updates Roll Out To Maintenance Time Window&lt;/a>.&lt;/li>
+&lt;/ul></description></item><item><title>Docs: Supported Kubernetes Versions</title><link>https://gardener.cloud/docs/gardener/shoot-operations/supported_k8s_versions/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/supported_k8s_versions/</guid><description>
+&lt;h1 id="supported-kubernetes-versions">Supported Kubernetes Versions&lt;/h1>
+&lt;p>Currently, Gardener supports the following Kubernetes versions:&lt;/p>
+&lt;h2 id="garden-clusters">Garden Clusters&lt;/h2>
+&lt;p>The minimum version of a garden cluster that can be used to run Gardener is &lt;strong>&lt;code>1.25.x&lt;/code>&lt;/strong>.&lt;/p>
+&lt;h2 id="seed-clusters">Seed Clusters&lt;/h2>
+&lt;p>The minimum version of a seed cluster that can be connected to Gardener is &lt;strong>&lt;code>1.25.x&lt;/code>&lt;/strong>.&lt;/p>
+&lt;h2 id="shoot-clusters">Shoot Clusters&lt;/h2>
+&lt;p>Gardener itself is capable of spinning up clusters with Kubernetes versions &lt;strong>&lt;code>1.25&lt;/code>&lt;/strong> up to &lt;strong>&lt;code>1.31&lt;/code>&lt;/strong>.
+However, the concrete versions that can be used for shoot clusters depend on the installed provider extension.
+Consequently, please consult the documentation of your provider extension to see which Kubernetes versions are supported for shoot clusters.&lt;/p>
+&lt;blockquote>
+&lt;p>👨🏼‍💻 Developers note: The &lt;a href="https://gardener.cloud/docs/gardener/new-kubernetes-version/">Adding Support For a New Kubernetes Version&lt;/a> topic explains what needs to be done in order to add support for a new Kubernetes version.&lt;/p>
+&lt;/blockquote></description></item><item><title>Docs: Trigger Shoot Operations Through Annotations</title><link>https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/</guid><description>
+&lt;h1 id="trigger-shoot-operations-through-annotations">Trigger Shoot Operations Through Annotations&lt;/h1>
+&lt;p>You can trigger a few explicit operations by annotating the &lt;code>Shoot&lt;/code> with an operation annotation.
+This might allow you to induct certain behavior without the need to change the &lt;code>Shoot&lt;/code> specification.
+Some of the operations can also not be caused by changing something in the shoot specification because they can&amp;rsquo;t properly be reflected here.
+Note that once the triggered operation is considered by the controllers, the annotation will be automatically removed and you have to add it each time you want to trigger the operation.&lt;/p>
+&lt;p>Please note: If &lt;code>.spec.maintenance.confineSpecUpdateRollout=true&lt;/code>, then the only way to trigger a shoot reconciliation is by setting the &lt;code>reconcile&lt;/code> operation, see below.&lt;/p>
+&lt;h2 id="immediate-reconciliation">Immediate Reconciliation&lt;/h2>
+&lt;p>Annotate the shoot with &lt;code>gardener.cloud/operation=reconcile&lt;/code> to make the &lt;code>gardenlet&lt;/code> start a reconciliation operation without changing the shoot spec and possibly without being in its maintenance time window:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n garden-&amp;lt;project-name&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=reconcile
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="immediate-maintenance">Immediate Maintenance&lt;/h2>
+&lt;p>Annotate the shoot with &lt;code>gardener.cloud/operation=maintain&lt;/code> to make the &lt;code>gardener-controller-manager&lt;/code> start maintaining your shoot immediately (possibly without being in its maintenance time window).
+If no reconciliation starts, then nothing needs to be maintained:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n garden-&amp;lt;project-name&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=maintain
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="retry-failed-reconciliation">Retry Failed Reconciliation&lt;/h2>
+&lt;p>Annotate the shoot with &lt;code>gardener.cloud/operation=retry&lt;/code> to make the &lt;code>gardenlet&lt;/code> start a new reconciliation loop on a failed shoot.
+Failed shoots are only reconciled again if a new Gardener version is deployed, the shoot specification is changed or this annotation is set:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl -n garden-&amp;lt;project-name&amp;gt; annotate shoot &amp;lt;shoot-name&amp;gt; gardener.cloud/operation=retry
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="credentials-rotation-operations">Credentials Rotation Operations&lt;/h2>
+&lt;p>Please consult &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_credentials_rotation/">Credentials Rotation for Shoot Clusters&lt;/a> for more information.&lt;/p>
+&lt;h2 id="restart-systemd-services-on-particular-worker-nodes">Restart &lt;code>systemd&lt;/code> Services on Particular Worker Nodes&lt;/h2>
+&lt;p>It is possible to make Gardener restart particular systemd services on your shoot worker nodes if needed.
+The annotation is not set on the &lt;code>Shoot&lt;/code> resource but directly on the &lt;code>Node&lt;/code> object you want to target.
+For example, the following will restart both the &lt;code>kubelet&lt;/code> and the &lt;code>containerd&lt;/code> services:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>kubectl annotate node &amp;lt;node-name&amp;gt; worker.gardener.cloud/restart-systemd-services=kubelet,containerd
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>It may take up to a minute until the service is restarted.
+The annotation will be removed from the &lt;code>Node&lt;/code> object after all specified systemd services have been restarted.
+It will also be removed even if the restart of one or more services failed.&lt;/p>
+&lt;blockquote>
+&lt;p>ℹ️ In the example mentioned above, you could additionally verify when/whether the kubelet restarted by using &lt;code>kubectl describe node &amp;lt;node-name&amp;gt;&lt;/code> and looking for such a &lt;code>Starting kubelet&lt;/code> event.&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="force-deletion">Force Deletion&lt;/h2>
+&lt;p>When the &lt;code>ShootForceDeletion&lt;/code> feature gate in the gardener-apiserver is enabled, users will be able to force-delete the Shoot. This is only possible if the Shoot fails to be deleted normally. For forceful deletion, the following conditions must be met:&lt;/p>
+&lt;ul>
+&lt;li>Shoot has a deletion timestamp.&lt;/li>
+&lt;li>Shoot status contains at least one of the following &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_status/#error-codes">ErrorCodes&lt;/a>:
+&lt;ul>
+&lt;li>&lt;code>ERR_CLEANUP_CLUSTER_RESOURCES&lt;/code>&lt;/li>
+&lt;li>&lt;code>ERR_CONFIGURATION_PROBLEM&lt;/code>&lt;/li>
+&lt;li>&lt;code>ERR_INFRA_DEPENDENCIES&lt;/code>&lt;/li>
+&lt;li>&lt;code>ERR_INFRA_UNAUTHENTICATED&lt;/code>&lt;/li>
+&lt;li>&lt;code>ERR_INFRA_UNAUTHORIZED&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>If the above conditions are satisfied, you can annotate the Shoot with &lt;code>confirmation.gardener.cloud/force-deletion=true&lt;/code>, and Gardener will cleanup the Shoot controlplane and the Shoot metadata.&lt;/p>
+&lt;blockquote>
+&lt;p>⚠️ You &lt;strong>MUST&lt;/strong> ensure that all the resources created in the IaaS account are cleaned up to prevent orphaned resources. Gardener will &lt;strong>NOT&lt;/strong> delete any resources in the underlying infrastructure account. Hence, use this annotation at your own risk and only if you are fully aware of these consequences.&lt;/p>
+&lt;/blockquote></description></item></channel></rss>

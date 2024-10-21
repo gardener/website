@@ -2517,7 +2517,52 @@ This prevents that undesired &lt;code>kubectl delete &amp;lt;...&amp;gt;&lt;/cod
 &lt;h4 id="extension-resource-validation">Extension Resource Validation&lt;/h4>
 &lt;p>When this webhook is activated, it reacts for most of the custom resources in the &lt;code>extensions.gardener.cloud/v1alpha1&lt;/code> API group.
 It also reacts for the &lt;code>druid.gardener.cloud/v1alpha1.Etcd&lt;/code> resources.&lt;/p>
-&lt;p>The webhook validates the resources specifications for &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> requests.&lt;/p></description></item><item><title>Docs: Gardener Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
+&lt;p>The webhook validates the resources specifications for &lt;code>CREATE&lt;/code> and &lt;code>UPDATE&lt;/code> requests.&lt;/p>
+&lt;h3 id="authorization-webhooks">Authorization Webhooks&lt;/h3>
+&lt;h4 id="node-agent-authorizer-webhook">&lt;code>node-agent-authorizer&lt;/code> webhook&lt;/h4>
+&lt;p>&lt;code>gardener-resource-manager&lt;/code> serves an authorization webhook for shoot &lt;code>kube-apiserver&lt;/code>s which authorizes requests made by the &lt;code>gardener-node-agent&lt;/code>.
+It works similar to &lt;a href="https://gardener.cloud/docs/gardener/deployment/gardenlet_api_access/">&lt;code>SeedAuthorizer&lt;/code>&lt;/a>. However, the logic used to make decisions is much simpler so it does not implement a decision graph.
+In many cases, the objects &lt;code>gardener-node-agent&lt;/code> is allowed to access depend on the &lt;code>Node&lt;/code> it is running on.&lt;/p>
+&lt;p>The username of the &lt;code>gardener-node-agent&lt;/code> used for authorization requests is derived from the name of the &lt;code>Machine&lt;/code> resource responsible for the node that the &lt;code>gardener-node-agent&lt;/code> is running on. It follows the pattern &lt;code>gardener.cloud:node-agent:machine:&amp;lt;machine-name&amp;gt;&lt;/code>.
+The name of the &lt;code>Node&lt;/code> which runs on a &lt;code>Machine&lt;/code> is read from &lt;code>node&lt;/code> label of the &lt;code>Machine&lt;/code>.
+All &lt;code>gardener-node-agent&lt;/code> users are assigned to &lt;code>gardener.cloud:node-agents&lt;/code> group.&lt;/p>
+&lt;p>Today, the following rules are implemented:&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Resource&lt;/th>
+&lt;th>Verbs&lt;/th>
+&lt;th>Description&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code>CertificateSigningRequests&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>create&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>create&lt;/code> requests for all &lt;code>CertificateSigningRequests&lt;/code>s. Allow &lt;code>get&lt;/code> requests for &lt;code>CertificateSigningRequests&lt;/code>s created by the same user.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Events&lt;/code>&lt;/td>
+&lt;td>&lt;code>create&lt;/code>, &lt;code>patch&lt;/code>&lt;/td>
+&lt;td>Allow to &lt;code>create&lt;/code> and &lt;code>patch&lt;/code> all &lt;code>Event&lt;/code>s.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Leases&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>create&lt;/code>, &lt;code>update&lt;/code> requests for &lt;code>Leases&lt;/code> with the name &lt;code>gardener-node-agent-&amp;lt;node-name&amp;gt;&lt;/code> in &lt;code>kube-system&lt;/code> namespace.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Nodes&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>update&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>watch&lt;/code>, &lt;code>patch&lt;/code>, &lt;code>update&lt;/code> requests for the &lt;code>Node&lt;/code> where &lt;code>gardener-node-agent&lt;/code> is running. Allow &lt;code>list&lt;/code> requests for all nodes.&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code>Secrets&lt;/code>&lt;/td>
+&lt;td>&lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code>&lt;/td>
+&lt;td>Allow &lt;code>get&lt;/code>, &lt;code>list&lt;/code>, &lt;code>watch&lt;/code> request to &lt;code>gardener-valitail&lt;/code> secret and the gardener-node-agent-secret of the worker group of the &lt;code>Node&lt;/code> where &lt;code>gardener-node-agent&lt;/code> is running.&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table></description></item><item><title>Docs: Gardener Scheduler</title><link>https://gardener.cloud/docs/gardener/concepts/scheduler/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/concepts/scheduler/</guid><description>
 &lt;h2 id="overview">Overview&lt;/h2>
 &lt;p>The Gardener Scheduler is in essence a controller that watches newly created shoots and assigns a seed cluster to them.
 Conceptually, the task of the Gardener Scheduler is very similar to the task of the Kubernetes Scheduler: finding a seed for a shoot instead of a node for a pod.&lt;/p>

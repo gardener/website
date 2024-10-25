@@ -1973,7 +1973,7 @@ This significantly reduces turnaround times during development.&lt;/p>
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="debugging-gardener">Debugging Gardener&lt;/h2>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-debug
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This is using skaffold debugging features. In the Gardener case, Go debugging using &lt;a href="https://github.com/go-delve/delve">Delve&lt;/a> is the most relevant use case.
-Please see the &lt;a href="https://skaffold.dev/docs/workflows/debug/">skaffold debugging documentation&lt;/a> how to setup your IDE accordingly.&lt;/p>
+Please see the &lt;a href="https://skaffold.dev/docs/workflows/debug/">skaffold debugging documentation&lt;/a> how to set up your IDE accordingly or check the examples below (&lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#debugging-in-goland">GoLand&lt;/a>, &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#debugging-in-vs-code">VS Code&lt;/a>).&lt;/p>
 &lt;p>&lt;code>SKAFFOLD_MODULE&lt;/code> environment variable is working the same way as described for &lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#developing-gardener">Developing Gardener&lt;/a>. However, skaffold is not watching for changes when debugging,
 because it would like to avoid interrupting your debugging session.&lt;/p>
 &lt;p>For example, if you want to debug gardenlet:&lt;/p>
@@ -1991,6 +1991,27 @@ Please check your console output for the concrete port-forwarding on your machin
 &lt;p>This means that when a goroutine of gardenlet (or any other gardener-core component you try to debug) is paused on a breakpoint, all the other goroutines are paused. Hence, when the whole gardenlet process is paused, it can not renew its lease and can not respond to the liveness and readiness probes. Skaffold automatically increases &lt;code>timeoutSeconds&lt;/code> of liveness and readiness probes to 600. Anyway, we were facing problems when debugging that pods have been killed after a while.&lt;/p>
 &lt;p>Thus, leader election, health and readiness checks for &lt;code>gardener-admission-controller&lt;/code>, &lt;code>gardener-apiserver&lt;/code>, &lt;code>gardener-controller-manager&lt;/code>, &lt;code>gardener-scheduler&lt;/code>,&lt;code>gardenlet&lt;/code> and &lt;code>operator&lt;/code> are disabled when debugging.&lt;/p>
 &lt;p>If you have similar problems with other components which are not deployed by skaffold, you could temporarily turn off the leader election and disable liveness and readiness probes there too.&lt;/p>
+&lt;h3 id="debugging-in-goland">Debugging in GoLand&lt;/h3>
+&lt;ol>
+&lt;li>Edit your &lt;strong>Run/Debug Configurations&lt;/strong>.&lt;/li>
+&lt;li>Add a new &lt;strong>Go Remote&lt;/strong> configuration.&lt;/li>
+&lt;li>Set the port to &lt;code>56268&lt;/code> (or any increment of it when debugging multiple components).&lt;/li>
+&lt;li>&lt;em>Recommended:&lt;/em> Change the behavior of &lt;strong>On disconnect&lt;/strong> to &lt;strong>Leave it running&lt;/strong>.&lt;/li>
+&lt;/ol>
+&lt;h3 id="debugging-in-vs-code">Debugging in VS Code&lt;/h3>
+&lt;ol>
+&lt;li>Create or edit your &lt;code>.vscode/launch.json&lt;/code> configuration.&lt;/li>
+&lt;li>Add the following configuration:&lt;/li>
+&lt;/ol>
+&lt;pre tabindex="0">&lt;code class="language-json5" data-lang="json5">{
+&amp;#34;name&amp;#34;: &amp;#34;go remote&amp;#34;,
+&amp;#34;type&amp;#34;: &amp;#34;go&amp;#34;,
+&amp;#34;request&amp;#34;: &amp;#34;attach&amp;#34;,
+&amp;#34;mode&amp;#34;: &amp;#34;remote&amp;#34;,
+&amp;#34;port&amp;#34;: 56268, // or any increment of it when debugging multiple components
+&amp;#34;host&amp;#34;: &amp;#34;127.0.0.1&amp;#34;
+}
+&lt;/code>&lt;/pre>&lt;p>Since the &lt;a href="https://skaffold.dev/docs/builders/builder-types/ko/">ko&lt;/a> builder is used in Skaffold to build the images, it&amp;rsquo;s not necessary to specify the &lt;code>cwd&lt;/code> and &lt;code>remotePath&lt;/code> options as they match the workspace folder (&lt;a href="https://skaffold.dev/docs/workflows/debug/#skaffold-debug-using-the-vs-code-go-extension">ref&lt;/a>).&lt;/p>
 &lt;h2 id="creating-a-shoot-cluster">Creating a &lt;code>Shoot&lt;/code> Cluster&lt;/h2>
 &lt;p>You can wait for the &lt;code>Seed&lt;/code> to be ready by running:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>./hack/usage/wait-for.sh seed local GardenletReady SeedSystemComponentsHealthy ExtensionsReady

@@ -129,6 +129,9 @@ For example, in bash this looks like this:&lt;/p>
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515">&lt;/span> base64 -d
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The examples for other programming languages are similar to &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#shootsadminkubeconfig-subresource">the above&lt;/a> and can be adapted accordingly.&lt;/p>
 &lt;h2 id="openid-connect">OpenID Connect&lt;/h2>
+&lt;blockquote>
+&lt;p>&lt;strong>Note:&lt;/strong> OpenID Connect is deprecated in favor of &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#structured-authentication">Structured Authentication configuration&lt;/a>. Setting OpenID Connect configurations is forbidden for clusters with Kubernetes version &lt;code>&amp;gt;= 1.32&lt;/code>&lt;/p>
+&lt;/blockquote>
 &lt;p>The &lt;code>kube-apiserver&lt;/code> of shoot clusters can be provided with &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens">OpenID Connect configuration&lt;/a> via the Shoot spec:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
@@ -182,8 +185,65 @@ Here is an example of such &lt;code>ConfigMap&lt;/code>:&lt;/p>
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> claimValidationRules:
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> expression: &amp;#39;claims.hd == &amp;#34;example.com&amp;#34;&amp;#39;
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> message: &amp;#34;the hosted domain name must be example.com&amp;#34;&lt;/span>
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The user is responsible for the validity of the configured &lt;code>JWTAuthenticator&lt;/code>s.&lt;/p>
-&lt;h2 id="static-token-kubeconfig">Static Token kubeconfig&lt;/h2>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The user is responsible for the validity of the configured &lt;code>JWTAuthenticator&lt;/code>s.
+Be aware that changing the configuration in the &lt;code>ConfigMap&lt;/code> will be applied in the next &lt;code>Shoot&lt;/code> reconciliation, but this is not automatically triggered.
+If you want the changes to roll out immediately, &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#immediate-reconciliation">trigger a reconciliation explicitly&lt;/a>.&lt;/p>
+&lt;h2 id="structured-authorization">Structured Authorization&lt;/h2>
+&lt;p>For shoots with Kubernetes version &lt;code>&amp;gt;= 1.30&lt;/code>, which have &lt;code>StructuredAuthorizationConfiguration&lt;/code> feature gate enabled (enabled by default), &lt;code>kube-apiserver&lt;/code> of shoot clusters can be provided with &lt;a href="https://kubernetes.io/docs/reference/access-authn-authz/authorization/#using-configuration-file-for-authorization">Structured Authorization configuration&lt;/a> via the Shoot spec:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: core.gardener.cloud/v1beta1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Shoot
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>...
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubernetes:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeAPIServer:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> structuredAuthorization:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> configMapName: name-of-configmap-containing-authorization-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfigs:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - authorizerName: my-webhook
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> secretName: webhook-kubeconfig
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The &lt;code>configMapName&lt;/code> references a user created &lt;code>ConfigMap&lt;/code> in the project namespace containing the &lt;code>AuthorizationConfiguration&lt;/code> in it&amp;rsquo;s &lt;code>config.yaml&lt;/code> data field.
+Here is an example of such &lt;code>ConfigMap&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ConfigMap
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: name-of-configmap-containing-authorization-config
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-my-project
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> config.yaml: |&lt;span style="color:#a31515">
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> apiVersion: apiserver.config.k8s.io/v1beta1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> kind: AuthorizationConfiguration
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> authorizers:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - type: Webhook
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> name: my-webhook
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> webhook:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> timeout: 3s
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> subjectAccessReviewVersion: v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> matchConditionSubjectAccessReviewVersion: v1
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> failurePolicy: Deny
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> matchConditions:
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a31515"> - expression: request.resourceAttributes.namespace == &amp;#39;kube-system&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>In addition, it is required to provide a &lt;code>Secret&lt;/code> for each authorizer.
+This &lt;code>Secret&lt;/code> should contain a kubeconfig with the server address of the webhook server, and optionally credentials for authentication:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>apiVersion: v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: Secret
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: webhook-kubeconfig
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: garden-my-project
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>data:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kubeconfig: &amp;lt;base64-encoded-kubeconfig-for-authz-webhook&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>The user is responsible for the validity of the configured authorizers.
+Be aware that changing the configuration in the &lt;code>ConfigMap&lt;/code> will be applied in the next &lt;code>Shoot&lt;/code> reconciliation, but this is not automatically triggered.
+If you want the changes to roll out immediately, &lt;a href="https://gardener.cloud/docs/gardener/shoot-operations/shoot_operations/#immediate-reconciliation">trigger a reconciliation explicitly&lt;/a>.&lt;/p>
+&lt;blockquote>
+&lt;p>[!NOTE]
+You can have one or more authorizers of type &lt;code>Webhook&lt;/code> (no other types are supported).&lt;/p>
+&lt;p>You are not allowed to specify the &lt;code>authorizers[].webhook.connectionInfo&lt;/code> field.
+Instead, as mentioned above, provide a kubeconfig file containing the server address (and optionally, credentials that can be used by &lt;code>kube-apiserver&lt;/code> in order to authenticate with the webhook server) by creating a &lt;code>Secret&lt;/code> containing the kubeconfig (in the &lt;code>.data.kubeconfig&lt;/code> key).
+Reference this &lt;code>Secret&lt;/code> by adding it to &lt;code>.spec.kubernetes.kubeAPIServer.structuredAuthorization.kubeconfigs[]&lt;/code> (choose the proper &lt;code>authorizerName&lt;/code>, see example above).&lt;/p>
+&lt;/blockquote>
+&lt;p>Be aware of the fact that all webhook authorizers are added only after the &lt;code>RBAC&lt;/code>/&lt;code>Node&lt;/code> authorizers.
+Hence, if RBAC already allows a request, your webhook authorizer might not get called.&lt;/p>
+&lt;h2 id="static-token-kubeconfig">Static Token Kubeconfig&lt;/h2>
 &lt;blockquote>
 &lt;p>&lt;strong>Note:&lt;/strong> Static token kubeconfig is not available for Shoot clusters using Kubernetes version &amp;gt;= 1.27. The &lt;a href="https://gardener.cloud/docs/gardener/shoot/shoot_access/#shootsadminkubeconfig-subresource">&lt;code>shoots/adminkubeconfig&lt;/code> subresource&lt;/a> should be used instead.&lt;/p>
 &lt;/blockquote>

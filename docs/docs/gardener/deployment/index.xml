@@ -2148,9 +2148,21 @@ Instead, you need to find out under which Istio instance they got exposed, and p
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kubectl -n &lt;span style="color:#a31515">&amp;#34;&lt;/span>&lt;span style="color:#00f">$(&lt;/span>kubectl -n &amp;lt;shoot-namespace&amp;gt; get gateway kube-apiserver -o jsonpath={.spec.selector.istio} | sed &lt;span style="color:#a31515">&amp;#39;s/.*--/istio-ingress--/&amp;#39;&lt;/span>&lt;span style="color:#00f">)&lt;/span>&lt;span style="color:#a31515">&amp;#34;&lt;/span> get svc istio-ingressgateway -o jsonpath={.status.loadBalancer.ingress..ip}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>When the shoot cluster is HA (i.e., &lt;code>.spec.controlPlane.highAvailability.failureTolerance == zone&lt;/code>), then you can access it via &lt;code>172.18.255.1&lt;/code>.&lt;/p>
 &lt;/blockquote>
-&lt;p>Please use this command to tear down your environment:&lt;/p>
+&lt;p>Similar as in the section &lt;em>&lt;a href="https://gardener.cloud/docs/gardener/deployment/getting_started_locally/#developing-gardener">Developing Gardener&lt;/a>&lt;/em> it&amp;rsquo;s possible to run a &lt;a href="https://skaffold.dev/docs/workflows/dev/">Skaffold development loop&lt;/a> as well using:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make operator-seed-dev
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>ℹ️ Please note that in this setup Skaffold is only watching for changes in the following components:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/concepts/gardenlet/">&lt;code>gardenlet&lt;/code>&lt;/a>&lt;/li>
+&lt;li>&lt;code>gardenlet/chart&lt;/code>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/concepts/resource-manager/">&lt;code>gardener-resource-manager&lt;/code>&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://gardener.cloud/docs/gardener/concepts/node-agent/">&lt;code>gardener-node-agent&lt;/code>&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/blockquote>
+&lt;p>Finally, please use this command to tear down your environment:&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>make kind-operator-down
-&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This setup supports creating shoots and managed seeds the same way as explained in the previous chapters. However, the development and debugging setups are not working yet.&lt;/p>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This setup supports creating shoots and managed seeds the same way as explained in the previous chapters.
+However, the development loop has limitations and the debugging setup is not working yet.&lt;/p>
 &lt;h2 id="remote-local-setup">Remote Local Setup&lt;/h2>
 &lt;p>Just like Prow is executing the KinD based integration tests in a K8s pod, it is
 possible to interactively run this KinD based Gardener development environment,
@@ -2248,6 +2260,18 @@ Furthermore, it deploys the &lt;a href="https://github.com/kubernetes-sigs/metri
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This will first prepare the basic configuration of your KinD and Gardener clusters.
 Afterwards, the images for the Garden cluster are built and deployed into the KinD cluster.
 Finally, the images for the Seed cluster are built, pushed to a container registry on the Seed, and the &lt;code>gardenlet&lt;/code> is started.&lt;/p>
+&lt;p>If support for workload identity is required you can invoke the top command with &lt;code>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT&lt;/code> variable set to &lt;code>true&lt;/code>.
+This will cause the &lt;a href="https://github.com/gardener/gardener-discovery-server">Gardener Discovery Server&lt;/a> to be deployed and exposed through the seed cluster.
+External systems can be then configured to trust the workload identity issuer of the local Garden cluster.&lt;/p>
+&lt;!-- TODO(dimityrmirchev): Link the to be added provider extension guides how to set up a Shoot cluster with WorkloadIdentity. -->
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT=true make gardener-extensions-up
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>[!IMPORTANT]
+The Gardener Discovery Server is started with a token which is valid for 48 hours.
+Rerun &lt;code>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT=true make gardener-extensions-up&lt;/code> in order to renew the token.&lt;/p>
+&lt;p>When working with multiple seed clusters you need to only pass &lt;code>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT=true&lt;/code> for the one seed cluster that will be used to expose the workload identity documents.
+A single Garden cluster needs only one Gardener Discovery Server.&lt;/p>
+&lt;/blockquote>
 &lt;h3 id="adding-additional-seeds">Adding Additional Seeds&lt;/h3>
 &lt;p>Additional seed(s) can be added by running&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-extensions-up SEED_NAME=&amp;lt;seed-name&amp;gt;
@@ -2259,6 +2283,11 @@ Additionally, please maintain the configuration of your seed in &lt;code>./examp
 &lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>make gardener-extensions-down SEED_NAME=&amp;lt;seed-name&amp;gt;
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If it is not the last seed, this command will only remove the seed, but leave the local Gardener cluster and the other seeds untouched.
 To remove all seeds and to cleanup the local Gardener cluster, you have to run the command for each seed.&lt;/p>
+&lt;blockquote>
+&lt;p>[!TIP]
+If using development setup that supports workload identity pass &lt;code>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT=true&lt;/code> when removing the seed that was used to host the &lt;a href="https://github.com/gardener/gardener-discovery-server">Gardener Discovery Server&lt;/a>.&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT=true make gardener-extensions-down SEED_NAME=&amp;lt;seed-name&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;/blockquote>
 &lt;h3 id="rotate-credentials-of-container-image-registry-in-a-seed">Rotate credentials of container image registry in a Seed&lt;/h3>
 &lt;p>There is a container image registry in each Seed cluster where Gardener images required for the Seed and the Shoot nodes are pushed to. This registry is password protected.
 The password is generated when the Seed is deployed via &lt;code>make gardener-extensions-up&lt;/code>. Afterward, it is not rotated automatically.

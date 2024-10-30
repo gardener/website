@@ -1881,7 +1881,6 @@ It is initially set to a &lt;code>NullLogger&lt;/code> by default, which means a
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>spec:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> shoot:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: crazy-botany
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> gardenlet: {}
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>For an example that uses non-default configuration, see &lt;a href="https://github.com/gardener/gardener/blob/master/example/55-managedseed-gardenlet.yaml">55-managed-seed-gardenlet.yaml&lt;/a>&lt;/p>
 &lt;h3 id="renewing-the-gardenlet-kubeconfig-secret">Renewing the Gardenlet Kubeconfig Secret&lt;/h3>
 &lt;p>In order to make the &lt;code>ManagedSeed&lt;/code> controller renew the gardenlet&amp;rsquo;s kubeconfig secret, annotate the &lt;code>ManagedSeed&lt;/code> with &lt;code>gardener.cloud/operation=renew-kubeconfig&lt;/code>. This will trigger a reconciliation during which the kubeconfig secret is deleted and the bootstrapping is performed again (during which gardenlet obtains a new client certificate).&lt;/p>
@@ -2194,12 +2193,22 @@ Please find more information in the linked document.
 In summary, most of the pods that initiate connections with other pods will have labels with &lt;code>networking.resources.gardener.cloud/&lt;/code> prefixes.
 This way, they leverage the automatically created &lt;code>NetworkPolicy&lt;/code>s by the controller.
 As a result, in most cases no special/custom-crafted &lt;code>NetworkPolicy&lt;/code>s must be created anymore.&lt;/p>
+&lt;h3 id="logging--monitoring">Logging &amp;amp; Monitoring&lt;/h3>
+&lt;p>As part of the garden reconciliation flow, the &lt;code>gardener-operator&lt;/code> deploys various Prometheus instances into the &lt;code>garden&lt;/code> namespace.
+Each pod that should be scraped for metrics by these instances must have a &lt;code>Service&lt;/code> which is annotated with&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/from-all-garden-scrape-targets-allowed-ports: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;port&amp;#34;:&amp;lt;metrics-port-on-pod&amp;gt;,&amp;#34;protocol&amp;#34;:&amp;#34;&amp;lt;protocol, typically TCP&amp;gt;&amp;#34;}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>If the respective pod is not running in the &lt;code>garden&lt;/code> namespace, the &lt;code>Service&lt;/code> needs these annotations in addition:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>annotations:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/namespace-selectors: &lt;span style="color:#a31515">&amp;#39;[{&amp;#34;matchLabels&amp;#34;:{&amp;#34;kubernetes.io/metadata.name&amp;#34;:&amp;#34;garden&amp;#34;}}]&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> networking.resources.gardener.cloud/pod-label-selector-namespace-alias: extensions
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>This automatically allows the needed network traffic from the respective Prometheus pods.&lt;/p>
 &lt;h2 id="seed-cluster">Seed Cluster&lt;/h2>
 &lt;p>&lt;em>(via &lt;code>gardenlet&lt;/code> and &lt;code>gardener-resource-manager&lt;/code>)&lt;/em>&lt;/p>
 &lt;p>In seed clusters it works the same way as in the garden cluster managed by &lt;code>gardener-operator&lt;/code>.
 When a seed cluster is the garden cluster at the same time, &lt;code>gardenlet&lt;/code> does not enable the &lt;code>NetworkPolicy&lt;/code> controller (since &lt;code>gardener-operator&lt;/code> already runs it).
 Otherwise, it uses the exact same controller and code like &lt;code>gardener-operator&lt;/code>, resulting in the same behaviour in both garden and seed clusters.&lt;/p>
-&lt;h3 id="logging--monitoring">Logging &amp;amp; Monitoring&lt;/h3>
+&lt;h3 id="logging--monitoring-1">Logging &amp;amp; Monitoring&lt;/h3>
 &lt;h4 id="seed-system-namespaces">Seed System Namespaces&lt;/h4>
 &lt;p>As part of the seed reconciliation flow, the &lt;code>gardenlet&lt;/code> deploys various Prometheus instances into the &lt;code>garden&lt;/code> namespace.
 See also &lt;a href="https://gardener.cloud/docs/gardener/monitoring-stack/">this document&lt;/a> for more information.

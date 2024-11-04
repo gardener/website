@@ -1,4 +1,54 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Project</title><link>https://gardener.cloud/docs/gardener/project/</link><description>Recent content in Project on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/project/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/project/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/project/projects/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gardener – Project</title><link>https://gardener.cloud/docs/gardener/project/</link><description>Recent content in Project on Gardener</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><atom:link href="https://gardener.cloud/docs/gardener/project/index.xml" rel="self" type="application/rss+xml"/><item><title>Docs: NamespacedCloudProfiles</title><link>https://gardener.cloud/docs/gardener/project/namespaced-cloud-profiles/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/project/namespaced-cloud-profiles/</guid><description>
+&lt;h1 id="namespacedcloudprofiles">&lt;code>NamespacedCloudProfile&lt;/code>s&lt;/h1>
+&lt;p>&lt;code>NamespacedCloudProfile&lt;/code>s are resources in Gardener that allow project-level customization of &lt;code>CloudProfile&lt;/code>s.
+They enable project administrators to create and manage cloud profiles specific to their projects and reduce the operational burden on central Gardener operators.
+As opposed to &lt;code>CloudProfile&lt;/code>s, &lt;code>NamespacedCloudProfile&lt;/code>s are namespaced and thus limit configuration options for &lt;code>Shoot&lt;/code>s, such as special machine types, to the associated project only.
+These profiles inherit from a parent &lt;code>CloudProfile&lt;/code> and can override or extend certain fields while maintaining backward compatibility.&lt;/p>
+&lt;p>Project viewers have the permission to see &lt;code>NamespacedCloudProfile&lt;/code>s associated with a particular project.
+Project administrators can generally create, edit, or delete &lt;code>NamespacedCloudProfile&lt;/code>s but with some exceptions (see the &lt;a href="https://gardener.cloud/docs/gardener/project/namespaced-cloud-profiles/#field-modification-restrictions">restrictions&lt;/a> outlined below).&lt;/p>
+&lt;p>When creating or updating a &lt;code>Shoot&lt;/code>, the cloud profile reference can be set to point to a &lt;code>NamespacedCloudProfile&lt;/code>, allowing for more granular and project-specific configurations.
+The modification of a &lt;code>Shoot&lt;/code>&amp;rsquo;s cloud profile reference is restricted to switching from a &lt;code>CloudProfile&lt;/code> to a descendant &lt;code>NamespacedCloudProfile&lt;/code>.
+Changing the reference from one &lt;code>NamespacedCloudProfile&lt;/code> to another &lt;code>NamespacedCloudProfile&lt;/code> or even to another &lt;code>CloudProfile&lt;/code> is not allowed.&lt;/p>
+&lt;p>The usage of &lt;code>NamespacedCloudProfile&lt;/code>s is currently subject to an alpha feature gate and is not enabled by default.
+It requires the enabled provider extensions to support the feature as well.
+The feature gate can be enabled by passing the &lt;code>--feature-gates=NamespacedCloudProfiles=true&lt;/code> flag to the Gardener API server.&lt;/p>
+&lt;p>Please see &lt;a href="https://github.com/gardener/gardener/blob/master/example/35-namespacedcloudprofile.yaml">this&lt;/a> example manifest and &lt;a href="https://github.com/gardener/gardener/blob/master/docs/proposals/25-namespaced-cloud-profiles.md">GEP-25&lt;/a> for additional information.&lt;/p>
+&lt;h2 id="field-modification-restrictions">Field Modification Restrictions&lt;/h2>
+&lt;p>In order to make changes to specific fields in the &lt;code>NamespacedCloudProfile&lt;/code>, a user must be granted custom RBAC verbs.
+Modifications of these fields need to be performed with caution and might require additional validation steps or accompanying changes.
+By default, only landscape operators have the permission to change these fields, as they are usually able to judge the implications.&lt;/p>
+&lt;p>Changing the following fields require the corresponding custom verbs:&lt;/p>
+&lt;ul>
+&lt;li>For changing the &lt;code>.spec.kubernetes&lt;/code> field, the custom verb &lt;code>modify-spec-kubernetes&lt;/code> is required.&lt;/li>
+&lt;li>For changing the &lt;code>.spec.machineImages&lt;/code> field, the custom verb &lt;code>modify-spec-machineimages&lt;/code> is required.&lt;/li>
+&lt;li>For changing the &lt;code>.spec.providerConfig&lt;/code> field, the custom verb &lt;code>modify-spec-providerconfig&lt;/code> is required.&lt;/li>
+&lt;/ul>
+&lt;p>The assignment of these custom verbs can be achieved by creating a &lt;code>ClusterRole&lt;/code> and a &lt;code>RoleBinding&lt;/code> like in the following example:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: rbac.authorization.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: ClusterRole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: namespacedcloudprofile-kubernetes
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>rules:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- apiGroups: [&lt;span style="color:#a31515">&amp;#34;core.gardener.cloud&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> resources: [&lt;span style="color:#a31515">&amp;#34;namespacedcloudprofiles&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> verbs: [&lt;span style="color:#a31515">&amp;#34;modify-spec-kubernetes&amp;#34;&lt;/span>]
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>---
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apiVersion: rbac.authorization.k8s.io/v1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>kind: RoleBinding
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>metadata:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: edit-kubernetes
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> namespace: dev
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>roleRef:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> apiGroup: rbac.authorization.k8s.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: ClusterRole
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: namespacedcloudprofile-kubernetes
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>subjects:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>- apiGroup: rbac.authorization.k8s.io
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> kind: User
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: alice.doe@example.com
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Docs: Projects</title><link>https://gardener.cloud/docs/gardener/project/projects/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://gardener.cloud/docs/gardener/project/projects/</guid><description>
 &lt;h1 id="projects">Projects&lt;/h1>
 &lt;p>The Gardener API server supports a cluster-scoped &lt;code>Project&lt;/code> resource which is used for data isolation between individual Gardener consumers. For example, each development team has its own project to manage its own shoot clusters.&lt;/p>
 &lt;p>Each &lt;code>Project&lt;/code> is backed by a Kubernetes &lt;code>Namespace&lt;/code> that contains the actual related Kubernetes resources, like &lt;code>Secret&lt;/code>s or &lt;code>Shoot&lt;/code>s.&lt;/p>
